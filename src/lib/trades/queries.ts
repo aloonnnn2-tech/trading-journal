@@ -134,9 +134,12 @@ const EMOTION_FIELD_KEYS = ["emotion_before", "emotion_during", "emotion_after"]
 // conditions, so a value containing a comma (an emotion tag can be any
 // free text the user typed on the Emotions page) needs to be wrapped in
 // double quotes -- with any embedded double quotes escaped -- to be safely
-// treated as one literal token.
+// treated as one literal token. Backslashes must be escaped first: the
+// value here is already a JSON.stringify() result, which backslash-escapes
+// its own embedded quotes, and escaping quotes before backslashes would
+// double-escape those, corrupting the token.
 function quoteOrValue(value: string): string {
-  return `"${value.replace(/"/g, '\\"')}"`;
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 const STRATEGY_TAG_KEY = "strategy_setup";

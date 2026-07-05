@@ -121,10 +121,16 @@ export function FieldManager({
 
     const current = fields[index];
     const target = fields[targetIndex];
+    // The two fields swap sort_order values, not just array position -- if
+    // the local objects still carried their old sort_order, a second
+    // reorder before a full reload would PATCH stale values and could
+    // collide with another field's real sort_order.
+    const movedTarget = { ...target, sort_order: current.sort_order };
+    const movedCurrent = { ...current, sort_order: target.sort_order };
 
     const reordered = [...fields];
-    reordered[index] = target;
-    reordered[targetIndex] = current;
+    reordered[index] = movedTarget;
+    reordered[targetIndex] = movedCurrent;
     setFields(reordered);
 
     const [resA, resB] = await Promise.all([

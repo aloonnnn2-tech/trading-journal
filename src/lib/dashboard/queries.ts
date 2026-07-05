@@ -28,7 +28,13 @@ export async function getWinRate(
 ): Promise<{ wins: number; closedTotal: number; rate: number | null }> {
   const base = () => supabase.from("trades").select("*", { count: "exact", head: true }).eq("status", "closed");
 
-  const [closedTotal, wins] = await Promise.all([base(), base().eq("result", "win")]);
+  // Defined by dollar_pl > 0, not the result column, to match every other
+  // win-rate calculation in the app (analytics/insights/ask queries, and
+  // this same file's own getBestWorstSetup) -- result is user-set and can
+  // drift from the computed P/L (e.g. marked "win" before entry/exit
+  // prices are filled in), which previously made this the one place in
+  // the app showing a different win rate for the same trades.
+  const [closedTotal, wins] = await Promise.all([base(), base().gt("dollar_pl", 0)]);
 
   const total = closedTotal.count ?? 0;
   const winCount = wins.count ?? 0;

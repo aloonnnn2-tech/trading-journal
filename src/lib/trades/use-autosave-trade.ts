@@ -17,6 +17,14 @@ export function useAutosaveTrade(initialTrade: Trade) {
   // flush has already started (and will apply its own, fresher response),
   // so it doesn't regress state to a pre-edit value once it lands.
   const requestSeqRef = useRef(0);
+  // Which request last "claimed" each key for a round-trip. On failure, a
+  // request should only requeue the keys it still owns -- if a later
+  // request has since claimed a key (the user edited it again and that
+  // edit was already dispatched), requeuing the old value would stomp the
+  // newer one; not requeuing it at all would silently drop it if no later
+  // request ever touched it.
+  const coreKeyOwnerRef = useRef<Partial<Record<EditableCoreField, number>>>({});
+  const customKeyOwnerRef = useRef<Record<string, number>>({});
   // `flush` needs to re-schedule itself on failure, but `schedule` (below)
   // is defined in terms of `flush` -- indirect through a ref rather than a
   // circular useCallback dependency.
@@ -31,6 +39,8 @@ export function useAutosaveTrade(initialTrade: Trade) {
     if (Object.keys(core).length === 0 && Object.keys(customFields).length === 0) return;
 
     const seq = ++requestSeqRef.current;
+    for (const key of Object.keys(core) as EditableCoreField[]) coreKeyOwnerRef.current[key] = seq;
+    for (const key of Object.keys(customFields)) customKeyOwnerRef.current[key] = seq;
     setStatus("saving");
     try {
       const res = await fetch(`/api/trades/${trade.id}`, {
@@ -61,11 +71,21 @@ export function useAutosaveTrade(initialTrade: Trade) {
       });
       setStatus("saved");
     } catch {
-      // Put the failed changes back in the queue (newer pending edits win,
-      // since they're spread second) and retry on the normal debounce
-      // instead of dropping them on the floor.
-      pendingCoreRef.current = { ...core, ...pendingCoreRef.current };
-      pendingCustomRef.current = { ...customFields, ...pendingCustomRef.current };
+      // Only requeue keys this request still owns -- a key a later request
+      // has since claimed (owner seq moved on) is either already being
+      // retried by that request or was already saved by it; requeuing it
+      // here would either duplicate work or stomp newer data.
+      const staleCore: Partial<Record<EditableCoreField, unknown>> = {};
+      for (const key of Object.keys(core) as EditableCoreField[]) {
+        if (coreKeyOwnerRef.current[key] === seq) staleCore[key] = core[key];
+      }
+      const staleCustom: Record<string, unknown> = {};
+      for (const key of Object.keys(customFields)) {
+        if (customKeyOwnerRef.current[key] === seq) staleCustom[key] = customFields[key];
+      }
+      // Newer pending edits win, since they're spread second.
+      pendingCoreRef.current = { ...staleCore, ...pendingCoreRef.current };
+      pendingCustomRef.current = { ...staleCustom, ...pendingCustomRef.current };
       if (seq === requestSeqRef.current) setStatus("error");
       scheduleRef.current();
     }

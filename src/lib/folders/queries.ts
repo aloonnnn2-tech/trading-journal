@@ -48,6 +48,11 @@ export async function setTradeFolders(
   tradeId: string,
   folderIds: string[],
 ): Promise<void> {
+  // Dedupe first -- otherwise a duplicate id in the payload makes the
+  // count check below reject a request that's actually valid (`.in()`
+  // naturally collapses duplicates, so the counts would never match).
+  folderIds = Array.from(new Set(folderIds));
+
   if (folderIds.length > 0) {
     // Validate before deleting anything -- a folderId that doesn't exist
     // (or belongs to another user, filtered out by RLS) would otherwise
