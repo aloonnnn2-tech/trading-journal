@@ -1,0 +1,11 @@
+{
+  "note": "Robinhood-style options position view (not an order ticket) -- QQQ $590 Put, 2 contracts held.",
+  "core": {
+    "ticker": "QQQ",
+    "direction": "long",
+    "shares": 2,
+    "average_price": 0.36,
+    "current_price": 7.63,
+    "position_size": 1526
+  }
+}

@@ -1,38 +1,62 @@
 {
-  "generatedAt": "2026-07-04T16:49:01.529Z",
+  "generatedAt": "2026-07-05T21:43:55.664Z",
   "autofillThreshold": 0.55,
-  "images": 12,
-  "overallAccuracy": 0.912,
-  "precision": 0.939,
-  "recall": 0.912,
-  "falsePositives": 1,
-  "avgProcessingMs": 1139,
+  "images": 17,
+  "overallAccuracy": 0.98,
+  "precision": 0.951,
+  "recall": 0.98,
+  "falsePositives": 3,
+  "avgProcessingMs": 1104,
   "perField": {
     "ticker": {
-      "accuracy": 0.833,
-      "correct": 10,
-      "wrong": 2,
+      "accuracy": 0.941,
+      "correct": 16,
+      "wrong": 1,
       "missing": 0,
       "avgConfidenceCorrect": 0.9,
       "avgConfidenceWrong": 0.9
     },
     "direction": {
-      "accuracy": 0.9,
-      "correct": 9,
+      "accuracy": 1,
+      "correct": 15,
       "wrong": 0,
-      "missing": 1,
+      "missing": 0,
       "avgConfidenceCorrect": 0.85,
       "avgConfidenceWrong": 0
     },
     "entry_price": {
-      "accuracy": 0.889,
-      "correct": 8,
+      "accuracy": 0.923,
+      "correct": 12,
       "wrong": 1,
       "missing": 0,
-      "avgConfidenceCorrect": 0.876,
+      "avgConfidenceCorrect": 0.893,
       "avgConfidenceWrong": 0.55
     },
     "stop_loss": {
+      "accuracy": 1,
+      "correct": 11,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.957,
+      "avgConfidenceWrong": 0
+    },
+    "take_profit": {
+      "accuracy": 1,
+      "correct": 9,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.965,
+      "avgConfidenceWrong": 0
+    },
+    "shares": {
+      "accuracy": 1,
+      "correct": 16,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.86,
+      "avgConfidenceWrong": 0
+    },
+    "position_size": {
       "accuracy": 1,
       "correct": 7,
       "wrong": 0,
@@ -40,20 +64,28 @@
       "avgConfidenceCorrect": 0.979,
       "avgConfidenceWrong": 0
     },
-    "take_profit": {
+    "risk_amount": {
       "accuracy": 1,
-      "correct": 7,
+      "correct": 1,
       "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.983,
+      "avgConfidenceCorrect": 0.964,
       "avgConfidenceWrong": 0
     },
-    "shares": {
-      "accuracy": 0.818,
-      "correct": 9,
+    "average_price": {
+      "accuracy": 1,
+      "correct": 3,
       "wrong": 0,
-      "missing": 2,
-      "avgConfidenceCorrect": 0.899,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.93,
+      "avgConfidenceWrong": 0
+    },
+    "current_price": {
+      "accuracy": 1,
+      "correct": 3,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.962,
       "avgConfidenceWrong": 0
     },
     "status": {
@@ -64,36 +96,12 @@
       "avgConfidenceCorrect": 0.7,
       "avgConfidenceWrong": 0
     },
-    "position_size": {
-      "accuracy": 1,
-      "correct": 3,
-      "wrong": 0,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.98,
-      "avgConfidenceWrong": 0
-    },
     "dollar_amount": {
       "accuracy": 1,
       "correct": 2,
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.938,
-      "avgConfidenceWrong": 0
-    },
-    "average_price": {
-      "accuracy": 1,
-      "correct": 2,
-      "wrong": 0,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.938,
-      "avgConfidenceWrong": 0
-    },
-    "current_price": {
-      "accuracy": 1,
-      "correct": 2,
-      "wrong": 0,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.974,
       "avgConfidenceWrong": 0
     },
     "entry_date": {
@@ -111,7 +119,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 1415,
+      "ms": 1402,
       "engine": "paddleocr"
     },
     {
@@ -119,15 +127,55 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 402,
+      "ms": 472,
       "engine": "paddleocr"
     },
     {
       "name": "futures/futures-style-short.png",
-      "correct": 4,
+      "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 461,
+      "ms": 533,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "new-broker/order-khc-stop.jpg",
+      "correct": 7,
+      "total": 7,
+      "falsePos": 1,
+      "ms": 869,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "new-broker/order-schw-limit.jpg",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 801,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "new-broker/order-txt-stop.jpg",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 1,
+      "ms": 838,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "new-broker/order-usb-stop.jpg",
+      "correct": 7,
+      "total": 7,
+      "falsePos": 0,
+      "ms": 831,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "options/position-qqq-put.png",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 776,
       "engine": "paddleocr"
     },
     {
@@ -135,7 +183,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 762,
+      "ms": 832,
       "engine": "paddleocr"
     },
     {
@@ -143,7 +191,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 749,
+      "ms": 830,
       "engine": "paddleocr"
     },
     {
@@ -151,7 +199,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 425,
+      "ms": 513,
       "engine": "paddleocr"
     },
     {
@@ -159,7 +207,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 501,
+      "ms": 553,
       "engine": "paddleocr"
     },
     {
@@ -167,7 +215,7 @@
       "correct": 2,
       "total": 3,
       "falsePos": 0,
-      "ms": 2008,
+      "ms": 2123,
       "engine": "paddleocr"
     },
     {
@@ -175,23 +223,23 @@
       "correct": 5,
       "total": 5,
       "falsePos": 0,
-      "ms": 454,
+      "ms": 489,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/Trading_overview_stocks_(Dark_theme).png",
-      "correct": 2,
+      "correct": 3,
       "total": 4,
       "falsePos": 1,
-      "ms": 4063,
+      "ms": 4179,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/Trading_View_Gallery-7-7.png",
-      "correct": 3,
+      "correct": 4,
       "total": 4,
       "falsePos": 0,
-      "ms": 1897,
+      "ms": 2160,
       "engine": "paddleocr"
     },
     {
@@ -199,7 +247,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 525,
+      "ms": 567,
       "engine": "paddleocr"
     }
   ]

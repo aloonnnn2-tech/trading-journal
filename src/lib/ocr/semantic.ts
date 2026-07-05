@@ -6,7 +6,7 @@
 import type { DetectedField, FieldKey, OcrLine } from "./types";
 import { FIELD_LABELS, NUMERIC_FIELDS, DATE_FIELDS } from "./types";
 import { Layout } from "./layout";
-import { matchLabel, splitMultiLabel, findTicker, findDirection, findStatus } from "./labels";
+import { matchLabel, splitMultiLabel, findTicker, findDirection, findStatus, unglueDirectionKeyword, TICKER_BLOCKLIST } from "./labels";
 import { parseNumber, parseDate, looksLikeValue, cleanText, isNumericToken, normalizeLabel, NUM_RE } from "./normalize";
 
 // Fields we resolve by finding a label and reading its adjacent value.
@@ -34,7 +34,9 @@ type Candidate = DetectedField;
 
 export function parseSemantic(lines: OcrLine[]): Candidate[] {
   const layout = new Layout(lines);
-  const texts = layout.texts;
+  // Fix lost whitespace between a ticker and a glued direction badge before
+  // ticker/direction keyword scanning and the notation fallbacks below run.
+  const texts = layout.texts.map(unglueDirectionKeyword);
   const candidates: Candidate[] = [];
   const push = (c: Candidate | null) => {
     if (c) candidates.push(c);
@@ -54,6 +56,11 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
   for (const line of layout.lines) {
     const parts = splitLabelValue(line.text);
     if (!parts) continue;
+    // "Tick value" (a futures/options contract's $-per-minimum-price-increment,
+    // shown in an order ticket's info section) isn't a tracked field, but the
+    // bare "value" alias for dollar_amount fuzzy-matches its trailing word —
+    // skip it explicitly rather than mislabel it.
+    if (normalizeLabel(parts.label) === "tick value") continue;
 
     // Multi-column summary row OCR merged onto one line ("Market Value Total
     // Cost Average Price"). Split it into its labels, split the value line
@@ -84,6 +91,12 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
 
     // Same-line value ("Stop Loss 147.80").
     if (parts.value) {
+      // A short alias ("SL", "TP") is exact-match-only but still collides with
+      // unrelated shorthand, e.g. a chart's drawn order line tagged "SL 10 Buy
+      // Limit AAPL" (a Stop-Limit order annotation, not a stop-loss price). A
+      // genuine label line just states the price; trailing order-type/ticker
+      // words after the number are a sign this line names something else.
+      if (match.alias.length <= 2 && !isBareNumericValue(parts.value)) continue;
       const c = buildCandidate(match.key, parts.value, line, match.score, "same line");
       if (c) push(c);
       continue;
@@ -150,10 +163,33 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
 
   // Broker fill notation: "BOT 100 AAPL @ 189.32".
   if (!has(candidates, "entry_price")) {
-    const at = joined.match(new RegExp(String.raw`[@©][ \t]*\$?[ \t]*(${NUM_RE})`));
-    if (at) {
-      const n = parseNumber(at[1]);
-      if (n !== null) push({ key: "entry_price", value: n, confidence: 0.55, source: "fill notation (@)", raw: at[0], box: lineFor(at[0])?.box });
+    const atRe = new RegExp(String.raw`[@©][ \t]*\$?[ \t]*(${NUM_RE})`, "g");
+    const atMatches = [...joined.matchAll(atRe)];
+    const atValues = atMatches.map((m) => parseNumber(m[1])).filter((n): n is number => n !== null);
+    // Multiple *different* "@ price" notations in the same image — e.g. a
+    // right-click context menu offering several hypothetical actions at the
+    // cursor's price, alongside the real order ticket's own fill price — give
+    // no reliable way to tell which one is the real fill. Guessing either
+    // the first or the last is still a guess, so leave it unresolved rather
+    // than risk a confidently-wrong value.
+    const distinct = [...new Set(atValues)];
+    if (distinct.length === 1) {
+      const at = atMatches[0];
+      push({ key: "entry_price", value: distinct[0], confidence: 0.55, source: "fill notation (@)", raw: at[0], box: lineFor(at[0])?.box });
+    }
+  }
+
+  // Order-line quantity: "10 AAPL @ 189.32", "1 SPY250214C603.0 @ 2.62 LMT" —
+  // a bare quantity directly preceding a ticker-like token directly preceding
+  // an @-fill price is a common order-ticket shape across brokers.
+  if (!has(candidates, "shares")) {
+    const m = joined.match(new RegExp(String.raw`\b(${NUM_RE})[ \t]+([A-Z][A-Z0-9.]{1,14})[ \t]*[@©]`));
+    if (m && !TICKER_BLOCKLIST.has(m[2].toUpperCase())) {
+      const n = parseNumber(m[1]);
+      // A cropped re-OCR pass can clip the leading digit off a quantity
+      // ("10 AAPL" -> "0 AAPL"); a real quantity is never 0, so reject rather
+      // than let a clipped read tie confidence with — and beat — a correct one.
+      if (n !== null && n > 0) push({ key: "shares", value: n, confidence: 0.6, source: "order line quantity", raw: m[0], box: lineFor(m[0])?.box });
     }
   }
 
@@ -237,6 +273,15 @@ function splitLabelValue(text: string): { label: string; value: string | null } 
   return { label: t, value: null };
 }
 
+/** True if a same-line "value" string is just the number itself, plus at most
+ * a trailing unit (%, k/M/B, currency) — no further words. Used to keep a
+ * short 2-letter alias match ("SL", "TP") from grabbing an order/annotation
+ * tag line where the leading number isn't actually this field's value. */
+function isBareNumericValue(value: string): boolean {
+  const rest = value.replace(new RegExp(`^\\s*(?:${NUM_RE})`), "").trim();
+  return rest === "" || /^[%kKmMbB]$/.test(rest);
+}
+
 function buildCandidate(
   key: FieldKey,
   rawValue: string,
@@ -248,7 +293,19 @@ function buildCandidate(
   const source = `${FIELD_LABELS[key]} — ${where}`;
 
   if (NUMERIC_FIELDS.has(key)) {
-    const n = parseNumber(rawValue);
+    let value = rawValue;
+    if (key === "risk_amount") {
+      // A bare "Risk" label commonly carries both figures on one line,
+      // slash-separated ("Risk 0.31% / 1.46 USD") — risk_amount must be the
+      // dollar side, so skip past a leading %-suffixed number to the next.
+      const leadingPercent = value.match(new RegExp(String.raw`^\s*(?:${NUM_RE})\s*%`));
+      if (leadingPercent) {
+        const rest = value.slice(leadingPercent[0].length);
+        const next = rest.match(new RegExp(NUM_RE));
+        if (next) value = next[0];
+      }
+    }
+    const n = parseNumber(value);
     if (n === null) return null;
     return { key, value: n, confidence, source, raw: rawValue, box: line.box };
   }

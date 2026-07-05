@@ -1,0 +1,11 @@
+{
+  "note": "Broker order ticket (Limit order), SCHW. Buy 1 SCHW @ 56.00 limit, TP 120.12 and SL 43.31 both toggled on.",
+  "core": {
+    "ticker": "SCHW",
+    "direction": "long",
+    "entry_price": 56.00,
+    "stop_loss": 43.31,
+    "take_profit": 120.12,
+    "shares": 1
+  }
+}

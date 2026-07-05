@@ -1,0 +1,12 @@
+{
+  "note": "Broker order ticket (Stop order), KHC. Buy 1 KHC @ 25.58 stop, SL 24.12 toggled on. Take profit toggle is off (greyed placeholder 26.33) -- not a real value.",
+  "core": {
+    "ticker": "KHC",
+    "direction": "long",
+    "entry_price": 25.58,
+    "stop_loss": 24.12,
+    "shares": 1,
+    "position_size": 25.58,
+    "risk_amount": 1.46
+  }
+}

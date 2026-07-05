@@ -228,6 +228,25 @@ export function matchLabel(fragment: string): LabelMatch | null {
  * "stop" and "stop loss" both inside "Stop Loss, Price") is one column, not
  * two, and must not be counted as a multi-column row.
  */
+/** Find `needle` inside `haystack` only where it sits on a word boundary on
+ * both sides — a raw substring search would let a short alias like "mark"
+ * (current_price) match inside an unrelated word like "market", e.g. an
+ * order-type tab row ("Market Limit Stop Stop Limit") that isn't a data row
+ * at all. `norm` text is alphanumerics (plus /&%), so a boundary is the
+ * string edge or a non-alphanumeric neighbor. */
+function findWordAligned(haystack: string, needle: string): number {
+  let from = 0;
+  const isWordChar = (c: string) => /[a-z0-9]/i.test(c);
+  for (;;) {
+    const idx = haystack.indexOf(needle, from);
+    if (idx === -1) return -1;
+    const before = idx > 0 ? haystack[idx - 1] : "";
+    const after = idx + needle.length < haystack.length ? haystack[idx + needle.length] : "";
+    if (!isWordChar(before) && !isWordChar(after)) return idx;
+    from = idx + 1;
+  }
+}
+
 export function splitMultiLabel(text: string): { key: FieldKey; alias: string }[] | null {
   const norm = normalizeLabel(text);
   if (!norm) return null;
@@ -245,7 +264,7 @@ export function splitMultiLabel(text: string): { key: FieldKey; alias: string }[
     // shorter alias for the same key just means the label repeated itself,
     // not a second column.
     if (found.some((f) => f.key === key)) continue;
-    const idx = norm.indexOf(alias);
+    const idx = findWordAligned(norm, alias);
     if (idx === -1) continue;
     const end = idx + alias.length;
     if (found.some((f) => idx < f.index + f.alias.length && end > f.index)) continue;
@@ -303,7 +322,18 @@ export function findTicker(texts: string[]): { value: string; source: string } |
     return { value: cleanTicker(mtStyle[1]), source: "MT4/5 symbol notation" };
   }
 
-  // 3. First all-caps token scanning top-down — headers name the symbol first.
+  // 3. Retail-app options header: "QQQ $590 Put" — OCR often misreads a "$"
+  // glued directly against the strike (no rendered space) as a capital "S"
+  // ("QQQ S590 Put"). Anchored strictly to a following Put/Call so this
+  // narrow rewrite can't misfire on an unrelated real ticker; the OCC-style
+  // compact symbol ("SPY250214C603") is a different shape (no space, C/P
+  // comes before the strike) and isn't matched by this.
+  const optionHeader = joined.match(/\b([A-Z]{1,5})[S$]\s*\d+(?:\.\d+)?\s+(?:Put|Call)\b/i);
+  if (optionHeader && !TICKER_BLOCKLIST.has(optionHeader[1].toUpperCase())) {
+    return { value: cleanTicker(optionHeader[1]), source: "options header ($strike Put/Call)" };
+  }
+
+  // 4. First all-caps token scanning top-down — headers name the symbol first.
   for (const line of texts) {
     const tokens = line.match(/\b[A-Z][A-Z0-9]{1,9}\b/g) ?? [];
     for (const t of tokens) {
@@ -316,6 +346,19 @@ export function findTicker(texts: string[]): { value: string; source: string } |
 // ---------------------------------------------------------------------------
 // Direction & status keywords
 // ---------------------------------------------------------------------------
+
+// OCR recognition sometimes drops the space between a ticker/exchange token
+// and a direction badge rendered immediately next to it in the UI
+// ("CME:ES Sell" -> "CME:ESSell"). A ticker renders in solid caps while a
+// direction badge renders Buy/Sell/Long/Short (Title Case or all caps) — an
+// uppercase run directly followed by one of those words, with no space and no
+// further lowercase letters after, is unambiguous lost whitespace, not a real
+// word. Restoring the space lets both ticker and direction detection read the
+// two tokens correctly.
+const GLUED_DIRECTION_RE = /([A-Z]{2,10})(Buy|Sell|Long|Short|Bought|Sold|BUY|SELL|LONG|SHORT|BOUGHT|SOLD)(?![a-zA-Z])/g;
+export function unglueDirectionKeyword(text: string): string {
+  return text.replace(GLUED_DIRECTION_RE, "$1 $2");
+}
 
 export function findDirection(texts: string[]): { value: "long" | "short"; source: string } | null {
   // "Limit Sell" / "Sell Limit" describe an exit order, not the trade direction.

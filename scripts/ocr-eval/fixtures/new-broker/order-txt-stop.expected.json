@@ -1,0 +1,11 @@
+{
+  "note": "Broker order ticket (Stop order), TXT, fractional-share order sized by USD. Buy 0.2626 TXT @ 95.20 stop, SL 89.77 toggled on. Take profit toggle is off (greyed placeholder 95.95) -- not a real value.",
+  "core": {
+    "ticker": "TXT",
+    "direction": "long",
+    "entry_price": 95.20,
+    "stop_loss": 89.77,
+    "shares": 0.2626,
+    "position_size": 25
+  }
+}
