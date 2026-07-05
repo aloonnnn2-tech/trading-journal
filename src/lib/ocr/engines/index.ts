@@ -7,7 +7,6 @@
 import type { OcrLine, OcrPassResult } from "../types";
 import type { PreprocessVariant } from "../preprocess";
 import { paddleEngine } from "./paddle";
-import { tesseractEngine } from "./tesseract";
 
 /** Char-weighted mean confidence — long confident lines matter more. */
 function meanConfidence(lines: OcrLine[]): number {
@@ -63,16 +62,18 @@ export async function runOcr(variants: PreprocessVariant[]): Promise<OcrPassResu
     }
   }
 
-  // Fallback only if the primary never produced a usable result.
-  if (!best || best.meanConfidence < 0.5 || best.lines.length < 2) {
-    try {
-      const variant = variants[0];
-      const lines = await tesseractEngine.recognize(variant.path);
-      if (!best || score(lines) > bestScore) best = toResult(lines, tesseractEngine.name, variant);
-    } catch {
-      // Both engines failed — return whatever we have (possibly empty).
-    }
-  }
+  // The Tesseract fallback is intentionally disabled, not just untriggered:
+  // tesseract.js's Node backend spawns a worker_thread internally
+  // (createWorker()), and a startup failure in that worker is a
+  // process-level crash, not a normal thrown error -- it bypasses ordinary
+  // try/catch entirely and takes the whole serverless function down.
+  // Confirmed via Netlify function logs: "Uncaught Exception ... Cannot
+  // find module '..' ... tesseract.js/src/worker-script/node/index.js",
+  // caused by Netlify's bundler restructuring tesseract.js's own package
+  // layout. Returning Paddle's best-effort result (even low-confidence, or
+  // empty) is strictly safer than a fallback attempt that can crash the
+  // request outright. Re-enable only after confirming tesseract.js's
+  // worker thread actually starts successfully in this deployment target.
 
   return best ?? { lines: [], engine: "none", variant: "none", variantPath: "", meanConfidence: 0, rawText: "" };
 }
