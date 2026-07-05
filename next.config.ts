@@ -5,18 +5,16 @@ const nextConfig: NextConfig = {
   // Tesseract). Keep them external so Next doesn't try to bundle their native
   // binaries into the server build.
   serverExternalPackages: ["@gutenye/ocr-node", "onnxruntime-node", "sharp", "tesseract.js"],
-  // The default "mobile" OCR models (used on every request unless
-  // OCR_MODEL_VARIANT=server) live in @gutenye/ocr-models/assets/*.onnx.
-  // That package resolves its own file paths via `import.meta.url` at
-  // runtime (see node_modules/@gutenye/ocr-models/node.js), which Next's
-  // file tracer can't follow -- confirmed via `next build` + inspecting the
-  // route's .nft.json trace: the package's node.js is traced, but its
-  // assets/ files are silently omitted. Without them present in the
-  // deployed function, model loading fails on every request. Force-include
-  // them explicitly.
-  outputFileTracingIncludes: {
-    "/api/ocr/parse": ["node_modules/@gutenye/ocr-models/assets/**"],
-  },
+  // The default "mobile" OCR models used to be read from
+  // @gutenye/ocr-models/assets/*.onnx, resolved via that package's own
+  // `import.meta.url`-based path logic. Both Next's own file tracer *and*
+  // (confirmed by testing) Netlify's Next.js Runtime fail to include those
+  // asset files in the deployed function even with outputFileTracingIncludes
+  // set here, so every OCR request 502'd in production. Fixed at the source
+  // instead: the mobile models are now committed to models/paddleocr-mobile/
+  // and read via plain project-relative paths (see paddle.ts), matching the
+  // server variant below, which was never affected by this problem.
+  //
   // The OCR route statically fs.access()es the opt-in "server" model variant
   // (models/paddleocr-server/*.onnx, ~194MB combined, OCR_MODEL_VARIANT=server
   // -- off by default, see src/lib/ocr/engines/paddle.ts) to decide whether to

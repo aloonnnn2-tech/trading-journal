@@ -3,9 +3,22 @@
 // expensive to build, so it is created once and reused across requests (the
 // spec's "avoid loading models repeatedly").
 //
+// Model paths are always resolved by us, from project-root-relative files we
+// commit ourselves, rather than left to @gutenye/ocr-node's own default
+// resolution (@gutenye/ocr-models/node.js locates its bundled assets via
+// `import.meta.url`, a dynamic path serverless bundlers can't always trace --
+// confirmed broken on Netlify's Next.js Runtime: the model's own JS gets
+// deployed but its .onnx asset files silently don't, so every request 502s
+// regardless of Next's own outputFileTracingIncludes config, which Netlify's
+// adapter doesn't appear to honor the same way `next build`'s own tracer
+// does locally). Plain project-relative files matching this same pattern
+// (see the server variant below) are what's actually been verified to work.
+//
 // Two model variants are supported, both fully offline:
-//   - "mobile" (default): the small models @gutenye/ocr-node bundles. This is
-//     the right choice for this app.
+//   - "mobile" (default): small models, committed to models/paddleocr-mobile/
+//     (copied once from @gutenye/ocr-models/assets -- see that package's
+//     license for redistribution terms). This is the right choice for this
+//     app.
 //   - "server" (opt-in via OCR_MODEL_VARIANT=server): larger PP-OCRv4 server
 //     detection + recognition weights (official PaddleOCR release, converted
 //     to ONNX by the RapidOCR project, Apache-2.0), read from
@@ -35,21 +48,28 @@ interface ModelPaths {
   dictionaryPath: string;
 }
 
+const MOBILE_MODEL_DIR = path.resolve(process.cwd(), "models", "paddleocr-mobile");
 const SERVER_MODEL_DIR = path.resolve(process.cwd(), "models", "paddleocr-server");
 
-async function resolveServerModels(): Promise<ModelPaths | null> {
-  if (process.env.OCR_MODEL_VARIANT !== "server") return null;
-  const detectionPath = path.join(SERVER_MODEL_DIR, "ch_PP-OCRv4_det_server_infer.onnx");
-  const recognitionPath = path.join(SERVER_MODEL_DIR, "ch_PP-OCRv4_rec_server_infer.onnx");
-  try {
-    await Promise.all([fs.access(detectionPath), fs.access(recognitionPath)]);
-  } catch {
-    // Requested but not downloaded — fall back to the bundled mobile model
-    // rather than failing the whole pipeline.
-    return null;
+const MOBILE_MODELS: ModelPaths = {
+  detectionPath: path.join(MOBILE_MODEL_DIR, "ch_PP-OCRv4_det_infer.onnx"),
+  recognitionPath: path.join(MOBILE_MODEL_DIR, "ch_PP-OCRv4_rec_infer.onnx"),
+  dictionaryPath: path.join(MOBILE_MODEL_DIR, "ppocr_keys_v1.txt"),
+};
+
+async function resolveModels(): Promise<ModelPaths> {
+  if (process.env.OCR_MODEL_VARIANT === "server") {
+    const detectionPath = path.join(SERVER_MODEL_DIR, "ch_PP-OCRv4_det_server_infer.onnx");
+    const recognitionPath = path.join(SERVER_MODEL_DIR, "ch_PP-OCRv4_rec_server_infer.onnx");
+    try {
+      await Promise.all([fs.access(detectionPath), fs.access(recognitionPath)]);
+      return { detectionPath, recognitionPath, dictionaryPath: MOBILE_MODELS.dictionaryPath };
+    } catch {
+      // Requested but not downloaded — fall back to the bundled mobile model
+      // rather than failing the whole pipeline.
+    }
   }
-  const models = (await import("@gutenye/ocr-models/node")) as unknown as { default: ModelPaths };
-  return { detectionPath, recognitionPath, dictionaryPath: models.default.dictionaryPath };
+  return MOBILE_MODELS;
 }
 
 let ocrPromise: Promise<PaddleOcr> | null = null;
@@ -60,8 +80,8 @@ async function getOcr(): Promise<PaddleOcr> {
       const mod = (await import("@gutenye/ocr-node")) as unknown as {
         default: { create(options?: unknown): Promise<PaddleOcr> };
       };
-      const serverModels = await resolveServerModels();
-      return mod.default.create(serverModels ? { models: serverModels } : undefined);
+      const models = await resolveModels();
+      return mod.default.create({ models });
     })();
     // If model creation fails, allow a later retry rather than caching the error.
     ocrPromise.catch(() => {
