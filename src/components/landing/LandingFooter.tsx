@@ -11,7 +11,7 @@ export function LandingFooter() {
             className="flex items-center gap-2 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
           >
             <BrandMark className="h-5 w-5" />
-            Trading Journal
+            Trading Lens
           </Link>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-zinc-500">
             <Link href="/#features" className="hover:text-zinc-900 dark:hover:text-zinc-100">
@@ -29,7 +29,7 @@ export function LandingFooter() {
           </div>
         </div>
         <div className="flex flex-col items-center justify-between gap-3 border-t border-zinc-100 pt-6 text-xs text-zinc-400 dark:border-subtle sm:flex-row">
-          <span>© 2026 Trading Journal</span>
+          <span>© 2026 Trading Lens</span>
           <div className="flex gap-5">
             <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-zinc-100">
               Privacy

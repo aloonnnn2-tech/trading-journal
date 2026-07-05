@@ -3,7 +3,7 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Contact — Trading Journal",
+  title: "Contact — Trading Lens",
   robots: { index: false },
 };
 

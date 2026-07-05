@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trading Journal",
+  title: "Trading Lens",
   description: "Review, analyze, and improve your trading performance.",
 };
 

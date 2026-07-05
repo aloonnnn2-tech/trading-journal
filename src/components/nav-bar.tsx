@@ -71,7 +71,7 @@ export function NavBar() {
             className="mr-4 flex shrink-0 items-center gap-2.5 py-3.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
           >
             <BrandMark className="h-6 w-6" />
-            <span className="hidden sm:inline">Trading Journal</span>
+            <span className="hidden sm:inline">Trading Lens</span>
           </Link>
           {LINKS.map((link) => {
             const active = pathname === link.href || pathname.startsWith(link.href + "/");

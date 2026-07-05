@@ -3,7 +3,7 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Trading Journal",
+  title: "Privacy Policy — Trading Lens",
   robots: { index: false },
 };
 

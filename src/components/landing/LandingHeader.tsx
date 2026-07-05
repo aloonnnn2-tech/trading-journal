@@ -25,7 +25,7 @@ export function LandingHeader() {
     >
       <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
         <BrandMark className="h-6 w-6" />
-        Trading Journal
+        Trading Lens
       </Link>
       <nav className="hidden items-center gap-6 sm:flex">
         <Link
