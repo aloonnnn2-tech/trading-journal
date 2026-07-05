@@ -14,6 +14,10 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const trade = await restoreTradeVersion(supabase, id, historyId);
-  return NextResponse.json(trade);
+  try {
+    const trade = await restoreTradeVersion(supabase, id, historyId);
+    return NextResponse.json(trade);
+  } catch {
+    return NextResponse.json({ error: "History entry not found for this trade" }, { status: 404 });
+  }
 }

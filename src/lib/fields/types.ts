@@ -1,18 +1,21 @@
-export type EntityType = "trade" | "investment";
+export const ENTITY_TYPES = ["trade", "investment"] as const;
+export type EntityType = (typeof ENTITY_TYPES)[number];
 
-export type FieldType =
-  | "text"
-  | "number"
-  | "date"
-  | "currency"
-  | "percentage"
-  | "dropdown"
-  | "multi_select"
-  | "checkbox"
-  | "rating"
-  | "large_notes"
-  | "tag"
-  | "color_picker";
+export const FIELD_TYPES = [
+  "text",
+  "number",
+  "date",
+  "currency",
+  "percentage",
+  "dropdown",
+  "multi_select",
+  "checkbox",
+  "rating",
+  "large_notes",
+  "tag",
+  "color_picker",
+] as const;
+export type FieldType = (typeof FIELD_TYPES)[number];
 
 export interface FieldOptions {
   choices?: string[];

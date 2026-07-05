@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildCustomFieldsSchema } from "@/lib/fields/schema";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
+import { coreFieldsSchema } from "@/lib/trades/schema";
 import { deleteTrade, getTrade, updateTrade } from "@/lib/trades/queries";
 import { EDITABLE_CORE_FIELDS, type EditableCoreField } from "@/lib/trades/types";
 
@@ -31,7 +32,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const body = await request.json();
-  const core = pickEditableCore(body.core);
+  const parsedCore = coreFieldsSchema.safeParse(pickEditableCore(body.core));
+  if (!parsedCore.success) {
+    return NextResponse.json({ error: parsedCore.error.flatten() }, { status: 400 });
+  }
+  const core = parsedCore.data;
 
   let customFields: Record<string, unknown> | undefined;
   if (body.customFields) {
@@ -44,7 +49,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     customFields = parsed.data;
   }
 
-  const updated = await updateTrade(supabase, id, { core, customFields });
+  let updated;
+  try {
+    updated = await updateTrade(supabase, id, { core, customFields });
+  } catch {
+    return NextResponse.json({ error: "Failed to update trade" }, { status: 400 });
+  }
   return NextResponse.json(updated);
 }
 
@@ -57,6 +67,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await deleteTrade(supabase, id);
+  const deleted = await deleteTrade(supabase, id);
+  if (!deleted) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }

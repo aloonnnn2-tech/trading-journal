@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { PUBLIC_PATHS } from "@/lib/public-paths";
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
@@ -18,10 +19,6 @@ const LINKS = [
   { href: "/emotions", label: "Emotions" },
   { href: "/fields", label: "Fields" },
 ];
-
-// Marketing-adjacent pages with no logged-in-only content — the app nav
-// (Dashboard/Trades/etc.) shouldn't render on these for logged-out visitors.
-const PUBLIC_PATHS = ["/", "/sign-in", "/sign-up", "/privacy", "/terms", "/contact"];
 
 export function NavBar() {
   const pathname = usePathname();
@@ -57,7 +54,13 @@ export function NavBar() {
 
   async function handleSignOut() {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Still navigate away even if the network call failed -- better
+      // than leaving the user stuck on the current page looking
+      // logged-in with no way to tell sign-out didn't complete.
+    }
     router.push("/");
     router.refresh();
   }

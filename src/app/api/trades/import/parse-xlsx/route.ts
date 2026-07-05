@@ -2,6 +2,8 @@ import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB, same cap as the image upload route
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -15,9 +17,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
 
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as never);
+  try {
+    await workbook.xlsx.load(buffer as never);
+  } catch {
+    return NextResponse.json({ error: "Could not read this file as an Excel workbook" }, { status: 400 });
+  }
   const sheet = workbook.worksheets[0];
 
   if (!sheet) {

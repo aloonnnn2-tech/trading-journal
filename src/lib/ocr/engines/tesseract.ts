@@ -33,10 +33,16 @@ let workerPromise: Promise<TessWorker> | null = null;
 async function getWorker(): Promise<TessWorker> {
   if (!workerPromise) {
     workerPromise = (async () => {
+      const os = await import("node:os");
       const { createWorker } = (await import("tesseract.js")) as unknown as {
         createWorker(lang: string, oem?: number, opts?: unknown): Promise<TessWorker>;
       };
-      return createWorker("eng");
+      // Tesseract's default cachePath is the process cwd, which is
+      // read-only on serverless platforms like Netlify Functions -- the
+      // cache write fails silently there and every cold start re-fetches
+      // the language model from jsdelivr instead. os.tmpdir() is writable
+      // in those environments.
+      return createWorker("eng", undefined, { cachePath: os.tmpdir() });
     })();
     workerPromise.catch(() => {
       workerPromise = null;

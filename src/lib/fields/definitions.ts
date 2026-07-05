@@ -68,10 +68,14 @@ export async function updateFieldDefinition(
 // Deletes the field definition only. Existing trades keep the value
 // under their custom_fields key forever -- it just stops being rendered
 // on the active template.
+// Returns whether a row was actually deleted, so the route can 404 rather
+// than report success for an id that didn't exist (or belonged to another
+// user and was silently filtered out by RLS).
 export async function deleteFieldDefinition(
   supabase: SupabaseClient,
   id: string,
-): Promise<void> {
-  const { error } = await supabase.from("field_definitions").delete().eq("id", id);
+): Promise<boolean> {
+  const { data, error } = await supabase.from("field_definitions").delete().eq("id", id).select("id");
   if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }

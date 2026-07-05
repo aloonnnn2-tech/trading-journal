@@ -83,7 +83,8 @@ export function FieldManager({
 
   async function handleDelete(id: string) {
     if (!confirm("Remove this field? Existing trade data for it is kept but hidden.")) return;
-    await fetch(`/api/field-definitions/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/field-definitions/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
     setFields((prev) => prev.filter((f) => f.id !== id));
     router.refresh();
   }
@@ -126,7 +127,7 @@ export function FieldManager({
     reordered[targetIndex] = current;
     setFields(reordered);
 
-    await Promise.all([
+    const [resA, resB] = await Promise.all([
       fetch(`/api/field-definitions/${current.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -138,6 +139,21 @@ export function FieldManager({
         body: JSON.stringify({ sort_order: current.sort_order }),
       }),
     ]);
+
+    if (!resA.ok || !resB.ok) {
+      // Revert the optimistic swap so the UI doesn't show an order the
+      // server doesn't have. Note: if only one of the two PATCHes above
+      // actually failed, the DB can still be left with mismatched
+      // sort_order values between these two fields -- reverting the UI
+      // doesn't undo that half-applied write.
+      setFields((prev) => {
+        const reverted = [...prev];
+        reverted[index] = current;
+        reverted[targetIndex] = target;
+        return reverted;
+      });
+      return;
+    }
     router.refresh();
   }
 

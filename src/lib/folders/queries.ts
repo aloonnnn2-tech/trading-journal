@@ -21,9 +21,13 @@ export async function createFolder(
   return data as Folder;
 }
 
-export async function deleteFolder(supabase: SupabaseClient, id: string): Promise<void> {
-  const { error } = await supabase.from("folders").delete().eq("id", id);
+// Returns whether a row was actually deleted, so the route can 404 rather
+// than report success for an id that didn't exist (or belonged to another
+// user and was silently filtered out by RLS).
+export async function deleteFolder(supabase: SupabaseClient, id: string): Promise<boolean> {
+  const { data, error } = await supabase.from("folders").delete().eq("id", id).select("id");
   if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 export async function listTradeFolderIds(
@@ -44,6 +48,21 @@ export async function setTradeFolders(
   tradeId: string,
   folderIds: string[],
 ): Promise<void> {
+  if (folderIds.length > 0) {
+    // Validate before deleting anything -- a folderId that doesn't exist
+    // (or belongs to another user, filtered out by RLS) would otherwise
+    // fail the insert *after* the existing links are already gone,
+    // leaving the trade with none.
+    const { data: validFolders, error: validateError } = await supabase
+      .from("folders")
+      .select("id")
+      .in("id", folderIds);
+    if (validateError) throw validateError;
+    if ((validFolders?.length ?? 0) !== folderIds.length) {
+      throw new Error("One or more folders were not found");
+    }
+  }
+
   const { error: deleteError } = await supabase
     .from("trade_folders")
     .delete()

@@ -35,12 +35,17 @@ export async function restoreTradeVersion(
   tradeId: string,
   historyId: string,
 ): Promise<Trade> {
+  // Scoped by trade_id too, not just id -- otherwise a historyId that
+  // belongs to a different trade (still the same user, so RLS alone
+  // wouldn't catch it) would restore onto the wrong trade.
   const { data: historyRow, error: historyError } = await supabase
     .from("trade_history")
     .select("snapshot")
     .eq("id", historyId)
-    .single();
+    .eq("trade_id", tradeId)
+    .maybeSingle();
   if (historyError) throw historyError;
+  if (!historyRow) throw new Error("History entry not found for this trade");
 
   const snapshot = historyRow.snapshot as Trade;
   const { id: _id, user_id: _userId, created_at: _createdAt, updated_at: _updatedAt, ...rest } = snapshot;

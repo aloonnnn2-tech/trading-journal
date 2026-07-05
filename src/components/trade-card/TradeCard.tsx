@@ -84,16 +84,18 @@ export function TradeCard({
   }
 
   async function toggleFolder(folderId: string) {
+    const previous = folderIds;
     const next = new Set(folderIds);
     if (next.has(folderId)) next.delete(folderId);
     else next.add(folderId);
     setFolderIds(next);
 
-    await fetch(`/api/trades/${trade.id}/folders`, {
+    const res = await fetch(`/api/trades/${trade.id}/folders`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ folderIds: Array.from(next) }),
     });
+    if (!res.ok) setFolderIds(previous);
   }
 
   const showDates = !isHidden("entry_date") || !isHidden("exit_date");

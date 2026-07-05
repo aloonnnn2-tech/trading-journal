@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditableCoreField, Trade } from "./types";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -13,6 +13,14 @@ export function useAutosaveTrade(initialTrade: Trade) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCoreRef = useRef<Partial<Record<EditableCoreField, unknown>>>({});
   const pendingCustomRef = useRef<Record<string, unknown>>({});
+  // Bumped on every dispatched request. Lets a response recognize a newer
+  // flush has already started (and will apply its own, fresher response),
+  // so it doesn't regress state to a pre-edit value once it lands.
+  const requestSeqRef = useRef(0);
+  // `flush` needs to re-schedule itself on failure, but `schedule` (below)
+  // is defined in terms of `flush` -- indirect through a ref rather than a
+  // circular useCallback dependency.
+  const scheduleRef = useRef<() => void>(() => {});
 
   const flush = useCallback(async () => {
     const core = pendingCoreRef.current;
@@ -22,6 +30,7 @@ export function useAutosaveTrade(initialTrade: Trade) {
 
     if (Object.keys(core).length === 0 && Object.keys(customFields).length === 0) return;
 
+    const seq = ++requestSeqRef.current;
     setStatus("saving");
     try {
       const res = await fetch(`/api/trades/${trade.id}`, {
@@ -31,6 +40,12 @@ export function useAutosaveTrade(initialTrade: Trade) {
       });
       if (!res.ok) throw new Error("Save failed");
       const updated = (await res.json()) as Trade;
+
+      // A later flush already started while this request was in flight --
+      // it'll apply its own, fresher response. Applying this stale one now
+      // would regress state to a pre-edit value.
+      if (seq !== requestSeqRef.current) return;
+
       // Any key still in pendingCoreRef/pendingCustomRef at this point was
       // typed *during* this request, so `updated` (computed from the
       // pre-keystroke value) is stale for it -- keep the local value
@@ -46,7 +61,13 @@ export function useAutosaveTrade(initialTrade: Trade) {
       });
       setStatus("saved");
     } catch {
-      setStatus("error");
+      // Put the failed changes back in the queue (newer pending edits win,
+      // since they're spread second) and retry on the normal debounce
+      // instead of dropping them on the floor.
+      pendingCoreRef.current = { ...core, ...pendingCoreRef.current };
+      pendingCustomRef.current = { ...customFields, ...pendingCustomRef.current };
+      if (seq === requestSeqRef.current) setStatus("error");
+      scheduleRef.current();
     }
   }, [trade.id]);
 
@@ -54,6 +75,10 @@ export function useAutosaveTrade(initialTrade: Trade) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(flush, AUTOSAVE_DELAY_MS);
   }, [flush]);
+
+  useEffect(() => {
+    scheduleRef.current = schedule;
+  }, [schedule]);
 
   const updateCoreField = useCallback(
     (key: EditableCoreField, value: unknown) => {

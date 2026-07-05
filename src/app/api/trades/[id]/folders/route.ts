@@ -12,6 +12,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const body = await request.json();
   const folderIds = Array.isArray(body.folderIds) ? (body.folderIds as string[]) : [];
-  await setTradeFolders(supabase, id, folderIds);
+
+  try {
+    await setTradeFolders(supabase, id, folderIds);
+  } catch {
+    return NextResponse.json({ error: "One or more folders were not found" }, { status: 400 });
+  }
   return NextResponse.json({ ok: true });
 }

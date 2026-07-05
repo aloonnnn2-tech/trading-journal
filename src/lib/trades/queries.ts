@@ -76,9 +76,13 @@ export async function updateTrade(
   return data as Trade;
 }
 
-export async function deleteTrade(supabase: SupabaseClient, id: string): Promise<void> {
-  const { error } = await supabase.from("trades").delete().eq("id", id);
+// Returns whether a row was actually deleted, so the route can 404 rather
+// than report success for an id that didn't exist (or belonged to another
+// user and was silently filtered out by RLS).
+export async function deleteTrade(supabase: SupabaseClient, id: string): Promise<boolean> {
+  const { data, error } = await supabase.from("trades").delete().eq("id", id).select("id");
   if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 export async function duplicateTrade(supabase: SupabaseClient, id: string): Promise<Trade> {
@@ -126,6 +130,15 @@ export interface TradeListFilters {
 
 const EMOTION_FIELD_KEYS = ["emotion_before", "emotion_during", "emotion_after"];
 
+// PostgREST's `.or()` syntax splits its argument on commas between
+// conditions, so a value containing a comma (an emotion tag can be any
+// free text the user typed on the Emotions page) needs to be wrapped in
+// double quotes -- with any embedded double quotes escaped -- to be safely
+// treated as one literal token.
+function quoteOrValue(value: string): string {
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
 const STRATEGY_TAG_KEY = "strategy_setup";
 
 // Server-side filtered/sorted/paginated trade list -- the query that
@@ -161,7 +174,7 @@ export async function listTradesPage(
     // Emotion fields are stored as tag-type custom fields (string arrays),
     // one per before/during/after slot -- a trade matches if any slot
     // contains the requested emotion.
-    const value = JSON.stringify([filters.emotion]);
+    const value = quoteOrValue(JSON.stringify([filters.emotion]));
     query = query.or(
       EMOTION_FIELD_KEYS.map((key) => `custom_fields->${key}.cs.${value}`).join(","),
     );

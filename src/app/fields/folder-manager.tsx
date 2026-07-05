@@ -35,7 +35,8 @@ export function FolderManager({ initialFolders }: { initialFolders: Folder[] }) 
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this folder? Trades stay, just unassigned from it.")) return;
-    await fetch(`/api/folders/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/folders/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
     setFolders((prev) => prev.filter((f) => f.id !== id));
     router.refresh();
   }

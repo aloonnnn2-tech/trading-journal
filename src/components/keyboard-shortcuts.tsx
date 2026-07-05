@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { PUBLIC_PATHS } from "@/lib/public-paths";
 
 // "g" then a letter is a Gmail/Linear-style nav chord -- pressed within
 // GO_CHORD_WINDOW_MS of each other, otherwise the "g" is dropped so a
@@ -24,11 +25,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function KeyboardShortcuts() {
+  const pathname = usePathname();
   const router = useRouter();
   const [helpOpen, setHelpOpen] = useState(false);
   const [goArmed, setGoArmed] = useState(false);
+  const isPublicPage = PUBLIC_PATHS.includes(pathname);
 
   useEffect(() => {
+    if (isPublicPage) return;
     let goTimeout: ReturnType<typeof setTimeout> | null = null;
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -85,9 +89,9 @@ export function KeyboardShortcuts() {
       window.removeEventListener("keydown", handleKeyDown);
       if (goTimeout) clearTimeout(goTimeout);
     };
-  }, [router, goArmed]);
+  }, [router, goArmed, isPublicPage]);
 
-  if (!helpOpen) return null;
+  if (isPublicPage || !helpOpen) return null;
 
   return (
     <div
