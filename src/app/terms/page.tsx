@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
+const SECTION_HEADING = "mt-8 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
+const BODY = "mt-3 leading-relaxed text-zinc-600 dark:text-zinc-400";
+const LAST_UPDATED = "July 2026";
+
 export default function TermsPage() {
   return (
     <div className="flex flex-1 flex-col">
@@ -15,8 +19,27 @@ export default function TermsPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Terms of Service
         </h1>
-        <p className="mt-6 leading-relaxed text-zinc-600 dark:text-zinc-400">
-          {"{{TODO: replace with real terms of service — cover account eligibility, acceptable use, the free/paid tier split, and disclaimers that this product does not provide financial advice.}}"}
+        <p className="mt-4 text-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
+
+        <p className={BODY}>
+          By creating an account or using Trading Lens (&quot;the Service&quot;), you agree to
+          these terms. If you don&apos;t agree, please don&apos;t use the Service.
+        </p>
+
+        <h2 className={SECTION_HEADING}>Not financial advice</h2>
+        <p className={BODY}>
+          Trading Lens does not provide investment, financial, or trading advice. Any
+          statistics, charts, or insights generated from your journal entries are for your own
+          informational and record-keeping purposes only. Trading involves risk, including the
+          risk of loss, and you are solely responsible for your own trading decisions.
+        </p>
+
+        <h2 className={SECTION_HEADING}>Contact</h2>
+        <p className={BODY}>
+          Questions about these terms:{" "}
+          <a href="mailto:support@tradinglens.app" className="font-medium text-primary hover:underline">
+            support@tradinglens.app
+          </a>
         </p>
       </main>
       <LandingFooter />

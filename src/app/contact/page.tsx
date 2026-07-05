@@ -17,10 +17,10 @@ export default function ContactPage() {
           Questions, bug reports, or feedback — reach out any time.
         </p>
         <a
-          href="mailto:{{TODO: insert real support email}}"
+          href="mailto:support@tradinglens.app"
           className="mt-4 inline-block font-medium text-primary hover:underline"
         >
-          {"{{TODO: insert real support email}}"}
+          support@tradinglens.app
         </a>
       </main>
       <LandingFooter />

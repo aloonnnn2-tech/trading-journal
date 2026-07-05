@@ -138,6 +138,12 @@ export function ScreenshotTradeButton() {
       formData.append("file", selected);
       const res = await fetch("/api/ocr/parse", { method: "POST", body: formData });
       const parsed = (await res.json()) as ParseResult;
+      // The route always responds 200 with a full ParseResult shape, even on
+      // an internal OCR failure -- but a platform-level failure (e.g. the
+      // function itself erroring out) can return a non-2xx with a different
+      // body shape entirely. Treat that the same as a network failure rather
+      // than feeding a malformed object into applyDetected below.
+      if (!res.ok || !parsed.core) throw new Error("OCR request failed");
       setResult(parsed);
       applyDetected(parsed);
       const detectedCount = Object.keys(parsed.core ?? {}).length;
@@ -205,14 +211,14 @@ export function ScreenshotTradeButton() {
   }
 
   function badge(key: OcrCoreField) {
-    const f = result?.core[key];
+    const f = result?.core?.[key];
     if (!f) return null;
     return <ConfidenceBadge confidence={f.confidence} source={f.source} />;
   }
 
   // A field detected but below the auto-fill bar: offer it as a suggestion.
   function suggestion(key: OcrCoreField) {
-    const f = result?.core[key];
+    const f = result?.core?.[key];
     if (!f || f.confidence >= AUTOFILL_CONFIDENCE) return null;
     if (values[key]) return null;
     return (
@@ -259,7 +265,7 @@ export function ScreenshotTradeButton() {
     );
   }
 
-  const moreDetected = MORE.filter((f) => result?.core[f.key] || values[f.key]);
+  const moreDetected = MORE.filter((f) => result?.core?.[f.key] || values[f.key]);
 
   return (
     <>

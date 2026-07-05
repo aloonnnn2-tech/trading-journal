@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -22,7 +22,6 @@ const LINKS = [
 
 export function NavBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -61,8 +60,12 @@ export function NavBar() {
       // than leaving the user stuck on the current page looking
       // logged-in with no way to tell sign-out didn't complete.
     }
-    router.push("/");
-    router.refresh();
+    // A real navigation, not router.push+refresh() -- that combo is the
+    // same racy client-router pattern that caused the sign-in blank-screen
+    // bug (see sign-in/page.tsx): the two calls can abort each other and
+    // leave the transition stuck, which is why sign-out sometimes needed a
+    // second click to actually take effect.
+    window.location.href = "/";
   }
 
   return (
