@@ -1,0 +1,11 @@
+{
+  "note": "Real Webull app screenshot (light mode, phone), cropped from a two-panel marketing composite. AAPL $110 call option position.",
+  "core": {
+    "ticker": "AAPL",
+    "direction": "long",
+    "status": "open",
+    "position_size": 667.5,
+    "dollar_amount": 1000.0,
+    "average_price": 9.7
+  }
+}

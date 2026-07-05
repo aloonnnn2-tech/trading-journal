@@ -1,0 +1,10 @@
+{
+  "core": {
+    "ticker": "TSLA",
+    "direction": "short",
+    "entry_price": 242.1,
+    "current_price": 238.65,
+    "shares": 50,
+    "status": "open"
+  }
+}

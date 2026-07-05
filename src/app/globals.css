@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Design tokens.
+
+  Surfaces are warm-tinted neutrals (not pure black/white) and the data
+  colors come from a CVD-validated palette, checked against both surfaces
+  with the dataviz validator:
+    light  #2a78d6 / #008300 / #d03b3b  on #fdfdfc
+    dark   #3987e5 / #0ca30c / #e66767  on #1a1a19
+  Charts read the --chart-* vars directly (see src/lib/theme/colors.ts),
+  so light/dark switching needs no JS.
+
+  --color-primary/--color-accent are a bright blue on a white base — the
+  default light theme leads with #ffffff + #2563eb; dark mode keeps neutral
+  near-black surfaces with a brighter #4d8ef7 accent so blue-on-dark text
+  and buttons stay legible.
+  --chart-* and --color-profit/--color-loss are untouched by that change.
+*/
+:root {
+  --background: #ffffff;
+  --foreground: #1c1b18;
+  --color-primary: #2563eb;
+  --color-accent: #3b82f6;
+  --color-profit: #047857;
+  --color-loss: #dc2626;
+  --color-deep: #ffffff;
+  --color-card: #fdfdfc;
+  --color-subtle: #e6e5df;
+
+  --chart-pos: #059669;
+  --chart-neg: #dc2626;
+  --chart-ref: #d9d8d0;
+  --chart-grid: #e9e8e2;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #898781;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--color-primary);
+  --color-accent: var(--color-accent);
+  --color-profit: var(--color-profit);
+  --color-loss: var(--color-loss);
+  --color-deep: var(--color-deep);
+  --color-card: var(--color-card);
+  --color-subtle: var(--color-subtle);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+}
+
+.dark {
+  --background: #101010;
+  --foreground: #eceae4;
+  --color-primary: #4d8ef7;
+  --color-accent: #60a5fa;
+  --color-profit: #10b981;
+  --color-loss: #f87171;
+  --color-deep: #0c0c0b;
+  --color-card: #1a1a19;
+  --color-subtle: #2b2b28;
+
+  --chart-pos: #0aa971;
+  --chart-neg: #ef4d4d;
+  --chart-ref: #3d3d39;
+  --chart-grid: #262624;
+  --chart-axis: #383835;
+  --chart-muted: #898781;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+a,
+button,
+select,
+input,
+summary {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, opacity 150ms ease,
+    transform 150ms ease, box-shadow 150ms ease;
+}
+
+button:active,
+summary:active {
+  transform: scale(0.98);
+}
+
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 60%, transparent);
+  outline-offset: 2px;
+}
+
+/* Numeric alignment for table columns, tickers, and axis-adjacent figures. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,10 @@
+{
+  "core": {
+    "ticker": "ES",
+    "direction": "short",
+    "entry_price": 5320.25,
+    "stop_loss": 5335.5,
+    "take_profit": 5290,
+    "shares": 2
+  }
+}

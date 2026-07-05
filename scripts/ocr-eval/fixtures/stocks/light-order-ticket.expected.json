@@ -1,0 +1,11 @@
+{
+  "core": {
+    "ticker": "AAPL",
+    "direction": "long",
+    "entry_price": 150.25,
+    "stop_loss": 147.8,
+    "take_profit": 158.4,
+    "shares": 100,
+    "position_size": 15025
+  }
+}

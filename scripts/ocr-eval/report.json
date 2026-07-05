@@ -1,0 +1,206 @@
+{
+  "generatedAt": "2026-07-04T16:49:01.529Z",
+  "autofillThreshold": 0.55,
+  "images": 12,
+  "overallAccuracy": 0.912,
+  "precision": 0.939,
+  "recall": 0.912,
+  "falsePositives": 1,
+  "avgProcessingMs": 1139,
+  "perField": {
+    "ticker": {
+      "accuracy": 0.833,
+      "correct": 10,
+      "wrong": 2,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.9,
+      "avgConfidenceWrong": 0.9
+    },
+    "direction": {
+      "accuracy": 0.9,
+      "correct": 9,
+      "wrong": 0,
+      "missing": 1,
+      "avgConfidenceCorrect": 0.85,
+      "avgConfidenceWrong": 0
+    },
+    "entry_price": {
+      "accuracy": 0.889,
+      "correct": 8,
+      "wrong": 1,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.876,
+      "avgConfidenceWrong": 0.55
+    },
+    "stop_loss": {
+      "accuracy": 1,
+      "correct": 7,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.979,
+      "avgConfidenceWrong": 0
+    },
+    "take_profit": {
+      "accuracy": 1,
+      "correct": 7,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.983,
+      "avgConfidenceWrong": 0
+    },
+    "shares": {
+      "accuracy": 0.818,
+      "correct": 9,
+      "wrong": 0,
+      "missing": 2,
+      "avgConfidenceCorrect": 0.899,
+      "avgConfidenceWrong": 0
+    },
+    "status": {
+      "accuracy": 1,
+      "correct": 2,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.7,
+      "avgConfidenceWrong": 0
+    },
+    "position_size": {
+      "accuracy": 1,
+      "correct": 3,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.98,
+      "avgConfidenceWrong": 0
+    },
+    "dollar_amount": {
+      "accuracy": 1,
+      "correct": 2,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.938,
+      "avgConfidenceWrong": 0
+    },
+    "average_price": {
+      "accuracy": 1,
+      "correct": 2,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.938,
+      "avgConfidenceWrong": 0
+    },
+    "current_price": {
+      "accuracy": 1,
+      "correct": 2,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.974,
+      "avgConfidenceWrong": 0
+    },
+    "entry_date": {
+      "accuracy": 1,
+      "correct": 1,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.998,
+      "avgConfidenceWrong": 0
+    }
+  },
+  "perImage": [
+    {
+      "name": "crypto/crypto-position.png",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 1415,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "forex/mt5-buy.png",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 402,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "futures/futures-style-short.png",
+      "correct": 4,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 461,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "options/webull-options-position.png",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 762,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "options/webull-options-tpsl.png",
+      "correct": 7,
+      "total": 7,
+      "falsePos": 0,
+      "ms": 749,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/dark-open-position.png",
+      "correct": 6,
+      "total": 6,
+      "falsePos": 0,
+      "ms": 425,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/light-order-ticket.png",
+      "correct": 7,
+      "total": 7,
+      "falsePos": 0,
+      "ms": 501,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/STEP-4-trade-on-tradingview.webp",
+      "correct": 2,
+      "total": 3,
+      "falsePos": 0,
+      "ms": 2008,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/stop-order-bare-price.png",
+      "correct": 5,
+      "total": 5,
+      "falsePos": 0,
+      "ms": 454,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/Trading_overview_stocks_(Dark_theme).png",
+      "correct": 2,
+      "total": 4,
+      "falsePos": 1,
+      "ms": 4063,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/Trading_View_Gallery-7-7.png",
+      "correct": 3,
+      "total": 4,
+      "falsePos": 0,
+      "ms": 1897,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/webull-style-buy.png",
+      "correct": 8,
+      "total": 8,
+      "falsePos": 0,
+      "ms": 525,
+      "engine": "paddleocr"
+    }
+  ]
+}

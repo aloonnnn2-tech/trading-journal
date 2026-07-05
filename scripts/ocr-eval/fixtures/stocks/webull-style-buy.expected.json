@@ -1,0 +1,12 @@
+{
+  "core": {
+    "ticker": "MSFT",
+    "direction": "long",
+    "entry_price": 412.5,
+    "stop_loss": 398,
+    "take_profit": 440,
+    "shares": 25,
+    "position_size": 10312.5,
+    "entry_date": "2026-06-01"
+  }
+}

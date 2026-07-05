@@ -1,0 +1,9 @@
+{
+  "core": {
+    "ticker": "USB",
+    "entry_price": 61.73,
+    "shares": 1,
+    "take_profit": 86.31,
+    "stop_loss": 59.52
+  }
+}

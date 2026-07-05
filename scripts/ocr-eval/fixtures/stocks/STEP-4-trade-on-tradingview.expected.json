@@ -1,0 +1,8 @@
+{
+  "note": "TradingView chart + order panel. Buy 10 SPY MKT @ ~663.22. TP/SL unchecked (placeholders, not real).",
+  "core": {
+    "ticker": "SPY",
+    "direction": "long",
+    "shares": 10
+  }
+}

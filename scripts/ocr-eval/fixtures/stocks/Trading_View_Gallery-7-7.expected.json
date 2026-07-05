@@ -1,0 +1,9 @@
+{
+  "note": "SPY option chart + order panel. Buy 1 SPY250214C603.0 @ 2.62 LMT. TP/SL unchecked.",
+  "core": {
+    "ticker": "SPY",
+    "direction": "long",
+    "entry_price": 2.62,
+    "shares": 1
+  }
+}

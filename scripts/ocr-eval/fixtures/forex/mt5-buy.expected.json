@@ -1,0 +1,10 @@
+{
+  "core": {
+    "ticker": "EURUSD",
+    "direction": "long",
+    "entry_price": 1.08432,
+    "stop_loss": 1.081,
+    "take_profit": 1.098,
+    "shares": 0.5
+  }
+}

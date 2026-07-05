@@ -1,0 +1,9 @@
+{
+  "note": "TradingView marketing composite, AAPL. Buy 10 AAPL @ 278.00 LMT. TP/SL unchecked placeholders.",
+  "core": {
+    "ticker": "AAPL",
+    "direction": "long",
+    "entry_price": 278.0,
+    "shares": 10
+  }
+}
