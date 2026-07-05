@@ -77,14 +77,29 @@ let ocrPromise: Promise<PaddleOcr> | null = null;
 async function getOcr(): Promise<PaddleOcr> {
   if (!ocrPromise) {
     ocrPromise = (async () => {
+      const models = await resolveModels();
+      // Cold-start-only diagnostic (this whole IIFE runs once and is cached in
+      // ocrPromise) — cheap enough to always log, and the one thing that
+      // actually explains a silent "engine: none" result in a deployed
+      // environment where local paths that resolve fine in dev may not exist.
+      const exists = await Promise.all(
+        Object.entries(models).map(async ([key, p]) => {
+          const ok = await fs
+            .access(p)
+            .then(() => true)
+            .catch(() => false);
+          return `${key}=${p} exists=${ok}`;
+        }),
+      );
+      console.error(`[ocr] cwd=${process.cwd()} model paths: ${exists.join(" | ")}`);
       const mod = (await import("@gutenye/ocr-node")) as unknown as {
         default: { create(options?: unknown): Promise<PaddleOcr> };
       };
-      const models = await resolveModels();
       return mod.default.create({ models });
     })();
     // If model creation fails, allow a later retry rather than caching the error.
-    ocrPromise.catch(() => {
+    ocrPromise.catch((err) => {
+      console.error("[ocr] model creation failed:", err);
       ocrPromise = null;
     });
   }

@@ -54,11 +54,14 @@ export async function runOcr(variants: PreprocessVariant[]): Promise<OcrPassResu
       // worse-scoring variant must not end the loop on its own line count
       // while an earlier, better `best` is what's actually kept.
       if (best && best.meanConfidence >= 0.9 && best.lines.length >= 3) break;
-    } catch {
+    } catch (err) {
       // This variant failed; try the next one. Whether *any* variant threw
       // isn't itself a reason to fall back — `best`'s own quality (checked
       // below) already reflects whether the primary engine produced
-      // something usable, regardless of which variant it came from.
+      // something usable, regardless of which variant it came from. Still
+      // log it — a silently-swallowed model/native-addon load failure here
+      // is otherwise invisible (the pipeline never throws to the caller).
+      console.error(`[ocr] paddle engine failed on variant "${variant.name}":`, err);
     }
   }
 
