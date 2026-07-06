@@ -52,6 +52,13 @@ const nextConfig: NextConfig = {
       "node_modules/@img/sharp-win32-x64/**",
       "node_modules/@img/sharp-darwin-*/**",
       "scripts/ocr-eval/fixtures/**",
+      // @gutenye/ocr-models ships its own default ONNX weights (~16MB) via
+      // this assets/ dir, unconditionally imported (see ocr-models include
+      // below) but never actually read -- ocr-worker/onnx-worker.mjs always
+      // passes its own `models` option, so @gutenye/ocr-node's `create()`
+      // never touches these paths (see paddle.ts for why bundled defaults
+      // aren't used).
+      "node_modules/@gutenye/ocr-models/assets/**",
     ],
   },
 };

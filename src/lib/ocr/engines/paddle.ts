@@ -65,6 +65,22 @@ import { spawn, type ChildProcess } from "node:child_process";
 import type { OcrEngine, OcrLine } from "../types";
 import { boxFromPoints, makeLine } from "../types";
 
+// Never called -- ocr-worker/onnx-worker.mjs does its own import() of this
+// package at runtime. This reference exists purely so Next's file tracer
+// walks @gutenye/ocr-node's module graph and follows it into its
+// transitive native dependencies (onnxruntime-node, @techstark/opencv-js,
+// js-clipper, onnxruntime-common), the same way it did when this file
+// actually imported the package in-process. outputFileTracingIncludes only
+// force-copies literal globs, it doesn't re-run dependency tracing on what
+// it copies -- confirmed via Netlify function logs: with only a glob
+// include for @gutenye/ocr-node/**, the worker's own dependencies
+// (opencv-js etc.) were silently absent from the deployed bundle even
+// though @gutenye/ocr-node's own files were present.
+async function _tracingOnly() {
+  await import("@gutenye/ocr-node");
+}
+void _tracingOnly;
+
 interface PaddleLine {
   text?: string;
   mean?: number;
@@ -78,6 +94,19 @@ type WorkerMessage =
   | { type: "result"; id: string; ok: false; error: string };
 
 const WORKER_SCRIPT_PATH = path.resolve(process.cwd(), "ocr-worker", "onnx-worker.mjs");
+
+// Mirrors the model paths ocr-worker/onnx-worker.mjs actually reads.
+// Nothing in this file touches them directly anymore (the worker does its
+// own fs reads), but Next's file tracer only follows fs.access/fs.readFile
+// calls it can see in the traced module graph -- without a reference here
+// these silently drop out of the deployed bundle the same way the worker
+// script itself did (see spawnWorker's own existence check below).
+const MOBILE_MODEL_DIR = path.resolve(process.cwd(), "models", "paddleocr-mobile");
+const MOBILE_MODEL_PATHS = [
+  path.join(MOBILE_MODEL_DIR, "ch_PP-OCRv4_det_infer.onnx"),
+  path.join(MOBILE_MODEL_DIR, "ch_PP-OCRv4_rec_infer.onnx"),
+  path.join(MOBILE_MODEL_DIR, "ppocr_keys_v1.txt"),
+];
 
 const COMPRESSED_SHARED_LIB_PATH = path.resolve(
   process.cwd(),
@@ -154,7 +183,10 @@ async function spawnWorker(): Promise<Worker> {
   // script included in the deployed function; it also confirms as much in
   // the logs instead of failing with an opaque MODULE_NOT_FOUND.
   const workerScriptExists = await pathExists(WORKER_SCRIPT_PATH);
-  console.error(`[ocr] onnx worker script ${WORKER_SCRIPT_PATH} exists=${workerScriptExists}`);
+  const modelsExist = await Promise.all(MOBILE_MODEL_PATHS.map((p) => pathExists(p)));
+  console.error(
+    `[ocr] onnx worker script ${WORKER_SCRIPT_PATH} exists=${workerScriptExists}; models exist=${modelsExist.join(",")}`,
+  );
   return new Promise((resolve, reject) => {
     // spawn(), not fork(): Turbopack special-cases fork()'s first argument
     // and tries to statically resolve it as a module import at build time,
