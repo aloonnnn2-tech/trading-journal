@@ -27,22 +27,32 @@ const nextConfig: NextConfig = {
   // (AWS Lambda) unzipped limit to risk failing deploys as OCR's other
   // dependencies grow. Remove this if the server variant is ever deployed
   // deliberately.
+  // Next's file tracer resolves onnxruntime-node's platform-specific
+  // template-literal require() (`../bin/napi-v6/${platform}/${arch}/...`) by
+  // conservatively including every platform's .node binding it can find on
+  // disk, not just the one the deployed Lambda (linux/x64) actually needs.
+  // Same story for sharp's prebuilt binaries. None of these non-Linux
+  // binaries are reachable at runtime in production; excluding them (plus
+  // the eval harness's test fixture images, which have no business in a
+  // production function bundle at all) trims dead weight from a bundle size
+  // that's already tight against AWS Lambda's 50MB zipped limit (see
+  // paddle.ts for the much bigger contributor to that budget).
   outputFileTracingExcludes: {
-    "/api/ocr/parse": ["models/paddleocr-server/**"],
-  },
-  // onnxruntime-node's addon loads its own libonnxruntime.so.1 via the OS
-  // dynamic linker (dlopen from inside the compiled .node binding), not a JS
-  // require() -- so Next's file tracer (and Netlify's Next.js Runtime, which
-  // packages functions from the same trace output) never discovers it as a
-  // dependency and silently drops it from the deployed function. The .node
-  // binding itself does get traced (its require() path is a template literal
-  // that resolves to a static path at build time on Linux x64), but that
-  // binding fails at runtime with "libonnxruntime.so.1: cannot open shared
-  // object file" without its sibling .so. Confirmed via Netlify function logs
-  // on tradinglenz.netlify.app. Force-include the whole platform dir so both
-  // files travel together.
-  outputFileTracingIncludes: {
-    "/api/ocr/parse": ["node_modules/onnxruntime-node/bin/napi-v6/linux/x64/**"],
+    "/api/ocr/parse": [
+      "models/paddleocr-server/**",
+      "node_modules/onnxruntime-node/bin/napi-v6/win32/**",
+      "node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+      // The tracer follows the .node addon's own ELF dependencies and pulls
+      // in this 36MB sibling automatically -- excluded because paddle.ts
+      // ships a gzip-compressed copy of the same file instead and
+      // decompresses it at runtime (see that file for why: the raw file
+      // alone is what pushed the deployed function's zipped size over AWS
+      // Lambda's 50MB limit).
+      "node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime.so.1",
+      "node_modules/@img/sharp-win32-x64/**",
+      "node_modules/@img/sharp-darwin-*/**",
+      "scripts/ocr-eval/fixtures/**",
+    ],
   },
 };
 
