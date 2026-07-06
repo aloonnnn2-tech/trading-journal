@@ -170,7 +170,9 @@ async function getOcr(): Promise<PaddleOcr> {
       const mod = (await import("@gutenye/ocr-node")) as unknown as {
         default: { create(options?: unknown): Promise<PaddleOcr> };
       };
-      return mod.default.create({ models });
+      const ocr = await mod.default.create({ models });
+      console.error("[ocr] paddle engine created successfully");
+      return ocr;
     })();
     // If model creation fails, allow a later retry rather than caching the error.
     ocrPromise.catch((err) => {
