@@ -44,8 +44,16 @@
 // time as `$ORIGIN`-relative) can't be redirected to /tmp from JS, so
 // LD_LIBRARY_PATH must point there instead; critically, that only works if
 // it's set as a real Lambda environment variable *before* the process starts
-// (see netlify.toml) -- mutating process.env from Node code has no effect on
-// the dynamic linker's already-initialized search path.
+// -- mutating process.env from Node code has no effect on the dynamic
+// linker's already-initialized search path, and (confirmed via Netlify's own
+// docs) netlify.toml's [build.environment] is build-time only and never
+// reaches the deployed function's runtime env either. The only way to get
+// this in is an environment variable set in the Netlify UI/CLI/API with a
+// scope that includes Functions:
+//   LD_LIBRARY_PATH = /tmp/onnxruntime-lib
+// (Site settings -> Environment variables -> Add a variable, scopes:
+// Functions/Runtime, all deploy contexts.) Without it, the .so still gets
+// extracted to /tmp every cold start but the addon can't find it there.
 
 import path from "node:path";
 import { promises as fs } from "node:fs";
