@@ -30,6 +30,20 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "/api/ocr/parse": ["models/paddleocr-server/**"],
   },
+  // onnxruntime-node's addon loads its own libonnxruntime.so.1 via the OS
+  // dynamic linker (dlopen from inside the compiled .node binding), not a JS
+  // require() -- so Next's file tracer (and Netlify's Next.js Runtime, which
+  // packages functions from the same trace output) never discovers it as a
+  // dependency and silently drops it from the deployed function. The .node
+  // binding itself does get traced (its require() path is a template literal
+  // that resolves to a static path at build time on Linux x64), but that
+  // binding fails at runtime with "libonnxruntime.so.1: cannot open shared
+  // object file" without its sibling .so. Confirmed via Netlify function logs
+  // on tradinglenz.netlify.app. Force-include the whole platform dir so both
+  // files travel together.
+  outputFileTracingIncludes: {
+    "/api/ocr/parse": ["node_modules/onnxruntime-node/bin/napi-v6/linux/x64/**"],
+  },
 };
 
 export default nextConfig;
