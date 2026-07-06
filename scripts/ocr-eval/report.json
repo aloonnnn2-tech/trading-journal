@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-07-05T23:11:56.594Z",
+  "generatedAt": "2026-07-06T10:23:16.391Z",
   "autofillThreshold": 0.55,
   "images": 17,
   "overallAccuracy": 0.98,
   "precision": 0.951,
   "recall": 0.98,
   "falsePositives": 3,
-  "avgProcessingMs": 1256,
+  "avgProcessingMs": 1117,
   "perField": {
     "ticker": {
       "accuracy": 0.941,
@@ -119,7 +119,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 1865,
+      "ms": 1319,
       "engine": "paddleocr"
     },
     {
@@ -127,7 +127,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 510,
+      "ms": 501,
       "engine": "paddleocr"
     },
     {
@@ -135,7 +135,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 603,
+      "ms": 532,
       "engine": "paddleocr"
     },
     {
@@ -143,7 +143,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 1,
-      "ms": 1003,
+      "ms": 863,
       "engine": "paddleocr"
     },
     {
@@ -151,7 +151,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 902,
+      "ms": 767,
       "engine": "paddleocr"
     },
     {
@@ -159,7 +159,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 1,
-      "ms": 904,
+      "ms": 1022,
       "engine": "paddleocr"
     },
     {
@@ -167,7 +167,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 906,
+      "ms": 874,
       "engine": "paddleocr"
     },
     {
@@ -175,7 +175,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 874,
+      "ms": 804,
       "engine": "paddleocr"
     },
     {
@@ -183,7 +183,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 899,
+      "ms": 858,
       "engine": "paddleocr"
     },
     {
@@ -191,7 +191,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 865,
+      "ms": 763,
       "engine": "paddleocr"
     },
     {
@@ -199,7 +199,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 554,
+      "ms": 439,
       "engine": "paddleocr"
     },
     {
@@ -207,7 +207,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 623,
+      "ms": 576,
       "engine": "paddleocr"
     },
     {
@@ -215,7 +215,7 @@
       "correct": 2,
       "total": 3,
       "falsePos": 0,
-      "ms": 2584,
+      "ms": 2358,
       "engine": "paddleocr"
     },
     {
@@ -223,7 +223,7 @@
       "correct": 5,
       "total": 5,
       "falsePos": 0,
-      "ms": 597,
+      "ms": 516,
       "engine": "paddleocr"
     },
     {
@@ -231,7 +231,7 @@
       "correct": 3,
       "total": 4,
       "falsePos": 1,
-      "ms": 4686,
+      "ms": 4106,
       "engine": "paddleocr"
     },
     {
@@ -239,7 +239,7 @@
       "correct": 4,
       "total": 4,
       "falsePos": 0,
-      "ms": 2357,
+      "ms": 2132,
       "engine": "paddleocr"
     },
     {
@@ -247,7 +247,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 625,
+      "ms": 561,
       "engine": "paddleocr"
     }
   ]
