@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { buildRowFromMapping, withDerivedFields, type ImportTarget } from "@/lib/trades/import";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
 const BATCH_SIZE = 500;
 
@@ -54,5 +55,9 @@ export async function POST(request: Request) {
     imported += count ?? batch.length;
   }
 
+  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "import_used", {
+    imported,
+    errors: rowErrors.length,
+  });
   return NextResponse.json({ imported, errors: rowErrors });
 }

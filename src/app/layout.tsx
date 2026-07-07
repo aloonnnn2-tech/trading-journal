@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { NavBar } from "@/components/nav-bar";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,6 +37,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <NavBar />
           <KeyboardShortcuts />
+          <AnalyticsTracker />
           <PageTransition>{children}</PageTransition>
         </ThemeProvider>
       </body>

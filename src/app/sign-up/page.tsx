@@ -4,12 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { useAnalytics } from "@/lib/tracking/useAnalytics";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
 
 export default function SignUpPage() {
   const supabase = createClient();
+  const { track } = useAnalytics();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +29,7 @@ export default function SignUpPage() {
       setError(error.message);
       return;
     }
+    track("signup_completed");
     window.location.href = "/dashboard";
   }
 

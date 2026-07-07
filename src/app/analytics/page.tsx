@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { InfoTip } from "@/components/ui/InfoTip";
+import { TrackPageView } from "@/components/track-page-view";
 
 function money(n: number): string {
   return `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
@@ -21,6 +22,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+      <TrackPageView event="analytics_panel_viewed" />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Analytics</h1>
         <p className="mt-0.5 text-sm text-zinc-500">Every stat below is computed from your closed trades.</p>

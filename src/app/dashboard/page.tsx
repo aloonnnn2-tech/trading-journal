@@ -22,6 +22,7 @@ import { DashboardGrid } from "./dashboard-grid";
 import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { QuickTradeButton } from "@/app/trades/new-trade-button";
+import { TrackPageView } from "@/components/track-page-view";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -61,6 +62,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+      <TrackPageView event="dashboard_viewed" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">

@@ -5,6 +5,7 @@ import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { coreFieldsSchema } from "@/lib/trades/schema";
 import { deleteTrade, getTrade, updateTrade } from "@/lib/trades/queries";
 import { EDITABLE_CORE_FIELDS, type EditableCoreField } from "@/lib/trades/types";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
 function pickEditableCore(input: unknown): Partial<Record<EditableCoreField, unknown>> {
   if (typeof input !== "object" || input === null) return {};
@@ -55,6 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch {
     return NextResponse.json({ error: "Failed to update trade" }, { status: 400 });
   }
+  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
   return NextResponse.json(updated);
 }
 
@@ -71,5 +73,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!deleted) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "trade_deleted", { tradeId: id });
   return NextResponse.json({ ok: true });
 }
