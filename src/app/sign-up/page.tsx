@@ -16,21 +16,53 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+    });
 
     setLoading(false);
     if (error) {
       setError(error.message);
       return;
     }
+
+    // With email confirmation on, signUp() succeeds but returns no session
+    // yet -- the account isn't usable until they click the link in their
+    // inbox, which lands on /auth/confirm (see that route for where
+    // signup_completed actually gets tracked in that case). Without
+    // confirmation required, a session comes back immediately.
+    if (!data.session) {
+      setAwaitingConfirmation(true);
+      return;
+    }
     track("signup_completed");
     window.location.href = "/dashboard";
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+        <div className="flex w-full max-w-sm flex-col items-start gap-3 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]">
+          <BrandMark className="h-8 w-8" />
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Check your email
+          </h1>
+          <p className="text-sm text-zinc-500">
+            We sent a confirmation link to <span className="font-medium text-zinc-700 dark:text-zinc-300">{email}</span>.
+            Click it to activate your account.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
