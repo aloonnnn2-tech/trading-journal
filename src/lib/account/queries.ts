@@ -15,6 +15,10 @@ export interface AccountBalance {
   tradePL: number;
   /** deposited + tradePL — the cash currently in the account. */
   balance: number;
+  /** Capital currently tied up in open positions (see costOf below). */
+  committedCash: number;
+  /** balance - committedCash — what's actually free to put into a new trade. */
+  availableCash: number;
   /** False until the user records their first deposit; the feature stays
    *  dormant (no position-size prefill) before that. */
   hasTransactions: boolean;
@@ -31,34 +35,69 @@ const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
 const isMissingTable = (error: { code?: string }) =>
   MISSING_TABLE_CODES.has(error.code ?? "");
 
+// What an open position "costs" -- prefers position_size (the number the
+// user explicitly allocated to the trade) since it's the field this app's
+// position-size autofill writes to; falls back to entry_price * shares
+// (same basis dollar_pl is computed from) when position_size was never set,
+// e.g. for trades logged before this field existed or via CSV import.
+function costOf(trade: { position_size: number | null; entry_price: number | null; shares: number | null }): number {
+  if (trade.position_size != null) return Number(trade.position_size);
+  if (trade.entry_price != null && trade.shares != null) {
+    return Number(trade.entry_price) * Number(trade.shares);
+  }
+  return 0;
+}
+
 // Balance is always derived, never stored: manual adjustments come from the
 // account_transactions ledger, and every trade win/loss flows in through
 // trades.dollar_pl (recomputed server-side on each trade update), so the
 // cash figure tracks trade results automatically -- including when a trade
-// is edited or deleted later.
+// is edited or deleted later. committedCash/availableCash are derived the
+// same way from currently-open trades, so they never go stale either.
 export async function getAccountBalance(supabase: SupabaseClient): Promise<AccountBalance> {
-  const [txResult, plResult] = await Promise.all([
+  const [txResult, tradesResult] = await Promise.all([
     supabase.from("account_transactions").select("amount"),
-    supabase.from("trades").select("dollar_pl").not("dollar_pl", "is", null),
+    supabase.from("trades").select("status, dollar_pl, entry_price, shares, position_size"),
   ]);
 
   if (txResult.error && isMissingTable(txResult.error)) {
-    return { deposited: 0, tradePL: 0, balance: 0, hasTransactions: false };
+    return {
+      deposited: 0,
+      tradePL: 0,
+      balance: 0,
+      committedCash: 0,
+      availableCash: 0,
+      hasTransactions: false,
+    };
   }
   if (txResult.error) throw txResult.error;
-  if (plResult.error) throw plResult.error;
+  if (tradesResult.error) throw tradesResult.error;
 
   const txRows = txResult.data as { amount: number }[];
   const deposited = txRows.reduce((sum, row) => sum + Number(row.amount), 0);
-  const tradePL = (plResult.data as { dollar_pl: number }[]).reduce(
-    (sum, row) => sum + Number(row.dollar_pl),
-    0,
-  );
+
+  const tradeRows = tradesResult.data as {
+    status: string;
+    dollar_pl: number | null;
+    entry_price: number | null;
+    shares: number | null;
+    position_size: number | null;
+  }[];
+  let tradePL = 0;
+  let committedCash = 0;
+  for (const row of tradeRows) {
+    if (row.dollar_pl != null) tradePL += Number(row.dollar_pl);
+    if (row.status === "open") committedCash += costOf(row);
+  }
+
+  const balance = deposited + tradePL;
 
   return {
     deposited,
     tradePL,
-    balance: deposited + tradePL,
+    balance,
+    committedCash,
+    availableCash: balance - committedCash,
     hasTransactions: txRows.length > 0,
   };
 }

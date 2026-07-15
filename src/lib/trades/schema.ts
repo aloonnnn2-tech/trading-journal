@@ -10,7 +10,7 @@ const nullableString = z.string().nullable();
 export const coreFieldsSchema = z
   .object({
     mode: z.enum(["trade", "investment"]),
-    ticker: z.string(),
+    ticker: z.string().transform((v) => v.trim().toUpperCase()),
     company_name: nullableString,
     asset_type: nullableString,
     market: nullableString,

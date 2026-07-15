@@ -418,7 +418,7 @@ function TradeTable({ trades }: { trades: Trade[] }) {
               <td className="px-4 py-3">
                 <Link
                   href={`/trades/${trade.id}`}
-                  className="font-medium text-zinc-900 dark:text-zinc-100 hover:text-primary"
+                  className="font-mono font-semibold uppercase text-zinc-900 dark:text-zinc-100 hover:text-primary"
                 >
                   {trade.ticker || "Untitled"}
                 </Link>

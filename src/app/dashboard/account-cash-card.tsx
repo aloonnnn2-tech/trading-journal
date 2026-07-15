@@ -91,8 +91,8 @@ export function AccountCashCard({
     router.refresh();
   }
 
-  const plHint = account.hasTransactions
-    ? `${account.tradePL < 0 ? "−" : "+"}${formatMoney(Math.abs(account.tradePL), true)} from trades`
+  const hint = account.hasTransactions
+    ? `${formatMoney(account.availableCash, true)} available`
     : "Set your starting cash";
 
   return (
@@ -102,12 +102,12 @@ export function AccountCashCard({
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
               Account Cash
-              <InfoTip text="Money you've added or removed, plus every closed trade's win or loss — updated automatically. New trades pre-fill their position size from this number." />
+              <InfoTip text="Total cash: money you've added or removed, plus every closed trade's win or loss — updated automatically. Available: total cash minus what's tied up in open positions. New trades pre-fill their position size from what's available." />
             </p>
             <p className="tnum mt-1.5 truncate text-[22px] font-semibold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
               {account.hasTransactions ? formatMoney(account.balance, true) : "—"}
             </p>
-            <p className="mt-0.5 text-xs text-zinc-500">{plHint}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">

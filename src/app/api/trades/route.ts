@@ -12,13 +12,15 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Position size auto-fills from the cash currently in the account (only
-  // once the user has started tracking it). It's an ordinary editable
-  // field, so the prefilled value is just a starting point.
+  // Position size auto-fills from the cash actually free to trade with --
+  // total balance minus whatever's already committed to open positions --
+  // so it never suggests sizing a new trade with money that's tied up
+  // elsewhere. It's an ordinary editable field, so this is just a starting
+  // point.
   const account = await getAccountBalance(supabase);
   const positionSize =
-    account.hasTransactions && account.balance > 0
-      ? Math.round(account.balance * 100) / 100
+    account.hasTransactions && account.availableCash > 0
+      ? Math.round(account.availableCash * 100) / 100
       : null;
 
   const trade = await createBlankTrade(supabase, userData.user.id, positionSize);
