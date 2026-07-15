@@ -30,19 +30,22 @@ export default async function TradeDetailPage({
     listTradeImages(supabase, id),
   ]);
 
-  // Generate signed URLs for each image (1-hour expiry, server-side only)
-  const initialImages = await Promise.all(
-    rawImages.map(async (img) => {
-      const { data } = await supabase.storage
-        .from("trade-images")
-        .createSignedUrl(img.storage_path, 3600);
-      return {
-        id: img.id,
-        storagePath: img.storage_path,
-        signedUrl: data?.signedUrl ?? "",
-      };
-    }),
-  );
+  // Generate signed URLs for all images in one batched Storage call (1-hour
+  // expiry, server-side only) rather than one round trip per image -- with
+  // several screenshots on a trade, N sequential API calls was a real chunk
+  // of this page's load time.
+  const signedUrls =
+    rawImages.length > 0
+      ? await supabase.storage
+          .from("trade-images")
+          .createSignedUrls(rawImages.map((img) => img.storage_path), 3600)
+      : { data: [] };
+  const urlByPath = new Map(signedUrls.data?.map((r) => [r.path, r.signedUrl]) ?? []);
+  const initialImages = rawImages.map((img) => ({
+    id: img.id,
+    storagePath: img.storage_path,
+    signedUrl: urlByPath.get(img.storage_path) ?? "",
+  }));
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">

@@ -6,9 +6,8 @@ import { listFieldDefinitions } from "@/lib/fields/definitions";
 import {
   getStatusCounts,
   getStrategyTags,
-  listDistinctEmotions,
   listDistinctMarkets,
-  listDistinctStrategyTags,
+  listDistinctTagsAndEmotions,
   listTradesPage,
   type TradeSortField,
 } from "@/lib/trades/queries";
@@ -52,7 +51,7 @@ export default async function TradesPage({
   const plMin = params.plMin ? Number(params.plMin) : undefined;
   const plMax = params.plMax ? Number(params.plMax) : undefined;
 
-  const [{ trades, total }, counts, folders, strategyTags, emotions, markets, fieldDefs] = await Promise.all([
+  const [{ trades, total }, counts, folders, tagsAndEmotions, markets, fieldDefs] = await Promise.all([
     listTradesPage(supabase, {
       search: params.q,
       status,
@@ -70,11 +69,11 @@ export default async function TradesPage({
     }),
     getStatusCounts(supabase),
     listFolders(supabase),
-    listDistinctStrategyTags(supabase),
-    listDistinctEmotions(supabase),
+    listDistinctTagsAndEmotions(supabase),
     listDistinctMarkets(supabase),
     listFieldDefinitions(supabase, "trade"),
   ]);
+  const { tags: strategyTags, emotions } = tagsAndEmotions;
 
   // Only text/dropdown fields support a simple exact-match filter -- other
   // types (number, checkbox, multi_select, etc.) store non-string values

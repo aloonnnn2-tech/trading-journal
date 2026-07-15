@@ -215,33 +215,27 @@ export async function getStatusCounts(
   };
 }
 
-// Distinct strategy/setup tag values across all of the user's trades, for
-// populating the tag filter dropdown. Pulls just the one jsonb key rather
-// than full rows -- cheap even with many trades.
-export async function listDistinctStrategyTags(supabase: SupabaseClient): Promise<string[]> {
+// Distinct strategy/setup tags AND distinct emotion values, for populating
+// the tag/emotion filter dropdowns on the trades list. Both used to run as
+// separate queries that each fetched the `custom_fields` jsonb column for
+// every one of the user's trades -- same column, fetched twice, on every
+// single /trades page view. Merged into one fetch + one pass now that the
+// list is unbounded (scales with total trade count either way).
+export async function listDistinctTagsAndEmotions(
+  supabase: SupabaseClient,
+): Promise<{ tags: string[]; emotions: string[] }> {
   const { data, error } = await supabase.from("trades").select("custom_fields");
   if (error) throw error;
 
   const tags = new Set<string>();
+  const emotions = new Set<string>();
   for (const row of data as { custom_fields: Record<string, unknown> }[]) {
-    const value = row.custom_fields?.[STRATEGY_TAG_KEY];
-    if (Array.isArray(value)) {
-      for (const tag of value) {
+    const tagValue = row.custom_fields?.[STRATEGY_TAG_KEY];
+    if (Array.isArray(tagValue)) {
+      for (const tag of tagValue) {
         if (typeof tag === "string" && tag.trim() !== "") tags.add(tag);
       }
     }
-  }
-  return Array.from(tags).sort();
-}
-
-// Distinct values seen across the three emotion slots, for populating the
-// emotion filter dropdown -- same shape as listDistinctStrategyTags.
-export async function listDistinctEmotions(supabase: SupabaseClient): Promise<string[]> {
-  const { data, error } = await supabase.from("trades").select("custom_fields");
-  if (error) throw error;
-
-  const emotions = new Set<string>();
-  for (const row of data as { custom_fields: Record<string, unknown> }[]) {
     for (const key of EMOTION_FIELD_KEYS) {
       const value = row.custom_fields?.[key];
       if (Array.isArray(value)) {
@@ -251,7 +245,7 @@ export async function listDistinctEmotions(supabase: SupabaseClient): Promise<st
       }
     }
   }
-  return Array.from(emotions).sort();
+  return { tags: Array.from(tags).sort(), emotions: Array.from(emotions).sort() };
 }
 
 export async function listDistinctMarkets(supabase: SupabaseClient): Promise<string[]> {

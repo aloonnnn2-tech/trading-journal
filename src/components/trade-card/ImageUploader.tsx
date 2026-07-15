@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { ApplyCoreFields, OcrCoreField, ParseResult } from "@/lib/ocr/types";
 import { FIELD_LABELS, OCR_CORE_FIELDS, AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
@@ -145,17 +145,22 @@ export function ImageUploader({
     }
   }
 
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const items = Array.from(e.clipboardData.items)
+  // Listen on window rather than a React onPaste on the drop zone: that div
+  // only receives paste events while it holds DOM focus, but clicking it to
+  // focus it also opens the native file picker (see onClick below), so
+  // Ctrl+V would silently do nothing unless the user tabbed to it manually.
+  useEffect(() => {
+    function onWindowPaste(e: ClipboardEvent) {
+      const items = Array.from(e.clipboardData?.items ?? [])
         .filter((item) => item.type.startsWith("image/"))
         .map((item) => item.getAsFile())
         .filter((f): f is File => f !== null);
       if (items.length > 0) uploadFiles(items);
-    },
+    }
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tradeId],
-  );
+  }, [tradeId]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -220,9 +225,7 @@ export function ImageUploader({
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => !uploading && fileInputRef.current?.click()}
-        onPaste={handlePaste}
-        tabIndex={0}
-        className={`flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 px-4 py-6 text-sm text-zinc-500 outline-none transition-colors hover:border-primary hover:text-primary focus-visible:border-primary ${
+        className={`flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 px-4 py-6 text-sm text-zinc-500 outline-none transition-colors hover:border-primary hover:text-primary ${
           uploading ? "cursor-not-allowed opacity-60" : ""
         }`}
       >
