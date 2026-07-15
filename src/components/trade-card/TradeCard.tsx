@@ -15,8 +15,7 @@ import { FieldInput } from "@/components/field-input";
 import { Card } from "@/components/ui/Card";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { ImageUploader } from "@/components/trade-card/ImageUploader";
-import { TradingViewChart } from "@/components/trade-card/TradingViewChart";
-import { RiskLevelsChart } from "@/components/trade-card/RiskLevelsChart";
+import { PriceChart } from "@/components/trade-card/PriceChart";
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { Folder } from "@/lib/folders/types";
 import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
@@ -386,17 +385,13 @@ export function TradeCard({
         )}
       </Card>
 
-      <TradingViewChart ticker={trade.ticker} assetType={trade.asset_type} />
-
-      {!isInvestment && (
-        <RiskLevelsChart
-          ticker={trade.ticker}
-          assetType={trade.asset_type}
-          entryPrice={trade.entry_price}
-          stopLoss={trade.stop_loss}
-          takeProfit={trade.take_profit}
-        />
-      )}
+      <PriceChart
+        ticker={trade.ticker}
+        assetType={trade.asset_type}
+        entryPrice={isInvestment ? null : trade.entry_price}
+        stopLoss={isInvestment ? null : trade.stop_loss}
+        takeProfit={isInvestment ? null : trade.take_profit}
+      />
 
       {!isInvestment && (
         <Card standalone={false} hoverable={false}>
