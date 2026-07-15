@@ -13,12 +13,14 @@ import {
 import { getEmotionHistory, type EmotionHistoryEntry } from "@/lib/emotions/queries";
 import type { RecentNote, SetupStats } from "@/lib/dashboard/queries";
 import { getStatusCounts } from "@/lib/trades/queries";
+import { getAccountBalance, listAccountTransactions } from "@/lib/account/queries";
 import { getUserSettings } from "@/lib/settings/queries";
 import type { Trade } from "@/lib/trades/types";
 import { Wallet, Clock, Activity, CheckCircle2, Target } from "lucide-react";
 import { PerformanceChart } from "./performance-chart";
 import { MonthlyCalendar } from "./monthly-calendar";
 import { DashboardGrid } from "./dashboard-grid";
+import { AccountCashCard } from "./account-cash-card";
 import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { QuickTradeButton } from "@/app/trades/new-trade-button";
@@ -41,6 +43,8 @@ export default async function DashboardPage() {
     bestWorstSetup,
     recentNotes,
     recentEmotions,
+    accountBalance,
+    accountTransactions,
   ] = await Promise.all([
     getStatusCounts(supabase),
     getTodayPL(supabase),
@@ -52,6 +56,8 @@ export default async function DashboardPage() {
     getBestWorstSetup(supabase),
     getRecentNotes(supabase, 5),
     getEmotionHistory(supabase, 5),
+    getAccountBalance(supabase),
+    listAccountTransactions(supabase),
   ]);
 
   const dateLabel = now.toLocaleDateString(undefined, {
@@ -73,7 +79,11 @@ export default async function DashboardPage() {
         <QuickTradeButton />
       </div>
 
-      <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <AccountCashCard
+          initialBalance={accountBalance}
+          initialTransactions={accountTransactions}
+        />
         <StatCard
           label="Today's P/L"
           value={`${todayPL < 0 ? "−" : ""}$${Math.abs(todayPL).toFixed(2)}`}

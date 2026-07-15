@@ -18,9 +18,13 @@ export async function getTrade(supabase: SupabaseClient, id: string): Promise<Tr
   return data as Trade | null;
 }
 
+// positionSize prefills the new trade's position size from the user's
+// current account cash (see getAccountBalance) -- null leaves it blank for
+// users who don't track their cash.
 export async function createBlankTrade(
   supabase: SupabaseClient,
   userId: string,
+  positionSize: number | null = null,
 ): Promise<Trade> {
   const { data, error } = await supabase
     .from("trades")
@@ -30,6 +34,7 @@ export async function createBlankTrade(
       ticker: "",
       status: "pending",
       result: "open",
+      position_size: positionSize,
       custom_fields: {},
     })
     .select()
