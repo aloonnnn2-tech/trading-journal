@@ -122,17 +122,18 @@ export async function listAllTradeStrategyLinks(
   return map;
 }
 
-// Win rate / trade count / total P&L per strategy, over closed trades.
-// Strategies with zero closed trades still appear (zeroed out) so a
-// freshly created strategy shows up on the Strategies page immediately
-// rather than only once it has data.
+// Trade count is every trade using the strategy regardless of status --
+// tagging an open/pending trade should visibly bump this immediately, not
+// wait until the trade closes. Win rate and total P&L stay scoped to
+// closed trades, since an open trade has no realized outcome yet; they'd
+// otherwise be diluted by trades that haven't resolved. Strategies with
+// zero trades still appear (zeroed out) so a freshly created strategy
+// shows up on the Strategies page immediately rather than only once it
+// has data.
 export async function getStrategyBreakdown(supabase: SupabaseClient): Promise<StrategyBreakdown[]> {
   const [strategies, linksResult] = await Promise.all([
     listStrategies(supabase),
-    supabase
-      .from("trade_strategies")
-      .select("strategy_id, trades!inner(dollar_pl, status)")
-      .eq("trades.status", "closed"),
+    supabase.from("trade_strategies").select("strategy_id, trades(dollar_pl, status)"),
   ]);
   if (linksResult.error) throw linksResult.error;
 
@@ -145,23 +146,26 @@ export async function getStrategyBreakdown(supabase: SupabaseClient): Promise<St
     strategy_id: string;
     trades: { dollar_pl: number | null; status: string } | { dollar_pl: number | null; status: string }[];
   }[];
-  const stats = new Map<string, { trades: number; wins: number; totalPL: number }>();
+  const stats = new Map<string, { trades: number; closed: number; wins: number; totalPL: number }>();
   for (const row of rows) {
     const tradeRow = Array.isArray(row.trades) ? row.trades[0] : row.trades;
-    const pl = tradeRow?.dollar_pl ?? 0;
-    const bucket = stats.get(row.strategy_id) ?? { trades: 0, wins: 0, totalPL: 0 };
+    const bucket = stats.get(row.strategy_id) ?? { trades: 0, closed: 0, wins: 0, totalPL: 0 };
     bucket.trades += 1;
-    if (pl > 0) bucket.wins += 1;
-    bucket.totalPL += pl;
+    if (tradeRow?.status === "closed") {
+      const pl = tradeRow.dollar_pl ?? 0;
+      bucket.closed += 1;
+      if (pl > 0) bucket.wins += 1;
+      bucket.totalPL += pl;
+    }
     stats.set(row.strategy_id, bucket);
   }
 
   return strategies.map((strategy) => {
-    const s = stats.get(strategy.id) ?? { trades: 0, wins: 0, totalPL: 0 };
+    const s = stats.get(strategy.id) ?? { trades: 0, closed: 0, wins: 0, totalPL: 0 };
     return {
       strategy,
       trades: s.trades,
-      winRate: s.trades > 0 ? s.wins / s.trades : null,
+      winRate: s.closed > 0 ? s.wins / s.closed : null,
       totalPL: s.totalPL,
     };
   });
