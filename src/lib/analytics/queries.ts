@@ -58,8 +58,6 @@ export interface AnalyticsSummary {
   avgPositionSize: number | null;
 }
 
-const STRATEGY_TAG_KEY = "strategy_setup";
-
 const R_BUCKET_EDGES = [-3, -2, -1, 0, 1, 2, 3];
 
 function bucketLabel(r: number): string {
@@ -78,7 +76,9 @@ function bucketLabel(r: number): string {
 export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<AnalyticsSummary> {
   const { data, error } = await supabase
     .from("trades")
-    .select("entry_date, exit_date, dollar_pl, r_multiple, direction, result, position_size, custom_fields")
+    .select(
+      "entry_date, exit_date, dollar_pl, r_multiple, direction, result, position_size, trade_strategies(strategies(name))",
+    )
     .eq("status", "closed")
     .not("exit_date", "is", null)
     .order("exit_date", { ascending: true });
@@ -93,7 +93,9 @@ export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<Ana
     direction: string | null;
     result: string;
     position_size: number | null;
-    custom_fields: Record<string, unknown>;
+    // Supabase's untyped client always types a nested embed as an array
+    // regardless of the FK's actual to-one cardinality.
+    trade_strategies: { strategies: { name: string }[] }[];
   }[];
 
   let totalPL = 0;
@@ -185,13 +187,13 @@ export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<Ana
     bucket.totalPL += pl;
     byDirectionMap.set(direction, bucket);
 
-    // A trade can carry multiple strategy tags, so it's attributed to
-    // every tag bucket it has rather than just one -- unlike direction,
-    // this isn't a partition of trades.
-    const tagsRaw = row.custom_fields?.[STRATEGY_TAG_KEY];
-    const tags = Array.isArray(tagsRaw)
-      ? (tagsRaw.filter((t) => typeof t === "string" && t.trim() !== "") as string[])
-      : [];
+    // A trade can use multiple strategies at once, so it's attributed to
+    // every strategy bucket it has rather than just one -- unlike
+    // direction, this isn't a partition of trades.
+    const tags = row.trade_strategies
+      .flatMap((link) => link.strategies)
+      .map((s) => s?.name)
+      .filter((name): name is string => typeof name === "string" && name.trim() !== "");
     for (const tag of tags.length > 0 ? tags : ["Untagged"]) {
       const tagBucket = byTagMap.get(tag) ?? { trades: 0, wins: 0, totalPL: 0 };
       tagBucket.trades += 1;

@@ -37,6 +37,9 @@ export interface Trade {
   risk_reward_ratio: number | null;
 
   custom_fields: Record<string, unknown>;
+  // Values for strategy-scoped custom fields, namespaced by strategy id:
+  // { [strategyId]: { [fieldKey]: value } }.
+  strategy_field_values: Record<string, Record<string, unknown>>;
 
   created_at: string;
   updated_at: string;

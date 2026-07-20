@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLocalDayName, WEEKDAY_ORDER } from "@/lib/dates/day-of-week";
 
-const STRATEGY_TAG_KEY = "strategy_setup";
 const EMOTION_BEFORE_KEY = "emotion_before";
 const EMOTION_INTENSITY_KEY = "emotion_intensity";
 
@@ -113,7 +112,9 @@ export async function getAllAnswers(
 ): Promise<{ answers: AskAnswer[]; totalTrades: number }> {
   const { data, error } = await supabase
     .from("trades")
-    .select("exit_date, dollar_pl, direction, risk_percent, r_multiple, custom_fields")
+    .select(
+      "exit_date, dollar_pl, direction, risk_percent, r_multiple, custom_fields, trade_strategies(strategies(name))",
+    )
     .eq("status", "closed")
     .not("exit_date", "is", null)
     .order("exit_date", { ascending: true });
@@ -127,6 +128,7 @@ export async function getAllAnswers(
     risk_percent: number | null;
     r_multiple: number | null;
     custom_fields: Record<string, unknown>;
+    trade_strategies: { strategies: { name: string }[] }[];
   }[];
 
   const noDataAnswer = (id: string, category: AskAnswer["category"]): AskAnswer => ({
@@ -166,8 +168,12 @@ export async function getAllAnswers(
 
     if (row.direction) addToSegment(byDirection, row.direction, won, r, pl);
 
-    for (const tag of asStringArray(row.custom_fields?.[STRATEGY_TAG_KEY])) {
-      addToSegment(byTag, tag, won, r, pl);
+    const strategyNames = row.trade_strategies
+      .flatMap((link) => link.strategies)
+      .map((s) => s?.name)
+      .filter((name): name is string => typeof name === "string" && name.trim() !== "");
+    for (const name of strategyNames) {
+      addToSegment(byTag, name, won, r, pl);
     }
 
     const emotions = asStringArray(row.custom_fields?.[EMOTION_BEFORE_KEY]);
@@ -249,15 +255,15 @@ export async function getAllAnswers(
       answers.push(noDataAnswer("tag-r", "performance"));
     } else {
       const best = tagEntries.reduce((a, b) => (avgR(a[1]) ?? -99) >= (avgR(b[1]) ?? -99) ? a : b);
-      const chart = tagEntries.map(([label, s]) => ({ label: label.replace(/_/g, " "), winRate: winRate(s), trades: s.trades }));
+      const chart = tagEntries.map(([label, s]) => ({ label, winRate: winRate(s), trades: s.trades }));
       const bestAvgR = avgR(best[1])!;
       answers.push({
         id: "tag-r",
         category: "performance",
-        headline: `Your best setup is "${best[0].replace(/_/g, " ")}" — avg ${fmt(bestAvgR, 2)}R per trade.`,
-        subtext: `${best[1].trades} trades tagged (${best[1].rCount} with R data), ${fmt(winRate(best[1]) * 100)}% win rate.`,
+        headline: `Your best strategy is "${best[0]}" — avg ${fmt(bestAvgR, 2)}R per trade.`,
+        subtext: `${best[1].trades} trades using it (${best[1].rCount} with R data), ${fmt(winRate(best[1]) * 100)}% win rate.`,
         chart,
-        highlightLabel: best[0].replace(/_/g, " "),
+        highlightLabel: best[0],
         noData: false,
       });
     }

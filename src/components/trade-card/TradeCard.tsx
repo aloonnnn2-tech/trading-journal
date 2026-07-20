@@ -9,6 +9,7 @@ import {
   ImagePlus,
   Calculator,
   NotebookPen,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 import { FieldInput } from "@/components/field-input";
@@ -18,6 +19,7 @@ import { ImageUploader } from "@/components/trade-card/ImageUploader";
 import { PriceChart } from "@/components/trade-card/PriceChart";
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { Folder } from "@/lib/folders/types";
+import type { Strategy } from "@/lib/strategies/types";
 import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
 
@@ -25,7 +27,7 @@ const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
 const labelClass = "mb-1 block text-xs font-medium text-zinc-500";
 
-type ExtraId = "details" | "dates" | "folders" | "images" | "results" | "notes";
+type ExtraId = "details" | "dates" | "folders" | "strategies" | "images" | "results" | "notes";
 
 interface TradeImageItem {
   id: string;
@@ -40,6 +42,9 @@ export function TradeCard({
   folders = [],
   initialFolderIds = [],
   initialImages = [],
+  strategies = [],
+  initialStrategyIds = [],
+  strategyFieldDefinitions = {},
 }: {
   trade: Trade;
   fieldDefinitions: FieldDefinition[];
@@ -47,11 +52,15 @@ export function TradeCard({
   folders?: Folder[];
   initialFolderIds?: string[];
   initialImages?: TradeImageItem[];
+  strategies?: Strategy[];
+  initialStrategyIds?: string[];
+  strategyFieldDefinitions?: Record<string, FieldDefinition[]>;
 }) {
   const router = useRouter();
-  const { trade, status, updateCoreField, updateCustomField, flushNow } =
+  const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow } =
     useAutosaveTrade(initialTrade);
   const [folderIds, setFolderIds] = useState(new Set(initialFolderIds));
+  const [strategyIds, setStrategyIds] = useState(new Set(initialStrategyIds));
   const [imageCount, setImageCount] = useState(initialImages.length);
   const [activeExtra, setActiveExtra] = useState<ExtraId | null>(null);
   const hidden = new Set(hiddenCoreFields);
@@ -98,11 +107,27 @@ export function TradeCard({
     if (!res.ok) setFolderIds(previous);
   }
 
+  async function toggleStrategy(strategyId: string) {
+    const previous = strategyIds;
+    const next = new Set(strategyIds);
+    if (next.has(strategyId)) next.delete(strategyId);
+    else next.add(strategyId);
+    setStrategyIds(next);
+
+    const res = await fetch(`/api/trades/${trade.id}/strategies`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ strategyIds: Array.from(next) }),
+    });
+    if (!res.ok) setStrategyIds(previous);
+  }
+
   const showDates = !isHidden("entry_date") || !isHidden("exit_date");
   const extras: { id: ExtraId; label: string; icon: LucideIcon; count?: number; show: boolean }[] = [
     { id: "details", label: "Details", icon: Info, show: true },
     { id: "dates", label: "Dates", icon: CalendarDays, show: showDates },
     { id: "folders", label: "Folders", icon: FolderOpen, count: folderIds.size, show: folders.length > 0 },
+    { id: "strategies", label: "Strategies", icon: Target, count: strategyIds.size, show: strategies.length > 0 },
     { id: "images", label: "Images", icon: ImagePlus, count: imageCount, show: true },
     { id: "results", label: "Auto-calc", icon: Calculator, show: !isInvestment },
     {
@@ -336,6 +361,44 @@ export function TradeCard({
                 <span className="text-zinc-900 dark:text-zinc-100">{folder.name}</span>
               </label>
             ))}
+          </div>
+        )}
+
+        {strategies.length > 0 && (
+          <div className={activeExtra === "strategies" ? "flex flex-col gap-5" : "hidden"}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {strategies.map((strategy) => (
+                <label key={strategy.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={strategyIds.has(strategy.id)}
+                    onChange={() => toggleStrategy(strategy.id)}
+                    className="h-4 w-4 accent-[--color-primary]"
+                  />
+                  <span className="text-zinc-900 dark:text-zinc-100">{strategy.name}</span>
+                </label>
+              ))}
+            </div>
+
+            {strategies
+              .filter((s) => strategyIds.has(s.id) && (strategyFieldDefinitions[s.id]?.length ?? 0) > 0)
+              .map((strategy) => (
+                <div key={strategy.id} className="flex flex-col gap-3 border-t border-zinc-100 pt-4 dark:border-subtle">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-zinc-500">
+                    {strategy.name} fields
+                  </h3>
+                  {strategyFieldDefinitions[strategy.id].map((field) => (
+                    <div key={field.id}>
+                      <label className={labelClass}>{field.label}</label>
+                      <FieldInput
+                        field={field}
+                        value={trade.strategy_field_values[strategy.id]?.[field.key] as never}
+                        onChange={(value) => updateStrategyField(strategy.id, field.key, value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
           </div>
         )}
 

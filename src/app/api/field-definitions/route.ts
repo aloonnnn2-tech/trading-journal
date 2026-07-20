@@ -10,8 +10,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const entityType = (new URL(request.url).searchParams.get("entityType") ?? "trade") as EntityType;
-  const fields = await listFieldDefinitions(supabase, entityType);
+  const url = new URL(request.url);
+  const entityType = (url.searchParams.get("entityType") ?? "trade") as EntityType;
+  const strategyId = url.searchParams.get("strategyId") ?? undefined;
+  const fields = await listFieldDefinitions(supabase, entityType, strategyId);
   return NextResponse.json(fields);
 }
 
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
     field_type: body.field_type,
     options: body.options ?? {},
     sort_order: body.sort_order ?? 200,
+    strategy_id: body.strategy_id ?? null,
   });
 
   return NextResponse.json(field, { status: 201 });

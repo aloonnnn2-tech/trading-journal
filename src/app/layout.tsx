@@ -6,6 +6,7 @@ import { NavBar } from "@/components/nav-bar";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { TourOverlay } from "@/components/tour/tour-overlay";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -38,6 +39,7 @@ export default function RootLayout({
           <NavBar />
           <KeyboardShortcuts />
           <AnalyticsTracker />
+          <TourOverlay />
           <PageTransition>{children}</PageTransition>
         </ThemeProvider>
       </body>

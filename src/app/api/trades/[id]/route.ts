@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildCustomFieldsSchema } from "@/lib/fields/schema";
-import { listFieldDefinitions } from "@/lib/fields/definitions";
+import { listFieldDefinitions, listFieldDefinitionsForStrategies } from "@/lib/fields/definitions";
 import { coreFieldsSchema } from "@/lib/trades/schema";
 import { deleteTrade, getTrade, updateTrade } from "@/lib/trades/queries";
 import { EDITABLE_CORE_FIELDS, type EditableCoreField } from "@/lib/trades/types";
@@ -50,9 +50,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     customFields = parsed.data;
   }
 
+  let strategyFieldValues: Record<string, Record<string, unknown>> | undefined;
+  if (body.strategyFieldValues && typeof body.strategyFieldValues === "object") {
+    const entries = Object.entries(body.strategyFieldValues as Record<string, unknown>);
+    // One query for every touched strategy's fields, rather than one
+    // round trip per strategy -- matters once a trade carries several.
+    const fieldsByStrategy = await listFieldDefinitionsForStrategies(
+      supabase,
+      existing.mode,
+      entries.map(([strategyId]) => strategyId),
+    );
+    strategyFieldValues = {};
+    for (const [strategyId, values] of entries) {
+      const schema = buildCustomFieldsSchema(fieldsByStrategy[strategyId] ?? []);
+      const parsed = schema.safeParse(values);
+      if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      }
+      strategyFieldValues[strategyId] = parsed.data;
+    }
+  }
+
   let updated;
   try {
-    updated = await updateTrade(supabase, id, { core, customFields });
+    updated = await updateTrade(supabase, id, { core, customFields, strategyFieldValues });
   } catch {
     return NextResponse.json({ error: "Failed to update trade" }, { status: 400 });
   }

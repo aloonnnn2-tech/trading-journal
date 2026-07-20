@@ -29,9 +29,11 @@ function choicesToString(field: FieldDefinition) {
 export function FieldManager({
   entityType,
   initialFields,
+  strategyId,
 }: {
   entityType: EntityType;
   initialFields: FieldDefinition[];
+  strategyId?: string;
 }) {
   const router = useRouter();
   const [fields, setFields] = useState(
@@ -68,6 +70,7 @@ export function FieldManager({
         field_type: fieldType,
         options,
         sort_order: (fields[fields.length - 1]?.sort_order ?? 0) + 1,
+        strategy_id: strategyId ?? null,
       }),
     });
     setLoading(false);

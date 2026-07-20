@@ -5,12 +5,12 @@ import { listFolders } from "@/lib/folders/queries";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import {
   getStatusCounts,
-  getStrategyTags,
+  listDistinctEmotions,
   listDistinctMarkets,
-  listDistinctTagsAndEmotions,
   listTradesPage,
   type TradeSortField,
 } from "@/lib/trades/queries";
+import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
 import type { Trade } from "@/lib/trades/types";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
@@ -21,7 +21,7 @@ interface TradesSearchParams {
   folder?: string;
   status?: string;
   q?: string;
-  tag?: string;
+  strategy?: string;
   market?: string;
   emotion?: string;
   plMin?: string;
@@ -51,29 +51,39 @@ export default async function TradesPage({
   const plMin = params.plMin ? Number(params.plMin) : undefined;
   const plMax = params.plMax ? Number(params.plMax) : undefined;
 
-  const [{ trades, total }, counts, folders, tagsAndEmotions, markets, fieldDefs] = await Promise.all([
-    listTradesPage(supabase, {
-      search: params.q,
-      status,
-      folderId: params.folder,
-      tag: params.tag,
-      market: params.market,
-      emotion: params.emotion,
-      plMin,
-      plMax,
-      customField: params.fieldKey && params.fieldValue ? { key: params.fieldKey, value: params.fieldValue } : undefined,
-      sortBy,
-      sortDir,
-      page,
-      pageSize: PAGE_SIZE,
-    }),
-    getStatusCounts(supabase),
-    listFolders(supabase),
-    listDistinctTagsAndEmotions(supabase),
-    listDistinctMarkets(supabase),
-    listFieldDefinitions(supabase, "trade"),
-  ]);
-  const { tags: strategyTags, emotions } = tagsAndEmotions;
+  const [{ trades, total }, counts, folders, strategies, tradeStrategyLinks, emotions, markets, fieldDefs] =
+    await Promise.all([
+      listTradesPage(supabase, {
+        search: params.q,
+        status,
+        folderId: params.folder,
+        strategyId: params.strategy,
+        market: params.market,
+        emotion: params.emotion,
+        plMin,
+        plMax,
+        customField: params.fieldKey && params.fieldValue ? { key: params.fieldKey, value: params.fieldValue } : undefined,
+        sortBy,
+        sortDir,
+        page,
+        pageSize: PAGE_SIZE,
+      }),
+      getStatusCounts(supabase),
+      listFolders(supabase),
+      listStrategies(supabase),
+      listAllTradeStrategyLinks(supabase),
+      listDistinctEmotions(supabase),
+      listDistinctMarkets(supabase),
+      listFieldDefinitions(supabase, "trade"),
+    ]);
+
+  const strategyNameById = new Map(strategies.map((s) => [s.id, s.name]));
+  const stratNamesByTradeId: Record<string, string[]> = {};
+  for (const [tradeId, strategyIds] of Object.entries(tradeStrategyLinks)) {
+    stratNamesByTradeId[tradeId] = strategyIds
+      .map((id) => strategyNameById.get(id))
+      .filter((name): name is string => Boolean(name));
+  }
 
   // Only text/dropdown fields support a simple exact-match filter -- other
   // types (number, checkbox, multi_select, etc.) store non-string values
@@ -88,7 +98,7 @@ export default async function TradesPage({
     if (next.folder) query.set("folder", next.folder);
     if (next.status) query.set("status", next.status);
     if (next.q) query.set("q", next.q);
-    if (next.tag) query.set("tag", next.tag);
+    if (next.strategy) query.set("strategy", next.strategy);
     if (next.market) query.set("market", next.market);
     if (next.emotion) query.set("emotion", next.emotion);
     if (next.plMin) query.set("plMin", next.plMin);
@@ -141,15 +151,15 @@ export default async function TradesPage({
         </div>
       )}
 
-      {strategyTags.length > 0 && (
+      {strategies.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          <FolderTab href={buildHref({ tag: undefined, page: "1" })} label="All Tags" active={!params.tag} />
-          {strategyTags.map((tag) => (
+          <FolderTab href={buildHref({ strategy: undefined, page: "1" })} label="All Strategies" active={!params.strategy} />
+          {strategies.map((strategy) => (
             <FolderTab
-              key={tag}
-              href={buildHref({ tag, page: "1" })}
-              label={tag.replace(/_/g, " ")}
-              active={params.tag === tag}
+              key={strategy.id}
+              href={buildHref({ strategy: strategy.id, page: "1" })}
+              label={strategy.name}
+              active={params.strategy === strategy.id}
             />
           ))}
         </div>
@@ -159,7 +169,7 @@ export default async function TradesPage({
         <form action="/trades" method="get" className="flex flex-wrap items-center gap-2">
           {params.folder && <input type="hidden" name="folder" value={params.folder} />}
           {status && <input type="hidden" name="status" value={status} />}
-          {params.tag && <input type="hidden" name="tag" value={params.tag} />}
+          {params.strategy && <input type="hidden" name="strategy" value={params.strategy} />}
           <input
             id="trade-search"
             type="text"
@@ -240,7 +250,7 @@ export default async function TradesPage({
         <SortSelect buildHref={buildHref} sortBy={sortBy} sortDir={sortDir} />
       </div>
 
-      <TradeTable trades={trades} />
+      <TradeTable trades={trades} stratNamesByTradeId={stratNamesByTradeId} />
 
       <div className="flex items-center justify-between text-sm text-zinc-500">
         <span>
@@ -394,7 +404,13 @@ function PageLink({
   );
 }
 
-function TradeTable({ trades }: { trades: Trade[] }) {
+function TradeTable({
+  trades,
+  stratNamesByTradeId,
+}: {
+  trades: Trade[];
+  stratNamesByTradeId: Record<string, string[]>;
+}) {
   if (trades.length === 0) {
     return <p className="py-8 text-center text-sm text-zinc-500">No trades match your filters.</p>;
   }
@@ -431,7 +447,7 @@ function TradeTable({ trades }: { trades: Trade[] }) {
                 <ResultBadge result={trade.result} />
               </td>
               <td className="px-4 py-3">
-                <TagChips tags={getStrategyTags(trade)} />
+                <TagChips tags={stratNamesByTradeId[trade.id] ?? []} />
               </td>
               <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                 {trade.entry_date ? new Date(trade.entry_date).toLocaleDateString() : "—"}
@@ -462,7 +478,7 @@ function TagChips({ tags }: { tags: string[] }) {
           key={tag}
           className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300"
         >
-          {tag.replace(/_/g, " ")}
+          {tag}
         </span>
       ))}
     </div>

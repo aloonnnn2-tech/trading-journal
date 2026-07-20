@@ -36,6 +36,7 @@ export async function createBlankTrade(
       result: "open",
       position_size: positionSize,
       custom_fields: {},
+      strategy_field_values: {},
     })
     .select()
     .single();
@@ -54,6 +55,7 @@ export async function updateTrade(
   changes: {
     core?: Partial<Record<EditableCoreField, unknown>>;
     customFields?: Record<string, unknown>;
+    strategyFieldValues?: Record<string, Record<string, unknown>>;
   },
 ): Promise<Trade> {
   const existing = await getTrade(supabase, id);
@@ -64,6 +66,20 @@ export async function updateTrade(
     ? { ...existing.custom_fields, ...changes.customFields }
     : existing.custom_fields;
 
+  // Merge one level deeper than custom_fields -- an incoming update only
+  // ever carries the strategies it actually touched, so other strategies'
+  // values (and other fields within the same strategy) must survive.
+  let mergedStrategyFieldValues = existing.strategy_field_values;
+  if (changes.strategyFieldValues) {
+    mergedStrategyFieldValues = { ...existing.strategy_field_values };
+    for (const [strategyId, values] of Object.entries(changes.strategyFieldValues)) {
+      mergedStrategyFieldValues[strategyId] = {
+        ...(mergedStrategyFieldValues[strategyId] ?? {}),
+        ...values,
+      };
+    }
+  }
+
   const derived = computeDerivedFields(mergedCore as unknown as TradeCoreFields);
 
   const { data, error } = await supabase
@@ -71,6 +87,7 @@ export async function updateTrade(
     .update({
       ...(changes.core ?? {}),
       custom_fields: mergedCustomFields,
+      strategy_field_values: mergedStrategyFieldValues,
       ...derived,
     })
     .eq("id", id)
@@ -121,7 +138,7 @@ export interface TradeListFilters {
   search?: string;
   status?: Trade["status"];
   folderId?: string;
-  tag?: string;
+  strategyId?: string;
   market?: string;
   plMin?: number;
   plMax?: number;
@@ -147,14 +164,12 @@ function quoteOrValue(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-const STRATEGY_TAG_KEY = "strategy_setup";
-
 // Server-side filtered/sorted/paginated trade list -- the query that
 // scales to 100k+ trades. Ticker/company search relies on the pg_trgm
 // GIN indexes (migration 0005); status filtering relies on the
-// (user_id, status) btree index from migration 0001; folder filtering
-// uses an inner join against trade_folders rather than fetching every
-// trade and filtering in JS.
+// (user_id, status) btree index from migration 0001; folder/strategy
+// filtering uses an inner join against the respective link table rather
+// than fetching every trade and filtering in JS.
 export async function listTradesPage(
   supabase: SupabaseClient,
   filters: TradeListFilters,
@@ -164,13 +179,16 @@ export async function listTradesPage(
   const sortBy = filters.sortBy ?? "created_at";
   const sortDir = filters.sortDir ?? "desc";
 
+  const embeds: string[] = [];
+  if (filters.folderId) embeds.push("trade_folders!inner(folder_id)");
+  if (filters.strategyId) embeds.push("trade_strategies!inner(strategy_id)");
   let query = supabase
     .from("trades")
-    .select(filters.folderId ? "*, trade_folders!inner(folder_id)" : "*", { count: "exact" });
+    .select(embeds.length > 0 ? `*, ${embeds.join(", ")}` : "*", { count: "exact" });
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.folderId) query = query.eq("trade_folders.folder_id", filters.folderId);
-  if (filters.tag) query = query.contains("custom_fields", { [STRATEGY_TAG_KEY]: [filters.tag] });
+  if (filters.strategyId) query = query.eq("trade_strategies.strategy_id", filters.strategyId);
   if (filters.search) {
     const term = filters.search.replace(/[%,]/g, "");
     query = query.or(`ticker.ilike.%${term}%,company_name.ilike.%${term}%`);
@@ -220,27 +238,15 @@ export async function getStatusCounts(
   };
 }
 
-// Distinct strategy/setup tags AND distinct emotion values, for populating
-// the tag/emotion filter dropdowns on the trades list. Both used to run as
-// separate queries that each fetched the `custom_fields` jsonb column for
-// every one of the user's trades -- same column, fetched twice, on every
-// single /trades page view. Merged into one fetch + one pass now that the
-// list is unbounded (scales with total trade count either way).
-export async function listDistinctTagsAndEmotions(
-  supabase: SupabaseClient,
-): Promise<{ tags: string[]; emotions: string[] }> {
+// Distinct emotion values, for populating the emotion filter dropdown on
+// the trades list. (Strategy tags used to come from this same query --
+// they're now real rows in `strategies`, see lib/strategies/queries.ts.)
+export async function listDistinctEmotions(supabase: SupabaseClient): Promise<string[]> {
   const { data, error } = await supabase.from("trades").select("custom_fields");
   if (error) throw error;
 
-  const tags = new Set<string>();
   const emotions = new Set<string>();
   for (const row of data as { custom_fields: Record<string, unknown> }[]) {
-    const tagValue = row.custom_fields?.[STRATEGY_TAG_KEY];
-    if (Array.isArray(tagValue)) {
-      for (const tag of tagValue) {
-        if (typeof tag === "string" && tag.trim() !== "") tags.add(tag);
-      }
-    }
     for (const key of EMOTION_FIELD_KEYS) {
       const value = row.custom_fields?.[key];
       if (Array.isArray(value)) {
@@ -250,7 +256,7 @@ export async function listDistinctTagsAndEmotions(
       }
     }
   }
-  return { tags: Array.from(tags).sort(), emotions: Array.from(emotions).sort() };
+  return Array.from(emotions).sort();
 }
 
 export async function listDistinctMarkets(supabase: SupabaseClient): Promise<string[]> {
@@ -265,9 +271,4 @@ export async function listDistinctMarkets(supabase: SupabaseClient): Promise<str
     if (row.market) markets.add(row.market);
   }
   return Array.from(markets).sort();
-}
-
-export function getStrategyTags(trade: Trade): string[] {
-  const value = trade.custom_fields?.[STRATEGY_TAG_KEY];
-  return Array.isArray(value) ? (value.filter((v) => typeof v === "string") as string[]) : [];
 }

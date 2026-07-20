@@ -115,8 +115,6 @@ export async function getMonthlyPL(
   return Array.from(byDay.entries()).map(([day, dollar_pl]) => ({ day, dollar_pl }));
 }
 
-const STRATEGY_TAG_KEY = "strategy_setup";
-
 export interface SetupStats {
   tag: string;
   trades: number;
@@ -133,17 +131,22 @@ export async function getBestWorstSetup(
 ): Promise<{ best: SetupStats | null; worst: SetupStats | null }> {
   const { data, error } = await supabase
     .from("trades")
-    .select("dollar_pl, custom_fields")
+    .select("dollar_pl, trade_strategies(strategies(name))")
     .eq("status", "closed");
   if (error) throw error;
 
-  const rows = data as { dollar_pl: number | null; custom_fields: Record<string, unknown> }[];
+  const rows = data as {
+    dollar_pl: number | null;
+    trade_strategies: { strategies: { name: string }[] }[];
+  }[];
   const byTag = new Map<string, { trades: number; wins: number; totalPL: number }>();
 
   for (const row of rows) {
     const pl = row.dollar_pl ?? 0;
-    const tagsRaw = row.custom_fields?.[STRATEGY_TAG_KEY];
-    const tags = Array.isArray(tagsRaw) ? (tagsRaw.filter((t) => typeof t === "string") as string[]) : [];
+    const tags = row.trade_strategies
+      .flatMap((link) => link.strategies)
+      .map((s) => s?.name)
+      .filter((name): name is string => typeof name === "string");
     for (const tag of tags) {
       const bucket = byTag.get(tag) ?? { trades: 0, wins: 0, totalPL: 0 };
       bucket.trades += 1;

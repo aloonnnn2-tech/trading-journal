@@ -33,6 +33,11 @@ export interface FieldDefinition {
   options: FieldOptions;
   sort_order: number;
   is_default: boolean;
+  // Null for a field global to the entity type (today's behavior). Set to
+  // a strategy's id to scope the field to trades using that strategy --
+  // e.g. a "Volume confirmation" field that only makes sense for a
+  // "Breakout" strategy.
+  strategy_id: string | null;
   created_at: string;
 }
 
@@ -40,4 +45,4 @@ export type NewFieldDefinition = Pick<
   FieldDefinition,
   "entity_type" | "key" | "label" | "field_type"
 > &
-  Partial<Pick<FieldDefinition, "options" | "sort_order">>;
+  Partial<Pick<FieldDefinition, "options" | "sort_order" | "strategy_id">>;

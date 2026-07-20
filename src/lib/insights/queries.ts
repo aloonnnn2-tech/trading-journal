@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLocalDayName, WEEKDAY_ORDER } from "@/lib/dates/day-of-week";
 
-const STRATEGY_TAG_KEY = "strategy_setup";
 const EMOTION_BEFORE_KEY = "emotion_before";
 
 const MIN_SAMPLE_SIZE = 5;
@@ -81,7 +80,7 @@ export async function getInsights(
 ): Promise<Insight[]> {
   const { data, error } = await supabase
     .from("trades")
-    .select("exit_date, dollar_pl, direction, risk_percent, custom_fields")
+    .select("exit_date, dollar_pl, direction, risk_percent, custom_fields, trade_strategies(strategies(name))")
     .eq("status", "closed")
     .not("exit_date", "is", null);
 
@@ -93,6 +92,7 @@ export async function getInsights(
     direction: string | null;
     risk_percent: number | null;
     custom_fields: Record<string, unknown>;
+    trade_strategies: { strategies: { name: string }[] }[];
   }[];
 
   if (rows.length < MIN_SAMPLE_SIZE) return [];
@@ -113,10 +113,12 @@ export async function getInsights(
 
     if (row.direction) addToSegment(byDirection, row.direction, won);
 
-    for (const tag of asStringArray(row.custom_fields?.[STRATEGY_TAG_KEY])) {
-      // Normalize snake_case tag keys for display; chart labels, highlight
-      // matching, and insight text all flow from this one key.
-      addToSegment(byTag, tag.replace(/_/g, " "), won);
+    const strategyNames = row.trade_strategies
+      .flatMap((link) => link.strategies)
+      .map((s) => s?.name)
+      .filter((name): name is string => typeof name === "string" && name.trim() !== "");
+    for (const name of strategyNames) {
+      addToSegment(byTag, name, won);
     }
 
     for (const emotion of asStringArray(row.custom_fields?.[EMOTION_BEFORE_KEY])) {
@@ -134,7 +136,7 @@ export async function getInsights(
   return [
     ...buildInsights("day", byDay, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades on ${label}s.`),
     ...buildInsights("direction", byDirection, overallWinRate, (label, rate) => `Your ${label} trades win ${(rate * 100).toFixed(0)}% of the time.`),
-    ...buildInsights("tag", byTag, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades tagged "${label.replace(/_/g, " ")}".`),
+    ...buildInsights("tag", byTag, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades using the "${label}" strategy.`),
     ...buildInsights("emotion", byEmotion, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades entered while feeling "${label}".`),
     ...buildInsights("risk", byRisk, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades with ${label}.`),
   ].sort((a, b) => Math.abs(b.segmentWinRate - b.overallWinRate) - Math.abs(a.segmentWinRate - a.overallWinRate));

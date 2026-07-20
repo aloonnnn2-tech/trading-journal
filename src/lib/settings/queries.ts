@@ -6,12 +6,14 @@ export interface UserSettings {
   hidden_core_fields: EditableCoreField[];
   dashboard_layout: DashboardLayout;
   timezone: string | null;
+  has_completed_tour: boolean;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
   hidden_core_fields: [],
   dashboard_layout: DEFAULT_DASHBOARD_LAYOUT,
   timezone: null,
+  has_completed_tour: false,
 };
 
 export async function getUserSettings(
@@ -20,12 +22,19 @@ export async function getUserSettings(
 ): Promise<UserSettings> {
   const { data, error } = await supabase
     .from("user_settings")
-    .select("hidden_core_fields, dashboard_layout, timezone")
+    .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
   return data ?? DEFAULT_SETTINGS;
+}
+
+export async function setTourCompleted(supabase: SupabaseClient, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("user_settings")
+    .upsert({ user_id: userId, has_completed_tour: true });
+  if (error) throw error;
 }
 
 // Sets the user's IANA timezone the first time the client detects it.

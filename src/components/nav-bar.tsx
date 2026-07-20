@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, HelpCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
+import { startTour } from "@/components/tour/tour-overlay";
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/trades", label: "Trades" },
+  { href: "/strategies", label: "Strategies" },
   { href: "/analytics", label: "Analytics" },
   { href: "/insights", label: "Insights" },
   { href: "/ask", label: "Ask" },
@@ -85,6 +87,7 @@ export function NavBar() {
               <Link
                 key={link.href}
                 href={link.href}
+                data-tour-id={`nav-${link.href.slice(1)}`}
                 className={`relative shrink-0 px-3 py-3.5 text-[13px] transition-colors ${
                   active
                     ? "font-medium text-zinc-900 dark:text-zinc-50"
@@ -103,6 +106,13 @@ export function NavBar() {
           })}
         </nav>
         <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={startTour}
+            title="Replay guided tour"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </button>
           <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             title="Toggle theme"

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { listFieldDefinitions } from "@/lib/fields/definitions";
+import { listAllStrategyFieldDefinitions, listFieldDefinitions } from "@/lib/fields/definitions";
 import { listFolders, listTradeFolderIds } from "@/lib/folders/queries";
 import { getUserSettings } from "@/lib/settings/queries";
 import { getTrade } from "@/lib/trades/queries";
 import { listTradeImages } from "@/lib/images/queries";
+import { listStrategies, listTradeStrategyIds } from "@/lib/strategies/queries";
 import { TradeCard } from "@/components/trade-card/TradeCard";
 import { TradeHistoryPanel } from "@/components/trade-card/trade-history-panel";
 
@@ -22,12 +23,24 @@ export default async function TradeDetailPage({
   const trade = await getTrade(supabase, id);
   if (!trade) notFound();
 
-  const [fieldDefinitions, settings, folders, initialFolderIds, rawImages] = await Promise.all([
+  const [
+    fieldDefinitions,
+    settings,
+    folders,
+    initialFolderIds,
+    rawImages,
+    strategies,
+    initialStrategyIds,
+    strategyFieldDefinitions,
+  ] = await Promise.all([
     listFieldDefinitions(supabase, trade.mode),
     getUserSettings(supabase, userData.user.id),
     listFolders(supabase),
     listTradeFolderIds(supabase, id),
     listTradeImages(supabase, id),
+    listStrategies(supabase),
+    listTradeStrategyIds(supabase, id),
+    listAllStrategyFieldDefinitions(supabase, trade.mode),
   ]);
 
   // Generate signed URLs for all images in one batched Storage call (1-hour
@@ -59,6 +72,9 @@ export default async function TradeDetailPage({
         folders={folders}
         initialFolderIds={initialFolderIds}
         initialImages={initialImages}
+        strategies={strategies}
+        initialStrategyIds={initialStrategyIds}
+        strategyFieldDefinitions={strategyFieldDefinitions}
       />
       <TradeHistoryPanel tradeId={id} />
     </div>
