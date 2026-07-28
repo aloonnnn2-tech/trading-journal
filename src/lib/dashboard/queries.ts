@@ -1,21 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Trade } from "@/lib/trades/types";
+import { getLocalDayOfMonth, localDateParts, startOfLocalDayIso } from "@/lib/dates/local-day";
+import { getStatusCounts } from "@/lib/trades/queries";
+import { getAccountBalance, type AccountBalance } from "@/lib/account/queries";
 
-// "Today" and "this month" are computed in UTC day boundaries -- good
-// enough for now; per-user timezone preference is a future-expansion
-// concern, not a Milestone 4 one.
-function startOfUtcDay(date: Date): string {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())).toISOString();
-}
-
-export async function getTodayPL(supabase: SupabaseClient): Promise<number> {
-  const now = new Date();
-  const todayStart = startOfUtcDay(now);
-  const tomorrowStart = startOfUtcDay(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+// "Today" and "this month" are bucketed by the user's own calendar day, not
+// UTC's -- see src/lib/dates/local-day.ts for why that distinction matters
+// here. `timezone` is null until the client has reported one, in which case
+// these fall back to UTC exactly as they always did.
+export async function getTodayPL(
+  supabase: SupabaseClient,
+  timezone: string | null = null,
+): Promise<number> {
+  const { year, month, day } = localDateParts(new Date(), timezone);
+  const todayStart = startOfLocalDayIso(year, month, day, timezone);
+  const tomorrowStart = startOfLocalDayIso(year, month, day + 1, timezone);
 
   const { data, error } = await supabase
     .from("trades")
     .select("dollar_pl")
+    .eq("status", "closed")
     .gte("exit_date", todayStart)
     .lt("exit_date", tomorrowStart);
 
@@ -26,14 +30,25 @@ export async function getTodayPL(supabase: SupabaseClient): Promise<number> {
 export async function getWinRate(
   supabase: SupabaseClient,
 ): Promise<{ wins: number; closedTotal: number; rate: number | null }> {
-  const base = () => supabase.from("trades").select("*", { count: "exact", head: true }).eq("status", "closed");
-
   // Defined by dollar_pl > 0, not the result column, to match every other
   // win-rate calculation in the app (analytics/insights/ask queries, and
   // this same file's own getBestWorstSetup) -- result is user-set and can
   // drift from the computed P/L (e.g. marked "win" before entry/exit
   // prices are filled in), which previously made this the one place in
   // the app showing a different win rate for the same trades.
+  //
+  // The `exit_date is not null` filter matters for the same reason: the
+  // analytics, insights, and ask pages all restrict their closed-trade set
+  // that way, so without it a closed trade with no exit date sat in this
+  // denominator but nobody else's, and the dashboard reported a different
+  // win rate from /analytics for the exact same history.
+  const base = () =>
+    supabase
+      .from("trades")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "closed")
+      .not("exit_date", "is", null);
+
   const [closedTotal, wins] = await Promise.all([base(), base().gt("dollar_pl", 0)]);
 
   const total = closedTotal.count ?? 0;
@@ -92,9 +107,10 @@ export async function getMonthlyPL(
   supabase: SupabaseClient,
   year: number,
   month: number, // 0-indexed, matches JS Date
+  timezone: string | null = null,
 ): Promise<DailyPL[]> {
-  const monthStart = new Date(Date.UTC(year, month, 1)).toISOString();
-  const monthEnd = new Date(Date.UTC(year, month + 1, 1)).toISOString();
+  const monthStart = startOfLocalDayIso(year, month, 1, timezone);
+  const monthEnd = startOfLocalDayIso(year, month + 1, 1, timezone);
 
   const { data, error } = await supabase
     .from("trades")
@@ -108,7 +124,7 @@ export async function getMonthlyPL(
   const byDay = new Map<number, number>();
   for (const row of data) {
     if (!row.exit_date) continue;
-    const day = new Date(row.exit_date).getUTCDate();
+    const day = getLocalDayOfMonth(row.exit_date as string, timezone);
     byDay.set(day, (byDay.get(day) ?? 0) + (row.dollar_pl ?? 0));
   }
 
@@ -168,6 +184,105 @@ export async function getBestWorstSetup(
   const best = stats.reduce((a, b) => (b.totalPL > a.totalPL ? b : a));
   const worst = stats.reduce((a, b) => (b.totalPL < a.totalPL ? b : a));
   return { best, worst: worst.tag === best.tag && stats.length === 1 ? null : worst };
+}
+
+export interface DashboardStats {
+  counts: { all: number; pending: number; open: number; closed: number };
+  winRate: { wins: number; closedTotal: number; rate: number | null };
+  todayPL: number;
+  monthlyPL: DailyPL[];
+  bestWorstSetup: { best: SetupStats | null; worst: SetupStats | null };
+  accountBalance: AccountBalance;
+}
+
+// PERF-2: the six count/aggregate query groups above (status counts, win
+// rate, today's/monthly P/L, best/worst setup, account balance) collapse
+// into one `dashboard_stats` RPC call (see
+// supabase/migrations/0020_dashboard_stats_rpc.sql). Falls back to the
+// original per-query path on PGRST202 ("could not find the function in the
+// schema cache") so the dashboard keeps working whether or not the user has
+// applied that migration yet -- same defensive pattern as the PGRST205
+// missing-table fallback in account/queries.ts.
+function isMissingFunction(error: { code?: string }): boolean {
+  return error.code === "PGRST202";
+}
+
+function setupFromJson(raw: unknown): SetupStats | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as { tag: string; trades: number; wins: number; totalPL: number };
+  return {
+    tag: row.tag,
+    trades: row.trades,
+    winRate: row.trades > 0 ? row.wins / row.trades : null,
+    totalPL: row.totalPL,
+  };
+}
+
+export async function getDashboardStats(
+  supabase: SupabaseClient,
+  timezone: string | null,
+): Promise<DashboardStats> {
+  const now = new Date();
+  const { year, month, day } = localDateParts(now, timezone);
+  const tz = timezone ?? "UTC";
+
+  const { data, error } = await supabase.rpc("dashboard_stats", {
+    p_today_start: startOfLocalDayIso(year, month, day, timezone),
+    p_today_end: startOfLocalDayIso(year, month, day + 1, timezone),
+    p_month_start: startOfLocalDayIso(year, month, 1, timezone),
+    p_month_end: startOfLocalDayIso(year, month + 1, 1, timezone),
+    p_timezone: tz,
+  });
+
+  if (error && !isMissingFunction(error)) throw error;
+
+  if (!error && data) {
+    const row = Array.isArray(data) ? data[0] : data;
+    const closedTotal = Number(row.closed_total ?? 0);
+    const wins = Number(row.wins ?? 0);
+    const deposited = Number(row.deposited ?? 0);
+    const tradePL = Number(row.trade_pl ?? 0);
+    const balance = deposited + tradePL;
+    const committedCash = Number(row.committed_cash ?? 0);
+
+    return {
+      counts: {
+        all: Number(row.status_all ?? 0),
+        pending: Number(row.status_pending ?? 0),
+        open: Number(row.status_open ?? 0),
+        closed: Number(row.status_closed ?? 0),
+      },
+      winRate: { wins, closedTotal, rate: closedTotal > 0 ? wins / closedTotal : null },
+      todayPL: Number(row.today_pl ?? 0),
+      monthlyPL: ((row.monthly_pl as { day: number; dollar_pl: number }[] | null) ?? []).map(
+        (r) => ({ day: r.day, dollar_pl: Number(r.dollar_pl) }),
+      ),
+      bestWorstSetup: {
+        best: setupFromJson(row.best_setup),
+        worst: setupFromJson(row.worst_setup),
+      },
+      accountBalance: {
+        deposited,
+        tradePL,
+        balance,
+        committedCash,
+        availableCash: balance - committedCash,
+        hasTransactions: Boolean(row.has_transactions),
+      },
+    };
+  }
+
+  // Migration not applied yet -- fall back to the original per-query path.
+  const [counts, winRate, todayPL, monthlyPL, bestWorstSetup, accountBalance] = await Promise.all([
+    getStatusCounts(supabase),
+    getWinRate(supabase),
+    getTodayPL(supabase, timezone),
+    getMonthlyPL(supabase, year, month, timezone),
+    getBestWorstSetup(supabase),
+    getAccountBalance(supabase),
+  ]);
+
+  return { counts, winRate, todayPL, monthlyPL, bestWorstSetup, accountBalance };
 }
 
 const NOTE_FIELD_LABELS: Record<string, string> = {

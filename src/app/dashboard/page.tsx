@@ -1,20 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import {
-  getBestWorstSetup,
-  getMonthlyPL,
-  getPerformanceSeries,
-  getRecentNotes,
-  getRecentTrades,
-  getTodayPL,
-  getWinRate,
-} from "@/lib/dashboard/queries";
+import { getDashboardStats, getPerformanceSeries, getRecentNotes, getRecentTrades } from "@/lib/dashboard/queries";
 import { getEmotionHistory, type EmotionHistoryEntry } from "@/lib/emotions/queries";
 import type { RecentNote, SetupStats } from "@/lib/dashboard/queries";
-import { getStatusCounts } from "@/lib/trades/queries";
-import { getAccountBalance, listAccountTransactions } from "@/lib/account/queries";
+import { listAccountTransactions } from "@/lib/account/queries";
 import { getUserSettings } from "@/lib/settings/queries";
+import { localDateParts } from "@/lib/dates/local-day";
 import type { Trade } from "@/lib/trades/types";
 import { Wallet, Clock, Activity, CheckCircle2, Target } from "lucide-react";
 import { PerformanceChart } from "./performance-chart";
@@ -32,33 +24,24 @@ export default async function DashboardPage() {
   if (!data.user) redirect("/sign-in");
 
   const now = new Date();
-  const [
-    counts,
-    todayPL,
-    winRate,
-    recentTrades,
-    performanceSeries,
-    monthlyPL,
-    settings,
-    bestWorstSetup,
-    recentNotes,
-    recentEmotions,
-    accountBalance,
-    accountTransactions,
-  ] = await Promise.all([
-    getStatusCounts(supabase),
-    getTodayPL(supabase),
-    getWinRate(supabase),
-    getRecentTrades(supabase, 5),
-    getPerformanceSeries(supabase, 200),
-    getMonthlyPL(supabase, now.getUTCFullYear(), now.getUTCMonth()),
-    getUserSettings(supabase, data.user.id),
-    getBestWorstSetup(supabase),
-    getRecentNotes(supabase, 5),
-    getEmotionHistory(supabase, 5),
-    getAccountBalance(supabase),
-    listAccountTransactions(supabase),
-  ]);
+  // Two waves rather than one: the stats RPC buckets "today" and "this
+  // month" in the user's own timezone, which is only known once settings
+  // load. Everything else (row lists for the recent-activity widgets, plus
+  // settings itself) goes out in parallel in wave 1; the single stats RPC
+  // call is wave 2, right after settings resolves.
+  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions] =
+    await Promise.all([
+      getUserSettings(supabase, data.user.id),
+      getRecentTrades(supabase, 5),
+      getPerformanceSeries(supabase, 200),
+      getRecentNotes(supabase, 5),
+      getEmotionHistory(supabase, 5),
+      listAccountTransactions(supabase),
+    ]);
+
+  const { year: localYear, month: localMonth } = localDateParts(now, settings.timezone);
+  const stats = await getDashboardStats(supabase, settings.timezone);
+  const { counts, winRate, todayPL, monthlyPL, bestWorstSetup, accountBalance } = stats;
 
   const dateLabel = now.toLocaleDateString(undefined, {
     weekday: "long",
@@ -129,9 +112,7 @@ export default async function DashboardPage() {
         initialLayout={settings.dashboard_layout}
         widgets={{
           performance: <PerformanceChart data={performanceSeries} />,
-          calendar: (
-            <MonthlyCalendar year={now.getUTCFullYear()} month={now.getUTCMonth()} dailyPL={monthlyPL} />
-          ),
+          calendar: <MonthlyCalendar year={localYear} month={localMonth} dailyPL={monthlyPL} />,
           recent_trades: <RecentTradesList trades={recentTrades} />,
           best_worst_setup: <BestWorstSetup best={bestWorstSetup.best} worst={bestWorstSetup.worst} />,
           recent_notes: <RecentNotesList notes={recentNotes} />,
