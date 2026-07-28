@@ -370,7 +370,7 @@ export function ScreenshotTradeButton() {
                     </p>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">{PRIMARY.map(renderField)}</div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{PRIMARY.map(renderField)}</div>
 
                   {moreDetected.length > 0 && (
                     <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
@@ -385,7 +385,7 @@ export function ScreenshotTradeButton() {
                         </span>
                         <span className="text-[10px] text-zinc-400">{showMore ? "▲" : "▼"}</span>
                       </button>
-                      {showMore && <div className="grid grid-cols-2 gap-3 border-t border-zinc-200 dark:border-zinc-800 p-3">{moreDetected.map(renderField)}</div>}
+                      {showMore && <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 dark:border-zinc-800 p-3 sm:grid-cols-2">{moreDetected.map(renderField)}</div>}
                     </div>
                   )}
 

@@ -27,14 +27,21 @@ export function ImageUploader({
   onApplyFields?: (fields: ApplyCoreFields) => void;
   onCountChange?: (count: number) => void;
 }) {
-  const [images, setImagesState] = useState<ImageItem[]>(initialImages);
-  const setImages = (updater: (prev: ImageItem[]) => ImageItem[]) => {
-    setImagesState((prev) => {
-      const next = updater(prev);
-      onCountChange?.(next.length);
-      return next;
-    });
-  };
+  const [images, setImages] = useState<ImageItem[]>(initialImages);
+
+  // Report the count to the parent from an effect, not from inside the
+  // state updater. A `useState` updater must be pure -- React can call it
+  // more than once per commit (and does in StrictMode), and calling the
+  // parent's setState from in there is an update-during-render of a
+  // different component, which React warns about and which double-fired
+  // the chip count.
+  const onCountChangeRef = useRef(onCountChange);
+  useEffect(() => {
+    onCountChangeRef.current = onCountChange;
+  }, [onCountChange]);
+  useEffect(() => {
+    onCountChangeRef.current?.(images.length);
+  }, [images.length]);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -211,7 +218,7 @@ export function ImageUploader({
               <button
                 onClick={() => handleDelete(img)}
                 disabled={deletingId === img.id}
-                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:cursor-not-allowed"
+                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity disabled:cursor-not-allowed sm:opacity-0 sm:group-hover:opacity-100"
                 title="Remove image"
               >
                 ✕
@@ -246,9 +253,12 @@ export function ImageUploader({
               {coreKeys.map((key) => {
                 const f = result.core[key]!;
                 return (
-                  <label key={key} className="flex cursor-pointer items-center gap-2 text-xs text-zinc-300">
+                  <label
+                    key={key}
+                    className="flex cursor-pointer items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300"
+                  >
                     <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)} className="accent-primary" />
-                    <span className="text-zinc-500">{FIELD_LABELS[key]}:</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">{FIELD_LABELS[key]}:</span>
                     <span className="font-medium">{formatValue(f.value)}</span>
                     <ConfidenceBadge confidence={f.confidence} source={f.source} />
                   </label>
@@ -259,11 +269,11 @@ export function ImageUploader({
 
           {result.extra.length > 0 && (
             <div className="mb-3 border-t border-primary/20 pt-2">
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Also read (no field to save)</p>
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Also read (no field to save)</p>
               <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {result.extra.map((e) => (
-                  <span key={e.key} className="text-[11px] text-zinc-400">
-                    {e.label}: <span className="text-zinc-300">{formatValue(e.value)}</span>
+                  <span key={e.key} className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {e.label}: <span className="text-zinc-800 dark:text-zinc-300">{formatValue(e.value)}</span>
                   </span>
                 ))}
               </div>
@@ -283,7 +293,7 @@ export function ImageUploader({
                 setResult(null);
                 setSelected(new Set());
               }}
-              className="rounded-lg border border-zinc-600 px-3 py-1 text-xs text-zinc-400 hover:border-zinc-400"
+              className="rounded-lg border border-zinc-300 px-3 py-1 text-xs text-zinc-600 hover:border-zinc-500 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-400"
             >
               Dismiss
             </button>
