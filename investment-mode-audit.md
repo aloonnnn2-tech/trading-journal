@@ -28,11 +28,12 @@ computed in exactly one canonical way across the app: `trade.mode ===
 - **Export (`export.ts`, `export-import-fields.ts`, `api/trades/export/route.ts`)** — by design per an existing code comment: core columns cover both entity types intentionally, and both trade and investment field definitions are already fetched for CSV/XLSX flattening. Every investment row also emits blank standard-mode columns alongside its real ones — matches the documented intent, not a bug.
 - **JSON re-import (`import-json/route.ts`)** — already correctly reads `core.mode` and preserves it; this was the reference pattern the CSV/XLSX fix above was modeled on.
 
-## Flagged as follow-up (not fixed — needs a product decision)
+## Follow-up resolved (2026-07-28, same day)
 
-- **`src/lib/account/queries.ts` (`getAccountBalance`, `costOf`)** — `costOf` returns `0` for a trade whose `position_size`/`entry_price`+`shares` are all null, which is exactly the case for every open investment position (their cost basis lives in mode-specific custom fields like "Average Cost"/"Total Shares" instead). This means `committedCash` — and therefore `availableCash = balance - committedCash` — never reflects capital tied up in open investments; the dashboard currently presents that money as still "available" for a new trade's position-size prefill.
-  - This is a genuine product-intent question, not an obvious bug: should an investment's cost basis (derived from its custom fields, which vary in shape) count against available cash the same way an open trade's position size does? Answering it well would need reading `custom_fields`/`strategy_field_values` generically to find a cost-basis-shaped number, which is a small feature, not a drive-by fix.
-  - **Left unchanged pending a decision from the user.**
+- **`src/lib/account/queries.ts` (`getAccountBalance`, `costOf`)** — was flagged (not fixed) in the original pass of this audit: `costOf` returned `0` for every open investment position since they have no `position_size`/`entry_price`/`shares`, so `committedCash`/`availableCash` never reflected capital tied up in investments.
+  - **Decision:** yes, investment cost basis should reduce available cash the same way a trade's position size does.
+  - **Fix:** new `investmentCostOf()` reads the seeded default custom fields `average_cost` × `total_shares` (per `supabase/migrations/0002_seed_default_fields.sql`) for `mode === "investment"` open positions, falling back to `0` if either is missing/non-numeric (same silent-fallback behavior `costOf` already has). Mirrored in `supabase/migrations/0021_dashboard_stats_investment_committed_cash.sql` (the dashboard_stats RPC's `account_stats` CTE), using a regex guard instead of a bare cast so a malformed custom-field value degrades that one position to $0 instead of erroring the whole RPC call.
+  - **Verified live:** inserted a throwaway open investment trade with `average_cost: 50, total_shares: 20`, confirmed `committedCash` moved by exactly +$1000, reverted cleanly after deleting it.
 
 ## Verification
 

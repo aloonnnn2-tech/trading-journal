@@ -15,7 +15,9 @@ export interface AccountBalance {
   tradePL: number;
   /** deposited + tradePL — the cash currently in the account. */
   balance: number;
-  /** Capital currently tied up in open positions (see costOf below). */
+  /** Capital currently tied up in open positions (see costOf/investmentCostOf
+   *  below) -- trade-mode positions by position_size/entry_price*shares,
+   *  investment-mode positions by average_cost*total_shares. */
   committedCash: number;
   /** balance - committedCash — what's actually free to put into a new trade. */
   availableCash: number;
@@ -48,16 +50,44 @@ function costOf(trade: { position_size: number | null; entry_price: number | nul
   return 0;
 }
 
+// Investment-mode equivalent of costOf() -- investment trades don't have
+// entry_price/shares/position_size (that whole card is hidden in
+// TradeCard.tsx for isInvestment), so an open position's cost basis lives
+// instead in the seeded default custom fields "Average Cost"
+// (average_cost) and "Total Shares" (total_shares), per
+// supabase/migrations/0002_seed_default_fields.sql. Falls back to 0 (same
+// as costOf) if either has been cleared, renamed away from, or was never
+// filled in -- silently under-counting is consistent with how costOf
+// already treats an incomplete trade-mode position.
+function investmentCostOf(customFields: Record<string, unknown> | null): number {
+  const avgCost = Number(customFields?.average_cost);
+  const totalShares = Number(customFields?.total_shares);
+  if (Number.isFinite(avgCost) && Number.isFinite(totalShares)) return avgCost * totalShares;
+  return 0;
+}
+
 // Balance is always derived, never stored: manual adjustments come from the
 // account_transactions ledger, and every trade win/loss flows in through
 // trades.dollar_pl (recomputed server-side on each trade update), so the
 // cash figure tracks trade results automatically -- including when a trade
 // is edited or deleted later. committedCash/availableCash are derived the
 // same way from currently-open trades, so they never go stale either.
+// Split into two narrow queries rather than one `select(5 columns)` over
+// every trade. This runs on every dashboard view *and* on every trade
+// creation (position-size prefill), so it's on a hot path: the P/L sum only
+// needs one column and only from rows that have a P/L, and the committed-
+// cash sum only needs the three cost columns from *open* trades (typically
+// a handful). The old single query pulled all five columns for every trade
+// the user has ever logged, including the thousands of closed ones that
+// contribute nothing to committedCash.
 export async function getAccountBalance(supabase: SupabaseClient): Promise<AccountBalance> {
-  const [txResult, tradesResult] = await Promise.all([
+  const [txResult, plResult, openResult] = await Promise.all([
     supabase.from("account_transactions").select("amount"),
-    supabase.from("trades").select("status, dollar_pl, entry_price, shares, position_size"),
+    supabase.from("trades").select("dollar_pl").not("dollar_pl", "is", null),
+    supabase
+      .from("trades")
+      .select("mode, entry_price, shares, position_size, custom_fields")
+      .eq("status", "open"),
   ]);
 
   if (txResult.error && isMissingTable(txResult.error)) {
@@ -71,24 +101,25 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
     };
   }
   if (txResult.error) throw txResult.error;
-  if (tradesResult.error) throw tradesResult.error;
+  if (plResult.error) throw plResult.error;
+  if (openResult.error) throw openResult.error;
 
   const txRows = txResult.data as { amount: number }[];
   const deposited = txRows.reduce((sum, row) => sum + Number(row.amount), 0);
 
-  const tradeRows = tradesResult.data as {
-    status: string;
-    dollar_pl: number | null;
-    entry_price: number | null;
-    shares: number | null;
-    position_size: number | null;
-  }[];
-  let tradePL = 0;
-  let committedCash = 0;
-  for (const row of tradeRows) {
-    if (row.dollar_pl != null) tradePL += Number(row.dollar_pl);
-    if (row.status === "open") committedCash += costOf(row);
-  }
+  const tradePL = (plResult.data as { dollar_pl: number | null }[]).reduce(
+    (sum, row) => sum + Number(row.dollar_pl ?? 0),
+    0,
+  );
+  const committedCash = (
+    openResult.data as {
+      mode: string;
+      entry_price: number | null;
+      shares: number | null;
+      position_size: number | null;
+      custom_fields: Record<string, unknown> | null;
+    }[]
+  ).reduce((sum, row) => sum + (row.mode === "investment" ? investmentCostOf(row.custom_fields) : costOf(row)), 0);
 
   const balance = deposited + tradePL;
 
