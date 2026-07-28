@@ -72,15 +72,20 @@ export function NavBar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-subtle bg-white/85 dark:bg-background/85 backdrop-blur-md">
-      <div className="flex items-center justify-between gap-4 px-6 sm:px-8">
-        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
-          <Link
-            href="/dashboard"
-            className="mr-4 flex shrink-0 items-center gap-2.5 py-3.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
-          >
-            <BrandMark className="h-6 w-6" />
-            <span className="hidden sm:inline">Trading Lens</span>
-          </Link>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 sm:flex-nowrap sm:px-8">
+        <Link
+          href="/dashboard"
+          className="order-1 flex shrink-0 items-center gap-2.5 py-3.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
+        >
+          <BrandMark className="h-6 w-6" />
+          <span className="hidden sm:inline">Trading Lens</span>
+        </Link>
+        {/* Below `sm`, this wraps onto its own full-width row instead of the
+            horizontal-scroll-with-no-affordance it used to be -- every other
+            multi-item row in this app (status/folder/strategy tabs on
+            /trades) already wraps the same way, this just brings the primary
+            nav in line with that pattern. */}
+        <nav className="order-3 flex w-full flex-wrap items-center gap-1 sm:order-2 sm:w-auto sm:min-w-0 sm:flex-nowrap sm:overflow-x-auto">
           {LINKS.map((link) => {
             const active = pathname === link.href || pathname.startsWith(link.href + "/");
             return (
@@ -105,7 +110,7 @@ export function NavBar() {
             );
           })}
         </nav>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="order-2 flex shrink-0 items-center gap-1 sm:order-3">
           <button
             onClick={startTour}
             title="Replay guided tour"

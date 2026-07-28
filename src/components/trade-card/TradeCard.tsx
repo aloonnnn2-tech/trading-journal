@@ -10,6 +10,8 @@ import {
   Calculator,
   NotebookPen,
   Target,
+  AlertTriangle,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { FieldInput } from "@/components/field-input";
@@ -21,6 +23,8 @@ import type { FieldDefinition } from "@/lib/fields/types";
 import type { Folder } from "@/lib/folders/types";
 import type { Strategy } from "@/lib/strategies/types";
 import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
+import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
+import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
 
 const inputClass =
@@ -63,18 +67,44 @@ export function TradeCard({
   const [strategyIds, setStrategyIds] = useState(new Set(initialStrategyIds));
   const [imageCount, setImageCount] = useState(initialImages.length);
   const [activeExtra, setActiveExtra] = useState<ExtraId | null>(null);
+  const [missingOpen, setMissingOpen] = useState(false);
   const hidden = new Set(hiddenCoreFields);
   const isHidden = (field: EditableCoreField) => hidden.has(field);
   const isInvestment = trade.mode === "investment";
 
+  const { handlePriceUpdate, autoExecutionMessage } = useAutoExecuteTrade(
+    trade,
+    isInvestment,
+    updateCoreField,
+    flushNow,
+  );
+  // Only worth polling the live price when there's something for it to
+  // trigger: a pending order waiting on its entry, or an open position
+  // waiting on its stop/target. A closed trade (or one still missing the
+  // price levels it'd be watched against) has nothing to watch for.
+  const watchForAutoExecution =
+    !isInvestment &&
+    ((trade.status === "pending" && trade.entry_price != null) ||
+      (trade.status === "open" && (trade.stop_loss != null || trade.take_profit != null)));
+
+  const missingFields = getMissingFields(trade, isInvestment, hiddenCoreFields);
+
   async function handleDelete() {
     if (!confirm(`Delete trade ${trade.ticker || "(untitled)"}? This cannot be undone.`)) return;
-    await fetch(`/api/trades/${trade.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/trades/${trade.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("Couldn't delete this trade. Please try again.");
+      return;
+    }
     router.push("/trades");
   }
 
   async function handleDuplicate() {
     const res = await fetch(`/api/trades/${trade.id}/duplicate`, { method: "POST" });
+    if (!res.ok) {
+      alert("Couldn't duplicate this trade. Please try again.");
+      return;
+    }
     const duplicate = (await res.json()) as Trade;
     router.push(`/trades/${duplicate.id}`);
   }
@@ -142,9 +172,20 @@ export function TradeCard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      {autoExecutionMessage && (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2 text-sm text-primary">
+          <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />
+          {autoExecutionMessage}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <SaveStatusBadge status={status} />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <MissingFieldsIndicator
+            missing={missingFields}
+            open={missingOpen}
+            onToggle={() => setMissingOpen((o) => !o)}
+          />
           <a
             href={`/api/trades/${trade.id}/export?format=json`}
             className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-3.5 py-1.5 text-sm text-zinc-700 dark:text-zinc-200 hover:border-zinc-500"
@@ -454,6 +495,8 @@ export function TradeCard({
         entryPrice={isInvestment ? null : trade.entry_price}
         stopLoss={isInvestment ? null : trade.stop_loss}
         takeProfit={isInvestment ? null : trade.take_profit}
+        watchForAutoExecution={watchForAutoExecution}
+        onPriceUpdate={handlePriceUpdate}
       />
 
       {!isInvestment && (
@@ -623,5 +666,63 @@ function SaveStatusBadge({ status }: { status: "idle" | "saving" | "saved" | "er
       </span>
       {text}
     </span>
+  );
+}
+
+// Top-right "needs attention" checklist -- always visible (rather than
+// disappearing at zero) so it's a reliable landmark to check, not something
+// that only shows up once and might be missed.
+function MissingFieldsIndicator({
+  missing,
+  open,
+  onToggle,
+}: {
+  missing: MissingField[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const complete = missing.length === 0;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={onToggle}
+        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+          complete
+            ? open
+              ? "border-profit/50 bg-profit/10 text-profit"
+              : "border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-subtle dark:hover:border-zinc-500 dark:hover:text-zinc-300"
+            : open
+              ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+              : "border-amber-500/30 text-amber-600 hover:border-amber-500/50 dark:text-amber-400"
+        }`}
+      >
+        {complete ? (
+          <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
+        ) : (
+          <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2} />
+        )}
+        {missing.length} to fill
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-2 w-56 rounded-xl border border-zinc-200 bg-white p-3 shadow-lg dark:border-subtle dark:bg-card">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+            Still needs
+          </p>
+          {complete ? (
+            <p className="text-sm text-zinc-500">Nothing — this trade is fully filled in.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {missing.map((field) => (
+                <li key={field.key} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                  {field.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
