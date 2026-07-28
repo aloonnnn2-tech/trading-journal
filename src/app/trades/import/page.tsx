@@ -8,7 +8,14 @@ export default async function ImportPage() {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/sign-in");
 
-  const fieldDefinitions = await listFieldDefinitions(supabase, "trade");
+  // Both entity types: a CSV/XLSX import can produce investment-mode rows
+  // (via a mapped "Mode" column) as well as standard trades, so its custom
+  // fields need to be selectable in the mapping step too -- mirrors
+  // api/trades/export/route.ts's existing "fetch both" pattern.
+  const [tradeFieldDefinitions, investmentFieldDefinitions] = await Promise.all([
+    listFieldDefinitions(supabase, "trade"),
+    listFieldDefinitions(supabase, "investment"),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
@@ -21,7 +28,10 @@ export default async function ImportPage() {
           previously exported as JSON.
         </p>
       </div>
-      <ImportWizard fieldDefinitions={fieldDefinitions} />
+      <ImportWizard
+        tradeFieldDefinitions={tradeFieldDefinitions}
+        investmentFieldDefinitions={investmentFieldDefinitions}
+      />
     </div>
   );
 }

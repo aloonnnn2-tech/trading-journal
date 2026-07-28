@@ -81,6 +81,14 @@ export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<Ana
     )
     .eq("status", "closed")
     .not("exit_date", "is", null)
+    // Investment-mode trades don't carry entry/exit-price P&L data (their
+    // cost basis lives in mode-specific custom fields instead), so
+    // dollar_pl is always null for them -- previously counted here as an
+    // automatic non-win, inflating win-rate/direction/streak denominators
+    // without ever being able to win. Excluded rather than given a real
+    // P&L view, since that's a feature (investment-mode analytics), not
+    // an audit fix.
+    .neq("mode", "investment")
     .order("exit_date", { ascending: true });
 
   if (error) throw error;

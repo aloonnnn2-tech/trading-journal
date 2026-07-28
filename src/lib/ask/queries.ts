@@ -117,6 +117,11 @@ export async function getAllAnswers(
     )
     .eq("status", "closed")
     .not("exit_date", "is", null)
+    // See the identical .neq in analytics/queries.ts: investment trades'
+    // dollar_pl is always null, so leaving them in silently counts every
+    // one as a loss (won = dollar_pl > 0) toward win rate and the
+    // loss-streak logic below.
+    .neq("mode", "investment")
     .order("exit_date", { ascending: true });
 
   if (error) throw error;
@@ -414,8 +419,12 @@ export async function getAllAnswers(
           lossRun++;
         } else {
           if (lossRun >= 2) {
-            // collect up to 3 trades strictly after the win that ended the streak
-            for (let j = i + 1; j < Math.min(i + 4, chronological.length); j++) {
+            // The first of the "next 3 trades after the streak" is the
+            // trade at `i` -- the one that broke it. Starting at i+1
+            // dropped it from every window, and since a streak can only
+            // end on a win, that systematically excluded a winner from
+            // each sample and biased the average P/L downward.
+            for (let j = i; j < Math.min(i + 3, chronological.length); j++) {
               postStreakPLs.push(chronological[j].pl);
             }
           }

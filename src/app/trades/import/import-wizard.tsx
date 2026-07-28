@@ -9,6 +9,7 @@ import { TOGGLEABLE_CORE_FIELDS } from "@/lib/trades/types";
 
 const CORE_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "ticker", label: "Ticker" },
+  { key: "mode", label: "Mode (trade / investment)" },
   { key: "status", label: "Status" },
   { key: "result", label: "Result" },
   ...TOGGLEABLE_CORE_FIELDS,
@@ -30,7 +31,13 @@ interface ImportResult {
   errors: { row: number; message: string }[];
 }
 
-export function ImportWizard({ fieldDefinitions }: { fieldDefinitions: FieldDefinition[] }) {
+export function ImportWizard({
+  tradeFieldDefinitions,
+  investmentFieldDefinitions,
+}: {
+  tradeFieldDefinitions: FieldDefinition[];
+  investmentFieldDefinitions: FieldDefinition[];
+}) {
   const router = useRouter();
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -175,9 +182,18 @@ export function ImportWizard({ fieldDefinitions }: { fieldDefinitions: FieldDefi
                         </option>
                       ))}
                     </optgroup>
-                    {fieldDefinitions.length > 0 && (
+                    {tradeFieldDefinitions.length > 0 && (
                       <optgroup label="Custom Fields">
-                        {fieldDefinitions.map((field) => (
+                        {tradeFieldDefinitions.map((field) => (
+                          <option key={field.id} value={`custom:${field.id}`}>
+                            {field.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {investmentFieldDefinitions.length > 0 && (
+                      <optgroup label="Investment Fields">
+                        {investmentFieldDefinitions.map((field) => (
                           <option key={field.id} value={`custom:${field.id}`}>
                             {field.label}
                           </option>

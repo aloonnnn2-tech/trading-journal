@@ -15,11 +15,13 @@
 -- their existing "owner access" policies -- a plain (invoker) function gets
 -- the same protection today's per-row queries already rely on.
 --
--- Intentionally bug-compatible with the current JS implementation it
--- replaces (including counting investment-mode trades into win-rate/setup
--- denominators they can never win -- see missing-fields.ts's isInvestment
--- handling for context). That investment-mode fix is a separate, deliberate
--- change layered on afterward, not bundled into this refactor.
+-- Note: an earlier version of this function was intentionally bug-compatible
+-- with the JS it replaced (counting investment-mode trades into win-rate/
+-- setup denominators they can never win). The task-4 investment-mode audit
+-- fixed that same bug in the JS (analytics/ask/insights/getWinRate/
+-- getBestWorstSetup all gained a `mode <> 'investment'` filter) -- win_stats
+-- and setup_stats below carry the identical fix, so this function matches
+-- the now-fixed JS rather than reproducing the old bug.
 --
 -- Every internal CTE column below is deliberately named *differently* from
 -- the OUT columns in `returns table` -- plpgsql exposes OUT parameters as
@@ -69,13 +71,16 @@ begin
   ),
   win_stats as (
     -- Matches getWinRate()'s definition: dollar_pl > 0, not the result
-    -- column, and restricted to rows with a non-null exit_date -- same
-    -- filter the analytics/insights/ask pages already use.
+    -- column, restricted to rows with a non-null exit_date, and excluding
+    -- investment-mode trades (always-null dollar_pl -> automatic non-win,
+    -- which inflated this denominator) -- same filters the
+    -- analytics/insights/ask pages and getWinRate() itself use.
     select
       count(*) as n_closed_total,
       count(*) filter (where dollar_pl > 0) as n_wins
     from trades
     where user_id = auth.uid() and status = 'closed' and exit_date is not null
+      and mode <> 'investment'
   ),
   today_stats as (
     select coalesce(sum(dollar_pl), 0) as v_today_pl
@@ -128,7 +133,7 @@ begin
     from trades t
     join trade_strategies ts on ts.trade_id = t.id
     join strategies s on s.id = ts.strategy_id
-    where t.user_id = auth.uid() and t.status = 'closed'
+    where t.user_id = auth.uid() and t.status = 'closed' and t.mode <> 'investment'
     group by s.name
   ),
   best_row as (

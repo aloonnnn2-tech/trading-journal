@@ -42,12 +42,17 @@ export async function getWinRate(
   // that way, so without it a closed trade with no exit date sat in this
   // denominator but nobody else's, and the dashboard reported a different
   // win rate from /analytics for the exact same history.
+  // .neq("mode", "investment"): investment trades' dollar_pl is always
+  // null (no entry/exit-price P&L data -- see missing-fields.ts), so
+  // leaving them in this denominator inflated it without either ever
+  // being able to win, same fix applied to analytics/insights/ask.
   const base = () =>
     supabase
       .from("trades")
       .select("*", { count: "exact", head: true })
       .eq("status", "closed")
-      .not("exit_date", "is", null);
+      .not("exit_date", "is", null)
+      .neq("mode", "investment");
 
   const [closedTotal, wins] = await Promise.all([base(), base().gt("dollar_pl", 0)]);
 
@@ -145,10 +150,14 @@ export interface SetupStats {
 export async function getBestWorstSetup(
   supabase: SupabaseClient,
 ): Promise<{ best: SetupStats | null; worst: SetupStats | null }> {
+  // .neq("mode", "investment"): see getWinRate above -- investment trades'
+  // always-null dollar_pl would otherwise count toward a strategy's trade
+  // total while contributing 0 P&L and never winning.
   const { data, error } = await supabase
     .from("trades")
     .select("dollar_pl, trade_strategies(strategies(name))")
-    .eq("status", "closed");
+    .eq("status", "closed")
+    .neq("mode", "investment");
   if (error) throw error;
 
   const rows = data as {

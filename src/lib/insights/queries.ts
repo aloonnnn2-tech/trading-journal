@@ -82,7 +82,12 @@ export async function getInsights(
     .from("trades")
     .select("exit_date, dollar_pl, direction, risk_percent, custom_fields, trade_strategies(strategies(name))")
     .eq("status", "closed")
-    .not("exit_date", "is", null);
+    .not("exit_date", "is", null)
+    // See the identical .neq in analytics/queries.ts: investment trades'
+    // dollar_pl is always null, so leaving them in silently counts every
+    // one as a loss (won = dollar_pl > 0) in every by-day/by-tag/by-emotion
+    // pattern below.
+    .neq("mode", "investment");
 
   if (error) throw error;
 
