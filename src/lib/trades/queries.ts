@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeDerivedFields } from "./compute";
 import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
+import type { StreakTrade } from "./streak";
 
 export async function listTrades(supabase: SupabaseClient): Promise<Trade[]> {
   const { data, error } = await supabase
@@ -238,17 +239,47 @@ export async function getStatusCounts(
   };
 }
 
+// Narrow row shape for the "needs attention" streak (dashboard) -- only
+// the columns getMissingFields() reads, not custom_fields/notes, and
+// bounded to the last year so the query can't grow unbounded over years
+// of usage (same spirit as getRecentNotes' 50-row cap).
+export async function listTradesForStreak(supabase: SupabaseClient): Promise<StreakTrade[]> {
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - 400);
+
+  const { data, error } = await supabase
+    .from("trades")
+    .select(
+      "id, mode, status, created_at, ticker, direction, entry_price, exit_price, stop_loss, entry_date, exit_date, dollar_amount, shares, position_size",
+    )
+    .gte("created_at", since.toISOString());
+
+  if (error) throw error;
+  return data as StreakTrade[];
+}
+
 // Distinct emotion values, for populating the emotion filter dropdown on
 // the trades list. (Strategy tags used to come from this same query --
 // they're now real rows in `strategies`, see lib/strategies/queries.ts.)
+//
+// Selects the three emotion keys out of the jsonb column server-side
+// rather than `select("custom_fields")`. This runs on *every* /trades page
+// view just to populate one dropdown, and custom_fields holds every note
+// the user has ever written on a trade -- pulling the whole column meant
+// shipping the user's entire notes corpus over the wire (and into server
+// memory) on each page load. PostgREST's `->` operator projects the keys
+// we actually need, so the payload is now a few short string arrays per
+// row instead of the full document.
 export async function listDistinctEmotions(supabase: SupabaseClient): Promise<string[]> {
-  const { data, error } = await supabase.from("trades").select("custom_fields");
+  const { data, error } = await supabase
+    .from("trades")
+    .select(EMOTION_FIELD_KEYS.map((key) => `${key}:custom_fields->${key}`).join(", "));
   if (error) throw error;
 
   const emotions = new Set<string>();
-  for (const row of data as { custom_fields: Record<string, unknown> }[]) {
+  for (const row of data as unknown as Record<string, unknown>[]) {
     for (const key of EMOTION_FIELD_KEYS) {
-      const value = row.custom_fields?.[key];
+      const value = row[key];
       if (Array.isArray(value)) {
         for (const emotion of value) {
           if (typeof emotion === "string" && emotion.trim() !== "") emotions.add(emotion);

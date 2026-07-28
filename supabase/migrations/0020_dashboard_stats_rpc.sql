@@ -20,6 +20,15 @@
 -- denominators they can never win -- see missing-fields.ts's isInvestment
 -- handling for context). That investment-mode fix is a separate, deliberate
 -- change layered on afterward, not bundled into this refactor.
+--
+-- Every internal CTE column below is deliberately named *differently* from
+-- the OUT columns in `returns table` -- plpgsql exposes OUT parameters as
+-- variables in scope through the whole function body, so a CTE column alias
+-- that happens to match one (e.g. naming a CTE column `wins` when `wins` is
+-- also an OUT column) makes any later bare reference to that name
+-- genuinely ambiguous to the parser (error 42702, caught by testing this
+-- live against the demo account after applying the migration -- not caught
+-- by writing the SQL alone).
 
 create or replace function dashboard_stats(
   p_today_start timestamptz,
@@ -51,51 +60,51 @@ begin
   with
   status_counts as (
     select
-      count(*) as status_all,
-      count(*) filter (where status = 'pending') as status_pending,
-      count(*) filter (where status = 'open') as status_open,
-      count(*) filter (where status = 'closed') as status_closed
+      count(*) as n_all,
+      count(*) filter (where status = 'pending') as n_pending,
+      count(*) filter (where status = 'open') as n_open,
+      count(*) filter (where status = 'closed') as n_closed
     from trades
     where user_id = auth.uid()
   ),
-  win_rate as (
+  win_stats as (
     -- Matches getWinRate()'s definition: dollar_pl > 0, not the result
     -- column, and restricted to rows with a non-null exit_date -- same
     -- filter the analytics/insights/ask pages already use.
     select
-      count(*) as closed_total,
-      count(*) filter (where dollar_pl > 0) as wins
+      count(*) as n_closed_total,
+      count(*) filter (where dollar_pl > 0) as n_wins
     from trades
     where user_id = auth.uid() and status = 'closed' and exit_date is not null
   ),
-  today as (
-    select coalesce(sum(dollar_pl), 0) as today_pl
+  today_stats as (
+    select coalesce(sum(dollar_pl), 0) as v_today_pl
     from trades
     where user_id = auth.uid() and status = 'closed'
       and exit_date >= p_today_start and exit_date < p_today_end
   ),
-  monthly as (
+  monthly_stats as (
     select coalesce(
-      jsonb_agg(jsonb_build_object('day', day, 'dollar_pl', dollar_pl)),
+      jsonb_agg(jsonb_build_object('day', day_num, 'dollar_pl', day_pl)),
       '[]'::jsonb
-    ) as monthly_pl
+    ) as v_monthly_pl
     from (
       select
-        extract(day from (exit_date at time zone p_timezone))::int as day,
-        sum(dollar_pl) as dollar_pl
+        extract(day from (exit_date at time zone p_timezone))::int as day_num,
+        sum(dollar_pl) as day_pl
       from trades
       where user_id = auth.uid() and status = 'closed'
         and exit_date >= p_month_start and exit_date < p_month_end
       group by 1
     ) by_day
   ),
-  account as (
+  account_stats as (
     select
-      coalesce((select sum(amount) from account_transactions where user_id = auth.uid()), 0) as deposited,
+      coalesce((select sum(amount) from account_transactions where user_id = auth.uid()), 0) as v_deposited,
       coalesce(
         (select sum(dollar_pl) from trades where user_id = auth.uid() and dollar_pl is not null),
         0
-      ) as trade_pl,
+      ) as v_trade_pl,
       coalesce(
         (
           select sum(coalesce(position_size, case when entry_price is not null and shares is not null
@@ -104,48 +113,49 @@ begin
           where user_id = auth.uid() and status = 'open'
         ),
         0
-      ) as committed_cash,
-      exists(select 1 from account_transactions where user_id = auth.uid()) as has_transactions
+      ) as v_committed_cash,
+      exists(select 1 from account_transactions where user_id = auth.uid()) as v_has_tx
   ),
   setup_stats as (
     -- Matches getBestWorstSetup(): best/worst strategy tag by total P/L
     -- across closed trades, mirroring its flatMap(link => link.strategies)
     -- many-to-one unwrap via the join below.
     select
-      s.name as tag,
-      count(*) as trades,
-      count(*) filter (where t.dollar_pl > 0) as wins,
-      sum(t.dollar_pl) as total_pl
+      s.name as setup_tag,
+      count(*) as setup_trades,
+      count(*) filter (where t.dollar_pl > 0) as setup_wins,
+      sum(t.dollar_pl) as setup_total_pl
     from trades t
     join trade_strategies ts on ts.trade_id = t.id
     join strategies s on s.id = ts.strategy_id
     where t.user_id = auth.uid() and t.status = 'closed'
     group by s.name
   ),
-  best as (
+  best_row as (
     select jsonb_build_object(
-      'tag', tag, 'trades', trades, 'wins', wins, 'totalPL', total_pl
-    ) as best_setup
-    from setup_stats order by total_pl desc limit 1
+      'tag', setup_tag, 'trades', setup_trades, 'wins', setup_wins, 'totalPL', setup_total_pl
+    ) as v_best_setup
+    from setup_stats order by setup_total_pl desc limit 1
   ),
-  worst as (
+  worst_row as (
     select jsonb_build_object(
-      'tag', tag, 'trades', trades, 'wins', wins, 'totalPL', total_pl
-    ) as worst_setup
+      'tag', setup_tag, 'trades', setup_trades, 'wins', setup_wins, 'totalPL', setup_total_pl
+    ) as v_worst_setup
     from setup_stats
     where (select count(*) from setup_stats) > 1
-    order by total_pl asc limit 1
+    order by setup_total_pl asc limit 1
   )
   select
-    status_counts.status_all, status_counts.status_pending,
-    status_counts.status_open, status_counts.status_closed,
-    win_rate.closed_total, win_rate.wins,
-    today.today_pl,
-    monthly.monthly_pl,
-    account.deposited, account.trade_pl, account.committed_cash, account.has_transactions,
-    (select best_setup from best),
-    (select worst_setup from worst)
-  from status_counts, win_rate, today, monthly, account;
+    status_counts.n_all, status_counts.n_pending,
+    status_counts.n_open, status_counts.n_closed,
+    win_stats.n_closed_total, win_stats.n_wins,
+    today_stats.v_today_pl,
+    monthly_stats.v_monthly_pl,
+    account_stats.v_deposited, account_stats.v_trade_pl,
+    account_stats.v_committed_cash, account_stats.v_has_tx,
+    (select v_best_setup from best_row),
+    (select v_worst_setup from worst_row)
+  from status_counts, win_stats, today_stats, monthly_stats, account_stats;
 end;
 $$;
 

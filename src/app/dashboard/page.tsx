@@ -5,10 +5,12 @@ import { getDashboardStats, getPerformanceSeries, getRecentNotes, getRecentTrade
 import { getEmotionHistory, type EmotionHistoryEntry } from "@/lib/emotions/queries";
 import type { RecentNote, SetupStats } from "@/lib/dashboard/queries";
 import { listAccountTransactions } from "@/lib/account/queries";
+import { listTradesForStreak } from "@/lib/trades/queries";
+import { computeAttentionStreak } from "@/lib/trades/streak";
 import { getUserSettings } from "@/lib/settings/queries";
 import { localDateParts } from "@/lib/dates/local-day";
 import type { Trade } from "@/lib/trades/types";
-import { Wallet, Clock, Activity, CheckCircle2, Target } from "lucide-react";
+import { Wallet, Clock, Activity, CheckCircle2, Target, Flame } from "lucide-react";
 import { PerformanceChart } from "./performance-chart";
 import { MonthlyCalendar } from "./monthly-calendar";
 import { DashboardGrid } from "./dashboard-grid";
@@ -29,7 +31,7 @@ export default async function DashboardPage() {
   // load. Everything else (row lists for the recent-activity widgets, plus
   // settings itself) goes out in parallel in wave 1; the single stats RPC
   // call is wave 2, right after settings resolves.
-  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions] =
+  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions, streakTrades] =
     await Promise.all([
       getUserSettings(supabase, data.user.id),
       getRecentTrades(supabase, 5),
@@ -37,11 +39,13 @@ export default async function DashboardPage() {
       getRecentNotes(supabase, 5),
       getEmotionHistory(supabase, 5),
       listAccountTransactions(supabase),
+      listTradesForStreak(supabase),
     ]);
 
   const { year: localYear, month: localMonth } = localDateParts(now, settings.timezone);
   const stats = await getDashboardStats(supabase, settings.timezone);
   const { counts, winRate, todayPL, monthlyPL, bestWorstSetup, accountBalance } = stats;
+  const attentionStreak = computeAttentionStreak(streakTrades, settings.hidden_core_fields, settings.timezone, now);
 
   const dateLabel = now.toLocaleDateString(undefined, {
     weekday: "long",
@@ -105,6 +109,13 @@ export default async function DashboardPage() {
           meter={winRate.rate ?? undefined}
           icon={Target}
           iconClass="bg-profit/10 text-profit"
+        />
+        <StatCard
+          label="Needs-attention streak"
+          value={`${attentionStreak} ${attentionStreak === 1 ? "day" : "days"}`}
+          tooltip="Consecutive days with at least one trade that has every required field filled in. A day with no trades, or with only incomplete ones, breaks the streak."
+          icon={Flame}
+          iconClass="bg-primary/10 text-primary"
         />
       </StaggerGrid>
 

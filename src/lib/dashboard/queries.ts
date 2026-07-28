@@ -199,13 +199,13 @@ export interface DashboardStats {
 // rate, today's/monthly P/L, best/worst setup, account balance) collapse
 // into one `dashboard_stats` RPC call (see
 // supabase/migrations/0020_dashboard_stats_rpc.sql). Falls back to the
-// original per-query path on PGRST202 ("could not find the function in the
-// schema cache") so the dashboard keeps working whether or not the user has
-// applied that migration yet -- same defensive pattern as the PGRST205
-// missing-table fallback in account/queries.ts.
-function isMissingFunction(error: { code?: string }): boolean {
-  return error.code === "PGRST202";
-}
+// original per-query path on *any* RPC error -- not just PGRST202
+// ("could not find the function," the not-yet-migrated case) -- so a bug
+// in the SQL itself (caught live during this session: an ambiguous-column
+// error from CTE columns shadowing the function's own OUT parameter names)
+// degrades to a working dashboard instead of a 500, the same way a missing
+// migration does. Logged, not swallowed silently, so a real regression is
+// still visible in server logs.
 
 function setupFromJson(raw: unknown): SetupStats | null {
   if (!raw || typeof raw !== "object") return null;
@@ -234,7 +234,9 @@ export async function getDashboardStats(
     p_timezone: tz,
   });
 
-  if (error && !isMissingFunction(error)) throw error;
+  if (error) {
+    console.error("dashboard_stats RPC failed, falling back to per-query path:", error);
+  }
 
   if (!error && data) {
     const row = Array.isArray(data) ? data[0] : data;
