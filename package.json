@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "ocr:fixtures": "tsx scripts/ocr-eval/generate.ts",
-    "ocr:eval": "tsx scripts/ocr-eval/run.ts"
+    "ocr:eval": "tsx scripts/ocr-eval/run.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",
@@ -26,10 +28,10 @@
     "react-dom": "19.2.4",
     "recharts": "^3.9.0",
     "sharp": "^0.33.5",
-    "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.3.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
@@ -38,8 +40,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
+    "tesseract.js": "^7.0.0",
     "tsx": "^4.23.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "sharp@0.34.5": true,
