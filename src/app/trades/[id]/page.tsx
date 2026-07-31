@@ -7,6 +7,7 @@ import { getUserSettings } from "@/lib/settings/queries";
 import { getTrade } from "@/lib/trades/queries";
 import { listTradeImages } from "@/lib/images/queries";
 import { listStrategies, listTradeStrategyIds } from "@/lib/strategies/queries";
+import { listCommissionRules } from "@/lib/commissions/queries";
 import { TradeCard } from "@/components/trade-card/TradeCard";
 import { TradeHistoryPanel } from "@/components/trade-card/trade-history-panel";
 
@@ -32,6 +33,7 @@ export default async function TradeDetailPage({
     strategies,
     initialStrategyIds,
     strategyFieldDefinitions,
+    commissionRules,
   ] = await Promise.all([
     listFieldDefinitions(supabase, trade.mode),
     getUserSettings(supabase, userData.user.id),
@@ -41,6 +43,7 @@ export default async function TradeDetailPage({
     listStrategies(supabase),
     listTradeStrategyIds(supabase, id),
     listAllStrategyFieldDefinitions(supabase, trade.mode),
+    listCommissionRules(supabase),
   ]);
 
   // Generate signed URLs for all images in one batched Storage call (1-hour
@@ -75,6 +78,7 @@ export default async function TradeDetailPage({
         strategies={strategies}
         initialStrategyIds={initialStrategyIds}
         strategyFieldDefinitions={strategyFieldDefinitions}
+        commissionRules={commissionRules}
       />
       <TradeHistoryPanel tradeId={id} />
     </div>

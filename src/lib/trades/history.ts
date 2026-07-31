@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Trade } from "./types";
+import type { Trade, TradeCoreFields } from "./types";
+import { computeDerivedFields } from "./compute";
+
+// "Column doesn't exist": PGRST204 from PostgREST for an unknown column in a
+// write payload, 42703 from raw Postgres. See updateTrade for why this
+// matters during the manual-migration window.
+const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
+const isMissingColumn = (error: { code?: string }) => MISSING_COLUMN_CODES.has(error.code ?? "");
 
 export interface TradeHistoryEntry {
   id: string;
@@ -50,12 +57,46 @@ export async function restoreTradeVersion(
   const snapshot = historyRow.snapshot as Trade;
   const { id: _id, user_id: _userId, created_at: _createdAt, updated_at: _updatedAt, ...rest } = snapshot;
 
+  // Re-derive P&L from the restored values instead of trusting the snapshot's
+  // stored dollar_pl. A snapshot taken before commissions existed carries a
+  // *gross* dollar_pl and no commission key at all -- writing that back
+  // verbatim would leave a gross P&L sitting next to whatever commission the
+  // row currently has, which is a number that never existed. Recomputing
+  // makes the restored row internally consistent no matter how old the
+  // snapshot is.
+  const commission =
+    rest.commission != null && Number.isFinite(Number(rest.commission)) ? Number(rest.commission) : null;
+  const restored = {
+    ...rest,
+    commission,
+    ...computeDerivedFields({ ...(rest as unknown as TradeCoreFields), commission }),
+  };
+
   const { data, error } = await supabase
     .from("trades")
-    .update(rest)
+    .update(restored)
     .eq("id", tradeId)
     .select()
     .single();
-  if (error) throw error;
-  return data as Trade;
+  if (!error) return data as Trade;
+
+  // Same pre-migration window as updateTrade: the commission columns only
+  // exist once 0022 has been applied by hand.
+  if (!isMissingColumn(error)) throw error;
+
+  const withoutCommission: Record<string, unknown> = {
+    ...rest,
+    ...computeDerivedFields({ ...(rest as unknown as TradeCoreFields), commission: null }),
+  };
+  delete withoutCommission.commission;
+  delete withoutCommission.commission_manual;
+
+  const retry = await supabase
+    .from("trades")
+    .update(withoutCommission)
+    .eq("id", tradeId)
+    .select()
+    .single();
+  if (retry.error) throw retry.error;
+  return retry.data as Trade;
 }

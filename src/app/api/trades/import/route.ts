@@ -8,6 +8,8 @@ import {
   type ImportTarget,
 } from "@/lib/trades/import";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { listCommissionRules } from "@/lib/commissions/queries";
+import { resolveCommission } from "@/lib/commissions/calculate";
 
 const BATCH_SIZE = 500;
 
@@ -47,6 +49,8 @@ export async function POST(request: Request) {
     [...tradeFieldDefinitions, ...investmentFieldDefinitions].map((f) => [f.id, f]),
   );
 
+  const commissionRules = await listCommissionRules(supabase);
+
   const toInsert: Record<string, unknown>[] = [];
   const rowErrors: { row: number; message: string }[] = [];
 
@@ -65,11 +69,40 @@ export async function POST(request: Request) {
       rowErrors.push({ row: index + 1, message: `imported with issues: ${result.error}` });
     }
 
-    const withDerived = withDerivedFields(result.core);
+    // Three passes, because these depend on each other in a cycle:
+    // status is inferred partly from whether a P/L exists, the commission
+    // owed depends on status (an open position hasn't paid an exit fee),
+    // and the final P/L is net of that commission. So: derive a
+    // provisional P/L to settle status, price the commission against it,
+    // then recompute P/L (and re-derive `result`, which reads the sign of
+    // the *net* number -- a thin win that fees turn into a loss should
+    // import as a loss).
+    const provisional = withDerivedFields(result.core);
+    const provisionalStatus = deriveStatusAndResult(result.core, provisional);
+    // A commission column mapped in the source file always wins over the
+    // rules -- it's the broker's own number for this specific fill.
+    const mapped = result.core.commission;
+    const isMapped = mapped != null && Number.isFinite(Number(mapped));
+    const commission = isMapped
+      ? Number(mapped)
+      : resolveCommission(commissionRules, {
+          mode: (result.core.mode as string) ?? "trade",
+          asset_type: (result.core.asset_type as string) ?? null,
+          market: (result.core.market as string) ?? null,
+          status: provisionalStatus.status,
+          direction: (result.core.direction as string) ?? null,
+          entry_price: (result.core.entry_price as number) ?? null,
+          exit_price: (result.core.exit_price as number) ?? null,
+          shares: (result.core.shares as number) ?? null,
+        });
+
+    const withDerived = withDerivedFields(result.core, commission);
     toInsert.push({
       user_id: userData.user.id,
       mode: "trade",
       ...withDerived,
+      commission,
+      commission_manual: isMapped,
       ...deriveStatusAndResult(result.core, withDerived),
       custom_fields: result.custom_fields,
     });

@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/ask", label: "Ask" },
   { href: "/emotions", label: "Emotions" },
   { href: "/fields", label: "Fields" },
+  { href: "/commissions", label: "Commissions" },
 ];
 
 export function NavBar() {

@@ -31,6 +31,14 @@ export interface Trade {
   entry_date: string | null;
   exit_date: string | null;
 
+  /** Broker fees attributed to this trade: the entry-side fee once open,
+   *  plus the exit-side fee once closed. dollar_pl is stored net of this. */
+  commission: number | null;
+  /** True when the user typed a commission by hand, pinning it against the
+   *  automatic per-rule recalculation. */
+  commission_manual: boolean;
+
+  /** Net of commission -- see src/lib/trades/compute.ts. */
   dollar_pl: number | null;
   percent_return: number | null;
   r_multiple: number | null;
@@ -54,6 +62,7 @@ export type TradeCoreFields = Pick<
   | "shares"
   | "risk_amount"
   | "direction"
+  | "commission"
 >;
 
 // Columns a client is allowed to PATCH directly. Derived P/L columns are
@@ -76,6 +85,7 @@ export const EDITABLE_CORE_FIELDS = [
   "dollar_amount",
   "risk_amount",
   "risk_percent",
+  "commission",
   "entry_date",
   "exit_date",
 ] as const;
@@ -99,6 +109,7 @@ export const TOGGLEABLE_CORE_FIELDS: { key: EditableCoreField; label: string }[]
   { key: "dollar_amount", label: "Dollar Amount" },
   { key: "risk_amount", label: "Risk Amount" },
   { key: "risk_percent", label: "Risk %" },
+  { key: "commission", label: "Commission" },
   { key: "entry_date", label: "Entry Date" },
   { key: "exit_date", label: "Exit Date" },
 ];

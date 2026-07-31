@@ -26,6 +26,7 @@ export const coreFieldsSchema = z
     dollar_amount: nullableFiniteNumber,
     risk_amount: nullableFiniteNumber,
     risk_percent: nullableFiniteNumber,
+    commission: nullableFiniteNumber,
     entry_date: nullableString,
     exit_date: nullableString,
   })

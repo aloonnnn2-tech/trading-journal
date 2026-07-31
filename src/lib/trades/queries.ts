@@ -2,6 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeDerivedFields } from "./compute";
 import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
 import type { StreakTrade } from "./streak";
+import { listCommissionRules } from "@/lib/commissions/queries";
+import { resolveCommission } from "@/lib/commissions/calculate";
+
+// "Column doesn't exist": PGRST204 is what PostgREST returns for an unknown
+// column in a write payload, 42703 is raw Postgres's undefined_column.
+const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
+const isMissingColumn = (error: { code?: string }) => MISSING_COLUMN_CODES.has(error.code ?? "");
 
 export async function listTrades(supabase: SupabaseClient): Promise<Trade[]> {
   const { data, error } = await supabase
@@ -81,22 +88,85 @@ export async function updateTrade(
     }
   }
 
-  const derived = computeDerivedFields(mergedCore as unknown as TradeCoreFields);
+  // Commission is resolved server-side from the user's rules on every save,
+  // so it tracks changes to price/size/status automatically (an open trade
+  // that gets closed picks up its exit-side fee without the user doing
+  // anything). Two escapes: a trade the user typed a commission on by hand
+  // (commission_manual) keeps that number, and a PATCH that sets commission
+  // explicitly wins for this write and pins it from then on.
+  const merged = mergedCore as unknown as Trade;
+  const commissionTouched =
+    changes.core != null && Object.prototype.hasOwnProperty.call(changes.core, "commission");
+  const rawCommission = merged.commission;
+  let commission: number | null =
+    rawCommission != null && Number.isFinite(Number(rawCommission)) ? Number(rawCommission) : null;
+  let commissionManual = existing.commission_manual;
+
+  // Typing a value pins it. Clearing the field (an explicit null) releases
+  // the pin and re-derives from the rules *in this same save* -- otherwise
+  // "clear it to go back to automatic" would silently need a second edit
+  // before the rule took over again.
+  if (commissionTouched && commission != null) {
+    commissionManual = true;
+  } else if (commissionTouched || !existing.commission_manual) {
+    commissionManual = false;
+    const rules = await listCommissionRules(supabase);
+    commission = resolveCommission(rules, {
+      mode: merged.mode,
+      asset_type: merged.asset_type,
+      market: merged.market,
+      status: merged.status,
+      direction: merged.direction,
+      entry_price: merged.entry_price,
+      exit_price: merged.exit_price,
+      shares: merged.shares,
+    });
+  }
+
+  const derived = computeDerivedFields({
+    ...(mergedCore as unknown as TradeCoreFields),
+    commission,
+  });
+
+  const basePayload: Record<string, unknown> = {
+    ...(changes.core ?? {}),
+    custom_fields: mergedCustomFields,
+    strategy_field_values: mergedStrategyFieldValues,
+    ...derived,
+  };
+  // `commission` can arrive via changes.core (it's an editable core field).
+  // Drop it here and re-add the *resolved* value below, so the manual-vs-rule
+  // decision above is the single source of truth for what gets written.
+  delete basePayload.commission;
 
   const { data, error } = await supabase
     .from("trades")
+    .update({ ...basePayload, commission, commission_manual: commissionManual })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (!error) return data as Trade;
+
+  // Migration 0022 (which adds the commission columns) is applied by hand in
+  // the Supabase SQL editor, so there's a window where this code is live and
+  // those columns don't exist yet. Editing a trade is core functionality and
+  // must not break during it -- retry without the commission columns, with
+  // P&L recomputed gross to stay consistent with a fee that isn't stored.
+  if (!isMissingColumn(error)) throw error;
+
+  const retry = await supabase
+    .from("trades")
     .update({
-      ...(changes.core ?? {}),
-      custom_fields: mergedCustomFields,
-      strategy_field_values: mergedStrategyFieldValues,
-      ...derived,
+      ...basePayload,
+      ...computeDerivedFields({ ...(mergedCore as unknown as TradeCoreFields), commission: null }),
     })
     .eq("id", id)
     .select()
     .single();
 
-  if (error) throw error;
-  return data as Trade;
+  if (retry.error) throw retry.error;
+  return retry.data as Trade;
 }
 
 // Returns whether a row was actually deleted, so the route can 404 rather

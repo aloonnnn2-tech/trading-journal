@@ -25,6 +25,12 @@ import type { Strategy } from "@/lib/strategies/types";
 import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
+import {
+  matchCommissionRule,
+  computeCommission,
+  computeBreakevenPrice,
+} from "@/lib/commissions/calculate";
+import type { CommissionRule } from "@/lib/commissions/types";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
 
 const inputClass =
@@ -49,6 +55,7 @@ export function TradeCard({
   strategies = [],
   initialStrategyIds = [],
   strategyFieldDefinitions = {},
+  commissionRules = [],
 }: {
   trade: Trade;
   fieldDefinitions: FieldDefinition[];
@@ -59,6 +66,7 @@ export function TradeCard({
   strategies?: Strategy[];
   initialStrategyIds?: string[];
   strategyFieldDefinitions?: Record<string, FieldDefinition[]>;
+  commissionRules?: CommissionRule[];
 }) {
   const router = useRouter();
   const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow } =
@@ -88,6 +96,15 @@ export function TradeCard({
       (trade.status === "open" && (trade.stop_loss != null || trade.take_profit != null)));
 
   const missingFields = getMissingFields(trade, isInvestment, hiddenCoreFields);
+
+  // Computed client-side (rather than read off the saved row) so the chart's
+  // break-even line and the fee readout track what's being typed, instead of
+  // lagging a 600ms autosave round trip behind it. The server recomputes and
+  // persists the authoritative value on save -- this is purely the live
+  // preview of the same calculation.
+  const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
+  const commissionPreview = computeCommission(commissionRule, trade);
+  const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
 
   async function handleDelete() {
     if (!confirm(`Delete trade ${trade.ticker || "(untitled)"}? This cannot be undone.`)) return;
@@ -458,7 +475,11 @@ export function TradeCard({
 
         {!isInvestment && (
           <div className={activeExtra === "results" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "hidden"}>
-            <ReadOnlyField label="Dollar P/L" value={trade.dollar_pl} />
+            <ReadOnlyField
+              label="Dollar P/L"
+              tooltip="Net of commission — this is what actually landed in your account."
+              value={trade.dollar_pl}
+            />
             <ReadOnlyField label="Percent Return" value={trade.percent_return} suffix="%" />
             <ReadOnlyField
               label="R Multiple"
@@ -467,8 +488,24 @@ export function TradeCard({
             />
             <ReadOnlyField
               label="Risk/Reward Ratio"
-              tooltip="How much you aimed to gain compared to how much you risked, based on your stop loss and take profit. 3.0 means you were targeting 3x your risk."
+              tooltip="How much you aimed to gain compared to how much you risked, based on your stop loss and take profit. 3.0 means you were targeting 3x your risk. Based on your price levels only, before commission."
               value={trade.risk_reward_ratio}
+            />
+            <ReadOnlyField
+              label="Commission"
+              tooltip={
+                trade.commission_manual
+                  ? "Entered by hand on this trade, so your commission rules won't overwrite it. Clear the Commission field to go back to automatic."
+                  : commissionRule
+                    ? `Applied automatically from your "${commissionRule.name}" rule. Charged on entry once the trade is open, and again on exit once it's closed.`
+                    : "No commission rule matches this trade. Set one up on the Commissions page, or type a value into the Commission field."
+              }
+              value={trade.commission}
+            />
+            <ReadOnlyField
+              label="Breakeven Price"
+              tooltip={`The price this trade has to reach before it's actually profitable, once the full round trip of commission is paid${commissionPreview.exitFee === 0 && commissionRule ? " (including the exit fee not yet charged)" : ""}. Shown as a dashed line on the chart.`}
+              value={breakevenPrice}
             />
           </div>
         )}
@@ -495,6 +532,7 @@ export function TradeCard({
         entryPrice={isInvestment ? null : trade.entry_price}
         stopLoss={isInvestment ? null : trade.stop_loss}
         takeProfit={isInvestment ? null : trade.take_profit}
+        breakevenPrice={breakevenPrice}
         watchForAutoExecution={watchForAutoExecution}
         onPriceUpdate={handlePriceUpdate}
       />
@@ -570,7 +608,28 @@ export function TradeCard({
                 onChange={(v) => updateCoreField("risk_percent", v)}
               />
             )}
+            {!isHidden("commission") && (
+              <NumberField
+                label="Commission"
+                tooltip={
+                  trade.commission_manual
+                    ? "Set by hand — your commission rules won't change it. Clear this field to go back to calculating it automatically."
+                    : commissionRule
+                      ? `Filled in automatically from your "${commissionRule.name}" rule. Type over it to set this trade's fee by hand.`
+                      : "Broker fees for this trade, subtracted from its P/L. Set up rules on the Commissions page to fill this in automatically."
+                }
+                value={trade.commission}
+                onChange={(v) => updateCoreField("commission", v)}
+              />
+            )}
           </div>
+          {commissionRule && !trade.commission_manual && (
+            <p className="mt-3 text-xs text-zinc-500">
+              Commission is applied automatically from your{" "}
+              <span className="text-zinc-700 dark:text-zinc-300">{commissionRule.name}</span> rule.
+              P/L above is net of it.
+            </p>
+          )}
         </Card>
       )}
     </div>
@@ -614,7 +673,10 @@ function NumberField({
         type="number"
         step="any"
         className={inputClass}
-        value={value === null ? "" : value}
+        // `== null`, not `=== null`: a column the database doesn't have yet
+        // (a migration applied by hand, so there's always a window) comes
+        // back `undefined`, which would flip this to an uncontrolled input.
+        value={value == null ? "" : value}
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
       />
     </Field>
@@ -635,7 +697,11 @@ function ReadOnlyField({
   return (
     <Field label={label} tooltip={tooltip}>
       <div className={`${inputClass} tnum font-mono text-zinc-500`}>
-        {value === null ? "—" : `${value.toFixed(2)}${suffix}`}
+        {/* `== null`, not `=== null`: a column the database doesn't have yet
+            reads back `undefined`, and the strict check let that through to
+            `undefined.toFixed(2)` -- a TypeError that took down the whole
+            trade page, since this panel is always mounted (just hidden). */}
+        {value == null ? "—" : `${value.toFixed(2)}${suffix}`}
       </div>
     </Field>
   );

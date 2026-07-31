@@ -12,6 +12,7 @@ const NUMERIC_CORE_FIELDS = new Set([
   "dollar_amount",
   "risk_amount",
   "risk_percent",
+  "commission",
 ]);
 const DATE_CORE_FIELDS = new Set(["entry_date", "exit_date"]);
 const ENUM_CORE_FIELDS: Record<string, string[]> = {
@@ -112,7 +113,44 @@ export function buildRowFromMapping(
   return { core, custom_fields, error: errors.length > 0 ? errors.join("; ") : null };
 }
 
-export function withDerivedFields(core: Record<string, unknown>): Record<string, unknown> {
+// Imports used to hard-code every row as `status: "closed", result: "open"`,
+// which the Trades list renders as a contradictory "closed / open" pair of
+// badges and which makes result-based filtering wrong for the whole import.
+// Derive both from the data instead, and let an explicitly mapped
+// status/result column win over the inference.
+export function deriveStatusAndResult(
+  core: Record<string, unknown>,
+  derived: Record<string, unknown>,
+): { status: string; result: string } {
+  const explicitStatus = typeof core.status === "string" ? core.status : null;
+  const explicitResult = typeof core.result === "string" ? core.result : null;
+
+  // A row counts as closed if it carries any evidence the trade finished:
+  // an exit price, an exit date, or a computed P/L.
+  const looksClosed =
+    core.exit_price != null || core.exit_date != null || derived.dollar_pl != null;
+  const status = explicitStatus ?? (looksClosed ? "closed" : "open");
+
+  let result = explicitResult;
+  if (result === null) {
+    const pl = derived.dollar_pl;
+    if (status !== "closed" || typeof pl !== "number") result = "open";
+    else if (pl > 0) result = "win";
+    else if (pl < 0) result = "loss";
+    else result = "break_even";
+  }
+
+  return { status, result };
+}
+
+// `commission` is passed in by the import routes, which resolve it from the
+// user's commission rules (or from an explicitly mapped commission column in
+// the source file) before calling this -- so an imported trade's P&L is net
+// of fees exactly like one logged in the app.
+export function withDerivedFields(
+  core: Record<string, unknown>,
+  commission: number | null = null,
+): Record<string, unknown> {
   const derived = computeDerivedFields({
     entry_price: (core.entry_price as number) ?? null,
     exit_price: (core.exit_price as number) ?? null,
@@ -121,6 +159,7 @@ export function withDerivedFields(core: Record<string, unknown>): Record<string,
     shares: (core.shares as number) ?? null,
     risk_amount: (core.risk_amount as number) ?? null,
     direction: (core.direction as TradeDirection) ?? null,
+    commission,
   } satisfies TradeCoreFields);
 
   return { ...core, ...derived };
