@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import { computeDerivedFields } from "@/lib/trades/compute";
@@ -27,14 +28,23 @@ export async function POST() {
 
   const rules = await listCommissionRules(supabase);
 
-  const { data, error } = await supabase
-    .from("trades")
-    .select(
-      "id, mode, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, commission, commission_manual",
-    )
-    .eq("mode", "trade");
-
-  if (error) {
+  // fetchAllRows: a bulk re-price that silently stops at the 1,000-row page
+  // cap would leave old and new commission logic mixed in one dataset.
+  let trades: Trade[];
+  try {
+    // The narrow column list means the client infers a shape narrower than
+    // Trade -- fetch untyped and cast once, same as the other call sites.
+    trades = (await fetchAllRows<Record<string, unknown>>((from, to) =>
+      supabase
+        .from("trades")
+        .select(
+          "id, mode, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, commission, commission_manual",
+        )
+        .eq("mode", "trade")
+        .order("id", { ascending: true })
+        .range(from, to),
+    )) as unknown as Trade[];
+  } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "PGRST205" || code === "42P01" || code === "42703") {
       return NextResponse.json(
@@ -44,8 +54,6 @@ export async function POST() {
     }
     throw error;
   }
-
-  const trades = data as Trade[];
   let updated = 0;
   let skipped = 0;
   const failures: string[] = [];

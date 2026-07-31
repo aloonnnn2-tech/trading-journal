@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 export interface AccountTransaction {
   id: string;
@@ -81,16 +82,41 @@ function investmentCostOf(customFields: Record<string, unknown> | null): number 
 // the user has ever logged, including the thousands of closed ones that
 // contribute nothing to committedCash.
 export async function getAccountBalance(supabase: SupabaseClient): Promise<AccountBalance> {
-  const [txResult, plResult, openResult] = await Promise.all([
-    supabase.from("account_transactions").select("amount"),
-    supabase.from("trades").select("dollar_pl").not("dollar_pl", "is", null),
-    supabase
-      .from("trades")
-      .select("mode, entry_price, shares, position_size, custom_fields")
-      .eq("status", "open"),
+  // fetchAllRows on all three: these are sums, and PostgREST's silent
+  // 1,000-row page cap would otherwise truncate them past that count --
+  // an account balance that quietly stops including older trades' P/L is
+  // the single worst number in the app to get wrong, since position-size
+  // prefill spends it. The `.order("id")` on each keeps offset pagination
+  // deterministic.
+  const [txRows, plRows, openRows] = await Promise.all([
+    fetchAllRows<{ amount: number }>((from, to) =>
+      supabase.from("account_transactions").select("amount").order("id").range(from, to),
+    ).catch((error: { code?: string }) => {
+      // Migration 0016 not applied yet: treat as "no transactions", same
+      // dormant-feature behavior as before.
+      if (isMissingTable(error)) return null;
+      throw error;
+    }),
+    fetchAllRows<{ dollar_pl: number | null }>((from, to) =>
+      supabase.from("trades").select("dollar_pl").not("dollar_pl", "is", null).order("id").range(from, to),
+    ),
+    fetchAllRows<{
+      mode: string;
+      entry_price: number | null;
+      shares: number | null;
+      position_size: number | null;
+      custom_fields: Record<string, unknown> | null;
+    }>((from, to) =>
+      supabase
+        .from("trades")
+        .select("mode, entry_price, shares, position_size, custom_fields")
+        .eq("status", "open")
+        .order("id")
+        .range(from, to),
+    ),
   ]);
 
-  if (txResult.error && isMissingTable(txResult.error)) {
+  if (txRows === null) {
     return {
       deposited: 0,
       tradePL: 0,
@@ -100,26 +126,13 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
       hasTransactions: false,
     };
   }
-  if (txResult.error) throw txResult.error;
-  if (plResult.error) throw plResult.error;
-  if (openResult.error) throw openResult.error;
 
-  const txRows = txResult.data as { amount: number }[];
   const deposited = txRows.reduce((sum, row) => sum + Number(row.amount), 0);
-
-  const tradePL = (plResult.data as { dollar_pl: number | null }[]).reduce(
-    (sum, row) => sum + Number(row.dollar_pl ?? 0),
+  const tradePL = plRows.reduce((sum, row) => sum + Number(row.dollar_pl ?? 0), 0);
+  const committedCash = openRows.reduce(
+    (sum, row) => sum + (row.mode === "investment" ? investmentCostOf(row.custom_fields) : costOf(row)),
     0,
   );
-  const committedCash = (
-    openResult.data as {
-      mode: string;
-      entry_price: number | null;
-      shares: number | null;
-      position_size: number | null;
-      custom_fields: Record<string, unknown> | null;
-    }[]
-  ).reduce((sum, row) => sum + (row.mode === "investment" ? investmentCostOf(row.custom_fields) : costOf(row)), 0);
 
   const balance = deposited + tradePL;
 

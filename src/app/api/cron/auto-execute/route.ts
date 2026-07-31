@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchDayRange, guessYahooSymbol } from "@/lib/market-data/yahoo";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import {
   decideAutoExecution,
   describeAutoExecution,
@@ -22,6 +23,10 @@ export const dynamic = "force-dynamic";
 /** How many distinct tickers to price at once. Yahoo's endpoint is
  *  unofficial and undocumented on rate limits, so this stays modest. */
 const PRICE_CONCURRENCY = 5;
+
+/** How many trade updates to run at once. Sequential awaits made a large
+ *  sweep linger; unbounded parallelism would hammer PostgREST instead. */
+const UPDATE_CONCURRENCY = 10;
 
 interface WatchedTrade extends AutoExecutableTrade {
   id: string;
@@ -86,22 +91,28 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   const supabase = createAdminClient();
 
-  // Only the columns the decision and the P&L recompute need.
-  const { data, error } = await supabase
-    .from("trades")
-    .select(
-      "id, user_id, mode, ticker, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, entry_date, commission, commission_manual",
-    )
-    .in("status", ["pending", "open"])
-    .eq("mode", "trade");
-
-  if (error) {
-    return NextResponse.json({ error: `Could not load trades: ${error.message}` }, { status: 500 });
+  // Only the columns the decision and the P&L recompute need. fetchAllRows:
+  // the silent 1,000-row page cap would otherwise mean some users' pending
+  // orders are simply never watched, with nothing anywhere saying so.
+  let data: WatchedTrade[];
+  try {
+    data = await fetchAllRows<WatchedTrade>((from, to) =>
+      supabase
+        .from("trades")
+        .select(
+          "id, user_id, mode, ticker, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, entry_date, commission, commission_manual",
+        )
+        .in("status", ["pending", "open"])
+        .eq("mode", "trade")
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+  } catch (error) {
+    const message = (error as { message?: string }).message ?? "unknown";
+    return NextResponse.json({ error: `Could not load trades: ${message}` }, { status: 500 });
   }
 
-  const watched = (data as WatchedTrade[]).filter(
-    (trade) => isWatchable(trade) && trade.ticker.trim() !== "",
-  );
+  const watched = data.filter((trade) => isWatchable(trade) && trade.ticker.trim() !== "");
 
   if (watched.length === 0) {
     return NextResponse.json({ dryRun, scanned: 0, executed: 0, tickers: 0, failures: [], ms: Date.now() - startedAt });
@@ -144,50 +155,60 @@ export async function POST(request: Request) {
   const executed: { id: string; ticker: string; message: string }[] = [];
   const now = new Date();
 
+  // Decide first (pure, cheap), then write in bounded-concurrency chunks --
+  // a sweep with many triggers shouldn't serialize one DB round trip per
+  // trade, and the decisions don't depend on each other.
+  const triggered: { trade: WatchedTrade; decision: NonNullable<ReturnType<typeof decideAutoExecution>> }[] = [];
   for (const trade of watched) {
     const levels = prices.get(symbolFor(trade));
     if (!levels) continue;
-
     const decision = decideAutoExecution(trade, levels, now);
-    if (!decision) continue;
+    if (decision) triggered.push({ trade, decision });
+  }
 
-    // Apply the same derived-field pipeline a normal edit goes through, so
-    // an auto-closed trade lands with correct commission and net P&L rather
-    // than a status change alone.
-    const merged = { ...trade, ...decision.changes } as unknown as Trade;
-    const commission = trade.commission_manual
-      ? trade.commission
-      : resolveCommission(await rulesFor(trade.user_id), {
-          mode: merged.mode,
-          asset_type: merged.asset_type,
-          market: merged.market,
-          status: merged.status,
-          direction: merged.direction,
-          entry_price: merged.entry_price,
-          exit_price: merged.exit_price,
-          shares: merged.shares,
+  for (let i = 0; i < triggered.length; i += UPDATE_CONCURRENCY) {
+    const batch = triggered.slice(i, i + UPDATE_CONCURRENCY);
+    await Promise.all(
+      batch.map(async ({ trade, decision }) => {
+        // Apply the same derived-field pipeline a normal edit goes through,
+        // so an auto-closed trade lands with correct commission and net P&L
+        // rather than a status change alone.
+        const merged = { ...trade, ...decision.changes } as unknown as Trade;
+        const commission = trade.commission_manual
+          ? trade.commission
+          : resolveCommission(await rulesFor(trade.user_id), {
+              mode: merged.mode,
+              asset_type: merged.asset_type,
+              market: merged.market,
+              status: merged.status,
+              direction: merged.direction,
+              entry_price: merged.entry_price,
+              exit_price: merged.exit_price,
+              shares: merged.shares,
+            });
+
+        const derived = computeDerivedFields({
+          ...(merged as unknown as TradeCoreFields),
+          commission,
         });
 
-    const derived = computeDerivedFields({
-      ...(merged as unknown as TradeCoreFields),
-      commission,
-    });
+        if (!dryRun) {
+          const { error: updateError } = await supabase
+            .from("trades")
+            .update({ ...decision.changes, commission, ...derived })
+            .eq("id", trade.id)
+            // Scoped by user_id as well as id: RLS is off on this client, so
+            // the filter that normally guarantees ownership must be explicit.
+            .eq("user_id", trade.user_id);
 
-    if (!dryRun) {
-      const { error: updateError } = await supabase
-        .from("trades")
-        .update({ ...decision.changes, commission, ...derived })
-        .eq("id", trade.id)
-        // Scoped by user_id as well as id: RLS is off on this client, so the
-        // filter that normally guarantees ownership has to be explicit.
-        .eq("user_id", trade.user_id);
-
-      if (updateError) {
-        failures.push(`${trade.ticker} (${trade.id}): ${updateError.message}`);
-        continue;
-      }
-    }
-    executed.push({ id: trade.id, ticker: trade.ticker, message: describeAutoExecution(decision) });
+          if (updateError) {
+            failures.push(`${trade.ticker} (${trade.id}): ${updateError.message}`);
+            return;
+          }
+        }
+        executed.push({ id: trade.id, ticker: trade.ticker, message: describeAutoExecution(decision) });
+      }),
+    );
   }
 
   return NextResponse.json({

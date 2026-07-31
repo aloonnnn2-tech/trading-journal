@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { computeDerivedFields } from "./compute";
 import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
 import type { StreakTrade } from "./streak";
@@ -10,14 +11,19 @@ import { resolveCommission } from "@/lib/commissions/calculate";
 const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
 const isMissingColumn = (error: { code?: string }) => MISSING_COLUMN_CODES.has(error.code ?? "");
 
+// fetchAllRows: this backs the export routes, whose whole promise is "all
+// my data" -- PostgREST's silent 1,000-row cap would otherwise quietly drop
+// the oldest trades from a backup with no error anywhere.
 export async function listTrades(supabase: SupabaseClient): Promise<Trade[]> {
-  const { data, error } = await supabase
-    .from("trades")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  return data as Trade[];
+  const data = await fetchAllRows<Trade>((from, to) =>
+    supabase
+      .from("trades")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  return data;
 }
 
 export async function getTrade(supabase: SupabaseClient, id: string): Promise<Trade | null> {
@@ -317,15 +323,21 @@ export async function listTradesForStreak(supabase: SupabaseClient): Promise<Str
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 400);
 
-  const { data, error } = await supabase
-    .from("trades")
-    .select(
-      "id, mode, status, created_at, ticker, direction, entry_price, exit_price, stop_loss, entry_date, exit_date, dollar_amount, shares, position_size",
-    )
-    .gte("created_at", since.toISOString());
-
-  if (error) throw error;
-  return data as StreakTrade[];
+  // Date-bounded but not count-bounded: an active tracker can log more than
+  // 1,000 trades in 400 days, and the silent page cap would then compute the
+  // streak over a truncated window.
+  const data = await fetchAllRows<StreakTrade>((from, to) =>
+    supabase
+      .from("trades")
+      .select(
+        "id, mode, status, created_at, ticker, direction, entry_price, exit_price, stop_loss, entry_date, exit_date, dollar_amount, shares, position_size",
+      )
+      .gte("created_at", since.toISOString())
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  return data;
 }
 
 // Distinct emotion values, for populating the emotion filter dropdown on

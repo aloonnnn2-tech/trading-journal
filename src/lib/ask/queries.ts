@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getLocalDayName, WEEKDAY_ORDER } from "@/lib/dates/day-of-week";
-
-const EMOTION_BEFORE_KEY = "emotion_before";
-const EMOTION_INTENSITY_KEY = "emotion_intensity";
 
 const MIN_SAMPLE_SIZE = 3;
 
@@ -110,29 +108,37 @@ export async function getAllAnswers(
   supabase: SupabaseClient,
   timezone: string | null,
 ): Promise<{ answers: AskAnswer[]; totalTrades: number }> {
-  const { data, error } = await supabase
-    .from("trades")
-    .select(
-      "exit_date, dollar_pl, direction, risk_percent, r_multiple, custom_fields, trade_strategies(strategies(name))",
-    )
-    .eq("status", "closed")
-    .not("exit_date", "is", null)
-    // See the identical .neq in analytics/queries.ts: investment trades'
-    // dollar_pl is always null, so leaving them in silently counts every
-    // one as a loss (won = dollar_pl > 0) toward win rate and the
-    // loss-streak logic below.
-    .neq("mode", "investment")
-    .order("exit_date", { ascending: true });
+  // fetchAllRows: unpaged selects silently cap at 1,000 rows, which would
+  // quietly truncate every answer's dataset. The two emotion keys are
+  // projected out of the jsonb server-side (alias:column->key) instead of
+  // shipping the whole custom_fields blob -- which contains the user's
+  // entire notes corpus -- per closed trade.
+  const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    supabase
+      .from("trades")
+      .select(
+        "exit_date, dollar_pl, direction, risk_percent, r_multiple, emotion_before:custom_fields->emotion_before, emotion_intensity:custom_fields->emotion_intensity, trade_strategies(strategies(name))",
+      )
+      .eq("status", "closed")
+      .not("exit_date", "is", null)
+      // See the identical .neq in analytics/queries.ts: investment trades'
+      // dollar_pl is always null, so leaving them in silently counts every
+      // one as a loss (won = dollar_pl > 0) toward win rate and the
+      // loss-streak logic below.
+      .neq("mode", "investment")
+      .order("exit_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  if (error) throw error;
-
-  const rows = (data ?? []) as {
+  const rows = data as unknown as {
     exit_date: string;
     dollar_pl: number | null;
     direction: string | null;
     risk_percent: number | null;
     r_multiple: number | null;
-    custom_fields: Record<string, unknown>;
+    emotion_before: unknown;
+    emotion_intensity: unknown;
     trade_strategies: { strategies: { name: string }[] }[];
   }[];
 
@@ -181,12 +187,12 @@ export async function getAllAnswers(
       addToSegment(byTag, name, won, r, pl);
     }
 
-    const emotions = asStringArray(row.custom_fields?.[EMOTION_BEFORE_KEY]);
+    const emotions = asStringArray(row.emotion_before);
     for (const e of emotions) {
       addToSegment(byEmotion, e, won, r, pl);
     }
 
-    const intensity = row.custom_fields?.[EMOTION_INTENSITY_KEY];
+    const intensity = row.emotion_intensity;
     if (typeof intensity === "number") {
       if (intensity <= 5) lowIntensity.push({ won });
       else highIntensity.push({ won });

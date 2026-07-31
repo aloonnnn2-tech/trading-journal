@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Folder } from "./types";
 
 export async function listFolders(supabase: SupabaseClient): Promise<Folder[]> {
@@ -88,8 +89,11 @@ export async function setTradeFolders(
 export async function listAllTradeFolderLinks(
   supabase: SupabaseClient,
 ): Promise<Record<string, string[]>> {
-  const { data, error } = await supabase.from("trade_folders").select("trade_id, folder_id");
-  if (error) throw error;
+  // fetchAllRows: past 1,000 links the silent page cap would make folder
+  // filters (and folder-scoped exports) quietly drop trades.
+  const data = await fetchAllRows<{ trade_id: string; folder_id: string }>((from, to) =>
+    supabase.from("trade_folders").select("trade_id, folder_id").order("trade_id").order("folder_id").range(from, to),
+  );
 
   const map: Record<string, string[]> = {};
   for (const row of data) {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 export interface EquityPoint {
   date: string;
@@ -74,26 +75,33 @@ function bucketLabel(r: number): string {
 // and keeps the equity curve, drawdown, and R-distribution consistent
 // with each other since they all derive from the same fetched rows.
 export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<AnalyticsSummary> {
-  const { data, error } = await supabase
-    .from("trades")
-    .select(
-      "entry_date, exit_date, dollar_pl, r_multiple, direction, result, position_size, trade_strategies(strategies(name))",
-    )
-    .eq("status", "closed")
-    .not("exit_date", "is", null)
-    // Investment-mode trades don't carry entry/exit-price P&L data (their
-    // cost basis lives in mode-specific custom fields instead), so
-    // dollar_pl is always null for them -- previously counted here as an
-    // automatic non-win, inflating win-rate/direction/streak denominators
-    // without ever being able to win. Excluded rather than given a real
-    // P&L view, since that's a feature (investment-mode analytics), not
-    // an audit fix.
-    .neq("mode", "investment")
-    .order("exit_date", { ascending: true });
+  // fetchAllRows: this feeds every analytics figure and PostgREST silently
+  // caps an unpaged select at 1,000 rows -- past that, the equity curve and
+  // win rate would quietly compute over a truncated history. The id
+  // tiebreaker keeps page boundaries deterministic when several trades
+  // share an exit_date.
+  const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    supabase
+      .from("trades")
+      .select(
+        "entry_date, exit_date, dollar_pl, r_multiple, direction, result, position_size, trade_strategies(strategies(name))",
+      )
+      .eq("status", "closed")
+      .not("exit_date", "is", null)
+      // Investment-mode trades don't carry entry/exit-price P&L data (their
+      // cost basis lives in mode-specific custom fields instead), so
+      // dollar_pl is always null for them -- previously counted here as an
+      // automatic non-win, inflating win-rate/direction/streak denominators
+      // without ever being able to win. Excluded rather than given a real
+      // P&L view, since that's a feature (investment-mode analytics), not
+      // an audit fix.
+      .neq("mode", "investment")
+      .order("exit_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  if (error) throw error;
-
-  const rows = data as {
+  const rows = data as unknown as {
     entry_date: string | null;
     exit_date: string;
     dollar_pl: number | null;

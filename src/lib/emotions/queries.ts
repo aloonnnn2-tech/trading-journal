@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 const EMOTION_KEYS = {
   before: "emotion_before",
@@ -73,19 +74,25 @@ export async function getEmotionHistory(
 // closed trades -- the data Pattern Recognition (Milestone 4) needs to
 // flag emotion-linked patterns, and also useful as its own view.
 export async function getEmotionBreakdown(supabase: SupabaseClient): Promise<EmotionBreakdown[]> {
-  const { data, error } = await supabase
-    .from("trades")
-    .select("dollar_pl, custom_fields")
-    .eq("status", "closed");
+  // fetchAllRows defeats the silent 1,000-row page cap, and the jsonb
+  // projection (alias:column->key) pulls just the one emotion key server-
+  // side instead of shipping every closed trade's whole custom_fields blob
+  // -- the same fix listDistinctEmotions already got (-78% payload there).
+  const data = await fetchAllRows<{ dollar_pl: number | null; emotion_before: unknown }>((from, to) =>
+    supabase
+      .from("trades")
+      .select("dollar_pl, emotion_before:custom_fields->emotion_before")
+      .eq("status", "closed")
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  if (error) throw error;
-
-  const rows = data as { dollar_pl: number | null; custom_fields: Record<string, unknown> }[];
+  const rows = data;
   const byEmotion = new Map<string, { trades: number; wins: number; totalPL: number }>();
 
   for (const row of rows) {
     const pl = row.dollar_pl ?? 0;
-    const emotions = asStringArray(row.custom_fields?.[EMOTION_KEYS.before]);
+    const emotions = asStringArray(row.emotion_before);
     for (const emotion of emotions) {
       const bucket = byEmotion.get(emotion) ?? { trades: 0, wins: 0, totalPL: 0 };
       bucket.trades += 1;

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Trade } from "@/lib/trades/types";
 import { getLocalDayOfMonth, localDateParts, startOfLocalDayIso } from "@/lib/dates/local-day";
 import { getStatusCounts } from "@/lib/trades/queries";
@@ -117,14 +118,18 @@ export async function getMonthlyPL(
   const monthStart = startOfLocalDayIso(year, month, 1, timezone);
   const monthEnd = startOfLocalDayIso(year, month + 1, 1, timezone);
 
-  const { data, error } = await supabase
-    .from("trades")
-    .select("exit_date, dollar_pl")
-    .eq("status", "closed")
-    .gte("exit_date", monthStart)
-    .lt("exit_date", monthEnd);
-
-  if (error) throw error;
+  // Month-bounded but not count-bounded -- fetchAllRows guards the silent
+  // 1,000-row page cap for very active months.
+  const data = await fetchAllRows<{ exit_date: string | null; dollar_pl: number | null }>((from, to) =>
+    supabase
+      .from("trades")
+      .select("exit_date, dollar_pl")
+      .eq("status", "closed")
+      .gte("exit_date", monthStart)
+      .lt("exit_date", monthEnd)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
   const byDay = new Map<number, number>();
   for (const row of data) {
@@ -153,14 +158,17 @@ export async function getBestWorstSetup(
   // .neq("mode", "investment"): see getWinRate above -- investment trades'
   // always-null dollar_pl would otherwise count toward a strategy's trade
   // total while contributing 0 P&L and never winning.
-  const { data, error } = await supabase
-    .from("trades")
-    .select("dollar_pl, trade_strategies(strategies(name))")
-    .eq("status", "closed")
-    .neq("mode", "investment");
-  if (error) throw error;
+  const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    supabase
+      .from("trades")
+      .select("dollar_pl, trade_strategies(strategies(name))")
+      .eq("status", "closed")
+      .neq("mode", "investment")
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  const rows = data as {
+  const rows = data as unknown as {
     dollar_pl: number | null;
     trade_strategies: { strategies: { name: string }[] }[];
   }[];
@@ -317,24 +325,33 @@ export interface RecentNote {
 // here just the first non-empty one found in label order) -- a feed, not
 // a full notes export.
 export async function getRecentNotes(supabase: SupabaseClient, limit = 5): Promise<RecentNote[]> {
+  // Filter server-side for trades that actually carry a note, instead of
+  // scanning the 50 newest trades and hoping -- a user whose recent trades
+  // had no notes saw an empty feed despite older notes existing. The or()
+  // matches any non-null note key; "" still slips through it (a cleared
+  // textarea saves an empty string, not null), so a generous limit plus the
+  // JS non-empty check below keeps the feed honest. Each note key is also
+  // projected out of the jsonb individually rather than shipping the whole
+  // custom_fields blob.
+  const noteKeys = Object.keys(NOTE_FIELD_LABELS);
   const { data, error } = await supabase
     .from("trades")
-    .select("id, ticker, entry_date, custom_fields")
+    .select(`id, ticker, entry_date, ${noteKeys.map((k) => `${k}:custom_fields->${k}`).join(", ")}`)
+    .or(noteKeys.map((k) => `custom_fields->${k}.not.is.null`).join(","))
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw error;
 
-  const rows = data as {
+  const rows = data as unknown as ({
     id: string;
     ticker: string;
     entry_date: string | null;
-    custom_fields: Record<string, unknown>;
-  }[];
+  } & Record<string, unknown>)[];
 
   const notes: RecentNote[] = [];
   for (const row of rows) {
-    for (const key of Object.keys(NOTE_FIELD_LABELS)) {
-      const value = row.custom_fields?.[key];
+    for (const key of noteKeys) {
+      const value = row[key];
       if (typeof value === "string" && value.trim() !== "") {
         notes.push({
           tradeId: row.id,

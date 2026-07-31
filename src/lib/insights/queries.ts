@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getLocalDayName, WEEKDAY_ORDER } from "@/lib/dates/day-of-week";
-
-const EMOTION_BEFORE_KEY = "emotion_before";
 
 const MIN_SAMPLE_SIZE = 5;
 const MIN_DEVIATION = 0.15; // 15 percentage points away from overall win rate
@@ -78,25 +77,33 @@ export async function getInsights(
   supabase: SupabaseClient,
   timezone: string | null,
 ): Promise<Insight[]> {
-  const { data, error } = await supabase
-    .from("trades")
-    .select("exit_date, dollar_pl, direction, risk_percent, custom_fields, trade_strategies(strategies(name))")
-    .eq("status", "closed")
-    .not("exit_date", "is", null)
-    // See the identical .neq in analytics/queries.ts: investment trades'
-    // dollar_pl is always null, so leaving them in silently counts every
-    // one as a loss (won = dollar_pl > 0) in every by-day/by-tag/by-emotion
-    // pattern below.
-    .neq("mode", "investment");
+  // fetchAllRows: unpaged selects silently cap at 1,000 rows. The emotion
+  // key is projected out of the jsonb server-side rather than shipping the
+  // whole custom_fields blob (the user's entire notes corpus) per trade.
+  const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    supabase
+      .from("trades")
+      .select(
+        "exit_date, dollar_pl, direction, risk_percent, emotion_before:custom_fields->emotion_before, trade_strategies(strategies(name))",
+      )
+      .eq("status", "closed")
+      .not("exit_date", "is", null)
+      // See the identical .neq in analytics/queries.ts: investment trades'
+      // dollar_pl is always null, so leaving them in silently counts every
+      // one as a loss (won = dollar_pl > 0) in every by-day/by-tag/by-emotion
+      // pattern below.
+      .neq("mode", "investment")
+      .order("exit_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
-  if (error) throw error;
-
-  const rows = data as {
+  const rows = data as unknown as {
     exit_date: string;
     dollar_pl: number | null;
     direction: string | null;
     risk_percent: number | null;
-    custom_fields: Record<string, unknown>;
+    emotion_before: unknown;
     trade_strategies: { strategies: { name: string }[] }[];
   }[];
 
@@ -126,7 +133,7 @@ export async function getInsights(
       addToSegment(byTag, name, won);
     }
 
-    for (const emotion of asStringArray(row.custom_fields?.[EMOTION_BEFORE_KEY])) {
+    for (const emotion of asStringArray(row.emotion_before)) {
       addToSegment(byEmotion, emotion, won);
     }
 
