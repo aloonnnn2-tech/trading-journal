@@ -16,24 +16,40 @@ export function TradeHistoryPanel({ tradeId }: { tradeId: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState(false);
 
   async function loadHistory() {
     setOpen(true);
     if (history !== null) return;
     setLoading(true);
-    const res = await fetch(`/api/trades/${tradeId}/history`);
-    const data = (await res.json()) as HistoryEntry[];
-    setHistory(data);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const res = await fetch(`/api/trades/${tradeId}/history`);
+      if (!res.ok) throw new Error("Failed to load history");
+      const data = (await res.json()) as HistoryEntry[];
+      setHistory(data);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRestore(historyId: string) {
     setRestoringId(historyId);
-    await fetch(`/api/trades/${tradeId}/history/${historyId}/restore`, { method: "POST" });
-    setRestoringId(null);
-    setHistory(null);
-    router.refresh();
+    setRestoreError(false);
+    try {
+      const res = await fetch(`/api/trades/${tradeId}/history/${historyId}/restore`, { method: "POST" });
+      if (!res.ok) throw new Error("Restore failed");
+      setHistory(null);
+      router.refresh();
+    } catch {
+      setRestoreError(true);
+    } finally {
+      setRestoringId(null);
+    }
   }
 
   return (
@@ -48,10 +64,21 @@ export function TradeHistoryPanel({ tradeId }: { tradeId: string }) {
       {open && (
         <div className="mt-4">
           {loading && <p className="text-sm text-zinc-500">Loading...</p>}
-          {!loading && history && history.length === 0 && (
+          {!loading && loadError && (
+            <p className="text-sm text-loss">
+              Couldn&apos;t load history.{" "}
+              <button onClick={loadHistory} className="underline hover:no-underline">
+                Try again
+              </button>
+            </p>
+          )}
+          {!loading && !loadError && history && history.length === 0 && (
             <p className="text-sm text-zinc-500">No earlier versions yet -- every edit saves one.</p>
           )}
-          {!loading && history && history.length > 0 && (
+          {restoreError && (
+            <p className="mb-2 text-sm text-loss">Restore failed -- please try again.</p>
+          )}
+          {!loading && !loadError && history && history.length > 0 && (
             <ul className="flex flex-col gap-2">
               {history.map((entry) => (
                 <li

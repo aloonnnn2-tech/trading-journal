@@ -24,8 +24,14 @@ export function AnalyticsTracker() {
     if (isPublicPage) return;
     getSessionId();
     if (sessionStorage.getItem(SESSION_STARTED_KEY) === "1") return;
-    sessionStorage.setItem(SESSION_STARTED_KEY, "1");
-    track("session_start");
+    // Only mark "started" once the request actually lands -- a logged-out
+    // visitor briefly hitting a protected URL (bookmark, shared link, or
+    // just this effect racing the auth redirect) gets a 401 here; marking
+    // the flag before knowing that would permanently swallow session_start
+    // for the rest of this tab's session, even after signing in.
+    track("session_start").then((ok) => {
+      if (ok) sessionStorage.setItem(SESSION_STARTED_KEY, "1");
+    });
   }, [isPublicPage, track]);
 
   useEffect(() => {

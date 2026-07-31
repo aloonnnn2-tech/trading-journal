@@ -65,8 +65,15 @@ export function KeyboardShortcuts() {
       if (e.key === "n") {
         e.preventDefault();
         fetch("/api/trades", { method: "POST" })
-          .then((res) => res.json())
-          .then((trade) => router.push(`/trades/${trade.id}`));
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to create trade");
+            return res.json();
+          })
+          .then((trade) => router.push(`/trades/${trade.id}`))
+          .catch(() => {
+            // No toast infra reachable from this global shortcut handler --
+            // failing silently is safer than navigating to /trades/undefined.
+          });
         return;
       }
 

@@ -1,13 +1,13 @@
 # OCR Evaluation Report
 
-Generated: 2026-07-06T10:23:16.391Z
+Generated: 2026-07-06T11:49:19.586Z
 
 - **Images:** 17
 - **Overall accuracy:** 98.0%
 - **Precision:** 95.1%
 - **Recall:** 98.0%
 - **False positives:** 3
-- **Avg processing time:** 1117 ms
+- **Avg processing time:** 1031 ms
 - **Auto-fill threshold:** 0.55
 
 ## Per-field accuracy
@@ -32,20 +32,20 @@ Generated: 2026-07-06T10:23:16.391Z
 
 | Fixture | Correct | False+ | ms | Engine |
 |---|---|---|---|---|
-| crypto/crypto-position.png | 6/6 | 0 | 1319 | paddleocr |
-| forex/mt5-buy.png | 6/6 | 0 | 501 | paddleocr |
-| futures/futures-style-short.png | 6/6 | 0 | 532 | paddleocr |
-| new-broker/order-khc-stop.jpg | 7/7 | 1 | 863 | paddleocr |
-| new-broker/order-schw-limit.jpg | 6/6 | 0 | 767 | paddleocr |
-| new-broker/order-txt-stop.jpg | 6/6 | 1 | 1022 | paddleocr |
-| new-broker/order-usb-stop.jpg | 7/7 | 0 | 874 | paddleocr |
-| options/position-qqq-put.png | 6/6 | 0 | 804 | paddleocr |
-| options/webull-options-position.png | 6/6 | 0 | 858 | paddleocr |
-| options/webull-options-tpsl.png | 7/7 | 0 | 763 | paddleocr |
-| stocks/dark-open-position.png | 6/6 | 0 | 439 | paddleocr |
-| stocks/light-order-ticket.png | 7/7 | 0 | 576 | paddleocr |
-| stocks/STEP-4-trade-on-tradingview.webp | 2/3 | 0 | 2358 | paddleocr |
-| stocks/stop-order-bare-price.png | 5/5 | 0 | 516 | paddleocr |
-| stocks/Trading_overview_stocks_(Dark_theme).png | 3/4 | 1 | 4106 | paddleocr |
-| stocks/Trading_View_Gallery-7-7.png | 4/4 | 0 | 2132 | paddleocr |
-| stocks/webull-style-buy.png | 8/8 | 0 | 561 | paddleocr |
+| crypto/crypto-position.png | 6/6 | 0 | 1257 | paddleocr |
+| forex/mt5-buy.png | 6/6 | 0 | 447 | paddleocr |
+| futures/futures-style-short.png | 6/6 | 0 | 525 | paddleocr |
+| new-broker/order-khc-stop.jpg | 7/7 | 1 | 843 | paddleocr |
+| new-broker/order-schw-limit.jpg | 6/6 | 0 | 752 | paddleocr |
+| new-broker/order-txt-stop.jpg | 6/6 | 1 | 805 | paddleocr |
+| new-broker/order-usb-stop.jpg | 7/7 | 0 | 774 | paddleocr |
+| options/position-qqq-put.png | 6/6 | 0 | 728 | paddleocr |
+| options/webull-options-position.png | 6/6 | 0 | 755 | paddleocr |
+| options/webull-options-tpsl.png | 7/7 | 0 | 714 | paddleocr |
+| stocks/dark-open-position.png | 6/6 | 0 | 406 | paddleocr |
+| stocks/light-order-ticket.png | 7/7 | 0 | 537 | paddleocr |
+| stocks/STEP-4-trade-on-tradingview.webp | 2/3 | 0 | 2048 | paddleocr |
+| stocks/stop-order-bare-price.png | 5/5 | 0 | 494 | paddleocr |
+| stocks/Trading_overview_stocks_(Dark_theme).png | 3/4 | 1 | 3881 | paddleocr |
+| stocks/Trading_View_Gallery-7-7.png | 4/4 | 0 | 2012 | paddleocr |
+| stocks/webull-style-buy.png | 8/8 | 0 | 554 | paddleocr |

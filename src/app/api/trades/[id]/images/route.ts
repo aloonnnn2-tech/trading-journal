@@ -6,6 +6,20 @@ import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 const BUCKET = "trade-images";
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// Extension is derived from the *validated* content type, never from the
+// uploaded filename. `file.name.split(".").pop()` returned whatever followed
+// the last dot in a fully client-controlled string -- a name like
+// `chart.png/../../elsewhere` yields an "extension" containing slashes and
+// `..`, which went straight into the storage object key. The MIME type has
+// already been checked against ALLOWED_IMAGE_TYPES by the time this is
+// used, so the lookup always resolves.
+const EXT_BY_MIME: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -23,7 +37,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const formData = await request.formData();
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const file = formData.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -40,7 +59,7 @@ export async function POST(
     return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop() ?? "jpg";
+  const ext = EXT_BY_MIME[file.type] ?? "jpg";
   const storagePath = `${userData.user.id}/${id}/${crypto.randomUUID()}.${ext}`;
   const arrayBuffer = await file.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
