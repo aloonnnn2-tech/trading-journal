@@ -51,11 +51,19 @@ export function useAutoExecuteTrade(
     [],
   );
 
+  // Depending on the whole `trade` object gave this callback a new identity
+  // on every autosave render (autosave returns a fresh object each save),
+  // churning PriceChart's onPriceUpdate prop for no behavioral reason. The
+  // decision only reads these seven fields, so they are the dependencies.
+  const { mode, status, direction, entry_price, stop_loss, take_profit, entry_date } = trade;
   const handlePriceUpdate = useCallback(
     (snapshot: PriceSnapshot) => {
       if (isInvestment || executingRef.current) return;
 
-      const decision = decideAutoExecution(trade, snapshot);
+      const decision = decideAutoExecution(
+        { mode, status, direction, entry_price, stop_loss, take_profit, entry_date },
+        snapshot,
+      );
       if (!decision) return;
 
       executingRef.current = true;
@@ -67,7 +75,7 @@ export function useAutoExecuteTrade(
       });
       announce(describeAutoExecution(decision));
     },
-    [isInvestment, trade, updateCoreField, flushNow, announce],
+    [isInvestment, mode, status, direction, entry_price, stop_loss, take_profit, entry_date, updateCoreField, flushNow, announce],
   );
 
   return { handlePriceUpdate, autoExecutionMessage: message };

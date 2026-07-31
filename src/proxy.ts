@@ -32,6 +32,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // api/cron is excluded: those routes authenticate with their own bearer
+    // secret (no cookie session to refresh), so routing them through here
+    // just added a wasted Supabase auth round-trip to every scheduled run.
+    "/((?!_next/static|_next/image|favicon.ico|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
