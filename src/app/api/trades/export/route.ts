@@ -19,7 +19,15 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const format = (url.searchParams.get("format") ?? "csv") as ExportFormat;
+  // Whitelist rather than cast: the cast let arbitrary query input reach
+  // contentTypeFor (whose switch has no runtime default) and flow raw into
+  // the Content-Disposition filename header.
+  const requested = url.searchParams.get("format") ?? "csv";
+  const VALID_FORMATS: readonly ExportFormat[] = ["csv", "xlsx", "json"];
+  if (!VALID_FORMATS.includes(requested as ExportFormat)) {
+    return NextResponse.json({ error: "Unknown format — use csv, xlsx, or json" }, { status: 400 });
+  }
+  const format = requested as ExportFormat;
   const folderId = url.searchParams.get("folder");
 
   let trades = await listTrades(supabase);

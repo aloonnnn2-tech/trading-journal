@@ -32,7 +32,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await request.json();
+  // Unguarded, this was the one place a truncated body from a flaky mobile
+  // connection turned into an unhandled 500 -- and it's the autosave hot
+  // path, hit every 600ms while editing. A parse failure is the client's
+  // fault: 400, not 500.
+  let body: { core?: unknown; customFields?: unknown; strategyFieldValues?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const parsedCore = coreFieldsSchema.safeParse(pickEditableCore(body.core));
   if (!parsedCore.success) {
     return NextResponse.json({ error: parsedCore.error.flatten() }, { status: 400 });
@@ -74,8 +83,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let updated;
   try {
     updated = await updateTrade(supabase, id, { core, customFields, strategyFieldValues });
-  } catch {
-    return NextResponse.json({ error: "Failed to update trade" }, { status: 400 });
+  } catch (err) {
+    // Log the real failure and surface its Postgres/PostgREST code (safe --
+    // it's an identifier, not data). Previously every cause collapsed into
+    // one generic message, making a schema-drift failure indistinguishable
+    // from bad input on both sides of the wire.
+    console.error("updateTrade failed", { tradeId: id, err });
+    const code = (err as { code?: string }).code;
+    return NextResponse.json({ error: "Failed to update trade", code: code ?? null }, { status: 400 });
   }
   void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
   return NextResponse.json(updated);

@@ -27,8 +27,17 @@ export async function GET(
   }
 
   const url = new URL(request.url);
-  const format = (url.searchParams.get("format") ?? "json") as ExportFormat;
-  const filename = `trade-${trade.ticker || trade.id}.${format}`;
+  // Whitelisted, not cast -- and the ticker is user-typed text, so it's
+  // stripped to filename-safe characters before entering the
+  // Content-Disposition header.
+  const requested = url.searchParams.get("format") ?? "json";
+  const VALID_FORMATS: readonly ExportFormat[] = ["csv", "xlsx", "json"];
+  if (!VALID_FORMATS.includes(requested as ExportFormat)) {
+    return NextResponse.json({ error: "Unknown format — use csv, xlsx, or json" }, { status: 400 });
+  }
+  const format = requested as ExportFormat;
+  const safeTicker = (trade.ticker || trade.id).replace(/[^A-Za-z0-9._-]/g, "_");
+  const filename = `trade-${safeTicker}.${format}`;
 
   let body: string | Buffer;
   if (format === "json") {
