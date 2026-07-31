@@ -12,11 +12,22 @@ export function AddTradeButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
+  // Without the res.ok check, a failed create still parsed a body, read
+  // `undefined` off it and navigated to /trades/undefined -- and because
+  // `loading` was only ever set true, the button stayed stuck on
+  // "Creating..." with no way to retry. Same guard the keyboard-shortcut
+  // and screenshot paths already use.
   async function handleClick() {
     setLoading(true);
-    const res = await fetch("/api/trades", { method: "POST" });
-    const trade = await res.json();
-    router.push(`/trades/${trade.id}`);
+    try {
+      const res = await fetch("/api/trades", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to create trade");
+      const trade = (await res.json()) as { id: string };
+      router.push(`/trades/${trade.id}`);
+    } catch {
+      setLoading(false);
+      alert("Couldn't create the trade. Check your connection and try again.");
+    }
   }
 
   return (
@@ -42,8 +53,10 @@ export function QuickTradeButton() {
   const [takeProfit, setTakeProfit] = useState("");
   const [shares, setShares] = useState("");
   const [dollarAmount, setDollarAmount] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   function reset() {
+    setError(null);
     setTicker("");
     setDirection("long");
     setStatus("open");
@@ -85,32 +98,51 @@ export function QuickTradeButton() {
 
   async function handleCreate(skipDetails: boolean) {
     setSubmitting(true);
-    const res = await fetch("/api/trades", { method: "POST" });
-    const trade = await res.json();
+    setError(null);
+    try {
+      const res = await fetch("/api/trades", { method: "POST" });
+      if (!res.ok) throw new Error();
+      const trade = (await res.json()) as { id: string };
 
-    if (!skipDetails && (ticker || entryPrice || stopLoss || takeProfit || shares || dollarAmount)) {
-      await fetch(`/api/trades/${trade.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          core: {
-            ticker,
-            direction,
-            status,
-            entry_price: entryPrice === "" ? null : Number(entryPrice),
-            stop_loss: stopLoss === "" ? null : Number(stopLoss),
-            take_profit: takeProfit === "" ? null : Number(takeProfit),
-            shares: shares === "" ? null : Number(shares),
-            dollar_amount: dollarAmount === "" ? null : Number(dollarAmount),
-          },
-        }),
-      });
+      if (!skipDetails && (ticker || entryPrice || stopLoss || takeProfit || shares || dollarAmount)) {
+        // An unchecked PATCH here was the worse half of this bug: the trade
+        // got created but every detail typed into this form was dropped, and
+        // the modal closed as if it had all saved.
+        const patchRes = await fetch(`/api/trades/${trade.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            core: {
+              ticker,
+              direction,
+              status,
+              entry_price: entryPrice === "" ? null : Number(entryPrice),
+              stop_loss: stopLoss === "" ? null : Number(stopLoss),
+              take_profit: takeProfit === "" ? null : Number(takeProfit),
+              shares: shares === "" ? null : Number(shares),
+              dollar_amount: dollarAmount === "" ? null : Number(dollarAmount),
+            },
+          }),
+        });
+        // The trade exists either way, so send the user to it rather than
+        // stranding them -- but say the details didn't save, since the whole
+        // point of the form was entering them.
+        if (!patchRes.ok) {
+          setSubmitting(false);
+          setError("Trade created, but its details couldn't be saved. Opening it so you can fill them in.");
+          setTimeout(() => router.push(`/trades/${trade.id}`), 1200);
+          return;
+        }
+      }
+
+      setSubmitting(false);
+      setOpen(false);
+      reset();
+      router.push(`/trades/${trade.id}`);
+    } catch {
+      setSubmitting(false);
+      setError("Couldn't create the trade. Check your connection and try again.");
     }
-
-    setSubmitting(false);
-    setOpen(false);
-    reset();
-    router.push(`/trades/${trade.id}`);
   }
 
   return (
@@ -242,6 +274,12 @@ export function QuickTradeButton() {
               <p className="mt-3 text-xs text-zinc-500">
                 All fields are optional — you can fill in notes, emotions, and everything else on the next screen.
               </p>
+
+              {error && (
+                <p className="mt-3 rounded-lg border border-loss/30 bg-loss/5 px-3 py-2 text-sm text-loss">
+                  {error}
+                </p>
+              )}
 
               <div className="mt-5 flex items-center justify-between">
                 <button

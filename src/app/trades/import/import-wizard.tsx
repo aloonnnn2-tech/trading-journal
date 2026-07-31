@@ -101,31 +101,38 @@ export function ImportWizard({
     }
   }
 
-  async function handleImportMapped() {
+  // Both import endpoints answer failures with `{ error }`, not the
+  // `{ imported, errors }` shape -- storing that straight into `result` made
+  // the summary below read `result.errors.length` off undefined and take the
+  // whole page down with a TypeError. Route failures to `parseError` (which
+  // already renders as a message) and only ever put a well-formed result in
+  // `result`.
+  async function runImport(url: string, body: unknown) {
     setImporting(true);
-    const res = await fetch("/api/trades/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows, mapping }),
-    });
-    const data = (await res.json()) as ImportResult;
-    setResult(data);
-    setImporting(false);
-    router.refresh();
+    setParseError(null);
+    setResult(null);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
+      if (!res.ok || typeof data.imported !== "number") {
+        setParseError(data.error ?? "Import failed. Nothing was saved.");
+        return;
+      }
+      setResult({ imported: data.imported, errors: data.errors ?? [] });
+      router.refresh();
+    } catch {
+      setParseError("Import failed — check your connection and try again.");
+    } finally {
+      setImporting(false);
+    }
   }
 
-  async function handleImportJson() {
-    setImporting(true);
-    const res = await fetch("/api/trades/import-json", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows: jsonRows }),
-    });
-    const data = (await res.json()) as ImportResult;
-    setResult(data);
-    setImporting(false);
-    router.refresh();
-  }
+  const handleImportMapped = () => runImport("/api/trades/import", { rows, mapping });
+  const handleImportJson = () => runImport("/api/trades/import-json", { rows: jsonRows });
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
