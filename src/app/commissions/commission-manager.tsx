@@ -141,23 +141,35 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
   }
 
   async function handleToggle(rule: CommissionRule) {
-    const res = await fetch(`/api/commission-rules/${rule.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled: !rule.enabled }),
-    });
-    if (!res.ok) return;
-    const updated = (await res.json()) as CommissionRule;
-    setRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)));
-    router.refresh();
+    setError(null);
+    try {
+      const res = await fetch(`/api/commission-rules/${rule.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !rule.enabled }),
+      });
+      if (!res.ok) throw new Error();
+      const updated = (await res.json()) as CommissionRule;
+      setRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)));
+      router.refresh();
+    } catch {
+      // Was a silent return: the switch just didn't move, with no reason
+      // given -- unlike every other handler on this page.
+      setError(`Could not ${rule.enabled ? "disable" : "enable"} "${rule.name}". Try again.`);
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this commission rule? Trades keep the commission already recorded on them.")) return;
-    const res = await fetch(`/api/commission-rules/${id}`, { method: "DELETE" });
-    if (!res.ok) return;
-    setRules((prev) => prev.filter((r) => r.id !== id));
-    router.refresh();
+    setError(null);
+    try {
+      const res = await fetch(`/api/commission-rules/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setRules((prev) => prev.filter((r) => r.id !== id));
+      router.refresh();
+    } catch {
+      setError("Could not delete the rule. Try again.");
+    }
   }
 
   async function handleRecalculate() {

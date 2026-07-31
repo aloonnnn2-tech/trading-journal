@@ -57,38 +57,49 @@ export function AccountCashCard({
     setSaving(true);
     setError(null);
     const signed = panel === "withdraw" ? -parsed : parsed;
-    const res = await fetch("/api/account/transactions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: signed }),
-    });
-    setSaving(false);
-
-    if (!res.ok) {
-      setError("Could not save. Try again.");
-      return;
+    // try/catch as well as res.ok: a *rejected* fetch (offline, the realistic
+    // mobile case) previously threw past the !res.ok check as an unhandled
+    // rejection, leaving the form stuck with no feedback -- in the money UI.
+    try {
+      const res = await fetch("/api/account/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: signed }),
+      });
+      if (!res.ok) {
+        setError("Could not save. Try again.");
+        return;
+      }
+      const data = (await res.json()) as AccountBalance & { transaction: AccountTransaction };
+      setAccount(data);
+      setTransactions((prev) => [data.transaction, ...prev]);
+      setAmount("");
+      router.refresh();
+    } catch {
+      setError("Could not save — check your connection and try again.");
+    } finally {
+      setSaving(false);
     }
-
-    const data = (await res.json()) as AccountBalance & { transaction: AccountTransaction };
-    setAccount(data);
-    setTransactions((prev) => [data.transaction, ...prev]);
-    setAmount("");
-    router.refresh();
   }
 
   async function handleDelete(id: string) {
     const previous = { account, transactions };
     setTransactions((prev) => prev.filter((t) => t.id !== id));
 
-    const res = await fetch(`/api/account/transactions/${id}`, { method: "DELETE" });
-    if (!res.ok) {
+    // The optimistic removal must roll back on a thrown fetch too, not just
+    // a non-ok response -- otherwise a network drop left the row missing
+    // from the UI while it still existed in the database.
+    try {
+      const res = await fetch(`/api/account/transactions/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("delete failed");
+      const data = (await res.json()) as AccountBalance;
+      setAccount(data);
+      router.refresh();
+    } catch {
       setAccount(previous.account);
       setTransactions(previous.transactions);
-      return;
+      setError("Could not delete — check your connection and try again.");
     }
-    const data = (await res.json()) as AccountBalance;
-    setAccount(data);
-    router.refresh();
   }
 
   const hint = account.hasTransactions

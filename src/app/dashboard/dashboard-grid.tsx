@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   normalizeDashboardLayout,
@@ -41,18 +41,32 @@ export function DashboardGrid({
 }) {
   const [layout, setLayout] = useState(() => normalizeDashboardLayout(initialLayout));
   const [draggingId, setDraggingId] = useState<DashboardWidgetId | null>(null);
-  const [saveTimeout, setSaveTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  // A ref, not state: the timer id isn't rendered, and holding it in state
+  // forced an extra re-render per reorder. Cleared on unmount so a pending
+  // save can't fire into a gone component.
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    },
+    [],
+  );
 
   function persist(next: DashboardLayout) {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    const timeout = setTimeout(() => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      // Failures were fire-and-forget before, which read as "my layout
+      // doesn't stick": the drag felt saved, then reverted on next load
+      // with no signal. Now it says so; any later successful save clears it.
       fetch("/api/settings/dashboard-layout", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(next),
-      });
+      })
+        .then((res) => setSaveFailed(!res.ok))
+        .catch(() => setSaveFailed(true));
     }, 500);
-    setSaveTimeout(timeout);
   }
 
   function reorder(targetId: DashboardWidgetId) {
@@ -76,6 +90,11 @@ export function DashboardGrid({
 
   return (
     <div className="grid gap-4 lg:grid-flow-dense lg:grid-cols-6">
+      {saveFailed && (
+        <p className="col-span-full text-xs text-loss">
+          Layout changes couldn&apos;t be saved — they&apos;ll revert on reload. Check your connection and move a widget again to retry.
+        </p>
+      )}
       {layout.order.map((id) => {
         const size = layout.sizes[id] ?? "md";
         return (
