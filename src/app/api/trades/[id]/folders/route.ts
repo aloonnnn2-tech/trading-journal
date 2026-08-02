@@ -12,7 +12,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const supabase = await createClient();
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const folderIds = Array.isArray(body.folderIds) ? (body.folderIds as string[]) : [];
 
   try {

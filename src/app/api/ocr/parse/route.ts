@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { runOcrPipeline } from "@/lib/ocr/pipeline";
+import { rateLimit } from "@/lib/rate-limit";
 
 // Native modules (onnxruntime-node, sharp) require the Node.js runtime.
 export const runtime = "nodejs";
@@ -15,10 +16,25 @@ export const maxDuration = 60;
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// The most expensive route in the app by a wide margin: a 5 MB upload into a
+// CPU-bound native OCR pipeline with a 60s budget, all of it billed Netlify
+// compute. 20/minute is far above real use (the UI scans one screenshot at a
+// time, taking seconds each) while capping what a looping client can spend.
+const RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 60_000;
+
 export async function POST(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limit = rateLimit(`ocr:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Too many scans in a row — give it a moment and try again." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
   }
 
   let file: FormDataEntryValue | null;

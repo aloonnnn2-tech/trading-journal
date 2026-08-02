@@ -11,7 +11,12 @@ export async function PATCH(request: Request) {
 
   const supabase = await createClient();
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const timezone = body.timezone;
   if (typeof timezone !== "string" || timezone.length === 0 || timezone.length > 100) {
     return NextResponse.json({ error: "Invalid timezone" }, { status: 400 });

@@ -12,7 +12,12 @@ export async function PATCH(request: Request) {
 
   const supabase = await createClient();
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const field = body.field as EditableCoreField;
   const hidden = Boolean(body.hidden);
 

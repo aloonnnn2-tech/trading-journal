@@ -13,7 +13,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const supabase = await createClient();
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   if (body.field_type !== undefined && !FIELD_TYPES.includes(body.field_type)) {
     return NextResponse.json({ error: "Invalid field_type" }, { status: 400 });
   }

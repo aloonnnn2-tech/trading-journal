@@ -12,7 +12,12 @@ export async function PUT(request: Request) {
 
   const supabase = await createClient();
 
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const layout = normalizeDashboardLayout(body);
   const saved = await setDashboardLayout(supabase, userId, layout);
   return NextResponse.json(saved);

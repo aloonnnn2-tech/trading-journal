@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { deleteStrategy, updateStrategy } from "@/lib/strategies/queries";
+import { strategyPatchSchema } from "@/lib/strategies/schema";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,13 +13,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const supabase = await createClient();
 
-  const body = await request.json();
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = strategyPatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid strategy" },
+      { status: 400 },
+    );
+  }
+
   try {
     const updated = await updateStrategy(supabase, id, {
-      name: body.name,
-      description: body.description,
-      color: body.color,
-      sort_order: body.sort_order,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      color: parsed.data.color,
+      sort_order: parsed.data.sort_order,
     });
     return NextResponse.json(updated);
   } catch {

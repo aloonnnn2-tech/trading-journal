@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createFolder, listFolders } from "@/lib/folders/queries";
+import { folderCreateSchema } from "@/lib/strategies/schema";
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -23,12 +24,21 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
 
-  const body = await request.json();
-  const name = String(body.name ?? "").trim();
-  if (!name) {
-    return NextResponse.json({ error: "name is required" }, { status: 400 });
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const folder = await createFolder(supabase, userId, name);
+  const parsed = folderCreateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid folder" },
+      { status: 400 },
+    );
+  }
+
+  const folder = await createFolder(supabase, userId, parsed.data.name);
   return NextResponse.json(folder, { status: 201 });
 }
