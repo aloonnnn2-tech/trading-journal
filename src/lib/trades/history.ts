@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Trade, TradeCoreFields } from "./types";
 import { computeDerivedFields } from "./compute";
+import { resultFromPL } from "./result";
 
 // "Column doesn't exist": PGRST204 from PostgREST for an unknown column in a
 // write payload, 42703 from raw Postgres. See updateTrade for why this
@@ -66,10 +67,18 @@ export async function restoreTradeVersion(
   // snapshot is.
   const commission =
     rest.commission != null && Number.isFinite(Number(rest.commission)) ? Number(rest.commission) : null;
+  const derived = computeDerivedFields({ ...(rest as unknown as TradeCoreFields), commission });
+  // `result` has to be re-derived for the same reason dollar_pl is: the
+  // snapshot's stored result was decided against whatever P&L existed when
+  // it was taken, so restoring a pre-commission "win" whose gross profit is
+  // thinner than the fee now owed would write "win" next to a negative
+  // dollar_pl. resultFromPL is the single source of truth for that mapping
+  // (see queries.ts updateTrade and the cron sweep, which both call it).
   const restored = {
     ...rest,
     commission,
-    ...computeDerivedFields({ ...(rest as unknown as TradeCoreFields), commission }),
+    ...derived,
+    ...(rest.status === "closed" ? { result: resultFromPL(derived.dollar_pl) } : {}),
   };
 
   const { data, error } = await supabase
@@ -84,9 +93,14 @@ export async function restoreTradeVersion(
   // exist once 0022 has been applied by hand.
   if (!isMissingColumn(error)) throw error;
 
+  const grossDerived = computeDerivedFields({
+    ...(rest as unknown as TradeCoreFields),
+    commission: null,
+  });
   const withoutCommission: Record<string, unknown> = {
     ...rest,
-    ...computeDerivedFields({ ...(rest as unknown as TradeCoreFields), commission: null }),
+    ...grossDerived,
+    ...(rest.status === "closed" ? { result: resultFromPL(grossDerived.dollar_pl) } : {}),
   };
   delete withoutCommission.commission;
   delete withoutCommission.commission_manual;

@@ -50,3 +50,61 @@ describe("auto-execute + resultFromPL integration", () => {
     expect(resultFromPL(derived.dollar_pl)).toBe("loss");
   });
 });
+
+// restoreTradeVersion writes straight to the trades table rather than going
+// through updateTrade(), so it has to derive `result` itself -- exactly like
+// the cron sweep does. Without that, restoring a snapshot taken before
+// commissions existed writes its stored (gross-basis) "win" next to a
+// freshly recomputed, commission-net negative dollar_pl.
+describe("restoring an old snapshot re-derives result, not just P&L", () => {
+  it("a pre-commission 'win' whose fee now exceeds the profit restores as a loss", () => {
+    // Shape of a snapshot row: gross P&L, no commission key at all.
+    const snapshot = {
+      status: "closed",
+      result: "win" as const,
+      direction: "long" as const,
+      entry_price: 100,
+      exit_price: 100.1,
+      stop_loss: 95,
+      take_profit: 100.1,
+      shares: 10,
+      risk_amount: 50,
+      dollar_pl: 1, // gross, from before commissions existed
+    };
+
+    // What the restore path now computes, with the commission the row
+    // actually carries today.
+    const derived = computeDerivedFields({
+      entry_price: snapshot.entry_price,
+      exit_price: snapshot.exit_price,
+      stop_loss: snapshot.stop_loss,
+      take_profit: snapshot.take_profit,
+      shares: snapshot.shares,
+      risk_amount: snapshot.risk_amount,
+      direction: snapshot.direction,
+      commission: 5,
+    });
+
+    expect(snapshot.result).toBe("win");
+    expect(derived.dollar_pl).toBeLessThan(0);
+    expect(resultFromPL(derived.dollar_pl)).toBe("loss");
+  });
+
+  it("leaves result alone for a snapshot that isn't closed", () => {
+    // The restore only overrides result when status is "closed"; an open
+    // trade keeps whatever the snapshot had rather than being forced to
+    // "open" by a null P&L.
+    const derived = computeDerivedFields({
+      entry_price: 100,
+      exit_price: null,
+      stop_loss: 95,
+      take_profit: 110,
+      shares: 10,
+      risk_amount: 50,
+      direction: "long",
+      commission: null,
+    });
+    expect(derived.dollar_pl).toBeNull();
+    expect(resultFromPL(derived.dollar_pl)).toBe("open");
+  });
+});
