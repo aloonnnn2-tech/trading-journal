@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Users, UserPlus, Activity, CalendarDays, TrendingUp, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import {
   getOverviewStats,
   getUsageSeries,
@@ -28,11 +29,10 @@ function formatDuration(seconds: number | null): string {
 }
 
 export default async function AdminAnalyticsPage() {
+  const userId = await requireUserId();
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/sign-in");
 
-  const admin = await isAdmin(supabase, data.user.id);
+  const admin = await isAdmin(supabase, userId);
   if (!admin) redirect("/dashboard");
 
   const [overview, usageSeries, featureUsage, retention] = await Promise.all([

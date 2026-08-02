@@ -1,24 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createStrategy, listStrategies } from "@/lib/strategies/queries";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const strategies = await listStrategies(supabase);
   return NextResponse.json(strategies);
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const body = await request.json();
   const name = String(body.name ?? "").trim();
@@ -27,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const strategy = await createStrategy(supabase, userData.user.id, {
+    const strategy = await createStrategy(supabase, userId, {
       name,
       description: body.description ?? null,
       color: body.color ?? null,

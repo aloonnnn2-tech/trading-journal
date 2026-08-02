@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const IMAGE_BUCKET = "trade-images";
 
 export async function DELETE() {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userId = userData.user.id;
+  const supabase = await createClient();
 
   // Best-effort: DB rows (trade_images included) cascade-delete with the
   // auth user, but the actual files in storage don't, so remove them

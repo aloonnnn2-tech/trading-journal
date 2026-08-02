@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { getDashboardStats, getPerformanceSeries, getRecentNotes, getRecentTrades } from "@/lib/dashboard/queries";
 import { getEmotionHistory, type EmotionHistoryEntry } from "@/lib/emotions/queries";
 import type { RecentNote, SetupStats } from "@/lib/dashboard/queries";
@@ -21,9 +21,8 @@ import { QuickTradeButton } from "@/app/trades/new-trade-button";
 import { TrackPageView } from "@/components/track-page-view";
 
 export default async function DashboardPage() {
+  const userId = await requireUserId();
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/sign-in");
 
   const now = new Date();
   // Two waves rather than one: the stats RPC buckets "today" and "this
@@ -33,7 +32,7 @@ export default async function DashboardPage() {
   // call is wave 2, right after settings resolves.
   const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions, streakTrades] =
     await Promise.all([
-      getUserSettings(supabase, data.user.id),
+      getUserSettings(supabase, userId),
       getRecentTrades(supabase, 5),
       getPerformanceSeries(supabase, 200),
       getRecentNotes(supabase, 5),

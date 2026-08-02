@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import {
   buildRowFromMapping,
@@ -14,11 +15,12 @@ import { resolveCommission } from "@/lib/commissions/calculate";
 const BATCH_SIZE = 500;
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   // A malformed body is a client mistake, not a server fault -- parsing it
   // unguarded turned every bad request into an unhandled throw and a 500.
@@ -98,7 +100,7 @@ export async function POST(request: Request) {
 
     const withDerived = withDerivedFields(result.core, commission);
     toInsert.push({
-      user_id: userData.user.id,
+      user_id: userId,
       mode: "trade",
       ...withDerived,
       commission,
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
     imported += count ?? batch.length;
   }
 
-  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "import_used", {
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "import_used", {
     imported,
     errors: rowErrors.length,
   });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { logEvent } from "@/lib/tracking/log";
 
 // Keep props small and structured -- per the analytics brief, this table
@@ -13,12 +14,12 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const parsed = bodySchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
   }
 
   const { eventName, sessionId, props } = parsed.data;
-  await logEvent(supabase, userData.user.id, sessionId, eventName, props);
+  await logEvent(supabase, userId, sessionId, eventName, props);
 
   return NextResponse.json({ ok: true });
 }

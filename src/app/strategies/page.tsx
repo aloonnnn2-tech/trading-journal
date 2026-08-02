@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { getStrategyBreakdown, listStrategies } from "@/lib/strategies/queries";
 import { listTradesPage } from "@/lib/trades/queries";
@@ -15,9 +15,8 @@ export default async function StrategiesPage({
   searchParams: Promise<{ strategy?: string }>;
 }) {
   const { strategy: activeStrategyId } = await searchParams;
+  await requireUserId();
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/sign-in");
 
   const [breakdown, strategies] = await Promise.all([
     getStrategyBreakdown(supabase),

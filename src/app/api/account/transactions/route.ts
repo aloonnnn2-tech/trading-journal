@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import {
   addAccountTransaction,
   getAccountBalance,
@@ -18,12 +19,12 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const [balance, transactions] = await Promise.all([
     getAccountBalance(supabase),
@@ -34,12 +35,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const parsed = createSchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -48,12 +49,12 @@ export async function POST(request: Request) {
 
   const transaction = await addAccountTransaction(
     supabase,
-    userData.user.id,
+    userId,
     parsed.data.amount,
     parsed.data.note,
   );
   const balance = await getAccountBalance(supabase);
-  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "account_transaction_added", {
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "account_transaction_added", {
     transactionId: transaction.id,
   });
 

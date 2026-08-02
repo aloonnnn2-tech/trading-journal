@@ -1,25 +1,28 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createCommissionRule, listCommissionRules } from "@/lib/commissions/queries";
 import { commissionRuleSchema, validateFeeRange } from "@/lib/commissions/schema";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const rules = await listCommissionRules(supabase);
   return NextResponse.json(rules);
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   let body: unknown;
   try {
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const rule = await createCommissionRule(supabase, userData.user.id, parsed.data);
+    const rule = await createCommissionRule(supabase, userId, parsed.data);
     return NextResponse.json(rule, { status: 201 });
   } catch (error) {
     const code = (error as { code?: string }).code;

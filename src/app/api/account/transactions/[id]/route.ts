@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { deleteAccountTransaction, getAccountBalance } from "@/lib/account/queries";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
@@ -8,12 +9,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const deleted = await deleteAccountTransaction(supabase, id);
   if (!deleted) {
@@ -21,7 +22,7 @@ export async function DELETE(
   }
 
   const balance = await getAccountBalance(supabase);
-  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "account_transaction_deleted", {
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "account_transaction_deleted", {
     transactionId: id,
   });
 

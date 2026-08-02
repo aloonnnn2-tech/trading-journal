@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { setTimezoneIfUnset } from "@/lib/settings/queries";
 
 export async function PATCH(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const body = await request.json();
   const timezone = body.timezone;
@@ -15,6 +17,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid timezone" }, { status: 400 });
   }
 
-  await setTimezoneIfUnset(supabase, userData.user.id, timezone);
+  await setTimezoneIfUnset(supabase, userId, timezone);
   return NextResponse.json({ ok: true });
 }

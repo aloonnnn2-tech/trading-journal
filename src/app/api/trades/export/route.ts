@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { listAllTradeFolderLinks } from "@/lib/folders/queries";
 import { listTrades } from "@/lib/trades/queries";
@@ -12,11 +13,12 @@ import {
 } from "@/lib/trades/export";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const url = new URL(request.url);
   // Whitelist rather than cast: the cast let arbitrary query input reach

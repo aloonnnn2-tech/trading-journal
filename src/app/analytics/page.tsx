@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { getAnalyticsSummary } from "@/lib/analytics/queries";
 import { EquityDrawdownChart } from "./equity-drawdown-chart";
 import { RMultipleHistogram } from "./r-multiple-histogram";
@@ -14,9 +14,8 @@ function money(n: number): string {
 }
 
 export default async function AnalyticsPage() {
+  await requireUserId();
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/sign-in");
 
   const summary = await getAnalyticsSummary(supabase);
 

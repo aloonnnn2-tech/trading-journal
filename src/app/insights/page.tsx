@@ -1,16 +1,15 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { getInsights } from "@/lib/insights/queries";
 import { getUserSettings } from "@/lib/settings/queries";
 import { InsightChart } from "./insight-chart";
 import { Card } from "@/components/ui/Card";
 
 export default async function InsightsPage() {
+  const userId = await requireUserId();
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/sign-in");
 
-  const settings = await getUserSettings(supabase, data.user.id);
+  const settings = await getUserSettings(supabase, userId);
   const insights = await getInsights(supabase, settings.timezone);
 
   return (

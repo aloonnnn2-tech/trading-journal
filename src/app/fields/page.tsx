@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { listFolders } from "@/lib/folders/queries";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -8,12 +8,11 @@ import { CoreFieldToggles } from "./core-field-toggles";
 import { FolderManager } from "./folder-manager";
 
 export default async function FieldsPage() {
+  const userId = await requireUserId();
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/sign-in");
 
   const tradeFields = await listFieldDefinitions(supabase, "trade");
-  const settings = await getUserSettings(supabase, userData.user.id);
+  const settings = await getUserSettings(supabase, userId);
   const folders = await listFolders(supabase);
 
   return (

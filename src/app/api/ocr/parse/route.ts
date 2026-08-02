@@ -4,7 +4,7 @@
 // returns a partial result, so the client gets something to work with.
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { runOcrPipeline } from "@/lib/ocr/pipeline";
 
@@ -16,13 +16,8 @@ export const maxDuration = 60;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(request: Request) {
-  try {
-    const supabase = await createClient();
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  } catch {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

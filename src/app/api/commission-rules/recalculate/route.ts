@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
@@ -20,11 +21,12 @@ const CONCURRENCY = 20;
  * account balance, which should be a decision the user makes on purpose.
  */
 export async function POST() {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const rules = await listCommissionRules(supabase);
 
@@ -103,7 +105,7 @@ export async function POST() {
     }
   }
 
-  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "commissions_recalculated", {
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "commissions_recalculated", {
     updated,
     skipped,
     failed: failures.length,

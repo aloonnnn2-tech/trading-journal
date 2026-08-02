@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { getEmotionBreakdown, getEmotionHistory } from "@/lib/emotions/queries";
 import { Card } from "@/components/ui/Card";
 
 export default async function EmotionsPage() {
+  await requireUserId();
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/sign-in");
 
   const [history, breakdown] = await Promise.all([
     getEmotionHistory(supabase, 25),

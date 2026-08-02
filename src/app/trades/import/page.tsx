@@ -1,12 +1,11 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { ImportWizard } from "./import-wizard";
 
 export default async function ImportPage() {
+  await requireUserId();
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/sign-in");
 
   // Both entity types: a CSV/XLSX import can produce investment-mode rows
   // (via a mapped "Mode" column) as well as standard trades, so its custom

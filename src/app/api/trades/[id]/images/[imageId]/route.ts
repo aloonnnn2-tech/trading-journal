@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 
 const BUCKET = "trade-images";
 
@@ -8,12 +9,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; imageId: string }> },
 ) {
   const { id: tradeId, imageId } = await params;
-  const supabase = await createClient();
-
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const { data: image, error: fetchError } = await supabase
     .from("trade_images")
@@ -26,7 +27,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (image.user_id !== userData.user.id) {
+  if (image.user_id !== userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

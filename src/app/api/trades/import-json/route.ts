@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { deriveStatusAndResult, withDerivedFields } from "@/lib/trades/import";
 import { EDITABLE_CORE_FIELDS } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
@@ -12,11 +13,12 @@ const BATCH_SIZE = 500;
 // field names as keys, so no column-mapping step is needed -- just
 // whitelist known columns and recompute derived fields server-side.
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   let body: { rows?: unknown };
   try {
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
 
     const withDerived = withDerivedFields(core, commission);
     toInsert.push({
-      user_id: userData.user.id,
+      user_id: userId,
       mode: core.mode ?? "trade",
       ...withDerived,
       commission,
@@ -90,7 +92,7 @@ export async function POST(request: Request) {
     imported += count ?? batch.length;
   }
 
-  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "import_used", {
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "import_used", {
     imported,
     errors: errors.length,
   });

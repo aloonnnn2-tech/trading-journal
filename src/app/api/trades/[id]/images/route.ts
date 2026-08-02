@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getTrade } from "@/lib/trades/queries";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 
@@ -25,12 +26,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const trade = await getTrade(supabase, id);
   if (!trade) {
@@ -60,7 +61,7 @@ export async function POST(
   }
 
   const ext = EXT_BY_MIME[file.type] ?? "jpg";
-  const storagePath = `${userData.user.id}/${id}/${crypto.randomUUID()}.${ext}`;
+  const storagePath = `${userId}/${id}/${crypto.randomUUID()}.${ext}`;
   const arrayBuffer = await file.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
 
@@ -74,7 +75,7 @@ export async function POST(
 
   const { data: inserted, error: insertError } = await supabase
     .from("trade_images")
-    .insert({ trade_id: id, user_id: userData.user.id, storage_path: storagePath })
+    .insert({ trade_id: id, user_id: userId, storage_path: storagePath })
     .select("id, trade_id, storage_path, created_at")
     .single();
 

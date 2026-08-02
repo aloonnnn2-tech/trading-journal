@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { listAllStrategyFieldDefinitions, listFieldDefinitions } from "@/lib/fields/definitions";
 import { listFolders, listTradeFolderIds } from "@/lib/folders/queries";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -17,9 +18,8 @@ export default async function TradeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const userId = await requireUserId();
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/sign-in");
 
   const trade = await getTrade(supabase, id);
   if (!trade) notFound();
@@ -36,7 +36,7 @@ export default async function TradeDetailPage({
     commissionRules,
   ] = await Promise.all([
     listFieldDefinitions(supabase, trade.mode),
-    getUserSettings(supabase, userData.user.id),
+    getUserSettings(supabase, userId),
     listFolders(supabase),
     listTradeFolderIds(supabase, id),
     listTradeImages(supabase, id),

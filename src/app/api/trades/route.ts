@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createBlankTrade } from "@/lib/trades/queries";
 import { getAccountBalance } from "@/lib/account/queries";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
 export async function POST() {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   // Position size auto-fills from the cash actually free to trade with --
   // total balance minus whatever's already committed to open positions --
@@ -23,8 +24,8 @@ export async function POST() {
       ? Math.round(account.availableCash * 100) / 100
       : null;
 
-  const trade = await createBlankTrade(supabase, userData.user.id, positionSize);
-  void logEvent(supabase, userData.user.id, SERVER_SESSION_ID, "trade_created", { tradeId: trade.id });
+  const trade = await createBlankTrade(supabase, userId, positionSize);
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "trade_created", { tradeId: trade.id });
 
   return NextResponse.json(trade, { status: 201 });
 }

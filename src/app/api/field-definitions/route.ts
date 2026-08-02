@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createFieldDefinition, listFieldDefinitions } from "@/lib/fields/definitions";
 import { ENTITY_TYPES, FIELD_TYPES, type EntityType } from "@/lib/fields/types";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const url = new URL(request.url);
   const entityType = (url.searchParams.get("entityType") ?? "trade") as EntityType;
@@ -18,11 +20,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = await createClient();
 
   const body = await request.json();
   const key = String(body.label ?? "")
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid entity_type" }, { status: 400 });
   }
 
-  const field = await createFieldDefinition(supabase, userData.user.id, {
+  const field = await createFieldDefinition(supabase, userId, {
     entity_type: body.entity_type ?? "trade",
     key,
     label: body.label,

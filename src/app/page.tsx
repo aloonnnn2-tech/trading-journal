@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/Hero";
 import { FeatureStories } from "@/components/landing/FeatureStories";
@@ -11,10 +11,9 @@ import { ClosingCTA } from "@/components/landing/ClosingCTA";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export default async function Home() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
+  const userId = await getUserIdFromHeader();
 
-  if (data.user) {
+  if (userId) {
     redirect("/dashboard");
   }
 

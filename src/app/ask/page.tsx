@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
 import { TrendingUp, Brain, Scale, Repeat, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { getAllAnswers, type AskAnswer } from "@/lib/ask/queries";
 import { getUserSettings } from "@/lib/settings/queries";
 import { AnswerCard } from "./answer-card";
@@ -44,11 +44,10 @@ const CATEGORIES: {
 ];
 
 export default async function AskPage() {
+  const userId = await requireUserId();
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/sign-in");
 
-  const settings = await getUserSettings(supabase, data.user.id);
+  const settings = await getUserSettings(supabase, userId);
   const { answers, totalTrades } = await getAllAnswers(supabase, settings.timezone);
 
   return (

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/supabase/auth";
 import { listFolders } from "@/lib/folders/queries";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import {
@@ -39,9 +39,8 @@ export default async function TradesPage({
   searchParams: Promise<TradesSearchParams>;
 }) {
   const params = await searchParams;
+  await requireUserId();
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/sign-in");
 
   const status = (params.status as Trade["status"] | undefined) ?? undefined;
   const sortBy = (params.sort as TradeSortField | undefined) ?? "created_at";
