@@ -17,10 +17,10 @@ export default function ContactPage() {
           Questions, bug reports, or feedback — reach out any time.
         </p>
         <a
-          href="mailto:support@tradinglens.app"
+          href="mailto:TradingLenzSupport@proton.me"
           className="mt-4 inline-block font-medium text-primary hover:underline"
         >
-          support@tradinglens.app
+          TradingLenzSupport@proton.me
         </a>
       </main>
       <LandingFooter />

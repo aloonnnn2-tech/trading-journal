@@ -89,8 +89,8 @@ export default function PrivacyPage() {
         <h2 className={SECTION_HEADING}>Contact</h2>
         <p className={BODY}>
           Questions about this policy or your data:{" "}
-          <a href="mailto:support@tradinglens.app" className="font-medium text-primary hover:underline">
-            support@tradinglens.app
+          <a href="mailto:TradingLenzSupport@proton.me" className="font-medium text-primary hover:underline">
+            TradingLenzSupport@proton.me
           </a>
         </p>
       </main>
