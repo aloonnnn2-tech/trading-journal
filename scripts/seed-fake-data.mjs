@@ -78,10 +78,14 @@ function buildClosedTrade(i) {
   const shares = Math.round(10 + Math.random() * 200);
   const dollarAmount = round2(entryPrice * shares);
   const riskAmount = round2((dollarAmount * riskPercent) / 100);
-  const dollarPL = round2(rMultiple * riskAmount);
-  const exitPrice = round2(
-    direction === "long" ? entryPrice + dollarPL / shares : entryPrice - dollarPL / shares,
-  );
+  // Round exitPrice first (the only value actually stored as a price), then
+  // derive dollarPL from the rounded exitPrice using the same formula the
+  // app itself uses (computeDerivedFields, sign flips for short) -- so the
+  // seeded row is internally consistent with what the app would recompute.
+  const priceMove = (rMultiple * riskAmount) / shares;
+  const exitPrice = round2(direction === "long" ? entryPrice + priceMove : entryPrice - priceMove);
+  const sign = direction === "long" ? 1 : -1;
+  const dollarPL = round2((exitPrice - entryPrice) * shares * sign);
   const holdingDays = Math.round(1 + Math.random() * 6);
   const exitDate = new Date(entryDate.getTime() + holdingDays * 86_400_000);
 

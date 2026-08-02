@@ -47,16 +47,27 @@ describe("pending -> open", () => {
 });
 
 describe("open -> closed, long", () => {
-  it("closes as a loss when the low reaches the stop", () => {
+  it("closes when the low reaches the stop", () => {
     const d = decideAutoExecution(trade(), { dayLow: 94, dayHigh: 101 }, NOW);
     expect(d?.trigger).toBe("stop_loss");
-    expect(d?.changes).toMatchObject({ status: "closed", exit_price: 95, result: "loss" });
+    expect(d?.changes).toMatchObject({ status: "closed", exit_price: 95 });
   });
 
-  it("closes as a win when the high reaches the target", () => {
+  it("closes when the high reaches the target", () => {
     const d = decideAutoExecution(trade(), { dayLow: 99, dayHigh: 111 }, NOW);
     expect(d?.trigger).toBe("take_profit");
-    expect(d?.changes).toMatchObject({ status: "closed", exit_price: 110, result: "win" });
+    expect(d?.changes).toMatchObject({ status: "closed", exit_price: 110 });
+  });
+
+  // `result` is intentionally not part of the decision -- a target hit isn't
+  // necessarily a net-positive trade once commission is subtracted, and this
+  // function has no visibility into shares/commission to know either way.
+  // Callers derive it from the commission-net dollar_pl (see resultFromPL).
+  it("never includes result in the changes it returns", () => {
+    const stopOut = decideAutoExecution(trade(), { dayLow: 94, dayHigh: 101 }, NOW);
+    const targetHit = decideAutoExecution(trade(), { dayLow: 99, dayHigh: 111 }, NOW);
+    expect(stopOut?.changes).not.toHaveProperty("result");
+    expect(targetHit?.changes).not.toHaveProperty("result");
   });
 
   it("stays open between the levels", () => {
@@ -69,12 +80,12 @@ describe("open -> closed, short", () => {
 
   it("stops out when the high reaches the stop above entry", () => {
     const d = decideAutoExecution(short, { dayLow: 99, dayHigh: 106 }, NOW);
-    expect(d?.changes).toMatchObject({ exit_price: 105, result: "loss" });
+    expect(d?.changes).toMatchObject({ exit_price: 105 });
   });
 
   it("takes profit when the low reaches the target below entry", () => {
     const d = decideAutoExecution(short, { dayLow: 89, dayHigh: 101 }, NOW);
-    expect(d?.changes).toMatchObject({ exit_price: 90, result: "win" });
+    expect(d?.changes).toMatchObject({ exit_price: 90 });
   });
 });
 
@@ -84,13 +95,13 @@ describe("ambiguous sessions", () => {
   it("resolves a both-levels-touched day as the stop", () => {
     const d = decideAutoExecution(trade(), { dayLow: 94, dayHigh: 111 }, NOW);
     expect(d?.trigger).toBe("stop_loss");
-    expect(d?.changes.result).toBe("loss");
+    expect(d?.changes.exit_price).toBe(95);
   });
 
   it("does the same for a short", () => {
     const short = trade({ direction: "short", stop_loss: 105, take_profit: 90 });
     const d = decideAutoExecution(short, { dayLow: 89, dayHigh: 106 }, NOW);
-    expect(d?.changes.result).toBe("loss");
+    expect(d?.changes.exit_price).toBe(105);
   });
 });
 

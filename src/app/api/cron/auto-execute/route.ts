@@ -10,6 +10,7 @@ import {
   type AutoExecutableTrade,
 } from "@/lib/trades/auto-execute";
 import { computeDerivedFields } from "@/lib/trades/compute";
+import { resultFromPL } from "@/lib/trades/result";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import type { Trade, TradeCoreFields } from "@/lib/trades/types";
@@ -192,10 +193,15 @@ export async function POST(request: Request) {
           commission,
         });
 
+        // Result is derived from the commission-net dollar_pl computed just
+        // above, not assumed from which level was touched -- a thin
+        // take-profit margin can still net a loss once commission lands.
+        const result = merged.status === "closed" ? resultFromPL(derived.dollar_pl) : undefined;
+
         if (!dryRun) {
           const { error: updateError } = await supabase
             .from("trades")
-            .update({ ...decision.changes, commission, ...derived })
+            .update({ ...decision.changes, ...(result ? { result } : {}), commission, ...derived })
             .eq("id", trade.id)
             // Scoped by user_id as well as id: RLS is off on this client, so
             // the filter that normally guarantees ownership must be explicit.

@@ -44,6 +44,39 @@ export interface YahooFetchResult {
   dayLow: number | null;
 }
 
+// Yahoo's endpoint is unofficial/undocumented, but the failure it's most
+// likely to hit in practice is a transient blip (a dropped connection, a
+// momentary 5xx) rather than Yahoo being genuinely down -- worth a couple of
+// short retries before giving up. A 4xx (e.g. 404 for an unknown symbol) is
+// not transient, so it's not retried.
+const RETRY_DELAYS_MS = [300, 900];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit & { next?: { revalidate?: number } },
+): Promise<Response> {
+  const maxAttempts = RETRY_DELAYS_MS.length + 1;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const isLastAttempt = attempt === maxAttempts - 1;
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || res.status < 500 || isLastAttempt) return res;
+    } catch (err) {
+      lastError = err;
+      if (isLastAttempt) throw lastError;
+      await sleep(RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+    await sleep(RETRY_DELAYS_MS[attempt]);
+  }
+  throw lastError;
+}
+
 // Yahoo Finance's undocumented chart endpoint -- no API key required, but
 // unofficial and could change or start rate-limiting without notice. Only
 // covers listed equities/ETFs/indices/major crypto pairs by plain ticker,
@@ -57,7 +90,7 @@ export async function fetchYahooCandles(
 ): Promise<YahooFetchResult | null> {
   const { range = "2y", revalidate = 300 } = options;
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     headers: { "User-Agent": "Mozilla/5.0" },
     next: { revalidate },
   });

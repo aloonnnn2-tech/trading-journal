@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { computeDerivedFields } from "./compute";
+import { resultFromPL } from "./result";
 import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
 import type { StreakTrade } from "./streak";
 import { listCommissionRules } from "@/lib/commissions/queries";
@@ -144,6 +145,19 @@ export async function updateTrade(
   // Drop it here and re-add the *resolved* value below, so the manual-vs-rule
   // decision above is the single source of truth for what gets written.
   delete basePayload.commission;
+
+  // If this write closes the trade (or the trade is already closed) and the
+  // caller didn't explicitly set `result`, derive it from the commission-net
+  // `dollar_pl` we just computed rather than trusting whatever's already on
+  // the row. This is the single place `result` gets decided for both the
+  // auto-execute paths (browser hook + cron sweep, neither of which knows
+  // the final net P&L at decision time) and a manual close through the UI
+  // (which previously left `result` stuck at its pre-close value).
+  const resultTouched =
+    changes.core != null && Object.prototype.hasOwnProperty.call(changes.core, "result");
+  if (!resultTouched && mergedCore.status === "closed") {
+    basePayload.result = resultFromPL(derived.dollar_pl);
+  }
 
   const { data, error } = await supabase
     .from("trades")

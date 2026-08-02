@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { guessYahooSymbol } from "./yahoo";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { guessYahooSymbol, fetchYahooCandles } from "./yahoo";
 
 // Shared by the trade chart and the background auto-execution sweep. When
 // only the chart had this, a crypto trade auto-executed in the browser
@@ -33,5 +33,69 @@ describe("guessYahooSymbol", () => {
   it("returns empty for an empty ticker, so callers can skip it", () => {
     expect(guessYahooSymbol("", "Stock")).toBe("");
     expect(guessYahooSymbol("   ", null)).toBe("");
+  });
+});
+
+const okBody = {
+  chart: {
+    result: [
+      {
+        timestamp: [1_700_000_000],
+        indicators: { quote: [{ open: [1], high: [2], low: [0.5], close: [1.5] }] },
+        meta: { regularMarketPrice: 1.5, regularMarketDayHigh: 2, regularMarketDayLow: 0.5 },
+      },
+    ],
+  },
+};
+
+function jsonResponse(status: number, body: unknown = {}): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+// A transient failure (network blip, momentary 5xx) shouldn't sink a whole
+// chart load or a cron sweep tick when a couple of retries would recover it.
+describe("fetchYahooCandles retry behavior", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("retries a 5xx and succeeds once a later attempt returns ok", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(502))
+      .mockResolvedValueOnce(jsonResponse(200, okBody));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promise = fetchYahooCandles("AAPL");
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result?.candles).toHaveLength(1);
+  });
+
+  it("does not retry a 4xx -- it's not a transient failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(404));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchYahooCandles("NOTATICKER");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result).toBeNull();
+  });
+
+  it("gives up after exhausting retries on repeated 5xx", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(503));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promise = fetchYahooCandles("AAPL");
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result).toBeNull();
   });
 });

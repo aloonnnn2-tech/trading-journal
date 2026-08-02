@@ -19,7 +19,6 @@ export interface AutoExecutionDecision {
     entry_date?: string;
     exit_price?: number;
     exit_date?: string;
-    result?: "win" | "loss";
   };
   /** Which level triggered it -- drives the user-facing message. */
   trigger: "entry" | "stop_loss" | "take_profit";
@@ -89,10 +88,11 @@ export function decideAutoExecution(
       status: "closed",
       exit_price: exitPrice,
       exit_date: now.toISOString(),
-      // The stop is the adverse side and the target the favorable one by
-      // definition, so result is set directly rather than inferred from a
-      // P&L that may still be null (it additionally needs `shares`).
-      result: stopHit ? "loss" : "win",
+      // `result` is deliberately not set here: hitting the target is not the
+      // same as netting a profit once commission is subtracted, and this
+      // function doesn't have `shares`/commission to compute the real net
+      // P&L. Callers derive `result` themselves from the commission-net
+      // `dollar_pl` after applying these changes (see resultFromPL).
     },
     trigger: stopHit ? "stop_loss" : "take_profit",
     price: exitPrice,

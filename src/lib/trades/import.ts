@@ -1,5 +1,6 @@
 import type { FieldDefinition } from "@/lib/fields/types";
 import { computeDerivedFields } from "./compute";
+import { resultFromPL } from "./result";
 import type { EditableCoreField, TradeCoreFields, TradeDirection } from "./types";
 
 const NUMERIC_CORE_FIELDS = new Set([
@@ -131,14 +132,8 @@ export function deriveStatusAndResult(
     core.exit_price != null || core.exit_date != null || derived.dollar_pl != null;
   const status = explicitStatus ?? (looksClosed ? "closed" : "open");
 
-  let result = explicitResult;
-  if (result === null) {
-    const pl = derived.dollar_pl;
-    if (status !== "closed" || typeof pl !== "number") result = "open";
-    else if (pl > 0) result = "win";
-    else if (pl < 0) result = "loss";
-    else result = "break_even";
-  }
+  const result =
+    explicitResult ?? (status === "closed" ? resultFromPL(derived.dollar_pl as number | null) : "open");
 
   return { status, result };
 }
