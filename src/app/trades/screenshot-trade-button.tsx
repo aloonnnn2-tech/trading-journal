@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
+import exampleTradeScreenshot from "../../../public/example-trade-screenshot.png";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { OcrCoreField, ParseResult } from "@/lib/ocr/types";
 import { AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
@@ -335,11 +337,10 @@ export function ScreenshotTradeButton() {
                     </button>
                     {showExample && (
                       <div className="border-t border-zinc-200 dark:border-zinc-800 p-3">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src="/example-trade-screenshot.png"
+                        <Image
+                          src={exampleTradeScreenshot}
                           alt="Example trade screenshot with Entry Price, Stop Loss, Take Profit, and Shares highlighted"
-                          className="w-full rounded-xl"
+                          className="w-full h-auto rounded-xl"
                         />
                         <p className="mt-2 text-[11px] text-zinc-500">
                           Crop or capture a view that clearly shows the ticker, direction (long/short), and as many of
@@ -353,7 +354,11 @@ export function ScreenshotTradeButton() {
 
               {step === "scanning" && (
                 <div className="flex flex-col items-center gap-3 py-6">
-                  {previewUrl && <img src={previewUrl} alt="Screenshot preview" className="max-h-48 rounded-xl object-contain" />}
+                  {previewUrl && (
+                    <div className="relative h-48 w-full">
+                      <Image src={previewUrl} alt="Screenshot preview" fill unoptimized className="rounded-xl object-contain" />
+                    </div>
+                  )}
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-primary" />
                   <p className="text-xs text-zinc-500">Reading trade details from image...</p>
                 </div>
@@ -361,7 +366,11 @@ export function ScreenshotTradeButton() {
 
               {step === "review" && (
                 <div className="flex flex-col gap-3">
-                  {previewUrl && <img src={previewUrl} alt="Screenshot preview" className="max-h-32 self-center rounded-xl object-contain" />}
+                  {previewUrl && (
+                    <div className="relative h-32 w-full">
+                      <Image src={previewUrl} alt="Screenshot preview" fill unoptimized className="rounded-xl object-contain" />
+                    </div>
+                  )}
 
                   {result && (result.broker || result.screenshotType !== "unknown") && (
                     <p className="text-[11px] text-zinc-500">

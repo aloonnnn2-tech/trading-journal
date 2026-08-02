@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { ApplyCoreFields, OcrCoreField, ParseResult } from "@/lib/ocr/types";
 import { FIELD_LABELS, OCR_CORE_FIELDS, AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
@@ -207,10 +208,12 @@ export function ImageUploader({
         <div className="mb-3 grid grid-cols-3 gap-2">
           {images.map((img) => (
             <div key={img.id} className="group relative aspect-video">
-              <img
+              <Image
                 src={img.signedUrl}
                 alt="Trade chart"
-                className={`h-full w-full cursor-pointer rounded-xl object-cover transition-opacity ${
+                fill
+                unoptimized
+                className={`cursor-pointer rounded-xl object-cover transition-opacity ${
                   deletingId === img.id ? "opacity-40" : ""
                 }`}
                 onClick={() => setLightboxUrl(img.signedUrl)}
@@ -317,12 +320,18 @@ export function ImageUploader({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setLightboxUrl(null)}
         >
-          <img
-            src={lightboxUrl}
-            alt="Full-size chart"
-            className="max-h-full max-w-full rounded-xl object-contain"
+          <div
+            className="relative h-full max-h-[90vh] w-full max-w-[90vw]"
             onClick={(e) => e.stopPropagation()}
-          />
+          >
+            <Image
+              src={lightboxUrl}
+              alt="Full-size chart"
+              fill
+              unoptimized
+              className="rounded-xl object-contain"
+            />
+          </div>
           <button
             onClick={() => setLightboxUrl(null)}
             className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"

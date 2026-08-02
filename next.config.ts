@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Trade screenshots are served via short-lived Supabase Storage signed
+  // URLs (see src/lib/images/queries.ts) -- next/image needs the host
+  // allowlisted to render them at all.
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "uskkuyfnpoowcxuwfsdw.supabase.co", pathname: "/storage/v1/**" },
+    ],
+  },
   // The OCR pipeline uses native Node modules (PaddleOCR ONNX runtime, sharp,
   // Tesseract). Keep them external so Next doesn't try to bundle their native
   // binaries into the server build.
