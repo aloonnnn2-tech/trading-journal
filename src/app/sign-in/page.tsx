@@ -108,6 +108,18 @@ function SignInForm() {
             Sign up free
           </Link>
         </p>
+        <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-zinc-400">
+          <a href="mailto:TradingLenzSupport@proton.me" className="hover:text-zinc-600 dark:hover:text-zinc-300">
+            Contact support
+          </a>
+          <span aria-hidden="true">·</span>
+          <a
+            href="mailto:TradingLenzSupport@proton.me?subject=Account%20deletion%20request&body=Please%20delete%20my%20Trading%20Lens%20account%20associated%20with%20this%20email%20address."
+            className="hover:text-zinc-600 dark:hover:text-zinc-300"
+          >
+            Delete my account
+          </a>
+        </p>
       </form>
     </div>
   );
