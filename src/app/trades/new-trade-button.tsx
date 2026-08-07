@@ -180,6 +180,7 @@ export function QuickTradeButton() {
                   <input
                     type="text"
                     autoFocus
+                    data-tour-id="quick-ticker"
                     placeholder="e.g. AAPL"
                     className={inputClass}
                     value={ticker}
@@ -190,6 +191,7 @@ export function QuickTradeButton() {
                   <div>
                     <label className={labelClass}>Direction</label>
                     <select
+                      data-tour-id="quick-direction"
                       className={inputClass}
                       value={direction}
                       onChange={(e) => setDirection(e.target.value as "long" | "short")}
@@ -201,6 +203,7 @@ export function QuickTradeButton() {
                   <div>
                     <label className={labelClass}>Status</label>
                     <select
+                      data-tour-id="quick-status"
                       className={inputClass}
                       value={status}
                       onChange={(e) => setStatus(e.target.value as "pending" | "open" | "closed")}
@@ -217,6 +220,7 @@ export function QuickTradeButton() {
                     <input
                       type="number"
                       step="any"
+                      data-tour-id="quick-entry"
                       placeholder="0.00"
                       className={inputClass}
                       value={entryPrice}
@@ -228,6 +232,7 @@ export function QuickTradeButton() {
                     <input
                       type="number"
                       step="any"
+                      data-tour-id="quick-shares"
                       placeholder="0"
                       className={inputClass}
                       value={shares}
@@ -252,6 +257,7 @@ export function QuickTradeButton() {
                     <input
                       type="number"
                       step="any"
+                      data-tour-id="quick-stop"
                       placeholder="0.00"
                       className={inputClass}
                       value={stopLoss}
@@ -293,6 +299,7 @@ export function QuickTradeButton() {
                 <button
                   onClick={() => handleCreate(false)}
                   disabled={submitting}
+                  data-tour-id="quick-create"
                   className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
                 >
                   {submitting ? "Creating..." : "Create trade"}

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
-import { TOUR_STEPS } from "@/lib/tour/steps";
+import { TOUR_STEPS, type TourStep } from "@/lib/tour/steps";
 import { WelcomeModal } from "./welcome-modal";
 
 const REPLAY_EVENT = "trading-lens:replay-tour";
@@ -33,6 +33,24 @@ function measure(targetId: string): Rect | null {
 
 type Phase = "idle" | "welcome" | "touring";
 
+// Whether a step belongs on the route we're currently looking at. Steps with
+// neither field (the ones inside the Quick Trade modal) belong wherever the
+// modal happens to be open.
+function matchesPath(step: TourStep, pathname: string): boolean {
+  if (step.pathPrefix) return pathname.startsWith(step.pathPrefix);
+  if (step.path) return pathname === step.path;
+  return true;
+}
+
+// Declining to open the Quick Trade modal has to skip every step that only
+// exists inside it, not just the next one -- landing on a step whose target
+// can never appear would leave the tour waiting forever on nothing.
+function indexAfterSkipping(from: number): number {
+  let i = from + 1;
+  while (i < TOUR_STEPS.length && (TOUR_STEPS[i].awaitAction || !TOUR_STEPS[i].path)) i++;
+  return i;
+}
+
 const POLL_MS = 50;
 const TARGET_TIMEOUT_MS = 2000;
 // Roughly the tallest a step tooltip gets; used only to decide which side of
@@ -46,7 +64,7 @@ export function TourOverlay() {
   const pathname = usePathname();
   const router = useRouter();
   const [phase, setPhaseState] = useState<Phase>("idle");
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndexState] = useState(0);
   // Tagged with the target it was measured from so a stale rect from the
   // previous step is never drawn under the current step's tooltip.
   const [spotlight, setSpotlight] = useState<{ targetId: string; rect: Rect } | null>(null);
@@ -65,9 +83,16 @@ export function TourOverlay() {
   // closed the tour but the step effect still fired its router.push and
   // yanked the user straight back to the step's page.
   const phaseRef = useRef<Phase>("idle");
+  // Same reason as phaseRef: the route-change effect needs the current step
+  // without waiting for a render.
+  const stepIndexRef = useRef(0);
   const setPhase = useCallback((next: Phase) => {
     phaseRef.current = next;
     setPhaseState(next);
+  }, []);
+  const setStepIndex = useCallback((next: number) => {
+    stepIndexRef.current = next;
+    setStepIndexState(next);
   }, []);
 
   useEffect(() => {
@@ -91,7 +116,7 @@ export function TourOverlay() {
     }
     window.addEventListener(REPLAY_EVENT, onReplay);
     return () => window.removeEventListener(REPLAY_EVENT, onReplay);
-  }, [setPhase]);
+  }, [setPhase, setStepIndex]);
 
   const finish = useCallback(() => {
     setPhase("idle");
@@ -103,17 +128,30 @@ export function TourOverlay() {
   const startTouring = useCallback(() => {
     setStepIndex(0);
     setPhase("touring");
-  }, [setPhase]);
+  }, [setPhase, setStepIndex]);
 
-  // A pathname change that the tour itself didn't request means the user
-  // navigated away on purpose (clicked a link, signed out, used back/forward)
-  // -- close whatever's open rather than pointing at a stale element.
+  // A pathname change the tour didn't request is usually the user navigating
+  // away on purpose -- close rather than point at a stale element. The
+  // exception is the user completing the step's own action: creating a trade
+  // pushes to /trades/<id>, which is exactly where the next step lives, so
+  // that advances the tour instead of ending it.
   useEffect(() => {
-    if (!expectingNavRef.current) setPhase("idle");
-    expectingNavRef.current = false;
-  }, [pathname, setPhase]);
+    if (expectingNavRef.current) {
+      expectingNavRef.current = false;
+      return;
+    }
+    if (phaseRef.current !== "touring") return;
+
+    const next = TOUR_STEPS[stepIndexRef.current + 1];
+    if (next?.awaitAction && matchesPath(next, pathname)) {
+      setStepIndex(stepIndexRef.current + 1);
+      return;
+    }
+    setPhase("idle");
+  }, [pathname, setPhase, setStepIndex]);
 
   const step = phase === "touring" ? TOUR_STEPS[stepIndex] : undefined;
+  const nextStep = phase === "touring" ? TOUR_STEPS[stepIndex + 1] : undefined;
 
   // Drives the current step: navigates to its page if we're not already
   // there, then polls for its target element (the page may still be
@@ -124,7 +162,17 @@ export function TourOverlay() {
     // `phase` value.
     if (phaseRef.current !== "touring" || phase !== "touring" || !step) return;
 
-    if (pathname !== step.path) {
+    if (!matchesPath(step, pathname)) {
+      // A prefix step is only ever reached by the user completing the
+      // previous action; there's no concrete URL to navigate to, so if we're
+      // not already on it (they hit Skip instead) just move past it.
+      if (!step.path) {
+        const skip = setTimeout(() => {
+          if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(stepIndex + 1);
+          else finish();
+        }, 0);
+        return () => clearTimeout(skip);
+      }
       expectingNavRef.current = true;
       router.push(step.path);
       return;
@@ -162,14 +210,17 @@ export function TourOverlay() {
         return;
       }
 
-      elapsed += POLL_MS;
-      if (elapsed >= TARGET_TIMEOUT_MS) {
-        console.warn(
-          `[tour] target "${step.targetId}" not found on ${step.path} -- skipping this step.`,
-        );
-        if (stepIndex < TOUR_STEPS.length - 1) setStepIndex((i) => i + 1);
-        else finish();
-        return;
+      // An awaitAction target doesn't exist until the user acts (opens the
+      // Quick Trade modal). Waiting forever is the point -- timing out would
+      // skip the very step we're asking them to perform.
+      if (!step.awaitAction) {
+        elapsed += POLL_MS;
+        if (elapsed >= TARGET_TIMEOUT_MS) {
+          console.warn(`[tour] target "${targetId}" not found on ${pathname} -- skipping.`);
+          if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(stepIndex + 1);
+          else finish();
+          return;
+        }
       }
       pollTimer = setTimeout(poll, POLL_MS);
     }
@@ -180,7 +231,22 @@ export function TourOverlay() {
       if (pollTimer) clearTimeout(pollTimer);
       detachLiveTracking?.();
     };
-  }, [phase, step, stepIndex, pathname, router, finish]);
+  }, [phase, step, stepIndex, pathname, router, finish, setStepIndex]);
+
+  // When the *next* step is one the user has to unlock (the Quick Trade modal
+  // opening, say), watch for its target and move on the instant it appears --
+  // so clicking the highlighted button carries the tour into the thing it
+  // just opened instead of leaving the spotlight stranded behind it.
+  useEffect(() => {
+    if (phase !== "touring" || !nextStep?.awaitAction) return;
+    if (!matchesPath(nextStep, pathname)) return;
+
+    const targetId = nextStep.targetId;
+    const timer = setInterval(() => {
+      if (measure(targetId)) setStepIndex(stepIndex + 1);
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [phase, nextStep, stepIndex, pathname, setStepIndex]);
 
   useEffect(() => {
     if (phase !== "touring") return;
@@ -280,17 +346,28 @@ export function TourOverlay() {
           <div className="flex gap-2">
             {stepIndex > 0 && (
               <button
-                onClick={() => setStepIndex((i) => i - 1)}
+                onClick={() => setStepIndex(stepIndex - 1)}
                 className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-200"
               >
                 Back
               </button>
             )}
+            {/* When the next step needs the user to act, advancing happens on
+                its own the moment they do -- so this is an escape hatch for
+                anyone who'd rather not, not the main way forward. */}
             <button
-              onClick={() => (stepIndex < TOUR_STEPS.length - 1 ? setStepIndex((i) => i + 1) : finish())}
-              className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+              onClick={() => {
+                const target = nextStep?.awaitAction ? indexAfterSkipping(stepIndex) : stepIndex + 1;
+                if (target < TOUR_STEPS.length) setStepIndex(target);
+                else finish();
+              }}
+              className={
+                nextStep?.awaitAction
+                  ? "rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                  : "rounded-full bg-primary px-3 py-1 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+              }
             >
-              {stepIndex < TOUR_STEPS.length - 1 ? "Next" : "Finish"}
+              {stepIndex >= TOUR_STEPS.length - 1 ? "Finish" : nextStep?.awaitAction ? "Skip" : "Next"}
             </button>
           </div>
         </div>

@@ -226,7 +226,10 @@ export function TradeCard({
 
       {/* Hero: the fields you touch on every trade, plus live P/L. */}
       <Card standalone={false} hoverable={false}>
-        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+        <div
+          data-tour-id="trade-detail-hero"
+          className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4"
+        >
           <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Ticker">
               <input
