@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { TOUR_STEPS } from "@/lib/tour/steps";
+import { WelcomeModal } from "./welcome-modal";
 
 const REPLAY_EVENT = "trading-lens:replay-tour";
 
+// Replaying (nav-bar HelpCircle icon) skips straight to the spotlight walk --
+// the welcome screen is only for a user's genuine first login, gated by
+// has_completed_tour below.
 export function startTour() {
   window.dispatchEvent(new Event(REPLAY_EVENT));
 }
@@ -27,21 +31,45 @@ function measure(targetId: string): Rect | null {
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
+type Phase = "idle" | "welcome" | "touring";
+
+const POLL_MS = 50;
+const TARGET_TIMEOUT_MS = 2000;
+// Roughly the tallest a step tooltip gets; used only to decide which side of
+// the target to place it on.
+const TOOLTIP_SPACE_NEEDED = 240;
+// Never let the tooltip be pushed so far that less than this much of it is
+// on screen -- it's position:fixed, so off-screen means unreachable.
+const MIN_TOOLTIP_VISIBLE = 160;
+
 export function TourOverlay() {
   const pathname = usePathname();
-  const [active, setActive] = useState(false);
+  const router = useRouter();
+  const [phase, setPhaseState] = useState<Phase>("idle");
   const [stepIndex, setStepIndex] = useState(0);
-  const [rect, setRect] = useState<Rect | null>(null);
-  // Without this, the effect below re-checks (and can re-launch) the tour
-  // on every route change -- so ignoring the tour and clicking a nav link
-  // would dismiss it (via the route-change effect further down) only to
-  // have it immediately reappear once the fetch resolves. One check per
-  // session is enough; has_completed_tour itself is what makes it "once
+  // Tagged with the target it was measured from so a stale rect from the
+  // previous step is never drawn under the current step's tooltip.
+  const [spotlight, setSpotlight] = useState<{ targetId: string; rect: Rect } | null>(null);
+
+  // One check per session; has_completed_tour itself is what makes it "once
   // per user" across sessions.
   const autoCheckedRef = useRef(false);
+  // Set right before the tour calls router.push for its own step navigation,
+  // so the "user navigated away" effect below doesn't mistake the tour's own
+  // page change for the user bailing out.
+  const expectingNavRef = useRef(false);
+  // Mirrors `phase` so effects can read it without a render in between.
+  // Effects in the same commit all see the pre-update `phase` value, and the
+  // route-change effect below has to be able to stop the step effect from
+  // acting on a tour it just closed -- otherwise clicking a nav link mid-tour
+  // closed the tour but the step effect still fired its router.push and
+  // yanked the user straight back to the step's page.
+  const phaseRef = useRef<Phase>("idle");
+  const setPhase = useCallback((next: Phase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  }, []);
 
-  // First-run check: skip entirely on public (logged-out) pages, and only
-  // auto-launch once per user (has_completed_tour flips true on finish/skip).
   useEffect(() => {
     if (PUBLIC_PATHS.includes(pathname)) return;
     if (autoCheckedRef.current) return;
@@ -49,69 +77,126 @@ export function TourOverlay() {
     fetch("/api/settings/tour")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && !data.hasCompletedTour) setActive(true);
+        if (data && !data.hasCompletedTour) setPhase("welcome");
       })
       .catch(() => {
         // No connectivity / not signed in yet -- just don't auto-launch.
       });
-  }, [pathname]);
+  }, [pathname, setPhase]);
 
   useEffect(() => {
     function onReplay() {
       setStepIndex(0);
-      setActive(true);
+      setPhase("touring");
     }
     window.addEventListener(REPLAY_EVENT, onReplay);
     return () => window.removeEventListener(REPLAY_EVENT, onReplay);
-  }, []);
+  }, [setPhase]);
 
   const finish = useCallback(() => {
-    setActive(false);
+    setPhase("idle");
     fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {
       // Best-effort -- worst case the tour auto-launches again next visit.
     });
-  }, []);
+  }, [setPhase]);
 
-  // A route change mid-tour means the current step's target may no longer
-  // exist (or the user navigated away on purpose) -- close rather than
-  // point at a stale element.
+  const startTouring = useCallback(() => {
+    setStepIndex(0);
+    setPhase("touring");
+  }, [setPhase]);
+
+  // A pathname change that the tour itself didn't request means the user
+  // navigated away on purpose (clicked a link, signed out, used back/forward)
+  // -- close whatever's open rather than pointing at a stale element.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActive(false);
-  }, [pathname]);
+    if (!expectingNavRef.current) setPhase("idle");
+    expectingNavRef.current = false;
+  }, [pathname, setPhase]);
 
-  const step = TOUR_STEPS[stepIndex];
+  const step = phase === "touring" ? TOUR_STEPS[stepIndex] : undefined;
 
+  // Drives the current step: navigates to its page if we're not already
+  // there, then polls for its target element (the page may still be
+  // client-rendering right after navigation) before spotlighting it.
   useEffect(() => {
-    if (!active || !step) return;
+    // phaseRef, not phase: the route-change effect above may have just closed
+    // the tour in this same commit, and this effect would still see the old
+    // `phase` value.
+    if (phaseRef.current !== "touring" || phase !== "touring" || !step) return;
 
-    function update() {
-      const measured = measure(step.targetId);
-      setRect(measured);
+    if (pathname !== step.path) {
+      expectingNavRef.current = true;
+      router.push(step.path);
+      return;
     }
-    update();
 
-    const el = document.querySelector(`[data-tour-id="${step.targetId}"]`);
-    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const targetId = step.targetId;
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let elapsed = 0;
+    let detachLiveTracking: (() => void) | null = null;
 
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
+    function track(measured: Rect) {
+      setSpotlight({ targetId, rect: measured });
+      document
+        .querySelector(`[data-tour-id="${targetId}"]`)
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+      function update() {
+        const next = measure(targetId);
+        setSpotlight(next && { targetId, rect: next });
+      }
+      window.addEventListener("resize", update);
+      window.addEventListener("scroll", update, true);
+      detachLiveTracking = () => {
+        window.removeEventListener("resize", update);
+        window.removeEventListener("scroll", update, true);
+      };
+    }
+
+    function poll() {
+      if (cancelled || !step) return;
+      const measured = measure(targetId);
+      if (measured) {
+        track(measured);
+        return;
+      }
+
+      elapsed += POLL_MS;
+      if (elapsed >= TARGET_TIMEOUT_MS) {
+        console.warn(
+          `[tour] target "${step.targetId}" not found on ${step.path} -- skipping this step.`,
+        );
+        if (stepIndex < TOUR_STEPS.length - 1) setStepIndex((i) => i + 1);
+        else finish();
+        return;
+      }
+      pollTimer = setTimeout(poll, POLL_MS);
+    }
+    poll();
+
     return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+      detachLiveTracking?.();
     };
-  }, [active, step]);
+  }, [phase, step, stepIndex, pathname, router, finish]);
 
   useEffect(() => {
-    if (!active) return;
+    if (phase !== "touring") return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") finish();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [active, finish]);
+  }, [phase, finish]);
 
-  if (!active || !step || !rect) return null;
+  if (phase === "welcome") {
+    return <WelcomeModal onAccept={startTouring} onDecline={finish} />;
+  }
+
+  const rect = spotlight && step && spotlight.targetId === step.targetId ? spotlight.rect : null;
+  if (phase !== "touring" || !step || !rect) return null;
 
   const padding = 6;
   const spotlightStyle: React.CSSProperties = {
@@ -126,8 +211,29 @@ export function TourOverlay() {
     zIndex: 100,
   };
 
-  const tooltipTop = rect.top + rect.height + padding + 10;
+  // Flip above the target when there isn't room below it. Anchoring by
+  // `bottom` rather than `top` means this needs no knowledge of the
+  // tooltip's rendered height. Without this a target low on the page (the
+  // add-strategy / add-field buttons sit at the bottom of their forms) put
+  // the Next button below the fold, where it couldn't be scrolled to --
+  // fixed positioning doesn't scroll -- stranding the user mid-tour.
+  const gap = padding + 10;
+  const viewportH = window.innerHeight;
+  // Clamped to the viewport: a target taller than the screen (or scrolled
+  // partly off it) yields an anchor outside the viewport, and since the
+  // tooltip is position:fixed it could not be scrolled back into view.
+  const targetTop = Math.max(rect.top, 0);
+  const targetBottom = Math.min(rect.top + rect.height, viewportH);
+  const spaceBelow = viewportH - targetBottom;
+  const spaceAbove = targetTop;
+  const placeAbove = spaceBelow < TOOLTIP_SPACE_NEEDED && spaceAbove > spaceBelow;
   const tooltipLeft = Math.min(Math.max(rect.left - padding, 16), window.innerWidth - 320 - 16);
+  const tooltipPosition: React.CSSProperties = placeAbove
+    ? { bottom: Math.min(Math.max(viewportH - targetTop + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) }
+    : { top: Math.min(Math.max(targetBottom + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) };
+  // Whatever room is left on the chosen side; the tooltip scrolls internally
+  // rather than overflowing when a short viewport can't fit it.
+  const tooltipMaxHeight = Math.max((placeAbove ? spaceAbove : spaceBelow) - gap - 16, MIN_TOOLTIP_VISIBLE);
 
   return (
     <AnimatePresence>
@@ -145,7 +251,15 @@ export function TourOverlay() {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
         transition={{ duration: 0.2 }}
-        style={{ position: "fixed", top: tooltipTop, left: tooltipLeft, zIndex: 101, width: 320 }}
+        style={{
+          position: "fixed",
+          ...tooltipPosition,
+          left: tooltipLeft,
+          zIndex: 101,
+          width: 320,
+          maxHeight: tooltipMaxHeight,
+          overflowY: "auto",
+        }}
         className="rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-subtle dark:bg-card"
       >
         <div className="flex items-start justify-between gap-2">

@@ -166,6 +166,7 @@ export function StrategyManager({ initialStrategies }: { initialStrategies: Stra
         </div>
         <button
           type="submit"
+          data-tour-id="strategies-add"
           disabled={loading || !name.trim()}
           className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
         >

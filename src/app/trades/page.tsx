@@ -171,6 +171,7 @@ export default async function TradesPage({
           {params.strategy && <input type="hidden" name="strategy" value={params.strategy} />}
           <input
             id="trade-search"
+            data-tour-id="trades-search"
             type="text"
             name="q"
             placeholder="Search ticker or company... (/)"

@@ -398,6 +398,7 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
         {fields(form, setForm)}
         <button
           type="submit"
+          data-tour-id="commissions-add"
           disabled={adding || !form.name.trim()}
           className="w-fit rounded-full bg-primary px-5 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
         >

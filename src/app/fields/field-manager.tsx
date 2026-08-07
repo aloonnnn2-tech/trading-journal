@@ -229,14 +229,14 @@ export function FieldManager({
                     disabled={index === 0}
                     className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-30"
                   >
-                    â†‘
+                    ↑
                   </button>
                   <button
                     onClick={() => moveField(index, 1)}
                     disabled={index === fields.length - 1}
                     className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-30"
                   >
-                    â†“
+                    ↓
                   </button>
                   <button
                     onClick={() => startEdit(field)}
@@ -245,6 +245,7 @@ export function FieldManager({
                     Edit
                   </button>
                   <button
+                    data-tour-id={index === 0 ? "fields-remove" : undefined}
                     onClick={() => handleDelete(field.id)}
                     className="text-xs text-red-400 hover:text-red-300"
                   >
@@ -294,6 +295,7 @@ export function FieldManager({
         )}
         <button
           type="submit"
+          data-tour-id="fields-add"
           disabled={loading || !label.trim()}
           className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
         >

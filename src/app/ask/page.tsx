@@ -52,7 +52,7 @@ export default async function AskPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 p-6 sm:p-8">
-      <div>
+      <div data-tour-id="ask-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Ask Your Journal
         </h1>

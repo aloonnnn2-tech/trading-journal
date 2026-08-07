@@ -148,6 +148,7 @@ export function QuickTradeButton() {
   return (
     <>
       <button
+        data-tour-id="dashboard-quick-trade"
         onClick={() => setOpen(true)}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 shadow-[0_1px_2px_rgba(28,27,24,0.2)] hover:brightness-110"
       >

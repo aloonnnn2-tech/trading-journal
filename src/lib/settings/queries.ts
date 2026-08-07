@@ -30,10 +30,17 @@ export async function getUserSettings(
   return data ?? DEFAULT_SETTINGS;
 }
 
+// These write with update(), not upsert(). 0024_user_settings_column_grants
+// granted `user_id` INSERT but deliberately not UPDATE, and PostgREST's
+// upsert puts every column of the payload into its ON CONFLICT DO UPDATE SET
+// clause -- including user_id -- so an upsert here fails with 42501
+// "permission denied for table user_settings". The row always exists: the
+// on_auth_user_created_seed_settings trigger (0003) creates it at signup.
 export async function setTourCompleted(supabase: SupabaseClient, userId: string): Promise<void> {
   const { error } = await supabase
     .from("user_settings")
-    .upsert({ user_id: userId, has_completed_tour: true });
+    .update({ has_completed_tour: true })
+    .eq("user_id", userId);
   if (error) throw error;
 }
 
@@ -61,7 +68,8 @@ export async function setDashboardLayout(
 ): Promise<DashboardLayout> {
   const { data, error } = await supabase
     .from("user_settings")
-    .upsert({ user_id: userId, dashboard_layout: layout })
+    .update({ dashboard_layout: layout })
+    .eq("user_id", userId)
     .select("dashboard_layout")
     .single();
 
@@ -82,7 +90,8 @@ export async function setCoreFieldHidden(
 
   const { data, error } = await supabase
     .from("user_settings")
-    .upsert({ user_id: userId, hidden_core_fields: Array.from(set) })
+    .update({ hidden_core_fields: Array.from(set) })
+    .eq("user_id", userId)
     .select("hidden_core_fields")
     .single();
 

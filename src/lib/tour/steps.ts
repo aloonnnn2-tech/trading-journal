@@ -1,51 +1,75 @@
 export interface TourStep {
-  targetId: string; // matches a data-tour-id attribute
+  path: string; // the route this step lives on; the tour navigates here automatically
+  targetId: string; // matches a data-tour-id attribute on that route
   title: string;
   body: string;
 }
 
-// One step per nav item, in the order they appear in the nav bar. Kept as
-// plain data (not JSX) so it's easy to add a step alongside a new page
-// without touching the overlay component itself.
+// One step per nav tab (Fields gets two — add and remove), in nav order.
+// Every target is chosen to render unconditionally: a brand-new signup has
+// zero trades/strategies/history, so anything data-driven (an insight card,
+// an answer card, an emotion row) would be missing on the very first run
+// this tour exists for. Kept as plain data so a new tab just needs one more
+// entry here plus a matching data-tour-id, without touching the overlay.
 export const TOUR_STEPS: TourStep[] = [
   {
-    targetId: "nav-dashboard",
-    title: "Dashboard",
-    body: "Your at-a-glance summary: recent P/L, an account cash tracker, and your best/worst strategy by total profit.",
+    path: "/dashboard",
+    targetId: "dashboard-quick-trade",
+    title: "Log a trade in seconds",
+    body: "This is the fastest way to get a trade in: click Quick trade, fill in a ticker and price (every field is optional), and you're done. You can always fill in the rest later.",
   },
   {
-    targetId: "nav-trades",
+    path: "/trades",
+    targetId: "trades-search",
     title: "Trades",
-    body: "Every trade you've logged. Filter by status, folder, strategy, or market, and click into any trade to fill in its full details.",
+    body: "Every trade you log shows up here. Search by ticker, filter by status, folder, or strategy, and click into any trade for its full detail page.",
   },
   {
-    targetId: "nav-strategies",
+    path: "/strategies",
+    targetId: "strategies-add",
     title: "Strategies",
-    body: "Define the strategies you trade (Breakout, Reversal, etc.), tag trades with them, and see win rate and P/L broken down by strategy. Each strategy can have its own custom fields.",
+    body: "Define the strategies you trade — Breakout, Reversal, whatever you use. Tag trades with them and see win rate and P/L broken down by strategy. For example, try adding one here.",
   },
   {
-    targetId: "nav-analytics",
+    path: "/analytics",
+    targetId: "analytics-header",
     title: "Analytics",
-    body: "Deeper performance stats: equity curve, drawdown, R-multiple distribution, win rate by direction and by strategy, and streaks.",
+    body: "Deeper performance stats below: equity curve, drawdown, win rate, profit factor, streaks, and more. These fill in automatically as you log and close trades.",
   },
   {
-    targetId: "nav-insights",
+    path: "/insights",
+    targetId: "insights-header",
     title: "Insights",
-    body: "Automatically surfaced patterns in your results -- e.g. a day of the week or strategy where your win rate is meaningfully higher or lower than usual.",
+    body: "Once you have enough closed trades, patterns get surfaced here automatically — like a day of the week or a strategy where your win rate is meaningfully higher or lower than usual.",
   },
   {
-    targetId: "nav-ask",
+    path: "/ask",
+    targetId: "ask-header",
     title: "Ask",
-    body: "Plain-English answers to common questions about your trading -- your best day, your best setup, how you trade after a losing streak, and more.",
+    body: "Plain-English answers about your own trading — your best day, your best setup, how you trade after a losing streak. No AI, just your data, once you've closed a few trades.",
   },
   {
-    targetId: "nav-emotions",
+    path: "/emotions",
+    targetId: "emotions-header",
     title: "Emotions",
-    body: "Track how you felt before, during, and after each trade, and see how that emotional state correlates with your win rate.",
+    body: "Track how you felt before, during, and after each trade, and see how that emotional state correlates with your win rate over time.",
   },
   {
-    targetId: "nav-fields",
-    title: "Fields",
-    body: "Customize the trade form: show or hide built-in fields, add your own custom fields, and manage folders for organizing trades.",
+    path: "/fields",
+    targetId: "fields-add",
+    title: "Add a custom field",
+    body: "Customize the trade form to track anything you want. For example, try adding a field here — give it a label and a type, and it'll show up on every trade.",
+  },
+  {
+    path: "/fields",
+    targetId: "fields-remove",
+    title: "Remove a field",
+    body: "Didn't need one of the defaults? Remove it here. Existing trade data for it is kept, just hidden — nothing is deleted.",
+  },
+  {
+    path: "/commissions",
+    targetId: "commissions-add",
+    title: "Commissions",
+    body: "Set up commission rules per broker or asset so they're automatically deducted from your P/L. Add one here whenever you're ready.",
   },
 ];
