@@ -190,15 +190,52 @@ export function TourOverlay() {
         .querySelector(`[data-tour-id="${targetId}"]`)
         ?.scrollIntoView({ block: "nearest", inline: "nearest" });
 
-      function update() {
+      // Keeping the highlight on its target turned out to need belt and
+      // braces. Scroll/resize events alone are what the first version used,
+      // and they can silently never fire -- the highlight then sat where the
+      // target used to be and slid further off the more the page scrolled,
+      // which is the drift this is fixing. A rAF loop alone isn't enough
+      // either: it's throttled to a crawl whenever the page isn't painting.
+      // So all three drive the same measurement, and since a render only
+      // happens when the rect actually moved, the redundancy is free.
+      let previous = measured;
+      let missingTicks = 0;
+      function sync() {
         const next = measure(targetId);
-        setSpotlight(next && { targetId, rect: next });
+        if (!next) {
+          // The target went away mid-step -- the user closed the dialog it
+          // lived in. Allow a moment (a re-render can briefly detach it),
+          // then move on rather than leaving an invisible, stuck tour.
+          if (++missingTicks > 12) {
+            if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(stepIndex + 1);
+            else finish();
+          }
+          return;
+        }
+        missingTicks = 0;
+        if (
+          next.top !== previous.top ||
+          next.left !== previous.left ||
+          next.width !== previous.width ||
+          next.height !== previous.height
+        ) {
+          previous = next;
+          setSpotlight({ targetId, rect: next });
+        }
       }
-      window.addEventListener("resize", update);
-      window.addEventListener("scroll", update, true);
+
+      let frame = requestAnimationFrame(function loop() {
+        sync();
+        frame = requestAnimationFrame(loop);
+      });
+      const ticker = setInterval(sync, 50);
+      window.addEventListener("resize", sync);
+      window.addEventListener("scroll", sync, true);
       detachLiveTracking = () => {
-        window.removeEventListener("resize", update);
-        window.removeEventListener("scroll", update, true);
+        cancelAnimationFrame(frame);
+        clearInterval(ticker);
+        window.removeEventListener("resize", sync);
+        window.removeEventListener("scroll", sync, true);
       };
     }
 
@@ -265,16 +302,20 @@ export function TourOverlay() {
   if (phase !== "touring" || !step || !rect) return null;
 
   const padding = 6;
-  const spotlightStyle: React.CSSProperties = {
+  // A plain ring on the target over a dim sheet that never moves. The old
+  // version cut a hole in the dim with a 9999px box-shadow spread, so the
+  // whole darkened screen was one element pinned to the target -- every
+  // scroll re-laid-out and repainted it, which is where the banding and the
+  // drift came from. Nothing here is bigger than the target itself.
+  const ringStyle: React.CSSProperties = {
     position: "fixed",
     top: rect.top - padding,
     left: rect.left - padding,
     width: rect.width + padding * 2,
     height: rect.height + padding * 2,
     borderRadius: 10,
-    boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.6)",
     pointerEvents: "none",
-    zIndex: 100,
+    zIndex: 101,
   };
 
   // Flip above the target when there isn't room below it. Anchoring by
@@ -285,6 +326,12 @@ export function TourOverlay() {
   // fixed positioning doesn't scroll -- stranding the user mid-tour.
   const gap = padding + 10;
   const viewportH = window.innerHeight;
+  const viewportW = window.innerWidth;
+  // Below Tailwind's `sm`. On a phone there is no useful free space beside
+  // or below a target -- the old floating card ended up squeezed against an
+  // edge or overlapping the very control it was pointing at -- so the step
+  // becomes a sheet across the bottom of the screen instead.
+  const isPhone = viewportW < 640;
   // Clamped to the viewport: a target taller than the screen (or scrolled
   // partly off it) yields an anchor outside the viewport, and since the
   // tooltip is position:fixed it could not be scrolled back into view.
@@ -293,23 +340,70 @@ export function TourOverlay() {
   const spaceBelow = viewportH - targetBottom;
   const spaceAbove = targetTop;
   const placeAbove = spaceBelow < TOOLTIP_SPACE_NEEDED && spaceAbove > spaceBelow;
-  const tooltipLeft = Math.min(Math.max(rect.left - padding, 16), window.innerWidth - 320 - 16);
-  const tooltipPosition: React.CSSProperties = placeAbove
-    ? { bottom: Math.min(Math.max(viewportH - targetTop + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) }
-    : { top: Math.min(Math.max(targetBottom + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) };
+  // Prefer sitting beside the target when there's room. Below is the obvious
+  // default but it lands on top of whatever follows the target -- for a
+  // field inside the Quick Trade dialog that's the next fields down, which
+  // are exactly what the step is telling the user to fill in.
+  const spaceRight = viewportW - (rect.left + rect.width);
+  const placeBeside = !isPhone && spaceRight >= 320 + gap + 16;
+  const besideAnchorsBottom = rect.top + rect.height / 2 > viewportH / 2;
+  const tooltipPosition: React.CSSProperties = isPhone
+    ? { left: 12, right: 12, bottom: 12 }
+    : placeBeside
+    ? {
+        left: rect.left + rect.width + gap,
+        width: 320,
+        // Grows downward from a high target and upward from a low one.
+        // Always anchoring the top meant a target near the bottom of the
+        // screen (the add-field button sits under its form) pushed the
+        // card's lower half off the viewport.
+        ...(besideAnchorsBottom
+          ? { bottom: Math.max(viewportH - (rect.top + rect.height) - padding, 16) }
+          : { top: Math.max(rect.top - padding, 16) }),
+      }
+    : {
+        left: Math.min(Math.max(rect.left - padding, 16), viewportW - 320 - 16),
+        width: 320,
+        ...(placeAbove
+          ? { bottom: Math.min(Math.max(viewportH - targetTop + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) }
+          : { top: Math.min(Math.max(targetBottom + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) }),
+      };
   // Whatever room is left on the chosen side; the tooltip scrolls internally
   // rather than overflowing when a short viewport can't fit it.
-  const tooltipMaxHeight = Math.max((placeAbove ? spaceAbove : spaceBelow) - gap - 16, MIN_TOOLTIP_VISIBLE);
+  const tooltipMaxHeight = isPhone
+    ? Math.round(viewportH * 0.45)
+    : placeBeside
+    ? viewportH -
+      (besideAnchorsBottom
+        ? Math.max(viewportH - (rect.top + rect.height) - padding, 16)
+        : Math.max(rect.top - padding, 16)) -
+      16
+    : Math.max((placeAbove ? spaceAbove : spaceBelow) - gap - 16, MIN_TOOLTIP_VISIBLE);
 
   return (
     <AnimatePresence>
       <motion.div
-        key="spotlight"
-        style={spotlightStyle}
+        key="dim"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
+        // Below the app's modals (z-50) on purpose: when the tour is
+        // highlighting a field inside the Quick Trade dialog, that dialog
+        // should stay bright and readable -- it already dims the page behind
+        // itself. On an ordinary page nothing outranks this, so the dim
+        // covers everything including the nav bar.
+        style={{ position: "fixed", inset: 0, zIndex: 45, pointerEvents: "none" }}
+        className="bg-black/45"
+      />
+      <motion.div
+        key="ring"
+        style={ringStyle}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="border-2 border-primary bg-white/5 shadow-[0_0_0_3px_rgba(10,155,255,0.25)]"
       />
       <motion.div
         key={`tooltip-${stepIndex}`}
@@ -320,9 +414,7 @@ export function TourOverlay() {
         style={{
           position: "fixed",
           ...tooltipPosition,
-          left: tooltipLeft,
-          zIndex: 101,
-          width: 320,
+          zIndex: 102,
           maxHeight: tooltipMaxHeight,
           overflowY: "auto",
         }}

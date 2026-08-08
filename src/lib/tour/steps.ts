@@ -20,116 +20,68 @@ export interface TourStep {
   awaitAction?: boolean;
 }
 
-// One step per nav tab, plus a hands-on walkthrough of logging a trade --
-// the tour highlights each control in turn (Quick trade, then ticker,
-// direction, entry, size, stop) so a new user is shown exactly what to fill
-// in rather than just being told the tab exists.
+// Deliberately short. An onboarding tour is competing with the user's
+// patience, so this walks them through logging one trade properly and then
+// name-checks the rest in passing rather than stopping on every tab -- the
+// app should come across as smaller than it is. Each step mentions its
+// neighbours ("Insights, Ask and Emotions sit next door") so nothing is
+// hidden, it just isn't a separate stop.
 //
 // Every target that isn't `awaitAction` must render with zero data: this
-// runs for accounts with no trades at all, so Insights, Ask and Emotions
-// anchor to their page headers rather than to cards that don't exist yet.
+// runs for accounts with no trades at all, so Analytics anchors to its page
+// header rather than to cards that don't exist yet.
 export const TOUR_STEPS: TourStep[] = [
   {
     path: "/dashboard",
     targetId: "dashboard-quick-trade",
     title: "Log your first trade",
-    body: "Everything starts with a trade. Click Quick trade and we'll walk through it together.",
+    body: "Everything starts here. Click Quick trade and we'll fill one in together — it takes about ten seconds.",
   },
   {
     targetId: "quick-ticker",
-    title: "1. Ticker",
-    body: "What you traded — type a symbol like AAPL or TSLA.",
+    title: "What you traded",
+    body: "Type a symbol like AAPL. Just below, say whether you went long or short and whether the trade is pending, open, or already closed.",
     awaitAction: true,
   },
   {
-    targetId: "quick-direction",
-    title: "2. Long or short",
-    body: "Long if you bought expecting the price to rise. Short if you're betting it falls.",
-  },
-  {
-    targetId: "quick-status",
-    title: "3. Status",
-    body: "Pending if you haven't entered yet, Open if you're in the trade right now, Closed if it's already finished.",
-  },
-  {
     targetId: "quick-entry",
-    title: "4. Entry price",
-    body: "What you paid per share. Type it and watch the next two boxes — price, shares, and dollar amount stay in sync automatically.",
-  },
-  {
-    targetId: "quick-shares",
-    title: "5. Size",
-    body: "How many shares. Fill in either this or the dollar amount below and the other one works itself out.",
-  },
-  {
-    targetId: "quick-stop",
-    title: "6. Stop loss and take profit",
-    body: "Where you'd cut the loss, and where you'd take the win. These are what let the app calculate your risk and R-multiples later.",
+    title: "Your numbers",
+    body: "Enter what you paid per share, then either the share count or the dollar amount — the app works out the rest. Stop loss and take profit underneath are what power the risk stats later.",
   },
   {
     targetId: "quick-create",
-    title: "7. Create it",
-    body: "That's the whole form — every field is optional, so you can create it now and finish the details on the next screen.",
+    title: "That's the whole form",
+    body: "Every field here is optional, so you never have to have all the answers up front. Create it and we'll look at where the detail goes.",
   },
   {
     pathPrefix: "/trades/",
     targetId: "trade-detail-hero",
-    title: "The full trade",
-    body: "Here's the trade you just made. This page holds everything else: exit price, notes, screenshots, strategy tags, and how you felt before, during, and after.",
+    title: "The rest of the story",
+    body: "This is your trade. Everything else lives on this page — exit price, notes, screenshots, strategy tags, and how you felt before, during, and after it.",
     awaitAction: true,
   },
   {
     path: "/trades",
     targetId: "trades-search",
-    title: "Trades",
-    body: "Every trade you log lands here. Search by ticker, filter by status, folder, or strategy, and click any trade to open it.",
+    title: "Finding trades later",
+    body: "Every trade lands in this list. Search by ticker or filter by status, folder, and strategy to pull up exactly the ones you want to review.",
   },
   {
     path: "/strategies",
     targetId: "strategies-add",
     title: "Strategies",
-    body: "Name the strategies you trade — Breakout, Reversal, whatever you use — then tag trades with them to see which ones actually make money.",
+    body: "Name the setups you trade, tag your trades with them, and the app shows you which ones actually make money. Commissions works the same way — tell it your broker's fees once and P/L is always net.",
   },
   {
     path: "/analytics",
     targetId: "analytics-header",
-    title: "Analytics",
-    body: "Deeper performance stats below: equity curve, drawdown, win rate, profit factor, streaks, and more. These fill in as you close trades.",
-  },
-  {
-    path: "/insights",
-    targetId: "insights-header",
-    title: "Insights",
-    body: "Once you have enough closed trades, patterns get surfaced here automatically — a day of the week or a strategy where your win rate is unusually high or low.",
-  },
-  {
-    path: "/ask",
-    targetId: "ask-header",
-    title: "Ask",
-    body: "Plain-English answers about your own trading — your best day, your best setup, how you trade after a losing streak. No AI, just your data.",
-  },
-  {
-    path: "/emotions",
-    targetId: "emotions-header",
-    title: "Emotions",
-    body: "Track how you felt before, during, and after each trade, and see how that state of mind lines up with your win rate.",
+    title: "Where it pays off",
+    body: "Equity curve, drawdown, win rate, profit factor and streaks build up here as you close trades. Insights, Ask and Emotions sit next door and go further — patterns you didn't ask about, plain-English answers, and how your mood tracks your results.",
   },
   {
     path: "/fields",
     targetId: "fields-add",
-    title: "Add a custom field",
-    body: "Track anything you want on a trade. Give it a label, pick a type, and it appears on every trade form.",
-  },
-  {
-    path: "/fields",
-    targetId: "fields-remove",
-    title: "Remove a field",
-    body: "Don't need one of the defaults? Remove it here. Data already saved under it is kept, just hidden.",
-  },
-  {
-    path: "/commissions",
-    targetId: "commissions-add",
-    title: "Commissions",
-    body: "Tell the journal what your broker charges and every trade's P/L is recorded net of fees, automatically.",
+    title: "Make it yours",
+    body: "Add a field to track anything the app doesn't already, or remove any default you don't want — old data is kept, just hidden. That's the tour; log a few trades and the rest fills itself in.",
   },
 ];

@@ -41,7 +41,7 @@ export function WelcomeModal({
             onClick={onAccept}
             className="w-full rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
           >
-            Take the 2-minute tour
+            Show me around — 1 minute
           </button>
           <button
             onClick={onDecline}
