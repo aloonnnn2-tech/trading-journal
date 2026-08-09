@@ -51,8 +51,26 @@ function indexAfterSkipping(from: number): number {
   return i;
 }
 
+// Going back has the mirror problem. From the Trades step, the step before
+// it is the trade-detail one, which can only be reached by creating a trade
+// -- landing there just bounced straight forward again, so Back looked
+// broken. A step is a valid destination if the tour can navigate to it, or
+// if its target happens to be on screen already (stepping back through the
+// Quick Trade dialog while it's still open).
+function previousReachableIndex(from: number): number {
+  for (let i = from - 1; i > 0; i--) {
+    const candidate = TOUR_STEPS[i];
+    if (candidate.path) return i;
+    if (document.querySelector(`[data-tour-id="${candidate.targetId}"]`)) return i;
+  }
+  return 0;
+}
+
 const POLL_MS = 50;
 const TARGET_TIMEOUT_MS = 2000;
+// How long a live step's target must stay gone before the tour gives up on
+// it and moves on.
+const GONE_FOR_GOOD_MS = 600;
 // Roughly the tallest a step tooltip gets; used only to decide which side of
 // the target to place it on.
 const TOOLTIP_SPACE_NEEDED = 240;
@@ -184,6 +202,16 @@ export function TourOverlay() {
     let elapsed = 0;
     let detachLiveTracking: (() => void) | null = null;
 
+    // Where to go when this step's target isn't there. Stepping forward one
+    // at a time meant closing the Quick Trade dialog left the tour invisible
+    // for seconds, timing out through each of the remaining form steps in
+    // turn; this lands on the next step that can actually be shown.
+    function recover() {
+      const next = indexAfterSkipping(stepIndex);
+      if (next < TOUR_STEPS.length) setStepIndex(next);
+      else finish();
+    }
+
     function track(measured: Rect) {
       setSpotlight({ targetId, rect: measured });
       document
@@ -199,20 +227,20 @@ export function TourOverlay() {
       // So all three drive the same measurement, and since a render only
       // happens when the rect actually moved, the redundancy is free.
       let previous = measured;
-      let missingTicks = 0;
+      let missingSince = 0;
       function sync() {
         const next = measure(targetId);
         if (!next) {
           // The target went away mid-step -- the user closed the dialog it
-          // lived in. Allow a moment (a re-render can briefly detach it),
-          // then move on rather than leaving an invisible, stuck tour.
-          if (++missingTicks > 12) {
-            if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(stepIndex + 1);
-            else finish();
-          }
+          // lived in. Measured in time rather than in ticks: three sources
+          // drive this, so a tick count would trip after a couple of frames
+          // and abandon a step over a momentary re-render.
+          const now = Date.now();
+          if (!missingSince) missingSince = now;
+          else if (now - missingSince > GONE_FOR_GOOD_MS) recover();
           return;
         }
-        missingTicks = 0;
+        missingSince = 0;
         if (
           next.top !== previous.top ||
           next.left !== previous.left ||
@@ -254,8 +282,7 @@ export function TourOverlay() {
         elapsed += POLL_MS;
         if (elapsed >= TARGET_TIMEOUT_MS) {
           console.warn(`[tour] target "${targetId}" not found on ${pathname} -- skipping.`);
-          if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(stepIndex + 1);
-          else finish();
+          recover();
           return;
         }
       }
@@ -279,8 +306,15 @@ export function TourOverlay() {
     if (!matchesPath(nextStep, pathname)) return;
 
     const targetId = nextStep.targetId;
+    // Edge-triggered: advance when the target *appears*, not merely because
+    // it's there. Stepping Back into the Quick Trade dialog while it's still
+    // open would otherwise satisfy this instantly and throw the user forward
+    // again, making Back impossible inside the form.
+    let seenAbsent = !measure(targetId);
     const timer = setInterval(() => {
-      if (measure(targetId)) setStepIndex(stepIndex + 1);
+      const present = !!measure(targetId);
+      if (!present) seenAbsent = true;
+      else if (seenAbsent) setStepIndex(stepIndex + 1);
     }, POLL_MS);
     return () => clearInterval(timer);
   }, [phase, nextStep, stepIndex, pathname, setStepIndex]);
@@ -438,7 +472,7 @@ export function TourOverlay() {
           <div className="flex gap-2">
             {stepIndex > 0 && (
               <button
-                onClick={() => setStepIndex(stepIndex - 1)}
+                onClick={() => setStepIndex(previousReachableIndex(stepIndex))}
                 className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-200"
               >
                 Back
