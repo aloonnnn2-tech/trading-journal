@@ -16,13 +16,22 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      // Where the link in the confirmation email lands. The email template
+      // sends the user through /auth/confirm, which exchanges the token for
+      // a cookie session server-side before forwarding them on.
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+    });
 
     setLoading(false);
     if (error) {
@@ -30,7 +39,63 @@ export default function SignUpPage() {
       return;
     }
     track("signup_completed");
+
+    // With email confirmation switched on in Supabase, signUp() returns a
+    // user but no session -- the account isn't usable until the link is
+    // clicked. Sending them to /dashboard here would just bounce off the
+    // auth check and dump them back on /sign-in with nothing explaining
+    // why, so tell them to go and check their inbox instead.
+    if (!data.session) {
+      setAwaitingConfirmation(true);
+      return;
+    }
     window.location.href = "/dashboard";
+  }
+
+  async function handleResend() {
+    setError(null);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+    });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setResent(true);
+  }
+
+  if (awaitingConfirmation) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+        <div className="flex w-full max-w-sm flex-col items-start gap-3 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]">
+          <BrandMark className="h-8 w-8" />
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Confirm your email
+          </h1>
+          <p className="text-sm text-zinc-500">
+            We sent a link to{" "}
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{email}</span>. Click it
+            and you&apos;ll be signed straight in.
+          </p>
+          {error && <p className="text-sm text-loss">{error}</p>}
+          {resent ? (
+            <p className="text-sm text-zinc-500">Sent again — it can take a minute to arrive.</p>
+          ) : (
+            <button
+              onClick={handleResend}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Didn&apos;t get it? Send it again
+            </button>
+          )}
+          <Link href="/sign-in" className="text-sm font-medium text-primary hover:underline">
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

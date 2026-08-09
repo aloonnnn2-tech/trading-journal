@@ -13,7 +13,19 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/dashboard";
+  // Only ever a path on this site. `next` arrives from the query string and
+  // is fed to `new URL(next, request.url)`, which happily accepts an absolute
+  // URL and returns it as-is -- so a link like
+  // /auth/confirm?...&next=https://example.com would have redirected a
+  // freshly-authenticated user straight off the site. Anything that isn't a
+  // single-slash-prefixed path falls back to the dashboard. ("//host" is
+  // rejected too: browsers read it as protocol-relative and it would leave
+  // the site just the same.)
+  const requestedNext = searchParams.get("next");
+  const next =
+    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+      ? requestedNext
+      : "/dashboard";
 
   if (token_hash && type) {
     const supabase = await createClient();

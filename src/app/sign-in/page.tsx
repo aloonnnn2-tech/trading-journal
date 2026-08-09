@@ -32,21 +32,41 @@ function SignInForm() {
       : null,
   );
   const [loading, setLoading] = useState(false);
+  // Supabase rejects a sign-in from an account that never clicked its
+  // confirmation link. Without an offer to resend, an expired or lost email
+  // is a dead end -- the account exists, so signing up again fails too.
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setNeedsConfirmation(false);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     setLoading(false);
     if (error) {
       setError(error.message);
+      if (error.message.toLowerCase().includes("not confirmed")) setNeedsConfirmation(true);
       return;
     }
     track("login");
     window.location.href = "/dashboard";
+  }
+
+  async function handleResend() {
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+    });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setResent(true);
   }
 
   return (
@@ -95,6 +115,20 @@ function SignInForm() {
           />
         </label>
         {error && <p className="text-sm text-loss">{error}</p>}
+        {needsConfirmation &&
+          (resent ? (
+            <p className="text-sm text-zinc-500">
+              Confirmation email sent again — it can take a minute to arrive.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleResend}
+              className="self-start text-sm font-medium text-primary hover:underline"
+            >
+              Resend confirmation email
+            </button>
+          ))}
         <button
           type="submit"
           disabled={loading}
