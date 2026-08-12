@@ -62,12 +62,16 @@ export interface AnalyticsSummary {
 const R_BUCKET_EDGES = [-3, -2, -1, 0, 1, 2, 3];
 
 function bucketLabel(r: number): string {
-  for (let i = 0; i < R_BUCKET_EDGES.length - 1; i++) {
+  const last = R_BUCKET_EDGES.length - 1;
+  for (let i = 0; i < last; i++) {
     const lo = R_BUCKET_EDGES[i];
     const hi = R_BUCKET_EDGES[i + 1];
-    if (r >= lo && r < hi) return `${lo} to ${hi}`;
+    // The top interval closes on its upper edge. Half-open all the way
+    // through put exactly 3R into the "> 3" bucket -- the one label that
+    // says something untrue about the trade sitting in it.
+    if (r >= lo && (i === last - 1 ? r <= hi : r < hi)) return `${lo} to ${hi}`;
   }
-  return r < R_BUCKET_EDGES[0] ? `< ${R_BUCKET_EDGES[0]}` : `> ${R_BUCKET_EDGES[R_BUCKET_EDGES.length - 1]}`;
+  return r < R_BUCKET_EDGES[0] ? `< ${R_BUCKET_EDGES[0]}` : `> ${R_BUCKET_EDGES[last]}`;
 }
 
 // Single pass over every closed trade -- cheap enough at the scale this

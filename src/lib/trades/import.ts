@@ -1,7 +1,23 @@
 import type { FieldDefinition } from "@/lib/fields/types";
 import { computeDerivedFields } from "./compute";
 import { resultFromPL } from "./result";
-import type { EditableCoreField, TradeCoreFields, TradeDirection } from "./types";
+import {
+  EDITABLE_CORE_FIELDS,
+  type EditableCoreField,
+  type TradeCoreFields,
+  type TradeDirection,
+} from "./types";
+
+// The column mapping comes from the client, so a target naming a column the
+// user has no business writing has to be dropped rather than trusted. Every
+// other path that writes core fields already filters against this list
+// (import-json, PATCH /api/trades/[id], the core-fields setting); the CSV
+// path was the one that didn't. The import route spreads this result *after*
+// user_id and mode, so a mapping of {"Column A": "user_id"} put a foreign id
+// on the insert -- RLS rejects it, which is the saving grace, but the whole
+// batch dies with it, and `id` or `created_at` would have been written
+// verbatim.
+const IMPORTABLE_CORE_FIELDS = new Set<string>(EDITABLE_CORE_FIELDS);
 
 const NUMERIC_CORE_FIELDS = new Set([
   "entry_price",
@@ -104,6 +120,11 @@ export function buildRowFromMapping(
       continue;
     }
 
+    if (!IMPORTABLE_CORE_FIELDS.has(target)) {
+      errors.push(`unknown column target: "${target}"`);
+      continue;
+    }
+
     const { value, error } = parseCoreValue(target, raw);
     if (error) errors.push(error);
     else core[target] = value;
@@ -132,8 +153,15 @@ export function deriveStatusAndResult(
     core.exit_price != null || core.exit_date != null || derived.dollar_pl != null;
   const status = explicitStatus ?? (looksClosed ? "closed" : "open");
 
-  const result =
-    explicitResult ?? (status === "closed" ? resultFromPL(derived.dollar_pl as number | null) : "open");
+  // A row closed on exit_date alone has no dollar_pl to judge by, and
+  // resultFromPL(null) answers "open" -- which is how the very pairing this
+  // function exists to prevent, closed/open, was still getting written.
+  // "break_even" is the honest answer for a finished trade whose P/L can't
+  // be computed: it keeps the badge consistent with the status and keeps it
+  // out of the win and loss counts.
+  const inferredResult =
+    derived.dollar_pl == null ? "break_even" : resultFromPL(derived.dollar_pl as number);
+  const result = explicitResult ?? (status === "closed" ? inferredResult : "open");
 
   return { status, result };
 }

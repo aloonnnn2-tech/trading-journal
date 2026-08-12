@@ -200,7 +200,11 @@ export async function getBestWorstSetup(
 
   const best = stats.reduce((a, b) => (b.totalPL > a.totalPL ? b : a));
   const worst = stats.reduce((a, b) => (b.totalPL < a.totalPL ? b : a));
-  return { best, worst: worst.tag === best.tag && stats.length === 1 ? null : worst };
+  // Both reduces keep the accumulator on a tie, so they settle on the same
+  // entry whenever nothing separates the strategies -- not only when there
+  // is exactly one of them. Guarding on the count alone let a set of tied
+  // strategies show the same name as both best and worst.
+  return { best, worst: worst.tag === best.tag ? null : worst };
 }
 
 export interface DashboardStats {

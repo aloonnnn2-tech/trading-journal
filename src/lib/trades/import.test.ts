@@ -45,6 +45,31 @@ describe("buildRowFromMapping", () => {
     const r = buildRowFromMapping({ Symbol: "VOO", M: "investment" }, { Symbol: "ticker", M: "mode" }, noFields);
     expect(r.core.mode).toBe("investment");
   });
+
+  // The mapping is client-supplied, and the import route spreads this core
+  // object onto the insert after user_id -- so an unrecognised target had to
+  // be dropped, not written through.
+  it("refuses a target that isn't an editable core field", () => {
+    const r = buildRowFromMapping(
+      { Symbol: "AAPL", Who: "00000000-0000-0000-0000-000000000000" },
+      { Symbol: "ticker", Who: "user_id" as ImportTarget },
+      noFields,
+    );
+    expect(r.core.user_id).toBeUndefined();
+    expect(r.error).toContain("unknown column target");
+    expect(r.core.ticker).toBe("AAPL");
+  });
+
+  it("refuses id and created_at too", () => {
+    for (const target of ["id", "created_at", "dollar_pl"]) {
+      const r = buildRowFromMapping(
+        { Symbol: "AAPL", X: "whatever" },
+        { Symbol: "ticker", X: target as ImportTarget },
+        noFields,
+      );
+      expect(r.core[target]).toBeUndefined();
+    }
+  });
 });
 
 describe("deriveStatusAndResult", () => {
@@ -58,6 +83,16 @@ describe("deriveStatusAndResult", () => {
   it("infers closed from an exit date", () => {
     const core = { exit_date: "2026-07-01T00:00:00Z" };
     expect(deriveStatusAndResult(core, withDerivedFields(core)).status).toBe("closed");
+  });
+
+  // The exact pairing this function exists to prevent. Closed on the date
+  // alone means no P/L to judge by, and resultFromPL answers "open" to that.
+  it("never pairs a closed status with an open result", () => {
+    const core = { exit_date: "2026-07-01T00:00:00Z" };
+    const out = deriveStatusAndResult(core, withDerivedFields(core));
+    expect(out.status).toBe("closed");
+    expect(out.result).not.toBe("open");
+    expect(out.result).toBe("break_even");
   });
 
   it("defaults to open with no exit evidence", () => {

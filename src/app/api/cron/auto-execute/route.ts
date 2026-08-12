@@ -171,6 +171,13 @@ export async function POST(request: Request) {
     const batch = triggered.slice(i, i + UPDATE_CONCURRENCY);
     await Promise.all(
       batch.map(async ({ trade, decision }) => {
+       // One trade must not take the sweep down with it. rulesFor() is a
+       // live Supabase read, and a throw from it rejected the whole
+       // Promise.all: the route 500'd, every remaining batch was abandoned,
+       // and the report of the trades already written was thrown away with
+       // it -- writes that had really happened, with nothing left saying so.
+       // Failures are collected per trade, the same as an update error.
+       try {
         // Apply the same derived-field pipeline a normal edit goes through,
         // so an auto-closed trade lands with correct commission and net P&L
         // rather than a status change alone.
@@ -196,7 +203,19 @@ export async function POST(request: Request) {
         // Result is derived from the commission-net dollar_pl computed just
         // above, not assumed from which level was touched -- a thin
         // take-profit margin can still net a loss once commission lands.
-        const result = merged.status === "closed" ? resultFromPL(derived.dollar_pl) : undefined;
+        //
+        // The null case matters here: nothing requires a watched trade to
+        // carry a share count, so dollar_pl can come back null, and
+        // resultFromPL answers "open" for that -- a truthy value that then
+        // got written next to status: "closed", which the trades list shows
+        // as two contradictory badges. A finished trade whose P/L can't be
+        // computed is recorded as break-even instead.
+        const result =
+          merged.status !== "closed"
+            ? undefined
+            : derived.dollar_pl == null
+              ? "break_even"
+              : resultFromPL(derived.dollar_pl);
 
         if (!dryRun) {
           const { error: updateError } = await supabase
@@ -213,6 +232,11 @@ export async function POST(request: Request) {
           }
         }
         executed.push({ id: trade.id, ticker: trade.ticker, message: describeAutoExecution(decision) });
+       } catch (error) {
+         failures.push(
+           `${trade.ticker} (${trade.id}): ${error instanceof Error ? error.message : String(error)}`,
+         );
+       }
       }),
     );
   }
