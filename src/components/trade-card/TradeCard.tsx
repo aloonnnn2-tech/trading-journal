@@ -25,6 +25,7 @@ import type { Strategy } from "@/lib/strategies/types";
 import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
+import { deriveMoneyFields } from "@/lib/trades/derive-inputs";
 import {
   matchCommissionRule,
   computeCommission,
@@ -56,6 +57,7 @@ export function TradeCard({
   initialStrategyIds = [],
   strategyFieldDefinitions = {},
   commissionRules = [],
+  accountBalance = null,
 }: {
   trade: Trade;
   fieldDefinitions: FieldDefinition[];
@@ -67,6 +69,8 @@ export function TradeCard({
   initialStrategyIds?: string[];
   strategyFieldDefinitions?: Record<string, FieldDefinition[]>;
   commissionRules?: CommissionRule[];
+  /** Funds the Risk % derivation; null when no deposits are recorded yet. */
+  accountBalance?: number | null;
 }) {
   const router = useRouter();
   const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow } =
@@ -96,6 +100,31 @@ export function TradeCard({
       (trade.status === "open" && (trade.stop_loss != null || trade.take_profit != null)));
 
   const missingFields = getMissingFields(trade, isInvestment, hiddenCoreFields);
+
+  // Entry-information fields that feed each other: typing a share count
+  // fills in the dollar amount, a stop fills in the risk amount, and so on.
+  // Without this every one of them was a box you had to work out yourself,
+  // and a blank risk amount is why trades ended up with no R multiple.
+  // Hidden fields are still derived -- hiding a field only takes it off the
+  // form, and the values behind it still drive P/L and the analytics page.
+  const updateMoneyField = (key: EditableCoreField, value: unknown) => {
+    updateCoreField(key, value);
+    const after = { ...trade, [key]: value } as Trade;
+    const derived = deriveMoneyFields(
+      key,
+      {
+        entry_price: after.entry_price,
+        shares: after.shares,
+        dollar_amount: after.dollar_amount,
+        stop_loss: after.stop_loss,
+        risk_amount: after.risk_amount,
+      },
+      accountBalance,
+    );
+    for (const [field, derivedValue] of Object.entries(derived)) {
+      if (field !== key) updateCoreField(field as EditableCoreField, derivedValue);
+    }
+  };
 
   // Computed client-side (rather than read off the saved row) so the chart's
   // break-even line and the fee readout track what's being typed, instead of
@@ -550,7 +579,7 @@ export function TradeCard({
               <NumberField
                 label="Entry Price"
                 value={trade.entry_price}
-                onChange={(v) => updateCoreField("entry_price", v)}
+                onChange={(v) => updateMoneyField("entry_price", v)}
               />
             )}
             {!isHidden("exit_price") && (
@@ -564,7 +593,7 @@ export function TradeCard({
               <NumberField
                 label="Stop Loss"
                 value={trade.stop_loss}
-                onChange={(v) => updateCoreField("stop_loss", v)}
+                onChange={(v) => updateMoneyField("stop_loss", v)}
               />
             )}
             {!isHidden("take_profit") && (
@@ -578,7 +607,7 @@ export function TradeCard({
               <NumberField
                 label="Number of Shares"
                 value={trade.shares}
-                onChange={(v) => updateCoreField("shares", v)}
+                onChange={(v) => updateMoneyField("shares", v)}
               />
             )}
             {!isHidden("position_size") && (
@@ -592,7 +621,7 @@ export function TradeCard({
               <NumberField
                 label="Dollar Amount"
                 value={trade.dollar_amount}
-                onChange={(v) => updateCoreField("dollar_amount", v)}
+                onChange={(v) => updateMoneyField("dollar_amount", v)}
               />
             )}
             {!isHidden("risk_amount") && (
@@ -600,7 +629,7 @@ export function TradeCard({
                 label="Risk Amount"
                 tooltip="The dollar amount you stood to lose if the trade hit your stop loss."
                 value={trade.risk_amount}
-                onChange={(v) => updateCoreField("risk_amount", v)}
+                onChange={(v) => updateMoneyField("risk_amount", v)}
               />
             )}
             {!isHidden("risk_percent") && (
