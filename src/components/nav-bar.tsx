@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Sun, Moon, HelpCircle, UserCircle } from "lucide-react";
+import { Sun, Moon, HelpCircle, UserCircle, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
@@ -23,7 +23,7 @@ const LINKS = [
   { href: "/commissions", label: "Commissions" },
 ];
 
-export function NavBar() {
+export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -112,6 +112,23 @@ export function NavBar() {
           })}
         </nav>
         <div className="order-2 flex shrink-0 items-center gap-1 sm:order-3">
+          {/* Only rendered for an admin, so its presence is itself the
+              "you have admin rights" signal, and it's the only way into
+              /admin/analytics short of typing the URL. */}
+          {isAdmin && (
+            <Link
+              href="/admin/analytics"
+              title="Admin analytics"
+              className={`flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] ${
+                pathname.startsWith("/admin")
+                  ? "bg-primary/10 text-primary"
+                  : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              }`}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
           <button
             onClick={startTour}
             title="Replay guided tour"

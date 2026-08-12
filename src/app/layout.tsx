@@ -3,6 +3,9 @@ import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { NavBar } from "@/components/nav-bar";
+import { createClient } from "@/lib/supabase/server";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { isAdmin } from "@/lib/tracking/admin-queries";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -23,11 +26,23 @@ export const metadata: Metadata = {
   description: "Review, analyze, and improve your trading performance.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Drives the Admin link in the nav, which is the only signal anywhere in
+  // the app that an account has admin rights -- /admin/analytics is
+  // deliberately unlinked, so without this there's no way to tell except by
+  // typing the URL and seeing whether it redirects.
+  //
+  // getUserIdFromHeader rather than requireUserId: this runs for logged-out
+  // visitors on the marketing pages too, and must not redirect them. The
+  // lookup is a single indexed column read, skipped entirely when there's no
+  // session, and isAdmin() fails closed on any error.
+  const userId = await getUserIdFromHeader();
+  const admin = userId ? await isAdmin(await createClient(), userId) : false;
+
   return (
     <html
       lang="en"
@@ -36,7 +51,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          <NavBar />
+          <NavBar isAdmin={admin} />
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />
