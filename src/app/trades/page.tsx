@@ -425,6 +425,7 @@ function TradeTable({
             <th className="px-4 py-3">Result</th>
             <th className="px-4 py-3">Tags</th>
             <th className="px-4 py-3">Entry Date</th>
+            <th className="px-4 py-3">R:R</th>
             <th className="px-4 py-3">Dollar P/L</th>
           </tr>
         </thead>
@@ -451,6 +452,16 @@ function TradeTable({
               </td>
               <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                 {trade.entry_date ? new Date(trade.entry_date).toLocaleDateString() : "—"}
+              </td>
+              {/* Planned reward against planned risk. Unlike P/L it's known
+                  before the trade is over, so it's the one number here that
+                  says something about a position still open. */}
+              <td className="tnum px-4 py-3 font-mono text-zinc-600 dark:text-zinc-400">
+                {trade.risk_reward_ratio != null ? (
+                  `${trade.risk_reward_ratio.toFixed(2)}`
+                ) : (
+                  <span className="font-sans text-zinc-400 dark:text-zinc-600">—</span>
+                )}
               </td>
               <td className="px-4 py-3">
                 {trade.dollar_pl !== null ? (

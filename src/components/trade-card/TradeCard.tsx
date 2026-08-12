@@ -26,6 +26,7 @@ import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
 import { deriveMoneyFields } from "@/lib/trades/derive-inputs";
+import { pendingReason } from "@/lib/trades/pending-reason";
 import {
   matchCommissionRule,
   computeCommission,
@@ -131,6 +132,16 @@ export function TradeCard({
   // lagging a 600ms autosave round trip behind it. The server recomputes and
   // persists the authoritative value on save -- this is purely the live
   // preview of the same calculation.
+  const pendingInputs = {
+    entry_price: trade.entry_price,
+    exit_price: trade.exit_price,
+    shares: trade.shares,
+    stop_loss: trade.stop_loss,
+    take_profit: trade.take_profit,
+    risk_amount: trade.risk_amount,
+    status: trade.status,
+  };
+
   const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
   const commissionPreview = computeCommission(commissionRule, trade);
   const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
@@ -506,22 +517,46 @@ export function TradeCard({
         </div>
 
         {!isInvestment && (
-          <div className={activeExtra === "results" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "hidden"}>
+          <div className={activeExtra === "results" ? "" : "hidden"}>
+            {/* Says out loud that nothing here is typed in. Commission and
+                break-even in particular appear on their own the moment a
+                commission rule matches, which reads as the app inventing
+                numbers if you don't know a rule did it. */}
+            <p className="mb-4 text-xs text-zinc-500">
+              Worked out from the trade — nothing here is edited directly.
+              {commissionRule && !trade.commission_manual && (
+                <>
+                  {" "}
+                  Commission and break-even come from your{" "}
+                  <span className="text-zinc-700 dark:text-zinc-300">{commissionRule.name}</span>{" "}
+                  rule.
+                </>
+              )}
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <ReadOnlyField
               label="Dollar P/L"
               tooltip="Net of commission — this is what actually landed in your account."
               value={trade.dollar_pl}
+              pending={pendingReason("dollar_pl", pendingInputs)}
             />
-            <ReadOnlyField label="Percent Return" value={trade.percent_return} suffix="%" />
+            <ReadOnlyField
+              label="Percent Return"
+              value={trade.percent_return}
+              suffix="%"
+              pending={pendingReason("percent_return", pendingInputs)}
+            />
             <ReadOnlyField
               label="R Multiple"
               tooltip="Your profit or loss measured against how much you risked. 2.0 means you made twice what you risked; -1.0 means you lost your full risk amount."
               value={trade.r_multiple}
+              pending={pendingReason("r_multiple", pendingInputs)}
             />
             <ReadOnlyField
               label="Risk/Reward Ratio"
               tooltip="How much you aimed to gain compared to how much you risked, based on your stop loss and take profit. 3.0 means you were targeting 3x your risk. Based on your price levels only, before commission."
               value={trade.risk_reward_ratio}
+              pending={pendingReason("risk_reward_ratio", pendingInputs)}
             />
             <ReadOnlyField
               label="Commission"
@@ -533,12 +568,23 @@ export function TradeCard({
                     : "No commission rule matches this trade. Set one up on the Commissions page, or type a value into the Commission field."
               }
               value={trade.commission}
+              pending={
+                commissionRule
+                  ? "Nothing charged on this trade yet"
+                  : "No matching rule — add one on the Commissions page"
+              }
             />
             <ReadOnlyField
               label="Breakeven Price"
               tooltip={`The price this trade has to reach before it's actually profitable, once the full round trip of commission is paid${commissionPreview.exitFee === 0 && commissionRule ? " (including the exit fee not yet charged)" : ""}. Shown as a dashed line on the chart.`}
               value={breakevenPrice}
+              pending={
+                trade.entry_price == null
+                  ? "Add an entry price"
+                  : "No commission, so it's just your entry price"
+              }
             />
+            </div>
           </div>
         )}
 
@@ -720,20 +766,34 @@ function ReadOnlyField({
   value,
   suffix = "",
   tooltip,
+  pending,
 }: {
   label: string;
   value: number | null;
   suffix?: string;
   tooltip?: string;
+  /** Why there's no value yet, shown in place of a bare dash. */
+  pending?: string;
 }) {
   return (
     <Field label={label} tooltip={tooltip}>
-      <div className={`${inputClass} tnum font-mono text-zinc-500`}>
+      {/* Worked out by the app, not typed in. It used to borrow inputClass,
+          so it was pixel-identical to the editable fields either side of it
+          -- people clicked it, nothing happened, and the panel read as
+          broken. No border or fill, so it presents as a figure rather than
+          as a box waiting for input. */}
+      <div className="tnum px-0.5 py-2 font-mono text-sm text-zinc-900 dark:text-zinc-100">
         {/* `== null`, not `=== null`: a column the database doesn't have yet
             reads back `undefined`, and the strict check let that through to
             `undefined.toFixed(2)` -- a TypeError that took down the whole
             trade page, since this panel is always mounted (just hidden). */}
-        {value == null ? "—" : `${value.toFixed(2)}${suffix}`}
+        {value == null ? (
+          <span className="font-sans text-xs text-zinc-400 dark:text-zinc-500">
+            {pending ?? "—"}
+          </span>
+        ) : (
+          `${value.toFixed(2)}${suffix}`
+        )}
       </div>
     </Field>
   );
