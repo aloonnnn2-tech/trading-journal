@@ -68,7 +68,11 @@ export function deriveMoneyFields(
     if (amount != null && entry != null && entry !== 0) {
       derived.shares = round(amount / entry, 4);
     }
-  } else if (entry != null && shares != null) {
+  } else if ((edited === "entry_price" || edited === "shares") && entry != null && shares != null) {
+    // Strictly the two fields it's a product of. Recomputing it for every
+    // trigger meant editing a stop loss rewrote a dollar amount the user had
+    // typed themselves -- entering 1005 to account for fees and then setting
+    // a stop silently rounded it back to entry x shares.
     derived.dollar_amount = round(entry * shares, 2);
   }
 

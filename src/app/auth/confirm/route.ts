@@ -16,22 +16,32 @@ export async function GET(request: NextRequest) {
   // Only ever a path on this site. `next` arrives from the query string and
   // is fed to `new URL(next, request.url)`, which happily accepts an absolute
   // URL and returns it as-is -- so a link like
-  // /auth/confirm?...&next=https://example.com would have redirected a
-  // freshly-authenticated user straight off the site. Anything that isn't a
-  // single-slash-prefixed path falls back to the dashboard. ("//host" is
-  // rejected too: browsers read it as protocol-relative and it would leave
-  // the site just the same.)
+  // /auth/confirm?...&next=https://example.com would redirect a
+  // freshly-authenticated user straight off the site.
+  //
+  // Resolve first, then compare origins. Prefix-checking the raw string for
+  // "/" and not "//" looks equivalent and isn't: URL treats a backslash as a
+  // slash under a special scheme, so `next=/\evil.com` passes that check and
+  // still resolves to http://evil.com/. Only the resolved origin is
+  // trustworthy, and the redirect reuses that resolved URL so nothing can
+  // differ between what was checked and what is sent.
   const requestedNext = searchParams.get("next");
-  const next =
-    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
-      ? requestedNext
-      : "/dashboard";
+  const origin = new URL(request.url).origin;
+  let destination = new URL("/dashboard", origin);
+  if (requestedNext) {
+    try {
+      const resolved = new URL(requestedNext, origin);
+      if (resolved.origin === origin) destination = resolved;
+    } catch {
+      // Unparseable -- keep the dashboard default.
+    }
+  }
 
   if (token_hash && type) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
     if (!error) {
-      return NextResponse.redirect(new URL(next, request.url));
+      return NextResponse.redirect(destination);
     }
   }
 

@@ -43,6 +43,10 @@ function SignInForm() {
     setLoading(true);
     setError(null);
     setNeedsConfirmation(false);
+    // Otherwise a second unconfirmed sign-in still shows the "sent again"
+    // note from the first one -- claiming an email was sent that wasn't, and
+    // hiding the button that would actually send it.
+    setResent(false);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 

@@ -37,11 +37,26 @@ export async function getUserSettings(
 // "permission denied for table user_settings". The row always exists: the
 // on_auth_user_created_seed_settings trigger (0003) creates it at signup.
 export async function setTourCompleted(supabase: SupabaseClient, userId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("user_settings")
     .update({ has_completed_tour: true })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("user_id");
   if (error) throw error;
+
+  // An update that matches nothing is not an error -- it reports success
+  // having written nothing. That failure mode is invisible and permanent
+  // here: the welcome modal blocks the entire app until it's answered, and
+  // answering it would never be recorded, so it would greet the user again
+  // at every login. Insert the row instead (0024 grants INSERT on user_id,
+  // which is what rules out a plain upsert). getUserSettings already falls
+  // back to defaults for a missing row, so this stays consistent with it.
+  if ((data?.length ?? 0) === 0) {
+    const { error: insertError } = await supabase
+      .from("user_settings")
+      .insert({ user_id: userId, has_completed_tour: true });
+    if (insertError) throw insertError;
+  }
 }
 
 // Sets the user's IANA timezone the first time the client detects it.

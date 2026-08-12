@@ -23,6 +23,21 @@ describe("dollar amount / shares", () => {
     expect(r.dollar_amount).toBeUndefined();
   });
 
+  it("doesn't rewrite a hand-entered dollar amount when an unrelated field is edited", () => {
+    // 1005 rather than the 1000 entry x shares implies -- the user has
+    // accounted for something the app can't see, and editing a stop must
+    // not quietly round it away.
+    const manual = fields({ entry_price: 100, shares: 10, dollar_amount: 1005, stop_loss: 95 });
+    expect(deriveMoneyFields("stop_loss", manual, null).dollar_amount).toBeUndefined();
+    expect(deriveMoneyFields("risk_amount", manual, null).dollar_amount).toBeUndefined();
+  });
+
+  it("still recomputes it when one of its own inputs moves", () => {
+    const manual = fields({ entry_price: 100, shares: 20, dollar_amount: 1005 });
+    expect(deriveMoneyFields("shares", manual, null).dollar_amount).toBe(2000);
+    expect(deriveMoneyFields("entry_price", manual, null).dollar_amount).toBe(2000);
+  });
+
   it("leaves size alone when only one side is known", () => {
     const r = deriveMoneyFields("entry_price", fields({ entry_price: 100 }), null);
     expect(r.dollar_amount).toBeUndefined();

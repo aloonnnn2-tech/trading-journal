@@ -71,6 +71,14 @@ const TARGET_TIMEOUT_MS = 2000;
 // How long a live step's target must stay gone before the tour gives up on
 // it and moves on.
 const GONE_FOR_GOOD_MS = 600;
+// ...except when the next step lives on another route, which means the
+// user's action is expected to navigate. Creating a trade unmounts the
+// dialog immediately but the trade page behind it takes a moment to arrive
+// (ten parallel queries and signed image URLs), and on the short timer that
+// gap read as "they closed the dialog" -- the tour would give up and push
+// them off the trade they had just created. Only ever costs the extra wait
+// on the one step that can navigate.
+const GONE_BEFORE_NAV_MS = 4000;
 // Roughly the tallest a step tooltip gets; used only to decide which side of
 // the target to place it on.
 const TOOLTIP_SPACE_NEEDED = 240;
@@ -160,13 +168,23 @@ export function TourOverlay() {
     }
     if (phaseRef.current !== "touring") return;
 
+    // Only a step that names this route counts as "the action landed us
+    // here". Checking matchesPath alone was wrong: it answers true for the
+    // path-less steps inside the Quick Trade dialog, so navigating away
+    // during step one promoted the tour into a modal step whose target can
+    // never appear on the new page, leaving it polling forever with nothing
+    // drawn.
     const next = TOUR_STEPS[stepIndexRef.current + 1];
-    if (next?.awaitAction && matchesPath(next, pathname)) {
+    if (next?.awaitAction && next.pathPrefix != null && matchesPath(next, pathname)) {
       setStepIndex(stepIndexRef.current + 1);
       return;
     }
-    setPhase("idle");
-  }, [pathname, setPhase, setStepIndex]);
+    // Leaving mid-tour is a decision, same as pressing Escape or the X --
+    // record it. Merely going idle left has_completed_tour false, so the
+    // full-screen welcome modal, which blocks the whole app until it's
+    // answered, came back at every single login.
+    finish();
+  }, [pathname, setPhase, setStepIndex, finish]);
 
   const step = phase === "touring" ? TOUR_STEPS[stepIndex] : undefined;
   const nextStep = phase === "touring" ? TOUR_STEPS[stepIndex + 1] : undefined;
@@ -236,8 +254,11 @@ export function TourOverlay() {
           // drive this, so a tick count would trip after a couple of frames
           // and abandon a step over a momentary re-render.
           const now = Date.now();
+          const grace = TOUR_STEPS[stepIndex + 1]?.pathPrefix != null
+            ? GONE_BEFORE_NAV_MS
+            : GONE_FOR_GOOD_MS;
           if (!missingSince) missingSince = now;
-          else if (now - missingSince > GONE_FOR_GOOD_MS) recover();
+          else if (now - missingSince > grace) recover();
           return;
         }
         missingSince = 0;
