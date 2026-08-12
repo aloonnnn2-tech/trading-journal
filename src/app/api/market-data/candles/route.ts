@@ -9,6 +9,8 @@ export interface CandlesResponse {
   currentPrice: number | null;
   dayHigh: number | null;
   dayLow: number | null;
+  /** ISO string over the wire -- Date doesn't survive JSON. */
+  quoteTime: string | null;
 }
 
 export async function GET(request: Request) {
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
     currentPrice: result.currentPrice,
     dayHigh: result.dayHigh,
     dayLow: result.dayLow,
+    quoteTime: result.quoteTime ? result.quoteTime.toISOString() : null,
   };
   return NextResponse.json(body);
 }

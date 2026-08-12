@@ -124,7 +124,7 @@ export async function POST(request: Request) {
   // rather than per trade -- several users watching AAPL is one request.
   const symbolFor = (t: WatchedTrade) => guessYahooSymbol(t.ticker, t.asset_type);
   const symbols = [...new Set(watched.map(symbolFor).filter(Boolean))];
-  const prices = new Map<string, { dayHigh: number | null; dayLow: number | null }>();
+  const prices = new Map<string, { dayHigh: number | null; dayLow: number | null; quoteTime: Date | null }>();
   const failures: string[] = [];
 
   for (let i = 0; i < symbols.length; i += PRICE_CONCURRENCY) {

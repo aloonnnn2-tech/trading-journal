@@ -97,8 +97,20 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
       if (isMissingTable(error)) return null;
       throw error;
     }),
+    // Realized, not merely computable: dollar_pl only needs an entry price,
+    // an exit price, and a share count -- none of which require the trade
+    // to actually be closed. Typing a hypothetical exit price to preview a
+    // number, without flipping status, made that preview count as cash that
+    // had actually landed. Requiring status = closed is what "realized"
+    // means here; mirrored in the dashboard_stats RPC (see migration 0025).
     fetchAllRows<{ dollar_pl: number | null }>((from, to) =>
-      supabase.from("trades").select("dollar_pl").not("dollar_pl", "is", null).order("id").range(from, to),
+      supabase
+        .from("trades")
+        .select("dollar_pl")
+        .eq("status", "closed")
+        .not("dollar_pl", "is", null)
+        .order("id")
+        .range(from, to),
     ),
     fetchAllRows<{
       mode: string;

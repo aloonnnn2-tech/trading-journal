@@ -4,7 +4,18 @@ import type { Trade } from "./types";
 export interface PriceLevels {
   dayHigh: number | null;
   dayLow: number | null;
+  /** When this snapshot's quote was last updated, if known. */
+  quoteTime?: Date | null;
 }
+
+// dayHigh/dayLow are the *session's* range and don't reset until the next
+// session opens -- so without this, a pending order logged at 8pm was
+// evaluated on the very next 15-minute sweep against a range that had
+// already finished hours earlier, and could fill against a price the market
+// never actually revisited. 30 minutes covers a brief data-provider hiccup
+// (a quote a few minutes behind) while still catching "the market's been
+// closed since 4pm" long before the next session even opens.
+const STALE_QUOTE_MAX_AGE_MS = 30 * 60 * 1000;
 
 /** The subset of a trade the decision reads. */
 export type AutoExecutableTrade = Pick<
@@ -45,9 +56,13 @@ export function decideAutoExecution(
   // Investment positions have no entry/stop/target levels to watch.
   if (trade.mode === "investment") return null;
 
-  const { dayHigh, dayLow } = levels;
+  const { dayHigh, dayLow, quoteTime } = levels;
   if (dayHigh == null || dayLow == null) return null;
   if (dayLow > dayHigh) return null; // malformed snapshot
+  // Only checked when we actually know the quote's age -- missing timestamp
+  // data isn't evidence of staleness, so this fails open on "unknown" and
+  // closed only on "known and old".
+  if (quoteTime != null && now.getTime() - quoteTime.getTime() > STALE_QUOTE_MAX_AGE_MS) return null;
 
   // pending -> open: the session's range brackets the entry price. Checked
   // as a bracket rather than a directional cross because the app stores a

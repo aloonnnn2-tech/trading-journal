@@ -28,6 +28,7 @@ export interface PriceSnapshot {
   currentPrice: number | null;
   dayHigh: number | null;
   dayLow: number | null;
+  quoteTime: Date | null;
 }
 
 function overrideKey(ticker: string) {
@@ -156,6 +157,7 @@ export function PriceChart({
             currentPrice: data.currentPrice,
             dayHigh: data.dayHigh,
             dayLow: data.dayLow,
+            quoteTime: data.quoteTime ? new Date(data.quoteTime) : null,
           });
         })
         .catch(() => {

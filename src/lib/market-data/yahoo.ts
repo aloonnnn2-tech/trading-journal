@@ -42,6 +42,11 @@ export interface YahooFetchResult {
    *  even when today's daily candle isn't finalized yet. */
   dayHigh: number | null;
   dayLow: number | null;
+  /** When Yahoo says this quote was last updated. dayHigh/dayLow don't reset
+   *  until the next session starts, so this is what tells auto-execution
+   *  apart a live range from one that finished hours (or a weekend) ago --
+   *  see decideAutoExecution's staleness check. */
+  quoteTime: Date | null;
 }
 
 // Yahoo's endpoint is unofficial/undocumented, but the failure it's most
@@ -122,6 +127,7 @@ export async function fetchYahooCandles(
     currentPrice: typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
     dayHigh: typeof meta.regularMarketDayHigh === "number" ? meta.regularMarketDayHigh : null,
     dayLow: typeof meta.regularMarketDayLow === "number" ? meta.regularMarketDayLow : null,
+    quoteTime: typeof meta.regularMarketTime === "number" ? new Date(meta.regularMarketTime * 1000) : null,
   };
 }
 
@@ -133,8 +139,13 @@ export async function fetchYahooCandles(
  */
 export async function fetchDayRange(
   symbol: string,
-): Promise<{ dayHigh: number | null; dayLow: number | null; currentPrice: number | null } | null> {
+): Promise<Pick<YahooFetchResult, "dayHigh" | "dayLow" | "currentPrice" | "quoteTime"> | null> {
   const result = await fetchYahooCandles(symbol, { range: "5d", revalidate: 0 });
   if (!result) return null;
-  return { dayHigh: result.dayHigh, dayLow: result.dayLow, currentPrice: result.currentPrice };
+  return {
+    dayHigh: result.dayHigh,
+    dayLow: result.dayLow,
+    currentPrice: result.currentPrice,
+    quoteTime: result.quoteTime,
+  };
 }

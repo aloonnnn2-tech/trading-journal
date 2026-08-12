@@ -46,6 +46,36 @@ describe("pending -> open", () => {
   });
 });
 
+describe("stale quotes", () => {
+  const pending = trade({ status: "pending", entry_date: null });
+  const bracket = { dayLow: 99, dayHigh: 101 };
+
+  it("does nothing when the quote is older than 30 minutes", () => {
+    const staleAt = new Date(NOW.getTime() - 31 * 60 * 1000);
+    expect(decideAutoExecution(pending, { ...bracket, quoteTime: staleAt }, NOW)).toBeNull();
+  });
+
+  it("still fires on a quote inside the window", () => {
+    const freshAt = new Date(NOW.getTime() - 29 * 60 * 1000);
+    expect(decideAutoExecution(pending, { ...bracket, quoteTime: freshAt }, NOW)).not.toBeNull();
+  });
+
+  it("fires with no quoteTime at all -- unknown age isn't evidence of staleness", () => {
+    expect(decideAutoExecution(pending, bracket, NOW)).not.toBeNull();
+  });
+
+  it("fires with quoteTime explicitly null, same as omitted", () => {
+    expect(decideAutoExecution(pending, { ...bracket, quoteTime: null }, NOW)).not.toBeNull();
+  });
+
+  // The exact scenario this guard exists for: an order logged after the
+  // close, evaluated on the next sweep against a session that already ended.
+  it("refuses to fill a pending order against a session that closed hours ago", () => {
+    const marketClosedAt = new Date("2026-07-31T09:00:00Z"); // 3 hours before NOW
+    expect(decideAutoExecution(pending, { ...bracket, quoteTime: marketClosedAt }, NOW)).toBeNull();
+  });
+});
+
 describe("open -> closed, long", () => {
   it("closes when the low reaches the stop", () => {
     const d = decideAutoExecution(trade(), { dayLow: 94, dayHigh: 101 }, NOW);
