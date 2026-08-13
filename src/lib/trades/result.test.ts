@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resultFromPL } from "./result";
+import { resultFromPL, resultForClosedTrade } from "./result";
 import { decideAutoExecution, type AutoExecutableTrade } from "./auto-execute";
 import { computeDerivedFields } from "./compute";
 
@@ -13,6 +13,22 @@ describe("resultFromPL", () => {
   it("falls back to open when P&L isn't computable yet", () => {
     expect(resultFromPL(null)).toBe("open");
     expect(resultFromPL(undefined)).toBe("open");
+  });
+});
+
+// The variant every write path for a *closed* trade should call instead --
+// same win/loss/break_even mapping, but a trade known to be finished can't
+// still be "open" just because its P/L isn't computable.
+describe("resultForClosedTrade", () => {
+  it("matches resultFromPL for a real number", () => {
+    expect(resultForClosedTrade(150)).toBe("win");
+    expect(resultForClosedTrade(-1)).toBe("loss");
+    expect(resultForClosedTrade(0)).toBe("break_even");
+  });
+
+  it("records break-even, not open, when P&L can't be computed", () => {
+    expect(resultForClosedTrade(null)).toBe("break_even");
+    expect(resultForClosedTrade(undefined)).toBe("break_even");
   });
 });
 

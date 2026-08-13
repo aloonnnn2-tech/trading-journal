@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { computeDerivedFields } from "./compute";
-import { resultFromPL } from "./result";
+import { resultForClosedTrade } from "./result";
 import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
 import type { StreakTrade } from "./streak";
 import { listCommissionRules } from "@/lib/commissions/queries";
@@ -156,7 +156,7 @@ export async function updateTrade(
   const resultTouched =
     changes.core != null && Object.prototype.hasOwnProperty.call(changes.core, "result");
   if (!resultTouched && mergedCore.status === "closed") {
-    basePayload.result = resultFromPL(derived.dollar_pl);
+    basePayload.result = resultForClosedTrade(derived.dollar_pl);
   }
 
   const { data, error } = await supabase

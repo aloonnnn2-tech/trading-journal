@@ -10,7 +10,7 @@ import {
   type AutoExecutableTrade,
 } from "@/lib/trades/auto-execute";
 import { computeDerivedFields } from "@/lib/trades/compute";
-import { resultFromPL } from "@/lib/trades/result";
+import { resultForClosedTrade } from "@/lib/trades/result";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import type { Trade, TradeCoreFields } from "@/lib/trades/types";
@@ -144,13 +144,23 @@ export async function POST(request: Request) {
 
   // Commission rules are per-user and this client bypasses RLS, so they're
   // loaded per user id and cached for the sweep.
-  const rulesByUser = new Map<string, Awaited<ReturnType<typeof listCommissionRules>>>();
-  async function rulesFor(userId: string) {
-    const cached = rulesByUser.get(userId);
-    if (cached) return cached;
-    const rules = await listCommissionRules(supabase, userId);
-    rulesByUser.set(userId, rules);
-    return rules;
+  //
+  // Caches the in-flight *promise*, not the resolved value -- caching the
+  // value looks like it deduplicates but doesn't: batches process up to
+  // UPDATE_CONCURRENCY trades at once, and if two trades for the same user
+  // land in the same batch, both call rulesFor before either's
+  // listCommissionRules has resolved, both see a cache miss, and both fire
+  // the same Supabase round trip the comment above claims happens once.
+  // Assigning the promise synchronously, before any await, is what actually
+  // makes the second caller see the first one's request already in flight.
+  const rulesByUser = new Map<string, ReturnType<typeof listCommissionRules>>();
+  function rulesFor(userId: string) {
+    let pending = rulesByUser.get(userId);
+    if (!pending) {
+      pending = listCommissionRules(supabase, userId);
+      rulesByUser.set(userId, pending);
+    }
+    return pending;
   }
 
   const executed: { id: string; ticker: string; message: string }[] = [];
@@ -203,19 +213,11 @@ export async function POST(request: Request) {
         // Result is derived from the commission-net dollar_pl computed just
         // above, not assumed from which level was touched -- a thin
         // take-profit margin can still net a loss once commission lands.
-        //
-        // The null case matters here: nothing requires a watched trade to
-        // carry a share count, so dollar_pl can come back null, and
-        // resultFromPL answers "open" for that -- a truthy value that then
-        // got written next to status: "closed", which the trades list shows
-        // as two contradictory badges. A finished trade whose P/L can't be
-        // computed is recorded as break-even instead.
-        const result =
-          merged.status !== "closed"
-            ? undefined
-            : derived.dollar_pl == null
-              ? "break_even"
-              : resultFromPL(derived.dollar_pl);
+        // resultForClosedTrade (not resultFromPL) matters here: nothing
+        // requires a watched trade to carry a share count, so dollar_pl can
+        // come back null, and only the closed-trade variant records that as
+        // break-even instead of the contradictory "closed" + "open" pair.
+        const result = merged.status !== "closed" ? undefined : resultForClosedTrade(derived.dollar_pl);
 
         if (!dryRun) {
           const { error: updateError } = await supabase

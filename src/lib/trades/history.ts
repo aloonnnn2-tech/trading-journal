@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Trade, TradeCoreFields } from "./types";
 import { computeDerivedFields } from "./compute";
-import { resultFromPL } from "./result";
+import { resultForClosedTrade } from "./result";
 
 // "Column doesn't exist": PGRST204 from PostgREST for an unknown column in a
 // write payload, 42703 from raw Postgres. See updateTrade for why this
@@ -72,13 +72,13 @@ export async function restoreTradeVersion(
   // snapshot's stored result was decided against whatever P&L existed when
   // it was taken, so restoring a pre-commission "win" whose gross profit is
   // thinner than the fee now owed would write "win" next to a negative
-  // dollar_pl. resultFromPL is the single source of truth for that mapping
-  // (see queries.ts updateTrade and the cron sweep, which both call it).
+  // dollar_pl. resultForClosedTrade is the single source of truth for that
+  // mapping (see result.ts -- it's what every write path uses).
   const restored = {
     ...rest,
     commission,
     ...derived,
-    ...(rest.status === "closed" ? { result: resultFromPL(derived.dollar_pl) } : {}),
+    ...(rest.status === "closed" ? { result: resultForClosedTrade(derived.dollar_pl) } : {}),
   };
 
   const { data, error } = await supabase
@@ -100,7 +100,7 @@ export async function restoreTradeVersion(
   const withoutCommission: Record<string, unknown> = {
     ...rest,
     ...grossDerived,
-    ...(rest.status === "closed" ? { result: resultFromPL(grossDerived.dollar_pl) } : {}),
+    ...(rest.status === "closed" ? { result: resultForClosedTrade(grossDerived.dollar_pl) } : {}),
   };
   delete withoutCommission.commission;
   delete withoutCommission.commission_manual;

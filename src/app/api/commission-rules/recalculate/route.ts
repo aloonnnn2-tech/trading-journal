@@ -5,6 +5,7 @@ import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import { computeDerivedFields } from "@/lib/trades/compute";
+import { resultForClosedTrade } from "@/lib/trades/result";
 import type { Trade, TradeCoreFields } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
@@ -90,9 +91,18 @@ export async function POST() {
           commission,
         });
 
+        // A new rule can flip a closed trade's net result -- a thin winner
+        // becomes a loss once a fee applies. Without this, dollar_pl updates
+        // but the Win/Loss badge doesn't, so a recalculated trade can show a
+        // result that contradicts its own (now correct) P/L. Left untouched
+        // for anything not closed -- resultForClosedTrade's job is deciding
+        // a *finished* trade's outcome, not overwriting "open"/"pending".
+        const resultPatch =
+          trade.status === "closed" ? { result: resultForClosedTrade(derived.dollar_pl) } : {};
+
         const { error: updateError } = await supabase
           .from("trades")
-          .update({ commission, ...derived })
+          .update({ commission, ...derived, ...resultPatch })
           .eq("id", trade.id);
 
         return updateError ? updateError.message : null;

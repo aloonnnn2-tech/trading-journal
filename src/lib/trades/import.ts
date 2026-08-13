@@ -1,6 +1,6 @@
 import type { FieldDefinition } from "@/lib/fields/types";
 import { computeDerivedFields } from "./compute";
-import { resultFromPL } from "./result";
+import { resultForClosedTrade } from "./result";
 import {
   EDITABLE_CORE_FIELDS,
   type EditableCoreField,
@@ -153,15 +153,13 @@ export function deriveStatusAndResult(
     core.exit_price != null || core.exit_date != null || derived.dollar_pl != null;
   const status = explicitStatus ?? (looksClosed ? "closed" : "open");
 
-  // A row closed on exit_date alone has no dollar_pl to judge by, and
-  // resultFromPL(null) answers "open" -- which is how the very pairing this
-  // function exists to prevent, closed/open, was still getting written.
-  // "break_even" is the honest answer for a finished trade whose P/L can't
-  // be computed: it keeps the badge consistent with the status and keeps it
-  // out of the win and loss counts.
-  const inferredResult =
-    derived.dollar_pl == null ? "break_even" : resultFromPL(derived.dollar_pl as number);
-  const result = explicitResult ?? (status === "closed" ? inferredResult : "open");
+  // A row closed on exit_date alone has no dollar_pl to judge by. Plain
+  // resultFromPL(null) answers "open" to that -- which is how the very
+  // pairing this function exists to prevent, closed/open, was still getting
+  // written; resultForClosedTrade is the variant that records break-even
+  // instead, keeping the badge consistent with the status.
+  const result =
+    explicitResult ?? (status === "closed" ? resultForClosedTrade(derived.dollar_pl as number | null) : "open");
 
   return { status, result };
 }
