@@ -1,8 +1,17 @@
-// Fallback OCR engine: Tesseract.js running in Node. Only used when PaddleOCR
-// is unavailable or returns a very low-confidence result. Worker creation is
-// cached. Line-level boxes are extracted when Tesseract provides them; if a
-// build only yields flat text, lines fall back to stacked synthetic boxes so
-// the semantic parser still gets usable line text.
+// Fallback OCR engine: Tesseract.js running in Node.
+//
+// NOT CURRENTLY WIRED UP. `engines/index.ts` deliberately never imports
+// `tesseractEngine` -- tesseract.js's Node backend spawns a worker_thread
+// internally, and a startup failure in that worker is a process-level crash
+// that bypasses ordinary try/catch, which took down a Netlify function in
+// production (see the comment in index.ts for the confirmed stack trace).
+// This file is kept, working, and ready to wire back in once that's fixed;
+// it isn't dead code by accident, so don't delete it as unused without
+// reading that comment first.
+//
+// Line-level boxes are extracted when Tesseract provides them; if a build
+// only yields flat text, lines fall back to stacked synthetic boxes so the
+// semantic parser still gets usable line text. Worker creation is cached.
 
 import type { OcrEngine, OcrLine } from "../types";
 import { makeLine } from "../types";

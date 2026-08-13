@@ -21,24 +21,34 @@ export function parseNumber(raw: string): number | null {
     negative = true;
     s = s.slice(1, -1);
   }
-  // A "1,000 - 1,200" range (day's range, bid/ask spread, ...) reads a hyphen
-  // between two numbers — that's a separator, not a minus sign. Only treat a
-  // hyphen as negative when it isn't sitting between two numeric values.
-  const isRange = new RegExp(String.raw`(?:${NUM_RE})\s*-\s*(?:${NUM_RE})`).test(s);
-  if (!isRange && /(^|[^A-Za-z])-\s*\d/.test(s)) negative = true;
-
-  // Suffix multiplier (1.5k, 2.3M) — only when glued to the number.
-  let mult = 1;
-  const suffix = s.match(/(\d)\s*([kKmMbB])\b/);
-  if (suffix) {
-    const c = suffix[2].toLowerCase();
-    mult = c === "k" ? 1e3 : c === "m" ? 1e6 : 1e9;
-  }
 
   const m = s.match(new RegExp(NUM_RE));
   if (!m) return null;
   const n = parseFloat(m[0].replace(/,/g, ""));
   if (!Number.isFinite(n)) return null;
+
+  // Sign and suffix are only checked in the text immediately surrounding
+  // *this* match, not scanned across the whole string. Both used to be
+  // unanchored, and since a value's remainder can legitimately hold a
+  // second, unrelated number (a P/L amount and a percentage on the same
+  // OCR line -- "-45.20 -1.20%"), an unanchored scan let the second number
+  // affect the first: "45.20 -1.20" satisfied the range-vs-negative check
+  // meant only to distinguish "100 - 150" (hyphen as separator) from
+  // "-45.20" (hyphen as sign), so the leading "-" on the number actually
+  // being extracted was silently dropped. Same story for a k/M/B suffix
+  // glued to a *different* number later in the string.
+  const before = s.slice(0, m.index).replace(/\s+$/, "");
+  const after = s.slice((m.index ?? 0) + m[0].length).replace(/^\s+/, "");
+
+  if (!negative && /(?:^|[^A-Za-z0-9])-$/.test(before)) negative = true;
+
+  let mult = 1;
+  const suffix = /^([kKmMbB])\b/.exec(after);
+  if (suffix) {
+    const c = suffix[1].toLowerCase();
+    mult = c === "k" ? 1e3 : c === "m" ? 1e6 : 1e9;
+  }
+
   const value = n * mult;
   return negative ? -value : value;
 }

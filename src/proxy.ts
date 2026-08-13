@@ -51,9 +51,13 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // api/cron is excluded: those routes authenticate with their own bearer
-    // secret (no cookie session to refresh), so routing them through here
-    // just added a wasted Supabase auth round-trip to every scheduled run.
-    "/((?!_next/static|_next/image|favicon.ico|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // api/cron/ (trailing slash) is excluded: those routes authenticate with
+    // their own bearer secret (no cookie session to refresh), so routing
+    // them through here just added a wasted Supabase auth round-trip to
+    // every scheduled run. The slash matters -- without it this is a bare
+    // prefix match that would also swallow any future cookie-authenticated
+    // route merely starting with those characters (e.g. /api/cron-report),
+    // silently denying it x-user-id and 401ing every request forever.
+    "/((?!_next/static|_next/image|favicon.ico|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

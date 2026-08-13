@@ -64,6 +64,7 @@ import zlib from "node:zlib";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { OcrEngine, OcrLine } from "../types";
 import { boxFromPoints, makeLine } from "../types";
+import { createSerialQueue } from "../serialize-queue";
 
 // Never called -- ocr-worker/onnx-worker.mjs does its own import() of this
 // package at runtime. This reference exists purely so Next's file tracer
@@ -274,22 +275,36 @@ function detect(worker: Worker, imagePath: string): Promise<PaddleLine[]> {
   });
 }
 
+// Serializes recognize() calls: only one is ever actually running (from
+// fetching the worker through the detect() response) at a time; anything
+// else waits its turn. Without this, two concurrent requests could both be
+// mid-flight against the same shared worker, and failWorker() rejects
+// *every* pending request when it crashes -- not just the one that caused
+// it -- so an unrelated screenshot would fail for a reason that has nothing
+// to do with it. Each queued task calls getWorker() itself at the moment it
+// actually runs (not when it was queued), so a request queued behind a
+// crash gets the freshly-respawned worker rather than inheriting a dead
+// one's rejection. (See serialize-queue.ts for the queueing mechanics.)
+const runSerialized = createSerialQueue();
+
 export const paddleEngine: OcrEngine = {
   name: "paddleocr",
-  async recognize(imagePath: string): Promise<OcrLine[]> {
-    const worker = await getWorker();
-    const detected = await detect(worker, imagePath);
-    const lines: OcrLine[] = [];
-    for (const l of detected) {
-      const text = (l.text ?? "").trim();
-      if (!text) continue;
-      const box =
-        Array.isArray(l.box) && l.box.length >= 3
-          ? boxFromPoints(l.box)
-          : { x0: 0, y0: lines.length * 20, x1: 1000, y1: lines.length * 20 + 18 };
-      const confidence = typeof l.mean === "number" ? Math.max(0, Math.min(1, l.mean)) : 0.5;
-      lines.push(makeLine(text, confidence, box));
-    }
-    return lines;
+  recognize(imagePath: string): Promise<OcrLine[]> {
+    return runSerialized(async () => {
+      const worker = await getWorker();
+      const detected = await detect(worker, imagePath);
+      const lines: OcrLine[] = [];
+      for (const l of detected) {
+        const text = (l.text ?? "").trim();
+        if (!text) continue;
+        const box =
+          Array.isArray(l.box) && l.box.length >= 3
+            ? boxFromPoints(l.box)
+            : { x0: 0, y0: lines.length * 20, x1: 1000, y1: lines.length * 20 + 18 };
+        const confidence = typeof l.mean === "number" ? Math.max(0, Math.min(1, l.mean)) : 0.5;
+        lines.push(makeLine(text, confidence, box));
+      }
+      return lines;
+    });
   },
 };
