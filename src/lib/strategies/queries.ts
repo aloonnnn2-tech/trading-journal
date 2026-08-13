@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Strategy, StrategyBreakdown } from "./types";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 export async function listStrategies(supabase: SupabaseClient): Promise<Strategy[]> {
   const { data, error } = await supabase
@@ -111,8 +112,17 @@ export async function setTradeStrategies(
 export async function listAllTradeStrategyLinks(
   supabase: SupabaseClient,
 ): Promise<Record<string, string[]>> {
-  const { data, error } = await supabase.from("trade_strategies").select("trade_id, strategy_id");
-  if (error) throw error;
+  // fetchAllRows: same 1,000-row page cap as trade_folders (see
+  // listAllTradeFolderLinks) applies here too -- past it, strategy chips
+  // would silently go missing from the tail of the Trades list.
+  const data = await fetchAllRows<{ trade_id: string; strategy_id: string }>((from, to) =>
+    supabase
+      .from("trade_strategies")
+      .select("trade_id, strategy_id")
+      .order("trade_id")
+      .order("strategy_id")
+      .range(from, to),
+  );
 
   const map: Record<string, string[]> = {};
   for (const row of data) {
@@ -131,21 +141,36 @@ export async function listAllTradeStrategyLinks(
 // shows up on the Strategies page immediately rather than only once it
 // has data.
 export async function getStrategyBreakdown(supabase: SupabaseClient): Promise<StrategyBreakdown[]> {
-  const [strategies, linksResult] = await Promise.all([
+  type LinkRow = {
+    strategy_id: string;
+    trades: { dollar_pl: number | null; status: string } | { dollar_pl: number | null; status: string }[];
+  };
+
+  // fetchAllRows: this is the same 1,000-row page cap as
+  // listAllTradeStrategyLinks, on an unpaged embed query that would
+  // otherwise silently under-count trades/win-rate/P&L for any strategy
+  // once its link count crosses the cap.
+  const [strategies, rows] = await Promise.all([
     listStrategies(supabase),
-    supabase.from("trade_strategies").select("strategy_id, trades(dollar_pl, status)"),
+    fetchAllRows<LinkRow>((from, to) =>
+      supabase
+        .from("trade_strategies")
+        .select("strategy_id, trades(dollar_pl, status)")
+        // Both columns of the (trade_id, strategy_id) primary key: ordering
+        // by strategy_id alone isn't unique (many trades per strategy), and
+        // fetchAllRows's paging requires a deterministic order or ties can
+        // repeat/skip rows across page boundaries.
+        .order("strategy_id")
+        .order("trade_id")
+        .range(from, to),
+    ),
   ]);
-  if (linksResult.error) throw linksResult.error;
 
   // trade_strategies -> trades is many-to-one, so PostgREST embeds it as a
   // single object at runtime -- but supabase-js's untyped client can't
   // express that without generated types and reports it as an array
   // either way, so this normalizes both possible shapes rather than
   // trusting either one.
-  const rows = linksResult.data as {
-    strategy_id: string;
-    trades: { dollar_pl: number | null; status: string } | { dollar_pl: number | null; status: string }[];
-  }[];
   const stats = new Map<string, { trades: number; closed: number; wins: number; totalPL: number }>();
   for (const row of rows) {
     const tradeRow = Array.isArray(row.trades) ? row.trades[0] : row.trades;
