@@ -81,15 +81,26 @@ export async function setDashboardLayout(
   userId: string,
   layout: DashboardLayout,
 ): Promise<DashboardLayout> {
+  // update()+.single() throws (PGRST116) rather than self-healing when the
+  // row is missing, unlike setTourCompleted just above -- same fallback,
+  // for the same reason: the row is supposed to always exist (0003's
+  // signup trigger), but "supposed to" isn't "throw a 500 if it doesn't."
   const { data, error } = await supabase
     .from("user_settings")
     .update({ dashboard_layout: layout })
     .eq("user_id", userId)
+    .select("dashboard_layout");
+  if (error) throw error;
+
+  if (data.length > 0) return data[0].dashboard_layout as DashboardLayout;
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("user_settings")
+    .insert({ user_id: userId, dashboard_layout: layout })
     .select("dashboard_layout")
     .single();
-
-  if (error) throw error;
-  return data.dashboard_layout as DashboardLayout;
+  if (insertError) throw insertError;
+  return inserted.dashboard_layout as DashboardLayout;
 }
 
 export async function setCoreFieldHidden(
@@ -97,19 +108,33 @@ export async function setCoreFieldHidden(
   userId: string,
   field: EditableCoreField,
   hidden: boolean,
-): Promise<UserSettings> {
+): Promise<EditableCoreField[]> {
   const current = await getUserSettings(supabase, userId);
   const set = new Set(current.hidden_core_fields);
   if (hidden) set.add(field);
   else set.delete(field);
+  const hiddenFields = Array.from(set);
 
+  // Same missing-row fallback as setDashboardLayout above. Also narrowed the
+  // return type to what this function actually selects and returns --
+  // it used to `select("hidden_core_fields")` and hand the result back cast
+  // as the full UserSettings, which has three more required fields
+  // (dashboard_layout, timezone, has_completed_tour) that were never
+  // fetched and so were `undefined` at runtime despite the type claiming
+  // otherwise. Nothing in this codebase currently reads those off the
+  // response, but the type was a live lie waiting for a caller to trust it.
   const { data, error } = await supabase
     .from("user_settings")
-    .update({ hidden_core_fields: Array.from(set) })
+    .update({ hidden_core_fields: hiddenFields })
     .eq("user_id", userId)
-    .select("hidden_core_fields")
-    .single();
-
+    .select("hidden_core_fields");
   if (error) throw error;
-  return data as UserSettings;
+
+  if (data.length > 0) return data[0].hidden_core_fields as EditableCoreField[];
+
+  const { error: insertError } = await supabase
+    .from("user_settings")
+    .insert({ user_id: userId, hidden_core_fields: hiddenFields });
+  if (insertError) throw insertError;
+  return hiddenFields;
 }

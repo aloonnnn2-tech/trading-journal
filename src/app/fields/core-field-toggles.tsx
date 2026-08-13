@@ -5,6 +5,11 @@ import { TOGGLEABLE_CORE_FIELDS, type EditableCoreField } from "@/lib/trades/typ
 
 export function CoreFieldToggles({ initialHidden }: { initialHidden: EditableCoreField[] }) {
   const [hidden, setHidden] = useState(new Set(initialHidden));
+  // The toggle flips optimistically below with no way to know it failed
+  // until reload silently reverted it -- same "didn't save" pattern the
+  // dashboard layout drag already uses (dashboard-grid.tsx), just missing
+  // here until now.
+  const [saveFailed, setSaveFailed] = useState(false);
 
   async function toggle(field: EditableCoreField) {
     const isHidden = hidden.has(field);
@@ -13,15 +18,25 @@ export function CoreFieldToggles({ initialHidden }: { initialHidden: EditableCor
     else next.add(field);
     setHidden(next);
 
-    await fetch("/api/settings/core-fields", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ field, hidden: !isHidden }),
-    });
+    try {
+      const res = await fetch("/api/settings/core-fields", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, hidden: !isHidden }),
+      });
+      setSaveFailed(!res.ok);
+    } catch {
+      setSaveFailed(true);
+    }
   }
 
   return (
     <ul className="flex flex-col gap-2">
+      {saveFailed && (
+        <li className="text-xs text-loss">
+          That change couldn&apos;t be saved — it&apos;ll revert on reload. Check your connection and try again.
+        </li>
+      )}
       {TOGGLEABLE_CORE_FIELDS.map(({ key, label }) => (
         <li
           key={key}
