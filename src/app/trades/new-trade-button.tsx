@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const inputClass =
@@ -54,6 +54,19 @@ export function QuickTradeButton() {
   const [shares, setShares] = useState("");
   const [dollarAmount, setDollarAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // The backdrop click already closes the dialog (below); Escape had no
+  // equivalent, so it was the one obvious way to dismiss a modal that
+  // didn't work here. Same submitting-guard as the backdrop, so a request
+  // already in flight can't be abandoned out from under itself.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !submitting) setOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, submitting]);
 
   function reset() {
     setError(null);
