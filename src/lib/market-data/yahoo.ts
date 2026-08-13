@@ -108,20 +108,49 @@ export async function fetchYahooCandles(
   const timestamps: number[] = result.timestamp ?? [];
   const quote = result.indicators?.quote?.[0] ?? {};
   const { open = [], high = [], low = [], close = [] } = quote as Record<string, (number | null)[]>;
+  const meta = result.meta ?? {};
+
+  // Each daily bar's calendar date has to be read in the *exchange's* local
+  // time, not UTC. A stock's bar is stamped at that market's open (always
+  // mid-morning local, which for every exchange this app deals with never
+  // crosses a UTC day boundary, so slicing the UTC ISO string happened to
+  // give the right date) -- but a forex pair's bar is stamped at its
+  // session start, which for Europe/London is 23:00 UTC the *previous*
+  // evening. Slicing that in UTC dated every single forex candle one full
+  // day earlier than the day it actually represents -- confirmed against
+  // real EURUSD=X data, where every bar in a 5-day pull came back a day
+  // off. Stocks and 24/7 crypto (already UTC) were never affected, which is
+  // why this went unnoticed until someone compared a forex chart here
+  // against another platform bar-by-bar.
+  const timeZone: string = meta.exchangeTimezoneName ? String(meta.exchangeTimezoneName) : "UTC";
+  let dateFormatter: Intl.DateTimeFormat;
+  try {
+    dateFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  } catch {
+    // This is an unofficial, undocumented endpoint -- a malformed timezone
+    // name shouldn't take down candle fetching entirely for that symbol
+    // when falling back to the old (occasionally-off-by-one-day, but never
+    // crashing) UTC behavior is strictly better than no chart at all.
+    dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+  }
 
   const candles: Candle[] = [];
   for (let i = 0; i < timestamps.length; i++) {
     if (open[i] == null || high[i] == null || low[i] == null || close[i] == null) continue;
     candles.push({
-      time: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+      // en-CA formats as YYYY-MM-DD directly, matching Candle.time's shape.
+      time: dateFormatter.format(new Date(timestamps[i] * 1000)),
       open: open[i]!,
       high: high[i]!,
       low: low[i]!,
       close: close[i]!,
     });
   }
-
-  const meta = result.meta ?? {};
   return {
     candles,
     currentPrice: typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
