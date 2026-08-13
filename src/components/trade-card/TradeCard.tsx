@@ -132,6 +132,10 @@ export function TradeCard({
   // lagging a 600ms autosave round trip behind it. The server recomputes and
   // persists the authoritative value on save -- this is purely the live
   // preview of the same calculation.
+  const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
+  const commissionPreview = computeCommission(commissionRule, trade);
+  const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
+
   const pendingInputs = {
     entry_price: trade.entry_price,
     exit_price: trade.exit_price,
@@ -140,11 +144,8 @@ export function TradeCard({
     take_profit: trade.take_profit,
     risk_amount: trade.risk_amount,
     status: trade.status,
+    hasCommissionRule: commissionRule != null,
   };
-
-  const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
-  const commissionPreview = computeCommission(commissionRule, trade);
-  const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
 
   async function handleDelete() {
     if (!confirm(`Delete trade ${trade.ticker || "(untitled)"}? This cannot be undone.`)) return;
@@ -568,21 +569,13 @@ export function TradeCard({
                     : "No commission rule matches this trade. Set one up on the Commissions page, or type a value into the Commission field."
               }
               value={trade.commission}
-              pending={
-                commissionRule
-                  ? "Nothing charged on this trade yet"
-                  : "No matching rule — add one on the Commissions page"
-              }
+              pending={pendingReason("commission", pendingInputs)}
             />
             <ReadOnlyField
               label="Breakeven Price"
               tooltip={`The price this trade has to reach before it's actually profitable, once the full round trip of commission is paid${commissionPreview.exitFee === 0 && commissionRule ? " (including the exit fee not yet charged)" : ""}. Shown as a dashed line on the chart.`}
               value={breakevenPrice}
-              pending={
-                trade.entry_price == null
-                  ? "Add an entry price"
-                  : "No commission, so it's just your entry price"
-              }
+              pending={pendingReason("breakeven_price", pendingInputs)}
             />
             </div>
           </div>
@@ -755,7 +748,25 @@ function NumberField({
         // (a migration applied by hand, so there's always a window) comes
         // back `undefined`, which would flip this to an uncontrolled input.
         value={value == null ? "" : value}
-        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next === "") {
+            onChange(null);
+            return;
+          }
+          const parsed = Number(next);
+          // A sub-$1 price like ".5", or a negative number, passes through
+          // an intermediate state -- "-" alone, or "." alone -- that Number()
+          // turns into NaN. Only a complete, valid number gets propagated:
+          // propagating NaN used to push it all the way into trade state,
+          // and React can't hand a number input back a NaN value, so the
+          // field visibly reset to empty and the *next* keystroke landed in
+          // what looked like a fresh box (typing ".5" produced "5", not
+          // "0.5"). Skipping the update here means no re-render happens for
+          // an in-progress keystroke, so the browser's own input keeps
+          // showing exactly what was typed until it parses to a real number.
+          if (Number.isFinite(parsed)) onChange(parsed);
+        }}
       />
     </Field>
   );
