@@ -60,15 +60,27 @@ export function deriveMoneyFields(
 
   const derived: DerivedMoneyFields = {};
 
-  // Size: editing the dollar amount solves for shares, editing either of the
-  // others solves for the dollar amount. Same three-way link as the dialog,
-  // and the same precedence -- whichever one you touched is the one that
-  // stands.
+  // Size: editing the dollar amount solves for shares; editing entry price
+  // or shares solves for the dollar amount -- and editing entry price
+  // specifically also falls back to solving for *shares* when a dollar
+  // amount was already typed in but shares wasn't (e.g. "I'm putting $500
+  // into this" before a price is known). Matches QuickTradeButton's
+  // handleEntryPriceChange/handleSharesChange field-for-field, including its
+  // one asymmetry: an entry price of exactly 0 is treated as not-really-a-
+  // price-yet and skips deriving anything, the same way the dialog's guard
+  // (`price === 0` → return early) does; editing shares has no equivalent
+  // skip in the dialog, so there isn't one here either.
   if (edited === "dollar_amount") {
     if (amount != null && entry != null && entry !== 0) {
       derived.shares = round(amount / entry, 4);
     }
-  } else if ((edited === "entry_price" || edited === "shares") && entry != null && shares != null) {
+  } else if (edited === "entry_price" && entry !== 0) {
+    if (entry != null && shares != null) {
+      derived.dollar_amount = round(entry * shares, 2);
+    } else if (entry != null && amount != null) {
+      derived.shares = round(amount / entry, 4);
+    }
+  } else if (edited === "shares" && entry != null && shares != null) {
     // Strictly the two fields it's a product of. Recomputing it for every
     // trigger meant editing a stop loss rewrote a dollar amount the user had
     // typed themselves -- entering 1005 to account for fees and then setting

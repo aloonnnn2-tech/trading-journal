@@ -23,6 +23,22 @@ describe("dollar amount / shares", () => {
     expect(r.dollar_amount).toBeUndefined();
   });
 
+  // Regression: this fallback exists in the Quick Trade dialog
+  // (handleEntryPriceChange's else-if) but was missing here -- typing a
+  // dollar amount first, then an entry price, silently left shares blank
+  // on the trade page while the dialog would have solved it.
+  it("editing entry price also solves for shares when a dollar amount was typed first", () => {
+    const r = deriveMoneyFields("entry_price", fields({ entry_price: 50, dollar_amount: 500 }), null);
+    expect(r.shares).toBe(10);
+  });
+
+  it("entry price of exactly 0 derives nothing, matching the dialog's guard", () => {
+    // QuickTradeButton.handleEntryPriceChange returns early entirely on
+    // price === 0 (a price of literally zero isn't a real price yet).
+    expect(deriveMoneyFields("entry_price", fields({ entry_price: 0, shares: 10 }), null)).toEqual({});
+    expect(deriveMoneyFields("entry_price", fields({ entry_price: 0, dollar_amount: 500 }), null)).toEqual({});
+  });
+
   it("doesn't rewrite a hand-entered dollar amount when an unrelated field is edited", () => {
     // 1005 rather than the 1000 entry x shares implies -- the user has
     // accounted for something the app can't see, and editing a stop must
