@@ -27,6 +27,7 @@ import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
 import { deriveMoneyFields } from "@/lib/trades/derive-inputs";
 import { pendingReason } from "@/lib/trades/pending-reason";
+import { nextNumberFieldState } from "@/lib/trades/number-field-input";
 import {
   matchCommissionRule,
   computeCommission,
@@ -738,34 +739,39 @@ function NumberField({
   onChange: (value: number | null) => void;
   tooltip?: string;
 }) {
+  // `== null`, not `=== null`: a column the database doesn't have yet (a
+  // migration applied by hand, so there's always a window) comes back
+  // `undefined`.
+  const [text, setText] = useState(value == null ? "" : String(value));
+  const [lastSeenValue, setLastSeenValue] = useState(value);
+
+  // Adjust state during render (React's documented alternative to an effect
+  // for "reset local state when a prop changes") rather than in a
+  // useEffect, so the sync happens before the stale text ever paints. Only
+  // resets when `value` changed for a reason other than this field's own
+  // typing (autosave restore, another field's derived update) -- not when
+  // it's just catching up to what was already committed, or an in-progress
+  // edit like "5." would get overwritten mid-keystroke.
+  if (value !== lastSeenValue) {
+    const parsedText = text === "" ? null : Number(text);
+    if (value !== parsedText) {
+      setText(value == null ? "" : String(value));
+    }
+    setLastSeenValue(value);
+  }
+
   return (
     <Field label={label} tooltip={tooltip}>
       <input
-        type="number"
-        step="any"
+        type="text"
+        inputMode="decimal"
         className={inputClass}
-        // `== null`, not `=== null`: a column the database doesn't have yet
-        // (a migration applied by hand, so there's always a window) comes
-        // back `undefined`, which would flip this to an uncontrolled input.
-        value={value == null ? "" : value}
+        value={text}
         onChange={(e) => {
-          const next = e.target.value;
-          if (next === "") {
-            onChange(null);
-            return;
-          }
-          const parsed = Number(next);
-          // A sub-$1 price like ".5", or a negative number, passes through
-          // an intermediate state -- "-" alone, or "." alone -- that Number()
-          // turns into NaN. Only a complete, valid number gets propagated:
-          // propagating NaN used to push it all the way into trade state,
-          // and React can't hand a number input back a NaN value, so the
-          // field visibly reset to empty and the *next* keystroke landed in
-          // what looked like a fresh box (typing ".5" produced "5", not
-          // "0.5"). Skipping the update here means no re-render happens for
-          // an in-progress keystroke, so the browser's own input keeps
-          // showing exactly what was typed until it parses to a real number.
-          if (Number.isFinite(parsed)) onChange(parsed);
+          const result = nextNumberFieldState(e.target.value);
+          if (!result) return; // reject the keystroke -- e.g. a second "."
+          setText(result.text);
+          if (result.commit) onChange(result.value);
         }}
       />
     </Field>
