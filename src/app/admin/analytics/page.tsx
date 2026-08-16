@@ -103,7 +103,13 @@ export default async function AdminAnalyticsPage() {
               {retention.map((row) => (
                 <tr key={row.cohortWeek} className="border-t border-zinc-100 dark:border-subtle">
                   <td className="py-2 text-zinc-900 dark:text-zinc-100">
-                    {new Date(row.cohortWeek).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {new Date(row.cohortWeek).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      // cohortWeek is a plain Postgres `date` -- same UTC-vs-
+                      // local fix as usage-line-chart.tsx.
+                      timeZone: "UTC",
+                    })}
                   </td>
                   <td className="tnum py-2 text-right font-mono text-zinc-600 dark:text-zinc-400">
                     {row.cohortSize}

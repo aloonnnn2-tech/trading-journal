@@ -24,11 +24,22 @@ export function UsageLineChart({ data }: { data: UsagePoint[] }) {
           axisLine={{ stroke: CHART.axis, strokeWidth: 1 }}
           tickLine={false}
           minTickGap={48}
-          tickFormatter={(v) => new Date(String(v)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          tickFormatter={(v) =>
+            new Date(String(v)).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              // `day` is a plain Postgres `date` ("YYYY-MM-DD"), parsed here
+              // as UTC midnight -- without pinning the render to UTC too,
+              // an admin viewing from west of UTC saw every date one day
+              // early (the same bug already fixed for forex candles and
+              // the dashboard's "Today's P/L").
+              timeZone: "UTC",
+            })
+          }
         />
         <YAxis tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
         <Tooltip
-          labelFormatter={(label) => new Date(String(label)).toLocaleDateString()}
+          labelFormatter={(label) => new Date(String(label)).toLocaleDateString(undefined, { timeZone: "UTC" })}
           contentStyle={TOOLTIP_STYLE}
           cursor={{ stroke: CHART.axis, strokeWidth: 1 }}
         />
