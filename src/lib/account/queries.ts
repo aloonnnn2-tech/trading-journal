@@ -16,9 +16,12 @@ export interface AccountBalance {
   tradePL: number;
   /** deposited + tradePL — the cash currently in the account. */
   balance: number;
-  /** Capital currently tied up in open positions (see costOf/investmentCostOf
-   *  below) -- trade-mode positions by position_size/entry_price*shares,
-   *  investment-mode positions by average_cost*total_shares. */
+  /** Capital tied up in open positions plus reserved for pending orders (see
+   *  costOf/investmentCostOf below) -- trade-mode positions by
+   *  position_size/entry_price*shares, investment-mode positions by
+   *  average_cost*total_shares. Pending orders already have a position_size
+   *  set aside for them (see scripts/seed-fake-data.mjs), so they reserve
+   *  cash the same as an open position, not just once filled. */
   committedCash: number;
   /** balance - committedCash — what's actually free to put into a new trade. */
   availableCash: number;
@@ -72,15 +75,16 @@ function investmentCostOf(customFields: Record<string, unknown> | null): number 
 // trades.dollar_pl (recomputed server-side on each trade update), so the
 // cash figure tracks trade results automatically -- including when a trade
 // is edited or deleted later. committedCash/availableCash are derived the
-// same way from currently-open trades, so they never go stale either.
+// same way from currently-open-or-pending trades, so they never go stale
+// either.
 // Split into two narrow queries rather than one `select(5 columns)` over
 // every trade. This runs on every dashboard view *and* on every trade
 // creation (position-size prefill), so it's on a hot path: the P/L sum only
 // needs one column and only from rows that have a P/L, and the committed-
-// cash sum only needs the three cost columns from *open* trades (typically
-// a handful). The old single query pulled all five columns for every trade
-// the user has ever logged, including the thousands of closed ones that
-// contribute nothing to committedCash.
+// cash sum only needs the three cost columns from open/pending trades
+// (typically a handful). The old single query pulled all five columns for
+// every trade the user has ever logged, including the thousands of closed
+// ones that contribute nothing to committedCash.
 export async function getAccountBalance(supabase: SupabaseClient): Promise<AccountBalance> {
   // fetchAllRows on all three: these are sums, and PostgREST's silent
   // 1,000-row page cap would otherwise truncate them past that count --
@@ -88,7 +92,7 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
   // the single worst number in the app to get wrong, since position-size
   // prefill spends it. The `.order("id")` on each keeps offset pagination
   // deterministic.
-  const [txRows, plRows, openRows] = await Promise.all([
+  const [txRows, plRows, committedRows] = await Promise.all([
     fetchAllRows<{ amount: number }>((from, to) =>
       supabase.from("account_transactions").select("amount").order("id").range(from, to),
     ).catch((error: { code?: string }) => {
@@ -112,6 +116,12 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
         .order("id")
         .range(from, to),
     ),
+    // Open AND pending: a pending limit/stop order already has its
+    // position_size set aside for it (see scripts/seed-fake-data.mjs), so
+    // it reserves cash the moment it's placed, not just once it triggers
+    // into "open". Excluding pending orders here made availableCash --
+    // and the new-trade prefill that spends it -- overstate what's
+    // actually free by however much was sitting in pending orders.
     fetchAllRows<{
       mode: string;
       entry_price: number | null;
@@ -122,7 +132,7 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
       supabase
         .from("trades")
         .select("mode, entry_price, shares, position_size, custom_fields")
-        .eq("status", "open")
+        .in("status", ["open", "pending"])
         .order("id")
         .range(from, to),
     ),
@@ -141,7 +151,7 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
 
   const deposited = txRows.reduce((sum, row) => sum + Number(row.amount), 0);
   const tradePL = plRows.reduce((sum, row) => sum + Number(row.dollar_pl ?? 0), 0);
-  const committedCash = openRows.reduce(
+  const committedCash = committedRows.reduce(
     (sum, row) => sum + (row.mode === "investment" ? investmentCostOf(row.custom_fields) : costOf(row)),
     0,
   );
