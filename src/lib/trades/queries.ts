@@ -215,6 +215,19 @@ export async function duplicateTrade(supabase: SupabaseClient, id: string): Prom
       ...rest,
       status: "pending",
       result: "open",
+      // A duplicate is forced back to "pending" -- a trade that, per its own
+      // new status, hasn't happened yet -- so nothing exit-dependent should
+      // survive the copy. Without this, the source trade's real exit price,
+      // commission, and every derived P&L figure carried over verbatim onto
+      // a trade the user just told the app is still unopened.
+      exit_price: null,
+      exit_date: null,
+      commission: null,
+      commission_manual: false,
+      dollar_pl: null,
+      percent_return: null,
+      r_multiple: null,
+      risk_reward_ratio: null,
     })
     .select()
     .single();
