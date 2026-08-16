@@ -68,6 +68,17 @@ function previousReachableIndex(from: number): number {
 
 const POLL_MS = 50;
 const TARGET_TIMEOUT_MS = 2000;
+// Same idea as GONE_BEFORE_NAV_MS below, for the step that's about to poll
+// rather than the one that just lost its target: a step reached via the
+// tour's own router.push (e.g. "Replay guided tour" clicked from anywhere
+// other than the dashboard) is landing on a page that hasn't rendered yet,
+// not a page whose target genuinely doesn't exist. This app's dashboard
+// alone makes ~14 queries plus two auth round trips per load (documented
+// elsewhere in this codebase), comfortably past the standard budget on a
+// slow connection or a cold start -- the standard timeout previously ran
+// out mid-load and silently skipped the entire guided walkthrough with
+// nothing but a console warning.
+const POST_NAV_TARGET_TIMEOUT_MS = 6000;
 // How long a live step's target must stay gone before the tour gives up on
 // it and moves on.
 const GONE_FOR_GOOD_MS = 600;
@@ -102,6 +113,12 @@ export function TourOverlay() {
   // so the "user navigated away" effect below doesn't mistake the tour's own
   // page change for the user bailing out.
   const expectingNavRef = useRef(false);
+  // Set alongside expectingNavRef, but consumed separately (by the poll
+  // effect, once it starts searching for the destination step's target)
+  // rather than by the route-change effect -- the two need to survive
+  // independently since the route-change effect's reset of expectingNavRef
+  // happens in the same commit the poll effect still needs this flag in.
+  const justNavigatedRef = useRef(false);
   // Mirrors `phase` so effects can read it without a render in between.
   // Effects in the same commit all see the pre-update `phase` value, and the
   // route-change effect below has to be able to stop the step effect from
@@ -210,6 +227,7 @@ export function TourOverlay() {
         return () => clearTimeout(skip);
       }
       expectingNavRef.current = true;
+      justNavigatedRef.current = true;
       router.push(step.path);
       return;
     }
@@ -218,6 +236,11 @@ export function TourOverlay() {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let elapsed = 0;
+    // Consumed once, here, rather than left set: only the very next poll
+    // cycle (the one for the step we just navigated to) gets the longer
+    // budget, not every subsequent step reached without navigating.
+    const targetTimeoutMs = justNavigatedRef.current ? POST_NAV_TARGET_TIMEOUT_MS : TARGET_TIMEOUT_MS;
+    justNavigatedRef.current = false;
     let detachLiveTracking: (() => void) | null = null;
 
     // Where to go when this step's target isn't there. Stepping forward one
@@ -301,7 +324,7 @@ export function TourOverlay() {
       // skip the very step we're asking them to perform.
       if (!step.awaitAction) {
         elapsed += POLL_MS;
-        if (elapsed >= TARGET_TIMEOUT_MS) {
+        if (elapsed >= targetTimeoutMs) {
           console.warn(`[tour] target "${targetId}" not found on ${pathname} -- skipping.`);
           recover();
           return;
