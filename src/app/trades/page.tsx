@@ -8,7 +8,7 @@ import {
   listDistinctEmotions,
   listDistinctMarkets,
   listTradesPage,
-  type TradeSortField,
+  toTradeSortField,
 } from "@/lib/trades/queries";
 import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
 import { getAccountBalance } from "@/lib/account/queries";
@@ -44,7 +44,7 @@ export default async function TradesPage({
   const supabase = await createClient();
 
   const status = (params.status as Trade["status"] | undefined) ?? undefined;
-  const sortBy = (params.sort as TradeSortField | undefined) ?? "created_at";
+  const sortBy = toTradeSortField(params.sort);
   const sortDir = (params.dir as "asc" | "desc" | undefined) ?? "desc";
   const page = Math.max(1, Number(params.page) || 1);
 

@@ -254,6 +254,16 @@ export async function duplicateTrade(supabase: SupabaseClient, id: string): Prom
 
 export type TradeSortField = "created_at" | "entry_date" | "exit_date" | "ticker" | "dollar_pl";
 
+const VALID_SORT_FIELDS = new Set<string>(["created_at", "entry_date", "exit_date", "ticker", "dollar_pl"]);
+
+// Every generated link on /trades uses a value from this set, so this only
+// ever matters for a hand-edited or stale bookmarked URL -- but an
+// unvalidated value passed straight to .order() previously 500'd the whole
+// page instead of just falling back to the default sort.
+export function toTradeSortField(value: unknown): TradeSortField {
+  return typeof value === "string" && VALID_SORT_FIELDS.has(value) ? (value as TradeSortField) : "created_at";
+}
+
 export interface TradeListFilters {
   search?: string;
   status?: Trade["status"];
