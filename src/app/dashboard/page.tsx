@@ -62,7 +62,9 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-0.5 text-sm text-zinc-500">{dateLabel}</p>
         </div>
-        <QuickTradeButton />
+        <QuickTradeButton
+          accountBalance={accountBalance.hasTransactions ? accountBalance.balance : null}
+        />
       </div>
 
       <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

@@ -108,3 +108,37 @@ export function deriveMoneyFields(
 
   return derived;
 }
+
+/**
+ * Runs deriveMoneyFields once per money-field trigger in a batch of edits
+ * applied all at once -- unlike a normal one-field-at-a-time edit, OCR's
+ * "apply detected fields" (and any similar bulk-apply path) can set several
+ * money fields in a single action. Each trigger in the batch sees the
+ * previous ones' results, the same as if they'd been typed in one at a
+ * time. Never derives a value for a field that was *also* explicitly
+ * provided in the same batch -- e.g. OCR detecting a dollar amount
+ * directly shouldn't have an entry-price x shares derivation silently
+ * overwrite it.
+ */
+export function deriveBatchedMoneyFields(
+  edits: [EditableCoreField, unknown][],
+  fields: MoneyFields,
+  accountBalance: number | null,
+): DerivedMoneyFields {
+  const explicitKeys = new Set(edits.map(([key]) => key));
+  let after: MoneyFields = { ...fields };
+  for (const [key, value] of edits) {
+    if (key in after) after = { ...after, [key]: value };
+  }
+
+  const result: DerivedMoneyFields = {};
+  for (const [key] of edits) {
+    const derived = deriveMoneyFields(key, after, accountBalance);
+    for (const [field, derivedValue] of Object.entries(derived)) {
+      if (explicitKeys.has(field as EditableCoreField)) continue;
+      result[field as EditableCoreField] = derivedValue;
+      after = { ...after, [field]: derivedValue };
+    }
+  }
+  return result;
+}

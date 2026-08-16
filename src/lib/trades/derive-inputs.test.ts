@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveMoneyFields, type MoneyFields } from "./derive-inputs";
+import { deriveBatchedMoneyFields, deriveMoneyFields, type MoneyFields } from "./derive-inputs";
+import type { EditableCoreField } from "./types";
 
 const fields = (overrides: Partial<MoneyFields> = {}): MoneyFields => ({
   entry_price: null,
@@ -136,5 +137,60 @@ describe("unrelated fields", () => {
   it("derives nothing when the edit can't affect any of them", () => {
     expect(deriveMoneyFields("ticker", fields({ entry_price: 100, shares: 10 }), 5000)).toEqual({});
     expect(deriveMoneyFields("exit_price", fields({ entry_price: 100, shares: 10 }), 5000)).toEqual({});
+  });
+});
+
+describe("deriveBatchedMoneyFields", () => {
+  // Regression: OCR's "apply detected fields" used to bypass derivation
+  // entirely (plain field-by-field writes, no deriveMoneyFields call at
+  // all) -- a screenshot showing Entry/Stop/Shares but no explicit Risk
+  // Amount saved with Risk Amount blank and no R Multiple, despite every
+  // input needed to compute it having just been detected.
+  it("derives risk amount from a batch that provides entry, stop, and shares together", () => {
+    const edits: [EditableCoreField, unknown][] = [
+      ["entry_price", 100],
+      ["stop_loss", 95],
+      ["shares", 10],
+    ];
+    const result = deriveBatchedMoneyFields(edits, fields(), null);
+    expect(result.risk_amount).toBe(50);
+    expect(result.dollar_amount).toBe(1000);
+  });
+
+  it("lets an earlier trigger's derived value feed a later trigger in the same batch", () => {
+    // shares isn't provided directly -- it's solved from dollar_amount +
+    // entry_price by the "dollar_amount" trigger, and the stop_loss
+    // trigger's risk_amount derivation must see that solved value, not
+    // treat shares as still missing.
+    const edits: [EditableCoreField, unknown][] = [
+      ["dollar_amount", 500],
+      ["entry_price", 50],
+      ["stop_loss", 45],
+    ];
+    const result = deriveBatchedMoneyFields(edits, fields(), null);
+    expect(result.shares).toBe(10);
+    expect(result.risk_amount).toBe(50);
+  });
+
+  it("never lets a derivation overwrite a field explicitly provided in the same batch", () => {
+    // OCR detected a dollar amount directly (1005, accounting for
+    // something the app can't see) alongside entry price and shares whose
+    // product would derive a different number (1000) -- the explicit
+    // value must win.
+    const edits: [EditableCoreField, unknown][] = [
+      ["entry_price", 100],
+      ["shares", 10],
+      ["dollar_amount", 1005],
+    ];
+    const result = deriveBatchedMoneyFields(edits, fields(), null);
+    expect(result.dollar_amount).toBeUndefined();
+  });
+
+  it("returns nothing for a batch with no trigger fields", () => {
+    const edits: [EditableCoreField, unknown][] = [
+      ["ticker", "AAPL"],
+      ["exit_price", 110],
+    ];
+    expect(deriveBatchedMoneyFields(edits, fields(), 5000)).toEqual({});
   });
 });

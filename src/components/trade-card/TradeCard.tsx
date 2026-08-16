@@ -26,7 +26,7 @@ import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { isWatchable } from "@/lib/trades/auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
-import { deriveMoneyFields } from "@/lib/trades/derive-inputs";
+import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import { pendingReason } from "@/lib/trades/pending-reason";
 import { nextNumberFieldState } from "@/lib/trades/number-field-input";
 import {
@@ -112,23 +112,38 @@ export function TradeCard({
   // and a blank risk amount is why trades ended up with no R multiple.
   // Hidden fields are still derived -- hiding a field only takes it off the
   // form, and the values behind it still drive P/L and the analytics page.
-  const updateMoneyField = (key: EditableCoreField, value: unknown) => {
-    updateCoreField(key, value);
-    const after = { ...trade, [key]: value } as Trade;
-    const derived = deriveMoneyFields(
-      key,
+  //
+  // Takes a batch rather than one field so OCR's "apply detected fields"
+  // (below) can run the same derivation a normal one-field-at-a-time edit
+  // gets -- it previously bypassed this entirely via plain updateCoreField
+  // calls, so a screenshot showing Entry/Stop/Shares but no explicit Risk
+  // Amount saved with Risk Amount blank and no R Multiple, despite every
+  // input needed to compute it having just been detected. Runs derivation
+  // once per trigger field in the batch, each seeing the previous ones'
+  // results -- the same as if they'd been typed in one at a time -- and
+  // never lets a derived value overwrite a field that was *also* explicitly
+  // provided in this same batch (e.g. OCR detecting a dollar amount
+  // directly shouldn't have entry price x shares silently overwrite it).
+  const applyMoneyFieldEdits = (edits: [EditableCoreField, unknown][]) => {
+    for (const [key, value] of edits) updateCoreField(key, value);
+    const derived = deriveBatchedMoneyFields(
+      edits,
       {
-        entry_price: after.entry_price,
-        shares: after.shares,
-        dollar_amount: after.dollar_amount,
-        stop_loss: after.stop_loss,
-        risk_amount: after.risk_amount,
+        entry_price: trade.entry_price,
+        shares: trade.shares,
+        dollar_amount: trade.dollar_amount,
+        stop_loss: trade.stop_loss,
+        risk_amount: trade.risk_amount,
       },
       accountBalance,
     );
     for (const [field, derivedValue] of Object.entries(derived)) {
-      if (field !== key) updateCoreField(field as EditableCoreField, derivedValue);
+      updateCoreField(field as EditableCoreField, derivedValue);
     }
+  };
+
+  const updateMoneyField = (key: EditableCoreField, value: unknown) => {
+    applyMoneyFieldEdits([[key, value]]);
   };
 
   // Computed client-side (rather than read off the saved row) so the chart's
@@ -514,9 +529,11 @@ export function TradeCard({
             initialImages={initialImages}
             onCountChange={setImageCount}
             onApplyFields={(fields) => {
-              for (const [key, value] of Object.entries(fields)) {
-                if (value != null) updateCoreField(key as EditableCoreField, value);
-              }
+              const edits = Object.entries(fields).filter(([, value]) => value != null) as [
+                EditableCoreField,
+                unknown,
+              ][];
+              applyMoneyFieldEdits(edits);
             }}
           />
         </div>

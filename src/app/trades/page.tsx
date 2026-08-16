@@ -11,6 +11,7 @@ import {
   type TradeSortField,
 } from "@/lib/trades/queries";
 import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
+import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
@@ -50,7 +51,7 @@ export default async function TradesPage({
   const plMin = params.plMin ? Number(params.plMin) : undefined;
   const plMax = params.plMax ? Number(params.plMax) : undefined;
 
-  const [{ trades, total }, counts, folders, strategies, tradeStrategyLinks, emotions, markets, fieldDefs] =
+  const [{ trades, total }, counts, folders, strategies, tradeStrategyLinks, emotions, markets, fieldDefs, account] =
     await Promise.all([
       listTradesPage(supabase, {
         search: params.q,
@@ -74,7 +75,9 @@ export default async function TradesPage({
       listDistinctEmotions(supabase),
       listDistinctMarkets(supabase),
       listFieldDefinitions(supabase, "trade"),
+      getAccountBalance(supabase),
     ]);
+  const accountBalance = account.hasTransactions ? account.balance : null;
 
   const strategyNameById = new Map(strategies.map((s) => [s.id, s.name]));
   const stratNamesByTradeId: Record<string, string[]> = {};
@@ -124,8 +127,8 @@ export default async function TradesPage({
           </Link>
           <ExportMenu folderId={params.folder} />
           <AddTradeButton />
-          <ScreenshotTradeButton />
-          <QuickTradeButton />
+          <ScreenshotTradeButton accountBalance={accountBalance} />
+          <QuickTradeButton accountBalance={accountBalance} />
         </div>
       </div>
 

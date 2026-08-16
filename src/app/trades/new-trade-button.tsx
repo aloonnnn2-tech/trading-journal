@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
+import type { EditableCoreField } from "@/lib/trades/types";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -41,7 +43,7 @@ export function AddTradeButton() {
   );
 }
 
-export function QuickTradeButton() {
+export function QuickTradeButton({ accountBalance = null }: { accountBalance?: number | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -118,24 +120,50 @@ export function QuickTradeButton() {
       const trade = (await res.json()) as { id: string };
 
       if (!skipDetails && (ticker || entryPrice || stopLoss || takeProfit || shares || dollarAmount)) {
+        const entryPriceNum = entryPrice === "" ? null : Number(entryPrice);
+        const stopLossNum = stopLoss === "" ? null : Number(stopLoss);
+        const sharesNum = shares === "" ? null : Number(shares);
+        const dollarAmountNum = dollarAmount === "" ? null : Number(dollarAmount);
+
+        const core: Record<string, unknown> = {
+          ticker,
+          direction,
+          status,
+          entry_price: entryPriceNum,
+          stop_loss: stopLossNum,
+          take_profit: takeProfit === "" ? null : Number(takeProfit),
+          shares: sharesNum,
+          dollar_amount: dollarAmountNum,
+        };
+
+        // This dialog has no Risk Amount field of its own -- it can only
+        // ever come from deriving it, the same as the trade page does for
+        // every other entry path. Without this, a trade created here with
+        // Entry/Stop/Shares all filled in saved with Risk Amount blank and
+        // no R Multiple, despite every input needed to compute it having
+        // just been typed.
+        const edits: [EditableCoreField, unknown][] = (
+          [
+            ["entry_price", entryPriceNum],
+            ["stop_loss", stopLossNum],
+            ["shares", sharesNum],
+            ["dollar_amount", dollarAmountNum],
+          ] as [EditableCoreField, unknown][]
+        ).filter(([, value]) => value != null);
+        const derived = deriveBatchedMoneyFields(
+          edits,
+          { entry_price: null, shares: null, dollar_amount: null, stop_loss: null, risk_amount: null },
+          accountBalance,
+        );
+        Object.assign(core, derived);
+
         // An unchecked PATCH here was the worse half of this bug: the trade
         // got created but every detail typed into this form was dropped, and
         // the modal closed as if it had all saved.
         const patchRes = await fetch(`/api/trades/${trade.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            core: {
-              ticker,
-              direction,
-              status,
-              entry_price: entryPrice === "" ? null : Number(entryPrice),
-              stop_loss: stopLoss === "" ? null : Number(stopLoss),
-              take_profit: takeProfit === "" ? null : Number(takeProfit),
-              shares: shares === "" ? null : Number(shares),
-              dollar_amount: dollarAmount === "" ? null : Number(dollarAmount),
-            },
-          }),
+          body: JSON.stringify({ core }),
         });
         // The trade exists either way, so send the user to it rather than
         // stranding them -- but say the details didn't save, since the whole

@@ -9,6 +9,8 @@ import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { OcrCoreField, ParseResult } from "@/lib/ocr/types";
 import { AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
+import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
+import type { EditableCoreField } from "@/lib/trades/types";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -65,7 +67,7 @@ function toInput(key: OcrCoreField, value: unknown): string {
   return String(value);
 }
 
-export function ScreenshotTradeButton() {
+export function ScreenshotTradeButton({ accountBalance = null }: { accountBalance?: number | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("pick");
@@ -190,6 +192,32 @@ export function ScreenshotTradeButton() {
         const raw = values[key];
         if (raw === undefined || raw === "") continue;
         core[key] = NUMERIC_KEYS.has(key) ? Number(raw) : raw;
+      }
+
+      // A screenshot showing Entry/Stop/Shares but no explicit Risk Amount
+      // (most order tickets don't print one) used to save with Risk Amount
+      // blank and no R Multiple, despite every input needed to compute it
+      // having just been detected -- this runs the same derivation the
+      // trade page itself uses for a normal one-field-at-a-time edit.
+      const moneyEdits = (
+        [
+          ["entry_price", core.entry_price],
+          ["stop_loss", core.stop_loss],
+          ["shares", core.shares],
+          ["dollar_amount", core.dollar_amount],
+        ] as [EditableCoreField, unknown][]
+      ).filter(([, value]) => value != null);
+      const derivedMoney = deriveBatchedMoneyFields(
+        moneyEdits,
+        { entry_price: null, shares: null, dollar_amount: null, stop_loss: null, risk_amount: null },
+        accountBalance,
+      );
+      // Only fills in what the review form didn't already provide --
+      // deriveBatchedMoneyFields' own explicitKeys guard only covers the
+      // four fields fed into it above, not e.g. a risk_amount the user
+      // typed by hand in the review form, which must still win.
+      for (const [field, value] of Object.entries(derivedMoney)) {
+        if (!(field in core)) core[field] = value;
       }
 
       const patchRes = await fetch(`/api/trades/${trade.id}`, {
