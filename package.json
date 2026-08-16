@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",
+    "@sentry/nextjs": "^10.70.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "date-fns": "^4.4.0",
@@ -51,6 +52,7 @@
     "onnxruntime-node@1.27.0": true,
     "tesseract.js@7.0.0": true,
     "unrs-resolver@1.12.2": true,
-    "esbuild@0.28.1": true
+    "esbuild@0.28.1": true,
+    "@sentry/cli@2.58.6": true
   }
 }

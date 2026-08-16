@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Trade screenshots are served via short-lived Supabase Storage signed
@@ -71,4 +72,22 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Source maps only upload when SENTRY_AUTH_TOKEN is set (local + CI opt-in);
+// without it this wrapper is a no-op passthrough of nextConfig. Kept
+// unauthenticated by default so `next build` never needs network access to
+// Sentry just to compile.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: true,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+    // Netlify's Next.js Runtime deploys each route as its own Lambda; this
+    // project is already tight against Lambda's 50MB zipped limit on the OCR
+    // route (see outputFileTracingExcludes above), so keep Sentry's own
+    // instrumentation out of that route's bundle rather than auto-wrapping it.
+    excludeServerRoutes: ["/api/ocr/parse"],
+  },
+});
