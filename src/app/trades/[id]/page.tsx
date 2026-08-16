@@ -72,6 +72,7 @@ export default async function TradeDetailPage({
         ← Back to Trades
       </Link>
       <TradeCard
+        key={`trade-card-${id}`}
         trade={trade}
         fieldDefinitions={fieldDefinitions}
         hiddenCoreFields={settings.hidden_core_fields}
@@ -84,7 +85,7 @@ export default async function TradeDetailPage({
         commissionRules={commissionRules}
         accountBalance={account.hasTransactions ? account.balance : null}
       />
-      <TradeHistoryPanel tradeId={id} />
+      <TradeHistoryPanel key={`trade-history-${id}`} tradeId={id} />
     </div>
   );
 }
