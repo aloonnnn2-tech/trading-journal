@@ -9,6 +9,7 @@
     "lint": "eslint",
     "ocr:fixtures": "tsx scripts/ocr-eval/generate.ts",
     "ocr:eval": "tsx scripts/ocr-eval/run.ts",
+    "backup:db": "tsx --env-file=.env.local scripts/backup-db.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

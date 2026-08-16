@@ -36,6 +36,9 @@ dev-local.log
 # env files (can opt-in for committing if needed)
 .env*
 
+# manual DB backups (scripts/backup-db.ts) -- real user data, never commit
+/backups/
+
 # vercel
 .vercel
 
