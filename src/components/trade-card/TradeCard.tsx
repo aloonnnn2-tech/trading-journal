@@ -24,6 +24,7 @@ import type { Folder } from "@/lib/folders/types";
 import type { Strategy } from "@/lib/strategies/types";
 import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
+import { isWatchable } from "@/lib/trades/auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
 import { deriveMoneyFields } from "@/lib/trades/derive-inputs";
 import { pendingReason } from "@/lib/trades/pending-reason";
@@ -93,13 +94,15 @@ export function TradeCard({
     flushNow,
   );
   // Only worth polling the live price when there's something for it to
-  // trigger: a pending order waiting on its entry, or an open position
-  // waiting on its stop/target. A closed trade (or one still missing the
-  // price levels it'd be watched against) has nothing to watch for.
-  const watchForAutoExecution =
-    !isInvestment &&
-    ((trade.status === "pending" && trade.entry_price != null) ||
-      (trade.status === "open" && (trade.stop_loss != null || trade.take_profit != null)));
+  // trigger. isWatchable is the same function the server cron uses to
+  // decide which trades to even fetch a price for -- calling it here
+  // directly (rather than re-deriving an equivalent condition) means the
+  // UI's "Watching..." indicator can't drift from what actually decides
+  // whether to fire, the way it previously did (this used to omit
+  // isWatchable's `direction` requirement for an open position, so a
+  // trade with a stop but no direction showed the indicator and polled
+  // Yahoo every 60s for something that could never actually auto-execute).
+  const watchForAutoExecution = isWatchable(trade);
 
   const missingFields = getMissingFields(trade, isInvestment, hiddenCoreFields);
 
