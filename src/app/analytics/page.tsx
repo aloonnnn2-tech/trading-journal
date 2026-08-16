@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
 import { getAnalyticsSummary } from "@/lib/analytics/queries";
+import { getUserSettings } from "@/lib/settings/queries";
 import { EquityDrawdownChart } from "./equity-drawdown-chart";
 import { RMultipleHistogram } from "./r-multiple-histogram";
 import { Card } from "@/components/ui/Card";
@@ -14,10 +15,11 @@ function money(n: number): string {
 }
 
 export default async function AnalyticsPage() {
-  await requireUserId();
+  const userId = await requireUserId();
   const supabase = await createClient();
 
-  const summary = await getAnalyticsSummary(supabase);
+  const settings = await getUserSettings(supabase, userId);
+  const summary = await getAnalyticsSummary(supabase, settings.timezone);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">

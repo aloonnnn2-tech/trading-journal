@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { localDateParts } from "@/lib/dates/local-day";
 
 export interface EquityPoint {
   date: string;
@@ -78,7 +79,10 @@ function bucketLabel(r: number): string {
 // app targets (a user's own trade history, not multi-tenant aggregates)
 // and keeps the equity curve, drawdown, and R-distribution consistent
 // with each other since they all derive from the same fetched rows.
-export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<AnalyticsSummary> {
+export async function getAnalyticsSummary(
+  supabase: SupabaseClient,
+  timezone: string | null,
+): Promise<AnalyticsSummary> {
   // fetchAllRows: this feeds every analytics figure and PostgREST silently
   // caps an unpaged select at 1,000 rows -- past that, the equity curve and
   // win rate would quietly compute over a truncated history. The id
@@ -184,7 +188,14 @@ export async function getAnalyticsSummary(supabase: SupabaseClient): Promise<Ana
       positionSizeCount += 1;
     }
 
-    const month = row.exit_date.slice(0, 7);
+    // Bucket by the trader's own local calendar month, not UTC's -- the
+    // same fix applied to the dashboard's "Today's P/L" and monthly
+    // calendar (see local-day.ts), which this page never got. Slicing the
+    // raw ISO string gave the UTC month; a trade closed late at night near
+    // a month boundary could land in next month's bucket here while the
+    // dashboard correctly placed it in the current one.
+    const { year: localYear, month: localMonthIdx } = localDateParts(new Date(row.exit_date), timezone);
+    const month = `${localYear}-${String(localMonthIdx + 1).padStart(2, "0")}`;
     byMonthMap.set(month, (byMonthMap.get(month) ?? 0) + pl);
 
     if (row.r_multiple != null) {
