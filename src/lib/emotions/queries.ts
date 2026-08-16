@@ -78,11 +78,22 @@ export async function getEmotionBreakdown(supabase: SupabaseClient): Promise<Emo
   // projection (alias:column->key) pulls just the one emotion key server-
   // side instead of shipping every closed trade's whole custom_fields blob
   // -- the same fix listDistinctEmotions already got (-78% payload there).
+  //
+  // .not("exit_date", "is", null): matches getWinRate (dashboard) and
+  // every other stats module -- a closed trade with no exit date sits in
+  // this denominator but not theirs, which previously made this the one
+  // place in the app showing a different picture for the same trades.
+  // .neq("mode", "investment"): investment trades' dollar_pl is always
+  // null, which the `?? 0` below would silently count as a loss for
+  // whatever emotion tag it carries, inflating that emotion's apparent
+  // loss rate with trades that can never "win".
   const data = await fetchAllRows<{ dollar_pl: number | null; emotion_before: unknown }>((from, to) =>
     supabase
       .from("trades")
       .select("dollar_pl, emotion_before:custom_fields->emotion_before")
       .eq("status", "closed")
+      .not("exit_date", "is", null)
+      .neq("mode", "investment")
       .order("id", { ascending: true })
       .range(from, to),
   );
