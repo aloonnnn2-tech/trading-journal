@@ -79,6 +79,19 @@ export async function setTradeStrategies(
   tradeId: string,
   strategyIds: string[],
 ): Promise<void> {
+  // trade_strategies' own RLS policy only checks that the *strategy*
+  // belongs to the caller -- it was never taught to check the *trade* too,
+  // so without this, a caller who knows another user's trade id could
+  // attach their own strategy to it. `trades` RLS is correctly scoped by
+  // user_id, so a trade belonging to someone else simply won't come back.
+  const { data: trade, error: tradeError } = await supabase
+    .from("trades")
+    .select("id")
+    .eq("id", tradeId)
+    .maybeSingle();
+  if (tradeError) throw tradeError;
+  if (!trade) throw new Error("Trade not found");
+
   strategyIds = Array.from(new Set(strategyIds));
 
   if (strategyIds.length > 0) {

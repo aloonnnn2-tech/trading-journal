@@ -49,6 +49,19 @@ export async function setTradeFolders(
   tradeId: string,
   folderIds: string[],
 ): Promise<void> {
+  // trade_folders' own RLS policy only checks that the *folder* belongs to
+  // the caller -- it was never taught to check the *trade* too, so without
+  // this, a caller who knows another user's trade id could attach their
+  // own folder to it. `trades` RLS is correctly scoped by user_id, so a
+  // trade belonging to someone else simply won't come back here.
+  const { data: trade, error: tradeError } = await supabase
+    .from("trades")
+    .select("id")
+    .eq("id", tradeId)
+    .maybeSingle();
+  if (tradeError) throw tradeError;
+  if (!trade) throw new Error("Trade not found");
+
   // Dedupe first -- otherwise a duplicate id in the payload makes the
   // count check below reject a request that's actually valid (`.in()`
   // naturally collapses duplicates, so the counts would never match).

@@ -22,7 +22,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   try {
     await setTradeFolders(supabase, id, folderIds);
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Trade not found") {
+      return NextResponse.json({ error: "Trade not found" }, { status: 404 });
+    }
     return NextResponse.json({ error: "One or more folders were not found" }, { status: 400 });
   }
   return NextResponse.json({ ok: true });
