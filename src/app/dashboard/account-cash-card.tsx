@@ -105,6 +105,11 @@ export function AccountCashCard({
   const hint = account.hasTransactions
     ? `${formatMoney(account.availableCash, true)} available`
     : "Set your starting cash";
+  // More tied up in open/pending orders than cash on hand -- an
+  // over-committed account -- previously looked identical to a normal one;
+  // every other negative dollar figure in this app already gets the loss
+  // color, this was the one spot that didn't.
+  const isOverCommitted = account.hasTransactions && account.availableCash < 0;
 
   return (
     <div className="relative">
@@ -118,7 +123,7 @@ export function AccountCashCard({
             <p className="tnum mt-1.5 truncate text-[22px] font-semibold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
               {account.hasTransactions ? formatMoney(account.balance, true) : "—"}
             </p>
-            <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>
+            <p className={`mt-0.5 text-xs ${isOverCommitted ? "text-loss" : "text-zinc-500"}`}>{hint}</p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
