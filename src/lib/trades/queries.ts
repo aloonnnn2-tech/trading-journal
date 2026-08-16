@@ -175,11 +175,27 @@ export async function updateTrade(
   // P&L recomputed gross to stay consistent with a fee that isn't stored.
   if (!isMissingColumn(error)) throw error;
 
+  // `result` isn't part of DerivedFields, so re-spreading a gross recompute
+  // over basePayload would leave the commission-net `result` decided above
+  // sitting next to a newly gross-recomputed dollar_pl -- exactly the
+  // closed/open-badge-style contradiction this function exists to prevent
+  // (e.g. a thin win that fees turned into a loss keeps "loss" here next
+  // to a positive gross P&L). Mirrors restoreTradeVersion's equivalent
+  // fallback in history.ts: re-derive result from the gross value actually
+  // being persisted, respecting the same "caller explicitly set result"
+  // escape hatch as the primary path above.
+  const grossDerived = computeDerivedFields({
+    ...(mergedCore as unknown as TradeCoreFields),
+    commission: null,
+  });
   const retry = await supabase
     .from("trades")
     .update({
       ...basePayload,
-      ...computeDerivedFields({ ...(mergedCore as unknown as TradeCoreFields), commission: null }),
+      ...grossDerived,
+      ...(!resultTouched && mergedCore.status === "closed"
+        ? { result: resultForClosedTrade(grossDerived.dollar_pl) }
+        : {}),
     })
     .eq("id", id)
     .select()
