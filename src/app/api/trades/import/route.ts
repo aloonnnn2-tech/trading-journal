@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
@@ -20,6 +21,23 @@ const BATCH_SIZE = 500;
 // xlsx parser's ceiling so the two halves of an import agree.
 const MAX_ROWS = 20_000;
 
+// Spreadsheet cells arrive as strings from both producers (papaparse for CSV,
+// and the xlsx route, which stringifies every cell). Numbers and booleans are
+// coerced rather than rejected so a hand-rolled client still works, while
+// objects, arrays and nulls -- the shapes that made raw.trim() throw -- are
+// refused with a 400 that names the offending path.
+const cellValue = z
+  .union([z.string(), z.number(), z.boolean(), z.null()])
+  .transform((v) => (v == null ? "" : String(v)));
+
+const importBodySchema = z.object({
+  rows: z.array(z.record(z.string(), cellValue)).max(MAX_ROWS),
+  // Values are column targets ("ignore", a core field name, or "custom:<id>").
+  // buildRowFromMapping calls .startsWith on them, so they must be strings;
+  // an unrecognised one is already reported per-row as a column error.
+  mapping: z.record(z.string(), z.string()).optional(),
+});
+
 export async function POST(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
@@ -30,16 +48,32 @@ export async function POST(request: Request) {
 
   // A malformed body is a client mistake, not a server fault -- parsing it
   // unguarded turned every bad request into an unhandled throw and a 500.
-  let body: { rows?: unknown; mapping?: unknown };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const rows = body?.rows as Record<string, string>[];
-  const mapping = (body?.mapping ?? {}) as Record<string, ImportTarget>;
 
-  if (!Array.isArray(rows) || rows.length === 0) {
+  // The shape checks used to stop at "rows is a non-empty array" and "mapping
+  // is an object", which left everything inside them unchecked -- and
+  // buildRowFromMapping indexes both. Measured against the real function, a
+  // null row, a non-string cell value, and a non-string mapping target each
+  // threw a TypeError, which surfaces here as a 500 that abandons the whole
+  // import, valid rows included.
+  const parsed = importBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return NextResponse.json(
+      { error: `Invalid import body${issue ? `: ${issue.path.join(".")} ${issue.message}` : ""}` },
+      { status: 400 },
+    );
+  }
+
+  const rows = parsed.data.rows;
+  const mapping = (parsed.data.mapping ?? {}) as Record<string, ImportTarget>;
+
+  if (rows.length === 0) {
     return NextResponse.json({ error: "No rows to import" }, { status: 400 });
   }
   if (rows.length > MAX_ROWS) {
@@ -47,9 +81,6 @@ export async function POST(request: Request) {
       { error: `Too many rows — import at most ${MAX_ROWS.toLocaleString()} at a time.` },
       { status: 413 },
     );
-  }
-  if (typeof mapping !== "object" || mapping === null || Array.isArray(mapping)) {
-    return NextResponse.json({ error: "Invalid column mapping" }, { status: 400 });
   }
 
   // Both entity types: the wizard now lets a "Mode" column route a row to

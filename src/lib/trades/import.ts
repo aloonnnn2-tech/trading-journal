@@ -171,8 +171,22 @@ export function deriveStatusAndResult(
   // pairing this function exists to prevent, closed/open, was still getting
   // written; resultForClosedTrade is the variant that records break-even
   // instead, keeping the badge consistent with the status.
-  const result =
-    explicitResult ?? (status === "closed" ? resultForClosedTrade(derived.dollar_pl as number | null) : "open");
+  //
+  // An explicit `result` is honoured only when it agrees with the status it
+  // arrives with. Both columns can be mapped from the source file, and both
+  // pass enum validation independently, so a file could hand over a pair that
+  // contradicts itself -- "closed" with "open" being exactly the combination
+  // this function exists to keep out of the table, reaching it anyway
+  // whenever the value was supplied rather than derived. The inverse is just
+  // as wrong: a position still open cannot already be a win.
+  const closed = status === "closed";
+  const explicitResultAgrees =
+    explicitResult != null && (closed ? explicitResult !== "open" : explicitResult === "open");
+  const result = explicitResultAgrees
+    ? explicitResult
+    : closed
+      ? resultForClosedTrade(derived.dollar_pl as number | null)
+      : "open";
 
   return { status, result };
 }

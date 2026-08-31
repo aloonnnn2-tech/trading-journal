@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { deriveStatusAndResult, withDerivedFields } from "@/lib/trades/import";
@@ -15,6 +16,10 @@ const BATCH_SIZE = 500;
 // xlsx parser's ceiling so the two halves of an import agree.
 const MAX_ROWS = 20_000;
 
+const importJsonBodySchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).max(MAX_ROWS),
+});
+
 // Direct re-import of our own JSON export format: rows already use core
 // field names as keys, so no column-mapping step is needed -- just
 // whitelist known columns and recompute derived fields server-side.
@@ -26,15 +31,31 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
 
-  let body: { rows?: unknown };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const rows = body?.rows as Record<string, unknown>[];
 
-  if (!Array.isArray(rows) || rows.length === 0) {
+  // `rows` was checked only for being a non-empty array, leaving each element
+  // unchecked -- and the loop below reads `row.ticker` straight away, so a
+  // null element threw a TypeError and turned the whole request into a 500
+  // that imported nothing. Each row must be an object; its values stay
+  // `unknown` because this endpoint deliberately re-imports our own export
+  // shape, where they are already typed (numbers, strings, nested
+  // custom_fields) rather than spreadsheet text.
+  const parsed = importJsonBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return NextResponse.json(
+      { error: `Invalid import body${issue ? `: ${issue.path.join(".")} ${issue.message}` : ""}` },
+      { status: 400 },
+    );
+  }
+  const rows = parsed.data.rows;
+
+  if (rows.length === 0) {
     return NextResponse.json({ error: "No rows to import" }, { status: 400 });
   }
   if (rows.length > MAX_ROWS) {
