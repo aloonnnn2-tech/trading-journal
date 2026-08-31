@@ -23,13 +23,13 @@
     "framer-motion": "^12.42.0",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.23.0",
-    "next": "16.2.9",
+    "next": "^16.3.3",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.0",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -40,7 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "^16.3.3",
     "tailwindcss": "^4",
     "tesseract.js": "^7.0.0",
     "tsx": "^4.23.0",
@@ -54,6 +54,10 @@
     "tesseract.js@7.0.0": true,
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
-    "@sentry/cli@2.58.6": true
+    "@sentry/cli@2.58.6": true,
+    "sharp@0.35.4": true
+  },
+  "overrides": {
+    "sharp": "^0.35.4"
   }
 }

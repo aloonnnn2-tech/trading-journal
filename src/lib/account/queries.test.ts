@@ -36,7 +36,8 @@ function fakeSupabase(data: {
   trades?: Record<string, unknown>[];
 }): SupabaseClient {
   return {
-    from: (table: string) => fakeTable((data as Record<string, unknown[]>)[table] ?? []),
+    from: (table: string) =>
+      fakeTable((data as Record<string, Record<string, unknown>[]>)[table] ?? []),
   } as unknown as SupabaseClient;
 }
 

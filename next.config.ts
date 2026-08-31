@@ -2,6 +2,50 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // Security headers applied to every response, including the static assets
+  // and cron routes the proxy matcher deliberately skips. The
+  // Content-Security-Policy is NOT here: it carries a per-request nonce,
+  // which a build-time config like this one cannot produce. See src/proxy.ts.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Two years, subdomains included, preload-eligible. The site is
+          // already HTTPS-only; this closes the one request that isn't --
+          // the first plain-HTTP hit of a typed or bookmarked address, which
+          // is exactly where a session cookie can be stripped off in transit.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          // Stops the browser second-guessing a Content-Type. Load-bearing
+          // here because users upload their own images: a file served as
+          // image/png must never be sniffed into text/html and executed as a
+          // page on this origin.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Restates the CSP's frame-ancestors for browsers that don't
+          // implement it. Clickjacking is a genuine risk on an app whose
+          // destructive actions (delete trade, delete account) sit one click
+          // behind a confirm dialog.
+          { key: "X-Frame-Options", value: "DENY" },
+          // Full URL same-origin, bare origin cross-origin. Trade pages carry
+          // ids in the path; those shouldn't ride along in the Referer of an
+          // outbound link.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Nothing in this app uses any of these, so refuse them outright
+          // rather than leaving the capability available to injected content.
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+          },
+          // Severs the window.opener link from any page that opens this one,
+          // so a cross-origin tab can't reach into this one's window.
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
   // Trade screenshots are served via short-lived Supabase Storage signed
   // URLs (see src/lib/images/queries.ts) -- next/image needs the host
   // allowlisted to render them at all.

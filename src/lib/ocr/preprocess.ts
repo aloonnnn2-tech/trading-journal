@@ -4,7 +4,7 @@
 // The caller runs OCR over the variants and keeps the best, then calls
 // cleanup() to delete the temp files.
 
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -36,7 +36,7 @@ function resizeScale(width: number, height: number): number {
 }
 
 /** Base pipeline shared by all variants: auto-orient + sane resize. */
-function base(buffer: Buffer, width: number, height: number, scale: number): sharp.Sharp {
+function base(buffer: Buffer, width: number, height: number, scale: number): Sharp {
   let img = sharp(buffer, { failOn: "none" }).rotate(); // honor EXIF orientation
   if (scale !== 1) {
     img = img.resize({ width: Math.round(width * scale), height: Math.round(height * scale), fit: "fill" });
@@ -62,7 +62,7 @@ export async function preprocessImage(buffer: Buffer): Promise<Preprocessed> {
   try {
     const variants: PreprocessVariant[] = [];
 
-    const write = async (name: string, img: sharp.Sharp) => {
+    const write = async (name: string, img: Sharp) => {
       const p = path.join(dir, `${name}-${randomUUID()}.png`);
       await img.png().toFile(p);
       variants.push({ name, path: p });

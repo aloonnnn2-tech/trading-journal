@@ -1,4 +1,5 @@
 ﻿import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -41,6 +42,13 @@ export default async function RootLayout({
   // lookup is a single indexed column read, skipped entirely when there's no
   // session, and isAdmin() fails closed on any error.
   const userId = await getUserIdFromHeader();
+  // Set per-request by src/proxy.ts alongside the CSP that names it.
+  // next-themes writes an inline <script> into the document to apply the
+  // stored theme before first paint -- without the nonce that script is a
+  // CSP violation, and once the policy is enforced rather than report-only
+  // it would be blocked outright, bringing back the white flash on every
+  // load for anyone using dark mode.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const admin = userId ? await isAdmin(await createClient(), userId) : false;
 
   return (
@@ -50,7 +58,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
           <NavBar isAdmin={admin} />
           <KeyboardShortcuts />
           <AnalyticsTracker />
