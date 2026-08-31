@@ -1,12 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EditableCoreField } from "@/lib/trades/types";
 import { DEFAULT_DASHBOARD_LAYOUT, type DashboardLayout } from "@/lib/dashboard/layout";
+import { DEFAULT_PLAN, type UserPlan } from "./plan";
 
 export interface UserSettings {
   hidden_core_fields: EditableCoreField[];
   dashboard_layout: DashboardLayout;
   timezone: string | null;
   has_completed_tour: boolean;
+  plan: UserPlan;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -14,6 +16,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   dashboard_layout: DEFAULT_DASHBOARD_LAYOUT,
   timezone: null,
   has_completed_tour: false,
+  plan: DEFAULT_PLAN,
 };
 
 export async function getUserSettings(
@@ -22,11 +25,15 @@ export async function getUserSettings(
 ): Promise<UserSettings> {
   const { data, error } = await supabase
     .from("user_settings")
-    .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour")
+    .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour, plan")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
+  // A missing row falls back to defaults -- which means free, not paid. That
+  // is the safe direction: the only way to be paid is for the database to say
+  // so explicitly. isPaidUser() then re-checks with a strict equality, so an
+  // unexpected column value can't grant access either.
   return data ?? DEFAULT_SETTINGS;
 }
 

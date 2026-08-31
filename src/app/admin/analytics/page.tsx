@@ -13,6 +13,7 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
+import { AdminTabs } from "../admin-tabs";
 import { UsageLineChart } from "./usage-line-chart";
 import { FeatureUsageChart } from "./feature-usage-chart";
 
@@ -44,6 +45,7 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+      <AdminTabs active="analytics" />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Analytics

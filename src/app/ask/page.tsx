@@ -1,95 +1,81 @@
-import { TrendingUp, Brain, Scale, Repeat, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
-import { getAllAnswers, type AskAnswer } from "@/lib/ask/queries";
 import { getUserSettings } from "@/lib/settings/queries";
-import { AnswerCard } from "./answer-card";
+import { isPaidUser } from "@/lib/settings/plan";
+import { listApiKeys } from "@/lib/ai-keys/queries";
+import { listConsentedProviders } from "@/lib/ai-keys/consent";
 import { Card } from "@/components/ui/Card";
-
-const CATEGORIES: {
-  key: AskAnswer["category"];
-  label: string;
-  icon: LucideIcon;
-  chipClass: string;
-  description: string;
-}[] = [
-  {
-    key: "performance",
-    label: "Performance",
-    icon: TrendingUp,
-    chipClass: "bg-primary/10 text-primary",
-    description: "When and what you trade best.",
-  },
-  {
-    key: "psychology",
-    label: "Psychology",
-    icon: Brain,
-    chipClass: "bg-accent/10 text-accent",
-    description: "How emotions affect your results.",
-  },
-  {
-    key: "risk",
-    label: "Risk",
-    icon: Scale,
-    chipClass: "bg-amber-500/10 text-amber-500",
-    description: "How your sizing affects outcomes.",
-  },
-  {
-    key: "streaks",
-    label: "Streaks",
-    icon: Repeat,
-    chipClass: "bg-profit/10 text-profit",
-    description: "What happens after wins and losses in a row.",
-  },
-];
+import { AskManager } from "./ask-manager";
 
 export default async function AskPage() {
   const userId = await requireUserId();
   const supabase = await createClient();
 
   const settings = await getUserSettings(supabase, userId);
-  const { answers, totalTrades } = await getAllAnswers(supabase, settings.timezone);
+  const paid = isPaidUser(settings);
+
+  // Keys and consents are only fetched for a paid user. A free user's request
+  // never touches either table, so the paywall can't leak whether they once
+  // had a key.
+  const [keys, consents] = paid
+    ? await Promise.all([listApiKeys(supabase), listConsentedProviders(supabase)])
+    : [[], []];
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-6 sm:p-8">
       <div data-tour-id="ask-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Ask Your Journal
         </h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          Questions answered by your own trade data — no AI, no API key, just math.
+          Ask questions about your own trading in plain English, answered by the AI provider you
+          connect.
         </p>
       </div>
 
-      {totalTrades < 3 ? (
-        <Card className="text-sm text-zinc-500" hoverable={false}>
-          Not enough closed trade data yet — close at least 3 trades to unlock these insights.
-        </Card>
+      {paid ? (
+        <AskManager initialKeys={keys} initialConsents={consents} />
       ) : (
-        CATEGORIES.map((cat) => {
-          const catAnswers = answers.filter((a) => a.category === cat.key);
-          if (catAnswers.length === 0) return null;
-          return (
-            <section key={cat.key}>
-              <div className="mb-4 flex items-center gap-3">
-                <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${cat.chipClass}`}>
-                  <cat.icon className="h-4 w-4" strokeWidth={2} />
-                </span>
-                <div>
-                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-900 dark:text-zinc-50">
-                    {cat.label}
-                  </h2>
-                  <p className="text-xs text-zinc-500">{cat.description}</p>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {catAnswers.map((answer) => (
-                  <AnswerCard key={answer.id} answer={answer} />
-                ))}
-              </div>
-            </section>
-          );
-        })
+        <Card hoverable={false} className="flex flex-col gap-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Lock className="h-4 w-4" strokeWidth={2} />
+          </span>
+
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              This is a paid-plan feature
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Ask free-text questions about your trades and get answers grounded in your own
+              journal — your performance by day, setup, emotion and risk size, plus your recent
+              trades and notes.
+            </p>
+          </div>
+
+          <ul className="flex flex-col gap-1.5 text-sm text-zinc-500">
+            <li className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />
+              Bring your own API key — OpenAI, Anthropic or Google
+            </li>
+            <li className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />
+              Runs on your provider account, so this app never marks up AI usage
+            </li>
+            <li className="flex items-start gap-2">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />
+              Your key is encrypted at rest and only used for your own questions
+            </li>
+          </ul>
+
+          <Link
+            href="/#pricing"
+            className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
+          >
+            See plans
+          </Link>
+        </Card>
       )}
     </div>
   );
