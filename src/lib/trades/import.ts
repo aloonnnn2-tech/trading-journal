@@ -53,7 +53,20 @@ function parseCoreValue(field: string, raw: string): { value: unknown; error: st
 
   if (NUMERIC_CORE_FIELDS.has(field)) {
     const num = Number(trimmed);
-    return Number.isFinite(num) ? { value: num, error: null } : { value: null, error: `invalid number for ${field}: "${raw}"` };
+    if (!Number.isFinite(num)) {
+      return { value: null, error: `invalid number for ${field}: "${raw}"` };
+    }
+    // Finite is not the same as usable. Past MAX_SAFE_INTEGER a double can no
+    // longer represent consecutive integers, so the value is already wrong on
+    // arrival -- and multiplying two such numbers (price x shares) overflows to
+    // Infinity, which JSON.stringify writes to the database as null. That gave
+    // a row imported "successfully" with a silently empty P/L, recorded as
+    // break-even. Rejecting here reports it to the user instead, on the row it
+    // came from. No real price, size or fee approaches this bound.
+    if (Math.abs(num) > Number.MAX_SAFE_INTEGER) {
+      return { value: null, error: `number too large for ${field}: "${raw}"` };
+    }
+    return { value: num, error: null };
   }
 
   if (DATE_CORE_FIELDS.has(field)) {

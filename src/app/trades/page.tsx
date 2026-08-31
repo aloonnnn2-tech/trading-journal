@@ -167,6 +167,15 @@ export default async function TradesPage({
         </div>
       )}
 
+      {/* The three selects below are populated from the user's own data --
+          markets, free-text emotion tags, and custom-field labels. A <select>
+          sizes itself to its widest <option>, so a single long value stretched
+          the control, the form, and with it the whole page: one 20k-character
+          market value produced a 191,000px-wide document against a 914px
+          viewport, making the trades list unusable in both directions. The
+          field lengths are capped at the API now, but this clamp is what keeps
+          any single value -- including rows saved before that cap -- from
+          deciding the page width. */}
       <div className="flex flex-wrap items-center gap-3">
         <form action="/trades" method="get" className="flex flex-wrap items-center gap-2">
           {params.folder && <input type="hidden" name="folder" value={params.folder} />}
@@ -184,7 +193,7 @@ export default async function TradesPage({
           <select
             name="market"
             defaultValue={params.market ?? ""}
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+            className="max-w-48 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
           >
             <option value="">All Markets</option>
             {markets.map((market) => (
@@ -196,7 +205,7 @@ export default async function TradesPage({
           <select
             name="emotion"
             defaultValue={params.emotion ?? ""}
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+            className="max-w-48 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
           >
             <option value="">All Emotions</option>
             {emotions.map((emotion) => (
@@ -224,7 +233,7 @@ export default async function TradesPage({
               <select
                 name="fieldKey"
                 defaultValue={params.fieldKey ?? ""}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+                className="max-w-48 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
               >
                 <option value="">Custom Field...</option>
                 {filterableFields.map((field) => (

@@ -19,6 +19,18 @@ export interface DerivedFields {
 // makes `dollar_pl > 0` -- which is how every win-rate in the app is
 // defined -- mean "actually made money", rather than "made money before
 // the broker took its cut".
+// Holds the "never NaN/Infinity" contract above, which the arithmetic here
+// could otherwise break: multiplying two *finite* user-supplied numbers can
+// still overflow to Infinity, and Infinity then propagates as NaN through the
+// division below. Neither survives the trip to the database -- JSON.stringify
+// turns both into null -- so an import carrying absurd magnitudes stored a
+// silently empty P/L on a row it reported as imported successfully, and
+// resultForClosedTrade filed it as break-even. Collapsing to null here makes
+// that outcome explicit instead of accidental.
+function finite(value: number | null): number | null {
+  return value != null && Number.isFinite(value) ? value : null;
+}
+
 export function computeDerivedFields(trade: TradeCoreFields): DerivedFields {
   const { entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, direction, commission } =
     trade;
@@ -30,9 +42,16 @@ export function computeDerivedFields(trade: TradeCoreFields): DerivedFields {
     dollar_pl = (exit_price - entry_price) * shares * sign - fees;
   }
 
+  // Cost basis is a magnitude. A negative share count is not a valid way to
+  // express a short -- that is what `direction` is for -- but nothing rejects
+  // one, and dividing by a signed basis made the very same trade report a
+  // dollar *loss* and a positive percentage *return* at the same time.
+  const basis =
+    entry_price != null && shares != null ? Math.abs(entry_price * shares) : 0;
+
   let percent_return: number | null = null;
-  if (dollar_pl != null && entry_price != null && shares != null && entry_price * shares !== 0) {
-    percent_return = (dollar_pl / (entry_price * shares)) * 100;
+  if (dollar_pl != null && basis !== 0) {
+    percent_return = (dollar_pl / basis) * 100;
   }
 
   let r_multiple: number | null = null;
@@ -54,5 +73,10 @@ export function computeDerivedFields(trade: TradeCoreFields): DerivedFields {
     }
   }
 
-  return { dollar_pl, percent_return, r_multiple, risk_reward_ratio };
+  return {
+    dollar_pl: finite(dollar_pl),
+    percent_return: finite(percent_return),
+    r_multiple: finite(r_multiple),
+    risk_reward_ratio: finite(risk_reward_ratio),
+  };
 }
