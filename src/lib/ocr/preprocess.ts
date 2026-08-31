@@ -25,6 +25,25 @@ export interface Preprocessed {
   cleanup: () => Promise<void>;
 }
 
+// A byte cap bounds what arrives on the wire, not what is decoded into
+// memory. Image formats compress, so a few hundred KB of PNG can legitimately
+// describe a 30000x30000 canvas -- roughly 3.6GB once decoded -- and the
+// stats() call below decodes the image at FULL size before any resize applies.
+// sharp's own default ceiling is ~268MP, far above any real screenshot and
+// still ample to exhaust the function. Bound it to what a screenshot actually
+// is: a 8K display is ~33MP, so 50MP leaves generous headroom while making a
+// decompression bomb fail fast instead of taking the process down.
+const MAX_PIXELS = 50_000_000;
+// Guards the degenerate shapes that slip under a pixel budget -- a 1 x 200000
+// strip is only 200K pixels but still allocates pathologically in libvips.
+const MAX_DIMENSION = 20_000;
+
+// failOn "none" is deliberate (screenshots are often imperfect and OCR should
+// still try), which is exactly why the pixel ceiling has to be explicit: with
+// truncation tolerance on, malformed input is pushed further into the decoder
+// rather than being rejected early.
+const SHARP_INPUT = { failOn: "none" as const, limitInputPixels: MAX_PIXELS };
+
 const MAX_SIDE = 2200; // bound OCR time on huge screenshots
 const MIN_SIDE = 1000; // upscale small/phone crops so small text is legible
 
@@ -37,7 +56,7 @@ function resizeScale(width: number, height: number): number {
 
 /** Base pipeline shared by all variants: auto-orient + sane resize. */
 function base(buffer: Buffer, width: number, height: number, scale: number): Sharp {
-  let img = sharp(buffer, { failOn: "none" }).rotate(); // honor EXIF orientation
+  let img = sharp(buffer, SHARP_INPUT).rotate(); // honor EXIF orientation
   if (scale !== 1) {
     img = img.resize({ width: Math.round(width * scale), height: Math.round(height * scale), fit: "fill" });
   }
@@ -46,13 +65,23 @@ function base(buffer: Buffer, width: number, height: number, scale: number): Sha
 
 export async function preprocessImage(buffer: Buffer): Promise<Preprocessed> {
   // Validation: unreadable images throw here and are handled by the pipeline.
-  const meta = await sharp(buffer, { failOn: "none" }).metadata();
+  const meta = await sharp(buffer, SHARP_INPUT).metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
   if (!width || !height) throw new Error("Unreadable image");
 
+  // Checked from the header, which metadata() reads without decoding pixels,
+  // so an oversized image is rejected before anything allocates for it.
+  // runOcrPipeline catches this and returns a partial result, so the route
+  // still answers 200 with an explanation rather than dying on the upload.
+  if (width > MAX_DIMENSION || height > MAX_DIMENSION || width * height > MAX_PIXELS) {
+    throw new Error(
+      `Image is too large to process (${width}x${height}). Crop the screenshot and try again.`,
+    );
+  }
+
   // Dark-mode detection from mean luminance.
-  const stats = await sharp(buffer, { failOn: "none" }).greyscale().stats();
+  const stats = await sharp(buffer, SHARP_INPUT).greyscale().stats();
   const meanLuma = stats.channels[0]?.mean ?? 255;
   const darkMode = meanLuma < 110;
 

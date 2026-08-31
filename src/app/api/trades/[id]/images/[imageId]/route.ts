@@ -33,7 +33,8 @@ export async function DELETE(
 
   const { error: removeError } = await supabase.storage.from(BUCKET).remove([image.storage_path]);
   if (removeError) {
-    return NextResponse.json({ error: removeError.message }, { status: 500 });
+    console.error("[images] storage remove failed:", removeError);
+    return NextResponse.json({ error: "Could not delete the image." }, { status: 500 });
   }
 
   const { error: deleteError } = await supabase
@@ -42,7 +43,8 @@ export async function DELETE(
     .eq("id", imageId);
 
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    console.error("[images] row delete failed:", deleteError);
+    return NextResponse.json({ error: "Could not delete the image." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

@@ -36,7 +36,8 @@ export async function DELETE() {
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    console.error("[account] deleteUser failed:", deleteError);
+    return NextResponse.json({ error: "Could not delete the account." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

@@ -9,6 +9,12 @@ import { resolveCommission } from "@/lib/commissions/calculate";
 
 const BATCH_SIZE = 500;
 
+// Bounds the JSON body: the rows array arrives straight from the client with
+// no limit of its own, so without this one request can hold an unbounded
+// array in memory and fan out into hundreds of batched inserts. Matches the
+// xlsx parser's ceiling so the two halves of an import agree.
+const MAX_ROWS = 20_000;
+
 // Direct re-import of our own JSON export format: rows already use core
 // field names as keys, so no column-mapping step is needed -- just
 // whitelist known columns and recompute derived fields server-side.
@@ -30,6 +36,12 @@ export async function POST(request: Request) {
 
   if (!Array.isArray(rows) || rows.length === 0) {
     return NextResponse.json({ error: "No rows to import" }, { status: 400 });
+  }
+  if (rows.length > MAX_ROWS) {
+    return NextResponse.json(
+      { error: `Too many rows — import at most ${MAX_ROWS.toLocaleString()} at a time.` },
+      { status: 413 },
+    );
   }
 
   const commissionRules = await listCommissionRules(supabase);
@@ -86,7 +98,8 @@ export async function POST(request: Request) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
     const { error, count } = await supabase.from("trades").insert(batch, { count: "exact" });
     if (error) {
-      errors.push({ row: -1, message: `batch insert failed: ${error.message}` });
+      console.error("[import-json] batch insert failed:", error);
+      errors.push({ row: -1, message: "batch insert failed" });
       continue;
     }
     imported += count ?? batch.length;

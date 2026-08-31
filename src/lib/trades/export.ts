@@ -31,8 +31,39 @@ export function tradeToRow(
   return row;
 }
 
+// Excel, LibreOffice and Google Sheets evaluate a cell as a formula when its
+// text begins with =, +, -, @, or a leading tab/carriage return. A CSV is
+// plain text, so that decision is made at OPEN time by the spreadsheet, not
+// here -- meaning journal text the user never intended as a formula (or text
+// OCR lifted out of a screenshot someone else supplied) can execute when the
+// export is opened, including in whatever spreadsheet they forward it to.
+// Prefixing with an apostrophe is the standard neutralizer: the spreadsheet
+// treats the rest as literal text and does not display the apostrophe itself.
+//
+// Only strings are considered -- tradeToRow preserves native types, so every
+// numeric column arrives here as a number and is passed through untouched.
+// Numeric-looking strings are also left alone: "-12.5" is read as a number by
+// every spreadsheet, so escaping it would corrupt the value to guard against
+// nothing.
+//
+// xlsx deliberately does not get this treatment: ExcelJS writes these values
+// as typed string cells, which Excel renders literally rather than evaluating.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+
+function neutralizeFormula(value: unknown): unknown {
+  if (typeof value !== "string" || value === "") return value;
+  if (!FORMULA_TRIGGER.test(value) || PLAIN_NUMBER.test(value)) return value;
+  return `'${value}`;
+}
+
 export function rowsToCsv(rows: Record<string, unknown>[]): string {
-  return Papa.unparse(rows);
+  const safe = rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) out[key] = neutralizeFormula(value);
+    return out;
+  });
+  return Papa.unparse(safe);
 }
 
 export async function rowsToXlsxBuffer(rows: Record<string, unknown>[]): Promise<Buffer> {
