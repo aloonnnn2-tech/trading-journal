@@ -1,3 +1,11 @@
+// Importing "server-only" makes this a BUILD ERROR rather than a code review
+// note if this module is ever pulled into a client component, directly or
+// through any chain of imports. The comment below said "never import this
+// from the browser"; this line is what enforces it. Without it the service
+// role key -- which bypasses every row-level security policy in the database
+// -- could be inlined into a bundle served to every visitor, and nothing
+// would fail until someone noticed.
+import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 // Service-role client for server-only operations the anon key can't do:

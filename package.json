@@ -10,8 +10,10 @@
     "ocr:fixtures": "tsx scripts/ocr-eval/generate.ts",
     "ocr:eval": "tsx scripts/ocr-eval/run.ts",
     "backup:db": "tsx --env-file=.env.local scripts/backup-db.ts",
+    "verify:ai-secret": "tsx --env-file=.env.local scripts/verify-ai-key-secret.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:bundle": "tsx --env-file=.env.local scripts/check-bundle-secrets.ts"
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",
@@ -29,6 +31,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.0",
+    "server-only": "^0.0.1",
     "sharp": "^0.35.4",
     "zod": "^4.4.3"
   },
