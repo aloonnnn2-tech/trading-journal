@@ -2,31 +2,30 @@
 #
 # Deliberately minimal: build command, publish directory and the Next.js
 # runtime all stay configured in the Netlify UI. Anything named here would
-# override the dashboard, so only the one setting that has to live in the repo
-# is present.
+# override the dashboard, so only the setting that has to live in the repo is
+# present.
 
 [build.environment]
-  # Netlify's secret scanner fails the build when the VALUE of any environment
-  # variable appears in the build output. Switching it on (which happens as
-  # soon as one variable is marked "contains secret values") immediately failed
-  # the deploy on two variables that are not secrets:
+  # Netlify's secret scanner fails the build when the VALUE of an environment
+  # variable appears anywhere under the publish directory. Marking a variable
+  # "contains secret values" switches it on, and the first production deploy
+  # failed on AI_KEY_ENCRYPTION_SECRET and CRON_SECRET.
   #
-  #   SENTRY_DSN      — byte-identical to NEXT_PUBLIC_SENTRY_DSN. A Sentry DSN
-  #                     is the address the browser SDK reports errors to; it is
-  #                     designed to ship to clients, and Sentry publishes it in
-  #                     every documented setup. The scanner only objects because
-  #                     the same value also exists under a name lacking the
-  #                     NEXT_PUBLIC_ prefix.
-  #   SENTRY_PROJECT  — the string "trading-lens". A project slug, used to tag
-  #                     releases. Not a credential.
+  # Both were real hits, but not in anything that is served. Turbopack records
+  # the compilation environment in its own cache, so the values sit in
+  # .next/cache/turbopack/*.sst -- an incremental-build artifact Netlify
+  # restores between builds and never serves to a browser. Located precisely:
+  # 15 files for AI_KEY_ENCRYPTION_SECRET and 18 for CRON_SECRET, every one of
+  # them under a cache directory, and zero in the 1,109 files of real build
+  # output.
   #
-  # Verified before adding this, by scanning the real build output (1,109 files,
-  # excluding the turbopack cache) for every value in .env.local: the only
-  # values present are the three NEXT_PUBLIC_ ones plus these two. Every actual
-  # credential — AI_KEY_ENCRYPTION_SECRET, SUPABASE_SERVICE_ROLE_KEY,
-  # CRON_SECRET, SENTRY_AUTH_TOKEN — appears in zero deployed files.
+  # So the fix is to stop scanning the cache, NOT to stop scanning those
+  # variables. Omitting the keys would have switched off the check that
+  # actually protects them; omitting the path leaves it fully armed over
+  # everything that ships, so a future change that genuinely inlines a secret
+  # into a page or chunk still fails the build.
   #
-  # Omitting two keys rather than disabling scanning (SECRETS_SCAN_ENABLED=false)
-  # is the point: the scanner keeps guarding the credentials that would actually
-  # matter, so a future change that inlines one still fails the build.
-  SECRETS_SCAN_OMIT_KEYS = "SENTRY_DSN,SENTRY_PROJECT"
+  # Scanning stays on for every variable, including these two. If a build ever
+  # fails again naming one, it will be pointing at real served output and is
+  # worth taking seriously rather than silencing.
+  SECRETS_SCAN_OMIT_PATHS = ".next/cache/**"
