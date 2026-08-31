@@ -320,8 +320,20 @@ export async function listTradesPage(
   if (filters.folderId) query = query.eq("trade_folders.folder_id", filters.folderId);
   if (filters.strategyId) query = query.eq("trade_strategies.strategy_id", filters.strategyId);
   if (filters.search) {
-    const term = filters.search.replace(/[%,]/g, "");
-    query = query.or(`ticker.ilike.%${term}%,company_name.ilike.%${term}%`);
+    // Strip LIKE wildcards so a typed % or _ is searched for literally
+    // rather than silently widening the match to any run of characters.
+    const term = filters.search.replace(/[%_]/g, "");
+    // Quote the pattern rather than trusting the raw term. or() is the one
+    // place in this file that takes filter *syntax* instead of a value, and
+    // PostgREST parses that syntax before any value is bound: commas split
+    // conditions and parentheses group them, so a search for "ABC)" or
+    // "A,B" was parsed as filter structure rather than as the text being
+    // searched -- breaking the query outright at best. quoteOrValue wraps
+    // the whole pattern in double quotes and escapes what would end them,
+    // which is what makes the term a single literal token. The surrounding
+    // % stay wildcards: quoting governs the filter grammar, not LIKE.
+    const pattern = quoteOrValue(`%${term}%`);
+    query = query.or(`ticker.ilike.${pattern},company_name.ilike.${pattern}`);
   }
   if (filters.market) query = query.eq("market", filters.market);
   if (filters.plMin != null) query = query.gte("dollar_pl", filters.plMin);
