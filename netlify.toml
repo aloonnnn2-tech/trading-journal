@@ -6,26 +6,30 @@
 # present.
 
 [build.environment]
-  # Netlify's secret scanner fails the build when the VALUE of an environment
-  # variable appears anywhere under the publish directory. Marking a variable
-  # "contains secret values" switches it on, and the first production deploy
-  # failed on AI_KEY_ENCRYPTION_SECRET and CRON_SECRET.
+  # Netlify's secret scanner fails the build when the value of an environment
+  # variable appears anywhere it scans. Marking a variable "contains secret
+  # values" switches it on, and it then reported AI_KEY_ENCRYPTION_SECRET and
+  # CRON_SECRET. From the build log, both were found in exactly one file:
   #
-  # Both were real hits, but not in anything that is served. Turbopack records
-  # the compilation environment in its own cache, so the values sit in
-  # .next/cache/turbopack/*.sst -- an incremental-build artifact Netlify
-  # restores between builds and never serves to a browser. Located precisely:
-  # 15 files for AI_KEY_ENCRYPTION_SECRET and 18 for CRON_SECRET, every one of
-  # them under a cache directory, and zero in the 1,109 files of real build
-  # output.
+  #   .netlify/.next/cache/turbopack/v16.3.3-<hash>/00000001.sst
   #
-  # So the fix is to stop scanning the cache, NOT to stop scanning those
-  # variables. Omitting the keys would have switched off the check that
-  # actually protects them; omitting the path leaves it fully armed over
-  # everything that ships, so a future change that genuinely inlines a secret
-  # into a page or chunk still fails the build.
+  # That is Turbopack's compilation cache. Turbopack records the build
+  # environment in it, and Netlify persists it between builds -- the log says
+  # so directly, "Next.js cache restored" before the build and "Next.js cache
+  # saved" after. It is not served: the same log shows only
+  # .netlify/functions-internal/___netlify-server-handler is packaged into the
+  # deployed function.
   #
-  # Scanning stays on for every variable, including these two. If a build ever
-  # fails again naming one, it will be pointing at real served output and is
-  # worth taking seriously rather than silencing.
-  SECRETS_SCAN_OMIT_PATHS = ".next/cache/**"
+  # The path matters and cost two failed builds to get right. The cache lives
+  # at .next/cache locally, but the Netlify runtime copies the build under
+  # .netlify/, so on the build machine it is .netlify/.next/cache -- a pattern
+  # written against the local path silently matches nothing there. Both are
+  # listed so this holds whether it runs here or on Netlify.
+  #
+  # Omitting the PATH, not the keys. SECRETS_SCAN_OMIT_KEYS would have
+  # disarmed the scanner over precisely the two credentials most worth
+  # guarding, while leaving it pointed at output that was already clean.
+  # Scanning stays on for every variable across everything that ships, so a
+  # change that genuinely inlines a secret into a page, chunk or function
+  # still fails the build.
+  SECRETS_SCAN_OMIT_PATHS = ".next/cache/**,.netlify/.next/cache/**"
