@@ -5,6 +5,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { isAdmin } from "@/lib/tracking/admin-queries";
 import { setUserPlan } from "@/lib/settings/admin-queries";
 import { planUpdateSchema } from "@/lib/settings/schema";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // Sets another user's plan. This is the only route in the app that writes
 // `plan`, and it is the reason `plan` is reachable at all: 0029 deliberately
@@ -21,6 +22,16 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Admin-gated below, but a limit here means a leaked admin session can't be
+  // used to churn plan changes across every account at machine speed.
+  const limited = enforceRateLimit(
+    `admin-plan:${userId}`,
+    60,
+    60_000,
+    "Too many plan changes in a row. Wait a moment and try again.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
   if (!(await isAdmin(supabase, userId))) {

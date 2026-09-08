@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FormError } from "@/components/form-error";
 import { createClient } from "@/lib/supabase/client";
 
 export function DeleteAccountSection({ email }: { email: string }) {
@@ -49,7 +50,7 @@ export function DeleteAccountSection({ email }: { email: string }) {
         className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-loss"
         autoComplete="off"
       />
-      {error && <p className="text-sm text-loss">{error}</p>}
+      <FormError>{error}</FormError>
       <div className="flex gap-2">
         <button
           onClick={handleDelete}

@@ -34,10 +34,13 @@ export default function Error({
           Something went wrong
         </h1>
         <p className="text-sm text-zinc-500">
-          This page couldn&apos;t load. That&apos;s usually temporary — trying again often works.
+          This page couldn&apos;t load. That&apos;s usually temporary. Trying again often works.
         </p>
+        {/* zinc-500: this is the string a user reads back to support, at 11px
+            in a monospace face -- the one piece of text on this page that most
+            needs to be legible, and it was the faintest. */}
         {error.digest && (
-          <p className="font-mono text-[11px] text-zinc-400">Reference: {error.digest}</p>
+          <p className="font-mono text-[11px] text-zinc-500">Reference: {error.digest}</p>
         )}
         <div className="mt-1 flex items-center gap-3">
           <button

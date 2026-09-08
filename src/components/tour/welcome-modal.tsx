@@ -1,7 +1,9 @@
 "use client";
 
+import { useId, useRef } from "react";
 import { motion } from "framer-motion";
 import { BrandMark } from "@/components/brand-mark";
+import { useDialog } from "@/lib/a11y/use-dialog";
 
 // Shown once, on the very first login after signup (gated by
 // has_completed_tour, see tour-overlay.tsx). Full-viewport and above
@@ -14,6 +16,22 @@ export function WelcomeModal({
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  const titleId = useId();
+  const acceptRef = useRef<HTMLButtonElement>(null);
+  // This one is always open while mounted, so `open` is simply true.
+  //
+  // Escape maps to declining rather than to a bare dismissal: there is no
+  // "close" for this dialog, only the two answers, and a keyboard user needs a
+  // way out that isn't "tab to the second button". The focus trap matters more
+  // here than anywhere else in the app -- this renders over a full page of
+  // interactive content it is explicitly meant to block, and without it, Tab
+  // walks straight into that content behind the backdrop.
+  const dialogRef = useDialog({
+    open: true,
+    onClose: onDecline,
+    initialFocusRef: acceptRef,
+  });
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -26,10 +44,18 @@ export function WelcomeModal({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.25, delay: 0.05 }}
         className="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 text-center shadow-2xl"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
         <BrandMark className="h-10 w-10" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1
+            id={titleId}
+            className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
+          >
             Welcome to Trading Lens
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
@@ -38,10 +64,11 @@ export function WelcomeModal({
         </div>
         <div className="mt-2 flex w-full flex-col gap-2">
           <button
+            ref={acceptRef}
             onClick={onAccept}
             className="w-full rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
           >
-            Show me around — 1 minute
+            Show me around (1 minute)
           </button>
           <button
             onClick={onDecline}

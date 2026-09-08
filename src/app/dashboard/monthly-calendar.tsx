@@ -52,7 +52,7 @@ export function MonthlyCalendar({
         className="grid grid-cols-7 gap-1 text-center text-xs"
       >
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} className="py-1 text-[10px] font-medium uppercase text-zinc-400 dark:text-zinc-600">
+          <div key={i} className="py-1 text-[10px] font-medium uppercase text-zinc-500 dark:text-zinc-400">
             {d}
           </div>
         ))}

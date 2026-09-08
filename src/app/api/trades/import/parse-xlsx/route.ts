@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB, same cap as the image upload route
 
@@ -45,6 +46,18 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Unzipping and walking a spreadsheet is CPU-bound and holds the whole
+  // sheet in memory (see the bomb caps above), so it needs a limit of its own
+  // even though it writes nothing. Slightly looser than the import itself,
+  // since previewing a file before importing it is a normal thing to redo.
+  const limited = enforceRateLimit(
+    `parse-xlsx:${userId}`,
+    20,
+    60_000,
+    "Too many spreadsheets in a row. Give it a moment and try again.",
+  );
+  if (limited) return limited;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

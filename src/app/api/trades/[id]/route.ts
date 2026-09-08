@@ -7,6 +7,7 @@ import { coreFieldsSchema } from "@/lib/trades/schema";
 import { deleteTrade, getTrade, updateTrade } from "@/lib/trades/queries";
 import { EDITABLE_CORE_FIELDS, type EditableCoreField } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 function pickEditableCore(input: unknown): Partial<Record<EditableCoreField, unknown>> {
   if (typeof input !== "object" || input === null) return {};
@@ -25,6 +26,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // **Deliberately loose.** This is the autosave endpoint: the trade form
+  // debounces at 600ms and fires a PATCH per pause in typing, so a genuinely
+  // busy editing session can produce a request every second or two for
+  // minutes on end, and a limit tuned for "a user clicking" would break
+  // ordinary use -- silently, since a dropped autosave looks like data loss.
+  // 240/min leaves roughly a 4x margin over the fastest realistic typing and
+  // still caps a runaway client.
+  const limited = enforceRateLimit(
+    `trade-update:${userId}`,
+    240,
+    60_000,
+    "Your edits are being saved faster than we can accept them. Pause for a moment -- your latest changes will save.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 
@@ -103,6 +119,16 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Deletes are confirm-dialog-gated in the UI, so a burst of them is not a
+  // person. Tighter than the autosave limit above for that reason.
+  const limited = enforceRateLimit(
+    `trade-delete:${userId}`,
+    60,
+    60_000,
+    "Too many deletions in a row. Wait a moment and try again.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

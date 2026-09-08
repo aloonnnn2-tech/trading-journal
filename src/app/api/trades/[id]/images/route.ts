@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getTrade } from "@/lib/trades/queries";
 import sharp from "sharp";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const BUCKET = "trade-images";
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -60,6 +61,17 @@ export async function POST(
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Each upload is 5 MB of decode-and-re-encode through sharp, which is CPU
+  // the deploy is billed for. 30/min is far more than anyone attaches to a
+  // trade by hand.
+  const limited = enforceRateLimit(
+    `image-upload:${userId}`,
+    30,
+    60_000,
+    "Too many uploads in a row. Give it a moment and try again.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

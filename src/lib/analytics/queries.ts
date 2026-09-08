@@ -60,6 +60,27 @@ export interface AnalyticsSummary {
   avgPositionSize: number | null;
 }
 
+/**
+ * Optional window to compute a summary over, as UTC instants.
+ *
+ * Added for the AI period reviews (src/lib/ai-reviews/period-context.ts),
+ * which need exactly these figures for one week or month and again for the
+ * period before it. Reusing this function rather than growing a second
+ * aggregator is the point: profit factor, expectancy, drawdown and the streak
+ * rules are subtle enough that a parallel copy would drift, and a period
+ * review quoting different numbers from the Analytics page for the same
+ * trades would be worse than having no period review.
+ *
+ * Omitted -- as the Analytics page omits it -- the behaviour is exactly as
+ * before: every closed trade, all history.
+ */
+export interface AnalyticsRange {
+  /** Inclusive lower bound. */
+  startIso: string;
+  /** EXCLUSIVE upper bound. */
+  endIso: string;
+}
+
 const R_BUCKET_EDGES = [-3, -2, -1, 0, 1, 2, 3];
 
 function bucketLabel(r: number): string {
@@ -82,14 +103,15 @@ function bucketLabel(r: number): string {
 export async function getAnalyticsSummary(
   supabase: SupabaseClient,
   timezone: string | null,
+  range?: AnalyticsRange,
 ): Promise<AnalyticsSummary> {
   // fetchAllRows: this feeds every analytics figure and PostgREST silently
   // caps an unpaged select at 1,000 rows -- past that, the equity curve and
   // win rate would quietly compute over a truncated history. The id
   // tiebreaker keeps page boundaries deterministic when several trades
   // share an exit_date.
-  const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
-    supabase
+  const data = await fetchAllRows<Record<string, unknown>>((from, to) => {
+    let query = supabase
       .from("trades")
       .select(
         "entry_date, exit_date, dollar_pl, r_multiple, direction, result, position_size, trade_strategies(strategies(name))",
@@ -103,11 +125,21 @@ export async function getAnalyticsSummary(
       // without ever being able to win. Excluded rather than given a real
       // P&L view, since that's a feature (investment-mode analytics), not
       // an audit fix.
-      .neq("mode", "investment")
+      .neq("mode", "investment");
+
+    // Half-open [start, end): the AI period reviews resolve a local calendar
+    // range to UTC instants, and a local day's last millisecond has no exact
+    // representation to compare `lte` against. An exclusive upper bound is
+    // the only form that puts every trade in exactly one period -- with
+    // `lte` a trade closed at the boundary would appear in two consecutive
+    // reviews, and the period-over-period comparison would double-count it.
+    if (range) query = query.gte("exit_date", range.startIso).lt("exit_date", range.endIso);
+
+    return query
       .order("exit_date", { ascending: true })
       .order("id", { ascending: true })
-      .range(from, to),
-  );
+      .range(from, to);
+  });
 
   const rows = data as unknown as {
     entry_date: string | null;

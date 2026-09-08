@@ -12,6 +12,7 @@ import {
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const BATCH_SIZE = 500;
 
@@ -43,6 +44,18 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // One import can insert up to 20,000 rows across dozens of batched writes,
+  // so this is among the heaviest database operations in the app. Importing a
+  // broker export is something a person does a handful of times, not ten
+  // times a minute.
+  const limited = enforceRateLimit(
+    `import:${userId}`,
+    10,
+    60_000,
+    "Too many imports in a row. Wait a minute, then try again -- rows already imported were saved.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

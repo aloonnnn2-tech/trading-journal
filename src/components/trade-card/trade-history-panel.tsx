@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import type { Trade } from "@/lib/trades/types";
+import { formatDateTime } from "@/lib/dates/format";
 
 interface HistoryEntry {
   id: string;
@@ -65,7 +66,7 @@ export function TradeHistoryPanel({ tradeId }: { tradeId: string }) {
         <div className="mt-4">
           {loading && <p className="text-sm text-zinc-500">Loading...</p>}
           {!loading && loadError && (
-            <p className="text-sm text-loss">
+            <p role="alert" className="text-sm text-loss">
               Couldn&apos;t load history.{" "}
               <button onClick={loadHistory} className="underline hover:no-underline">
                 Try again
@@ -76,7 +77,7 @@ export function TradeHistoryPanel({ tradeId }: { tradeId: string }) {
             <p className="text-sm text-zinc-500">No earlier versions yet -- every edit saves one.</p>
           )}
           {restoreError && (
-            <p className="mb-2 text-sm text-loss">Restore failed -- please try again.</p>
+            <p role="alert" className="mb-2 text-sm text-loss">Restore failed -- please try again.</p>
           )}
           {!loading && !loadError && history && history.length > 0 && (
             <ul className="flex flex-col gap-2">
@@ -86,7 +87,7 @@ export function TradeHistoryPanel({ tradeId }: { tradeId: string }) {
                   className="flex items-center justify-between rounded-lg border border-zinc-100 dark:border-subtle px-3 py-2"
                 >
                   <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                    {new Date(entry.createdAt).toLocaleString()}
+                    {formatDateTime(entry.createdAt)}
                     {" — "}
                     {entry.snapshot.ticker || "Untitled"}, {entry.snapshot.status}
                     {entry.snapshot.dollar_pl !== null && entry.snapshot.dollar_pl !== undefined

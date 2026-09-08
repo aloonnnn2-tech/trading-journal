@@ -90,6 +90,39 @@ describe("AnswerText safety", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  // The payload shapes a stored-XSS check reaches for, run through the block
+  // constructs that were not previously covered -- headings and list items
+  // take their own render path, so "escaped inside a paragraph" does not by
+  // itself prove they are escaped here.
+  it("escapes markup inside headings and list items", () => {
+    const html = render(
+      [
+        "### <svg onload=alert(1)>",
+        "",
+        "- <iframe src=javascript:alert(1)></iframe>",
+        "- <div onmouseover=alert(1)>hover</div>",
+        "",
+        "1. <object data=evil.swf></object>",
+      ].join("\n"),
+    );
+
+    // Asserted on the tag openers, not on the attribute names: an event
+    // handler is only dangerous inside a real element, and `onload=` still
+    // appears here as inert escaped text (`&lt;svg onload=alert(1)&gt;`),
+    // which is exactly the outcome wanted. No element survives, so no handler
+    // is ever attached.
+    // `<div` on its own would match the renderer's own wrapper element, so
+    // the injected div is asserted on by the attribute that would make it
+    // dangerous.
+    for (const tag of ["<svg", "<iframe", "<object", "<div onmouseover"]) {
+      expect(html).not.toContain(tag);
+    }
+    // Still shown to the reader, just as inert text -- dropping the line
+    // silently would be its own bug.
+    expect(html).toContain("&lt;svg");
+    expect(html).toContain("hover");
+  });
+
   it("escapes markup hidden inside formatting and tables", () => {
     const html = render("**<img src=x onerror=alert(1)>**\n\n| <b>h</b> |\n|---|\n| <i>c</i> |");
     expect(html).not.toContain("<img");

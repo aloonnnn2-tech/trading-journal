@@ -183,13 +183,13 @@ describe("isWatchable", () => {
 describe("describeAutoExecution", () => {
   it("reads as a sentence for each trigger", () => {
     expect(describeAutoExecution(decideAutoExecution(trade({ status: "pending" }), { dayLow: 99, dayHigh: 101 }, NOW)!)).toBe(
-      "Entry hit at $100 — marked as open.",
+      "Entry hit at $100. Marked as open.",
     );
     expect(describeAutoExecution(decideAutoExecution(trade(), { dayLow: 94, dayHigh: 101 }, NOW)!)).toBe(
-      "Stop loss hit at $95 — trade closed.",
+      "Stop loss hit at $95. Trade closed.",
     );
     expect(describeAutoExecution(decideAutoExecution(trade(), { dayLow: 99, dayHigh: 111 }, NOW)!)).toBe(
-      "Take profit hit at $110 — trade closed.",
+      "Take profit hit at $110. Trade closed.",
     );
   });
 });

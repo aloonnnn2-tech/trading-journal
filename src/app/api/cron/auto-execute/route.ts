@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { isMissingColumnError } from "@/lib/supabase/errors";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchDayRange, guessYahooSymbol } from "@/lib/market-data/yahoo";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import {
   decideAutoExecution,
+  hasLapsed,
   describeAutoExecution,
   isWatchable,
   type AutoExecutableTrade,
@@ -95,28 +97,100 @@ export async function POST(request: Request) {
   // Only the columns the decision and the P&L recompute need. fetchAllRows:
   // the silent 1,000-row page cap would otherwise mean some users' pending
   // orders are simply never watched, with nothing anywhere saying so.
-  let data: WatchedTrade[];
-  try {
-    data = await fetchAllRows<WatchedTrade>((from, to) =>
+  const failures: string[] = [];
+
+  // Migrations here are applied by hand, so there is always a window where
+  // this code is deployed and 0039 is not. Naming the new columns would make
+  // the whole sweep 500 in that window and stop every user's orders being
+  // watched at all, so a missing column falls back to the pre-0039 column
+  // list. Those trades then have no order_type, which decideAutoExecution
+  // already treats as "unspecified" and fills on a bracket, exactly as it did
+  // before this feature existed.
+  const LEGACY_COLUMNS =
+    "id, user_id, mode, ticker, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, entry_date, commission, commission_manual";
+  const ORDER_COLUMNS = `${LEGACY_COLUMNS}, order_type, limit_price, time_in_force, created_at`;
+
+  const loadTrades = (columns: string) =>
+    fetchAllRows<WatchedTrade>((from, to) =>
       supabase
         .from("trades")
-        .select(
-          "id, user_id, mode, ticker, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, entry_date, commission, commission_manual",
-        )
+        .select(columns)
         .in("status", ["pending", "open"])
         .eq("mode", "trade")
         .order("id", { ascending: true })
-        .range(from, to),
+        .range(from, to) as unknown as PromiseLike<{
+        data: WatchedTrade[] | null;
+        error: { message?: string; code?: string } | null;
+      }>,
     );
+
+  let data: WatchedTrade[];
+  try {
+    data = await loadTrades(ORDER_COLUMNS);
   } catch (error) {
-    const message = (error as { message?: string }).message ?? "unknown";
-    return NextResponse.json({ error: `Could not load trades: ${message}` }, { status: 500 });
+    if (isMissingColumnError(error)) {
+      try {
+        data = await loadTrades(LEGACY_COLUMNS);
+      } catch (fallbackError) {
+        const message = (fallbackError as { message?: string }).message ?? "unknown";
+        return NextResponse.json({ error: `Could not load trades: ${message}` }, { status: 500 });
+      }
+    } else {
+      const message = (error as { message?: string }).message ?? "unknown";
+      return NextResponse.json({ error: `Could not load trades: ${message}` }, { status: 500 });
+    }
   }
 
-  const watched = data.filter((trade) => isWatchable(trade) && trade.ticker.trim() !== "");
+  // ---- Day orders that outlived their session --------------------------
+  //
+  // Handled before anything touches the price feed, because an expiry is not
+  // a fill: nothing was touched, so there is no quote to fetch. A lapsed order
+  // is retired even on a day the market-data provider is unreachable.
+  //
+  // The user's own timezone decides when their day ended, matching how the
+  // rest of the app buckets time. Settings are read once per user rather than
+  // once per trade.
+  const timezones = new Map<string, string | null>();
+  const lapsed: WatchedTrade[] = [];
+  for (const trade of data) {
+    if (trade.time_in_force !== "day" || trade.status !== "pending") continue;
+    if (!timezones.has(trade.user_id)) {
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("timezone")
+        .eq("user_id", trade.user_id)
+        .maybeSingle();
+      timezones.set(trade.user_id, settings?.timezone ?? null);
+    }
+    if (hasLapsed(trade, new Date(), timezones.get(trade.user_id) ?? null)) lapsed.push(trade);
+  }
+
+  if (!dryRun) {
+    for (const trade of lapsed) {
+      const { error } = await supabase
+        .from("trades")
+        .update({ status: "expired" })
+        .eq("id", trade.id);
+      if (error) failures.push(`${trade.ticker} (${trade.id}): expiry failed: ${error.message}`);
+    }
+  }
+
+  const lapsedIds = new Set(lapsed.map((t) => t.id));
+  const watched = data.filter(
+    (trade) => !lapsedIds.has(trade.id) && isWatchable(trade) && trade.ticker.trim() !== "",
+  );
 
   if (watched.length === 0) {
-    return NextResponse.json({ dryRun, scanned: 0, executed: 0, tickers: 0, failures: [], ms: Date.now() - startedAt });
+    return NextResponse.json({
+      dryRun,
+      scanned: 0,
+      executed: 0,
+      tickers: 0,
+      expired: lapsed.length,
+      expiredDetails: lapsed.map((t) => `${t.ticker} (${t.id})`),
+      failures,
+      ms: Date.now() - startedAt,
+    });
   }
 
   // Resolve to Yahoo's symbol form the same way the chart does (crypto
@@ -125,7 +199,6 @@ export async function POST(request: Request) {
   const symbolFor = (t: WatchedTrade) => guessYahooSymbol(t.ticker, t.asset_type);
   const symbols = [...new Set(watched.map(symbolFor).filter(Boolean))];
   const prices = new Map<string, { dayHigh: number | null; dayLow: number | null; quoteTime: Date | null }>();
-  const failures: string[] = [];
 
   for (let i = 0; i < symbols.length; i += PRICE_CONCURRENCY) {
     const batch = symbols.slice(i, i + PRICE_CONCURRENCY);
@@ -249,6 +322,11 @@ export async function POST(request: Request) {
     tickers: symbols.length,
     executed: executed.length,
     details: executed,
+    // Reported separately from `executed` because an expiry is not a fill:
+    // nothing was touched and no price was involved. Counted on a dry run too,
+    // so the sweep can be inspected before it is trusted to write.
+    expired: lapsed.length,
+    expiredDetails: lapsed.map((t) => `${t.ticker} (${t.id})`),
     failures,
     ms: Date.now() - startedAt,
   });

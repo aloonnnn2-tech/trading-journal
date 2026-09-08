@@ -332,7 +332,7 @@ export function PriceChart({
       </div>
       {failed ? (
         <p className="px-5 py-16 text-center text-sm text-zinc-500">
-          No price history found for &quot;{symbol}&quot; — try correcting the symbol above.
+          No price history found for &quot;{symbol}&quot;. Try correcting the symbol above.
         </p>
       ) : !candles ? (
         <p className="px-5 py-16 text-center text-sm text-zinc-500">Loading price history…</p>

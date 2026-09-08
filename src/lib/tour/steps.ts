@@ -85,3 +85,82 @@ export const TOUR_STEPS: TourStep[] = [
     body: "Add a field to track anything the app doesn't already, or remove any default you don't want — old data is kept, just hidden. That's the tour; log a few trades and the rest fills itself in.",
   },
 ];
+
+// ---------------------------------------------------------------------------
+// The second tour.
+//
+// Everything above walks a brand-new account through logging one trade. This
+// one covers what the app grew afterwards -- rules, mistakes, edges, goals,
+// reports, reviews -- and is deliberately NOT bolted onto the end of signup:
+// every screen it visits is empty until there are closed trades in the
+// journal, so on day one it would be a tour of empty boxes. It is offered
+// from the "?" menu instead, where someone can take it when they have data.
+//
+// The anchors are the collapsible sections rather than the panels inside
+// them, so a step lands in the same place whether the panel is collapsed,
+// expanded, or showing an upgrade card -- which also means no step has to be
+// hidden from free users. Meeting the upgrade card mid-tour, in context, is a
+// better explanation of the paid plan than a pricing page anyway.
+export const FEATURE_TOUR_STEPS: TourStep[] = [
+  {
+    path: "/strategies",
+    targetId: "strategies-add",
+    title: "Name the setups you trade",
+    body: "A strategy is just a name for how you took the trade. Attach rules to it — 'stop must be set', 'risk under 1%' — and every trade tagged with it gets graded against them automatically.",
+  },
+  {
+    path: "/strategies",
+    targetId: "tour-scorecards",
+    title: "Which setups actually work",
+    body: "Each strategy scored on expectancy, consistency, and how closely you follow its own rules. A strategy needs a handful of trades before it appears — five trades is a coincidence, not a track record.",
+  },
+  {
+    path: "/insights",
+    targetId: "tour-mistakes",
+    title: "What keeps costing you",
+    body: "Mistakes come from three places: ones the app spots on its own, rules you broke, and tags you added yourself. It shows how often each happens and what those trades returned — with both sample sizes, so you can judge whether the difference means anything.",
+  },
+  {
+    path: "/insights",
+    targetId: "tour-edge",
+    title: "Where your edge actually is",
+    body: "Every way of slicing your journal — setup, ticker, direction, day, hold time, mood — ranked by expectancy rather than win rate. Winning often for very little is worse than winning rarely for a lot.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-risk",
+    title: "How you size, and when that slips",
+    body: "Whether you risk the same amount every time, and whether it creeps up after a loss or during a drawdown. Measured against your own median — there is no correct risk percentage, only yours and how consistent it is.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-drawdown",
+    title: "Every drawdown, not just the worst",
+    body: "How deep each one went, how long it lasted, and how many trades it took to climb back — so you can tell whether the one you are in now is normal for you or genuinely unusual.",
+  },
+  {
+    path: "/goals",
+    targetId: "tour-goals",
+    title: "Commit to something measurable",
+    body: "Goals are scored from your actual trades — nothing is ticked off by hand. 'Risk under 1% on every trade' or 'no more than two revenge trades this month' fill in as you go.",
+  },
+  {
+    path: "/reports",
+    targetId: "tour-reports",
+    title: "Your month as a document",
+    body: "Best and worst strategy, biggest mistake, best and worst trade, drawdown and risk — assembled from the numbers you have already seen, and printable to PDF.",
+  },
+  {
+    path: "/reviews",
+    targetId: "tour-reviews",
+    title: "Have your process critiqued",
+    body: "Bring your own AI key — free options work — and get your week or month reviewed on execution rather than on whether it made money. Every number is computed by the app; the model only explains it. That is the end of the tour.",
+  },
+];
+
+export type TourName = "basics" | "features";
+
+export const TOURS: Record<TourName, TourStep[]> = {
+  basics: TOUR_STEPS,
+  features: FEATURE_TOUR_STEPS,
+};

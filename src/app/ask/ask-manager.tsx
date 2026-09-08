@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/ai-keys/types";
 import { Card } from "@/components/ui/Card";
+import { ProviderConsentCard } from "@/components/ai/provider-consent-card";
 import { KeyForm } from "./key-form";
 import { AnswerText } from "./answer-text";
+import type { ChatTurn } from "@/lib/ai-keys/providers/types";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -30,7 +32,11 @@ export function AskManager({
     initialKeys.find((k) => k.is_active)?.id ?? "",
   );
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<string | null>(null);
+  // The conversation so far, oldest first. Replaced the single `answer`
+  // string: every question used to wipe the previous answer and be sent with
+  // no memory of it, so "why?" or "break that down" were unanswerable -- the
+  // model had never seen what it had just said.
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [managingKeys, setManagingKeys] = useState(false);
@@ -65,24 +71,47 @@ export function AskManager({
   }
 
   async function runQuestion() {
+    const asked = question.trim();
     setAsking(true);
     setError(null);
-    setAnswer(null);
 
-    const res = await fetch("/api/ask-ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question.trim(), keyId: selected?.id }),
-    });
+    // History is what the thread held *before* this question. Captured here
+    // rather than read after the optimistic append below, so the question
+    // never appears twice in the same request.
+    const history = turns;
+
+    // Shown immediately, and the box cleared, so a long answer doesn't leave
+    // the question sitting in the textarea looking unsent.
+    setTurns((prev) => [...prev, { role: "user", content: asked }]);
+    setQuestion("");
+
+    let res: Response;
+    try {
+      res = await fetch("/api/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: asked, keyId: selected?.id, history }),
+      });
+    } catch {
+      setAsking(false);
+      // Roll the optimistic turn back and hand the text back to the user,
+      // otherwise a dropped connection silently eats what they typed.
+      setTurns(history);
+      setQuestion(asked);
+      setError("Couldn't reach the server. Check your connection and try again.");
+      return;
+    }
     setAsking(false);
 
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      setTurns(history);
+      setQuestion(asked);
       setError(body?.error ?? "Couldn't get an answer.");
       return;
     }
     const body = (await res.json()) as { answer: string };
-    setAnswer(body.answer);
+    setTurns((prev) => [...prev, { role: "assistant", content: body.answer }]);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -155,42 +184,64 @@ export function AskManager({
   return (
     <div className="flex flex-col gap-4">
       {pendingDisclosure && (
-        <Card hoverable={false} className="flex flex-col gap-3 border-amber-500/40">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-            Before your first question
-          </h2>
-          <p className="text-sm text-zinc-500">
-            To answer, your trading journal is sent to{" "}
-            <strong className="text-zinc-900 dark:text-zinc-100">
-              {PROVIDER_LABELS[selected!.provider]}
-            </strong>{" "}
-            using your own API key. That includes your performance statistics and every
-            position you hold — tickers, prices, sizes, dates, your strategies, and everything
-            you wrote in your own fields and notes. That third party processes it under their
-            terms, not ours. Your key stays encrypted here and is never shared.
-          </p>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={acceptDisclosure}
-              disabled={savingConsent}
-              className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
-            >
-              {savingConsent ? "Saving..." : "I understand — send it"}
-            </button>
-            <button
-              onClick={() => setPendingDisclosure(false)}
-              className="text-sm text-zinc-500 hover:text-zinc-300"
-            >
-              Cancel
-            </button>
-          </div>
-        </Card>
+        <ProviderConsentCard
+          provider={selected!.provider}
+          description="To answer, your whole trading journal goes with the question: your performance
+            statistics and every position you hold. Tickers, prices, sizes, dates, your
+            strategies, and everything you wrote in your own fields and notes. Follow-up
+            questions send the earlier messages in the conversation too, so the answers
+            can build on each other."
+          saving={savingConsent}
+          onAccept={acceptDisclosure}
+          onCancel={() => setPendingDisclosure(false)}
+        />
+      )}
+
+      {turns.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {turns.map((turn, i) =>
+            turn.role === "user" ? (
+              <div key={i} className="flex justify-end">
+                <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary/10 px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100">
+                  {turn.content}
+                </p>
+              </div>
+            ) : (
+              <Card key={i} hoverable={false} className="flex flex-col gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+                  {selected && PROVIDER_LABELS[selected.provider]} answered
+                </p>
+                {/* AnswerText builds React elements from the string -- it never
+                    touches dangerouslySetInnerHTML, so provider output
+                    (untrusted text, just round-tripped through a third party)
+                    still cannot inject markup here. */}
+                <AnswerText text={turn.content} />
+              </Card>
+            ),
+          )}
+          {asking && (
+            <p role="status" className="text-sm text-zinc-500">
+              Thinking...
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setTurns([])}
+            className="self-start text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Start a new conversation
+          </button>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <textarea
           rows={3}
-          placeholder="Ask anything about your trading — e.g. which setup is actually losing me money?"
+          placeholder={
+            turns.length > 0
+              ? "Ask a follow-up. It remembers what you just discussed."
+              : "Ask anything about your trading. Which setup is actually losing me money?"
+          }
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           className={`${inputClass} resize-y`}
@@ -204,7 +255,7 @@ export function AskManager({
             className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
           >
             <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
-            {asking ? "Thinking..." : "Ask"}
+            {asking ? "Thinking..." : turns.length > 0 ? "Send" : "Ask"}
           </button>
 
           {/* Only worth a picker when there's an actual choice to make. */}
@@ -234,21 +285,8 @@ export function AskManager({
       </form>
 
       {error && (
-        <Card hoverable={false} className="border-red-500/40 text-sm text-red-400">
+        <Card hoverable={false} role="alert" className="border-red-500/40 text-sm text-loss">
           {error}
-        </Card>
-      )}
-
-      {answer && (
-        <Card hoverable={false} className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-            {selected && PROVIDER_LABELS[selected.provider]} answered
-          </p>
-          {/* AnswerText builds React elements from the string -- it never
-              touches dangerouslySetInnerHTML, so provider output (untrusted
-              text, just round-tripped through a third party) still cannot
-              inject markup here. */}
-          <AnswerText text={answer} />
         </Card>
       )}
 

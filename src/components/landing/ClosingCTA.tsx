@@ -3,7 +3,7 @@ import Link from "next/link";
 export function ClosingCTA() {
   return (
     <section className="px-6 pb-24 sm:px-10">
-      <div className="relative mx-auto max-w-5xl overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-subtle dark:bg-card">
+      <div className="relative mx-auto max-w-6xl overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-subtle dark:bg-card">
         {/* recessive chart-line motif */}
         <svg
           viewBox="0 0 800 160"
@@ -24,7 +24,7 @@ export function ClosingCTA() {
             Your next trade deserves a record.
           </h2>
           <p className="max-w-md text-zinc-600 dark:text-zinc-400">
-            Create a free account in seconds — free forever, no credit card required.
+            Create an account in seconds. Free forever, and no card needed.
           </p>
           <Link
             href="/sign-up"

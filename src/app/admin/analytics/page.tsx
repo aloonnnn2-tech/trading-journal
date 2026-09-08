@@ -72,14 +72,14 @@ export default async function AdminAnalyticsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card hoverable={false}>
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
-            Signups &amp; active users — last 30 days
+            Signups &amp; active users, last 30 days
           </h2>
           <UsageLineChart data={usageSeries} />
         </Card>
 
         <Card hoverable={false}>
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
-            Feature usage — last 30 days
+            Feature usage, last 30 days
           </h2>
           <FeatureUsageChart data={featureUsage} />
         </Card>

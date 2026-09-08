@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   Info,
   CalendarDays,
@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { FieldInput } from "@/components/field-input";
 import { Card } from "@/components/ui/Card";
+import { FormError } from "@/components/form-error";
+import { failureMessage } from "@/lib/api/failure-message";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { ImageUploader } from "@/components/trade-card/ImageUploader";
 import { PriceChart } from "@/components/trade-card/PriceChart";
@@ -83,6 +85,16 @@ export function TradeCard({
   const [imageCount, setImageCount] = useState(initialImages.length);
   const [activeExtra, setActiveExtra] = useState<ExtraId | null>(null);
   const [missingOpen, setMissingOpen] = useState(false);
+  // Delete and duplicate used to report failure through window.alert(), which
+  // is modal, unstyled, unannounced as part of this form, and on some mobile
+  // browsers suppressible entirely -- in which case the action simply looked
+  // like it did nothing. Rendered inline instead, beside the buttons that
+  // failed, in the same treatment every other error in the app uses.
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Namespaces the custom- and strategy-field ids below; the field keys are
+  // user-defined, so two definitions could otherwise collide with anything
+  // else on the page that happens to share a key.
+  const fieldId = useId();
   const hidden = new Set(hiddenCoreFields);
   const isHidden = (field: EditableCoreField) => hidden.has(field);
   const isInvestment = trade.mode === "investment";
@@ -168,22 +180,35 @@ export function TradeCard({
 
   async function handleDelete() {
     if (!confirm(`Delete trade ${trade.ticker || "(untitled)"}? This cannot be undone.`)) return;
-    const res = await fetch(`/api/trades/${trade.id}`, { method: "DELETE" });
-    if (!res.ok) {
-      alert("Couldn't delete this trade. Please try again.");
-      return;
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/trades/${trade.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setActionError(await failureMessage(res, "Couldn't delete this trade. Nothing was changed."));
+        return;
+      }
+      router.push("/trades");
+    } catch {
+      // Neither handler had a catch, so an offline click rejected into an
+      // unhandled promise and the page sat there looking like the click had
+      // not registered.
+      setActionError("Couldn't delete this trade. Check your connection and try again.");
     }
-    router.push("/trades");
   }
 
   async function handleDuplicate() {
-    const res = await fetch(`/api/trades/${trade.id}/duplicate`, { method: "POST" });
-    if (!res.ok) {
-      alert("Couldn't duplicate this trade. Please try again.");
-      return;
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/trades/${trade.id}/duplicate`, { method: "POST" });
+      if (!res.ok) {
+        setActionError(await failureMessage(res, "Couldn't duplicate this trade. Please try again."));
+        return;
+      }
+      const duplicate = (await res.json()) as Trade;
+      router.push(`/trades/${duplicate.id}`);
+    } catch {
+      setActionError("Couldn't duplicate this trade. Check your connection and try again.");
     }
-    const duplicate = (await res.json()) as Trade;
-    router.push(`/trades/${duplicate.id}`);
   }
 
   // Mode switches which set of field_definitions the server fetches
@@ -284,6 +309,8 @@ export function TradeCard({
         </div>
       </div>
 
+      <FormError>{actionError}</FormError>
+
       {/* Hero: the fields you touch on every trade, plus live P/L. */}
       <Card standalone={false} hoverable={false}>
         <div
@@ -322,8 +349,61 @@ export function TradeCard({
                 <option value="pending">Pending Order</option>
                 <option value="open">Open</option>
                 <option value="closed">Closed</option>
+                {/* A resting day order that never filled. Not "closed": it
+                    never opened, so it has no entry, no exit and no P&L, and
+                    every statistic in the app counts closed trades only. */}
+                <option value="expired">Expired</option>
               </select>
             </Field>
+            {!isInvestment && !isHidden("order_type") && (
+              <Field label="Order type">
+                <select
+                  className={inputClass}
+                  value={trade.order_type ?? ""}
+                  onChange={(e) => updateCoreField("order_type", e.target.value || null)}
+                >
+                  <option value="">—</option>
+                  <option value="market">Market</option>
+                  <option value="limit">Limit</option>
+                  <option value="stop">Stop</option>
+                  <option value="stop_limit">Stop-limit</option>
+                  <option value="trailing_stop">Trailing stop</option>
+                  <option value="other">Other…</option>
+                </select>
+              </Field>
+            )}
+            {!isInvestment && trade.order_type === "other" && !isHidden("order_type_other") && (
+              <Field label="Order type name">
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={trade.order_type_other ?? ""}
+                  placeholder="Whatever your broker calls it"
+                  onChange={(e) => updateCoreField("order_type_other", e.target.value || null)}
+                />
+              </Field>
+            )}
+            {/* Only for a stop-limit, which is the one type with two prices:
+                the stop triggers the order, then it rests here. */}
+            {!isInvestment && trade.order_type === "stop_limit" && !isHidden("limit_price") && (
+              <NumberField
+                label="Limit Price"
+                value={trade.limit_price}
+                onChange={(v) => updateCoreField("limit_price", v)}
+              />
+            )}
+            {!isInvestment && !isHidden("time_in_force") && (
+              <Field label="Time in force">
+                <select
+                  className={inputClass}
+                  value={trade.time_in_force ?? "gtc"}
+                  onChange={(e) => updateCoreField("time_in_force", e.target.value)}
+                >
+                  <option value="gtc">Good til cancelled</option>
+                  <option value="day">Day</option>
+                </select>
+              </Field>
+            )}
             {!isInvestment && (
               <Field label="Result">
                 <select
@@ -510,8 +590,11 @@ export function TradeCard({
                   </h3>
                   {strategyFieldDefinitions[strategy.id].map((field) => (
                     <div key={field.id}>
-                      <label className={labelClass}>{field.label}</label>
+                      <label className={labelClass} htmlFor={`${fieldId}-s-${strategy.id}-${field.key}`}>
+                        {field.label}
+                      </label>
                       <FieldInput
+                        id={`${fieldId}-s-${strategy.id}-${field.key}`}
                         field={field}
                         value={trade.strategy_field_values[strategy.id]?.[field.key] as never}
                         onChange={(value) => updateStrategyField(strategy.id, field.key, value)}
@@ -545,7 +628,7 @@ export function TradeCard({
                 commission rule matches, which reads as the app inventing
                 numbers if you don't know a rule did it. */}
             <p className="mb-4 text-xs text-zinc-500">
-              Worked out from the trade — nothing here is edited directly.
+              Worked out from the trade. Nothing here is edited directly.
               {commissionRule && !trade.commission_manual && (
                 <>
                   {" "}
@@ -558,7 +641,7 @@ export function TradeCard({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <ReadOnlyField
               label="Dollar P/L"
-              tooltip="Net of commission — this is what actually landed in your account."
+              tooltip="Net of commission. This is what actually landed in your account."
               value={trade.dollar_pl}
               pending={pendingReason("dollar_pl", pendingInputs)}
             />
@@ -606,8 +689,11 @@ export function TradeCard({
           <div className={activeExtra === "notes" ? "grid gap-4" : "hidden"}>
             {fieldDefinitions.map((field) => (
               <div key={field.id}>
-                <label className={labelClass}>{field.label}</label>
+                <label className={labelClass} htmlFor={`${fieldId}-c-${field.key}`}>
+                  {field.label}
+                </label>
                 <FieldInput
+                  id={`${fieldId}-c-${field.key}`}
                   field={field}
                   value={trade.custom_fields[field.key] as never}
                   onChange={(value) => updateCustomField(field.key, value)}
@@ -705,7 +791,7 @@ export function TradeCard({
                 label="Commission"
                 tooltip={
                   trade.commission_manual
-                    ? "Set by hand — your commission rules won't change it. Clear this field to go back to calculating it automatically."
+                    ? "Set by hand. Your commission rules won't change it. Clear this field to go back to calculating it automatically."
                     : commissionRule
                       ? `Filled in automatically from your "${commissionRule.name}" rule. Type over it to set this trade's fee by hand.`
                       : "Broker fees for this trade, subtracted from its P/L. Set up rules on the Commissions page to fill this in automatically."
@@ -852,7 +938,11 @@ function SaveStatusBadge({ status }: { status: "idle" | "saving" | "saved" | "er
   }[status];
 
   return (
-    <span className={`flex items-center gap-1.5 text-xs ${color}`}>
+    // Polite, not assertive: this badge changes on every debounced autosave
+    // while the user is still typing, and an assertive live region would
+    // interrupt them to say "Saving..." several times a minute. Polite still
+    // announces "Save failed" -- just at the next natural pause.
+    <span role="status" className={`flex items-center gap-1.5 text-xs ${color}`}>
       <span className="relative flex h-1.5 w-1.5">
         {status === "saving" && (
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-75" />
@@ -905,7 +995,7 @@ function MissingFieldsIndicator({
             Still needs
           </p>
           {complete ? (
-            <p className="text-sm text-zinc-500">Nothing — this trade is fully filled in.</p>
+            <p className="text-sm text-zinc-500">Nothing. This trade is fully filled in.</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {missing.map((field) => (

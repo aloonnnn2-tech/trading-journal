@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { listAllTradeFolderLinks } from "@/lib/folders/queries";
 import { listTrades } from "@/lib/trades/queries";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import {
   contentTypeFor,
   rowsToCsv,
@@ -17,6 +18,17 @@ export async function GET(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Serialises the account's entire trade history in one response. Cheap for
+  // a user with fifty trades, not cheap for one with twenty thousand, and
+  // looping it is an easy way to burn both database time and bandwidth.
+  const limited = enforceRateLimit(
+    `export:${userId}`,
+    20,
+    60_000,
+    "Too many exports in a row. Wait a moment and try again.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

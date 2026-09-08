@@ -19,7 +19,7 @@ export default async function CommissionsPage() {
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Tell the journal what your broker charges and every trade&apos;s P/L is recorded net of
-          those fees. Trades also get a break-even price — with a $2.50-a-side fee, one share bought
+          those fees. Trades also get a break-even price, with a $2.50-a-side fee, one share bought
           at $90 doesn&apos;t turn a profit until $95, and that line shows up on the chart.
         </p>
       </div>

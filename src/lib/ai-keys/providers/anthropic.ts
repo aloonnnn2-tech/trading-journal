@@ -8,6 +8,7 @@ import {
   failureFromStatus,
   providerFetch,
   type AIProvider,
+  type AskOptions,
 } from "./types";
 
 const BASE = "https://api.anthropic.com/v1";
@@ -29,6 +30,15 @@ const MODEL = PROVIDER_MODELS.anthropic;
 // spend down; this is just headroom so the reply can finish.
 const MAX_TOKENS = 4000;
 
+// Extra room added on top of a caller-requested answer budget, for the same
+// reason MAX_TOKENS is generous: here `max_tokens` bounds thinking PLUS the
+// visible reply. A caller asking for "2000 tokens of answer" means 2000
+// tokens it can render, so passing that number straight through would spend
+// most of it thinking and truncate the reply -- the exact failure the comment
+// above warns about. Callers size their request against the visible output;
+// this is the provider-specific cost of getting there.
+const THINKING_HEADROOM = 2000;
+
 export const anthropicProvider: AIProvider = {
   name: "anthropic",
   model: MODEL,
@@ -49,7 +59,12 @@ export const anthropicProvider: AIProvider = {
     return true;
   },
 
-  async askQuestion(apiKey: string, systemPrompt: string, question: string): Promise<string> {
+  async askQuestion(
+    apiKey: string,
+    systemPrompt: string,
+    question: string,
+    options?: AskOptions,
+  ): Promise<string> {
     const res = await providerFetch(
       `${BASE}/messages`,
       {
@@ -61,17 +76,23 @@ export const anthropicProvider: AIProvider = {
         },
         body: JSON.stringify({
           model: MODEL,
-          max_tokens: MAX_TOKENS,
+          max_tokens:
+            options?.maxTokens === undefined
+              ? MAX_TOKENS
+              : options.maxTokens + THINKING_HEADROOM,
           // Low effort keeps the token spend down on what is, by this point,
           // a question against a pre-summarized context rather than an
           // open-ended reasoning task.
           output_config: { effort: "low" },
           // `system` is a top-level parameter here, not a message role.
           system: systemPrompt,
-          messages: [{ role: "user", content: question }],
+          // Earlier turns first, then the question being asked now. Anthropic's
+          // roles are already "user"/"assistant", so ChatTurn maps straight
+          // through with no translation.
+          messages: [...(options?.history ?? []), { role: "user", content: question }],
         }),
       },
-      ASK_TIMEOUT_MS,
+      options?.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
     if (!res.ok) {

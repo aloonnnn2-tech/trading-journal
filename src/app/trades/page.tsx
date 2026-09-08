@@ -25,8 +25,11 @@ interface TradesSearchParams {
   strategy?: string;
   market?: string;
   emotion?: string;
+  direction?: string;
   plMin?: string;
   plMax?: string;
+  riskMin?: string;
+  riskMax?: string;
   fieldKey?: string;
   fieldValue?: string;
   sort?: string;
@@ -43,13 +46,22 @@ export default async function TradesPage({
   await requireUserId();
   const supabase = await createClient();
 
-  const status = (params.status as Trade["status"] | undefined) ?? undefined;
+  // Validated rather than cast. `status` goes straight into .eq("status", …)
+  // against a Postgres enum, so ?status=anything-else came back as a 22P02
+  // from the database rather than as an empty list.
+  const STATUSES: Trade["status"][] = ["pending", "open", "closed", "expired"];
+  const requested = params.status as Trade["status"] | undefined;
+  const status = requested && STATUSES.includes(requested) ? requested : undefined;
   const sortBy = toTradeSortField(params.sort);
   const sortDir = (params.dir as "asc" | "desc" | undefined) ?? "desc";
   const page = Math.max(1, Number(params.page) || 1);
 
   const plMin = params.plMin ? Number(params.plMin) : undefined;
   const plMax = params.plMax ? Number(params.plMax) : undefined;
+  // Number("") is 0, which would silently filter to "risk >= 0" -- so an
+  // absent or unparseable bound stays undefined rather than becoming a filter.
+  const riskMin = Number.isFinite(Number(params.riskMin)) && params.riskMin ? Number(params.riskMin) : undefined;
+  const riskMax = Number.isFinite(Number(params.riskMax)) && params.riskMax ? Number(params.riskMax) : undefined;
 
   const [{ trades, total }, counts, folders, strategies, tradeStrategyLinks, emotions, markets, fieldDefs, account] =
     await Promise.all([
@@ -60,8 +72,11 @@ export default async function TradesPage({
         strategyId: params.strategy,
         market: params.market,
         emotion: params.emotion,
+        direction: params.direction,
         plMin,
         plMax,
+        riskMin,
+        riskMax,
         customField: params.fieldKey && params.fieldValue ? { key: params.fieldKey, value: params.fieldValue } : undefined,
         sortBy,
         sortDir,
@@ -137,6 +152,12 @@ export default async function TradesPage({
         <StatusTab href={buildHref({ status: "pending", page: "1" })} label="Pending" count={counts.pending} active={status === "pending"} />
         <StatusTab href={buildHref({ status: "open", page: "1" })} label="Open" count={counts.open} active={status === "open"} />
         <StatusTab href={buildHref({ status: "closed", page: "1" })} label="Closed" count={counts.closed} active={status === "closed"} />
+        {/* Only once there is one. A tab reading "Expired 0" on every account
+            that has never placed a day order is a permanent piece of clutter
+            explaining a feature most people will not use. */}
+        {counts.expired > 0 && (
+          <StatusTab href={buildHref({ status: "expired", page: "1" })} label="Expired" count={counts.expired} active={status === "expired"} />
+        )}
       </div>
 
       {folders.length > 0 && (

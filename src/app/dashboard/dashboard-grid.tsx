@@ -91,8 +91,8 @@ export function DashboardGrid({
   return (
     <div className="grid gap-4 lg:grid-flow-dense lg:grid-cols-6">
       {saveFailed && (
-        <p className="col-span-full text-xs text-loss">
-          Layout changes couldn&apos;t be saved — they&apos;ll revert on reload. Check your connection and move a widget again to retry.
+        <p role="status" className="col-span-full text-xs text-loss">
+          Layout changes couldn&apos;t be saved. They&apos;ll revert on reload. Check your connection and move a widget again to retry.
         </p>
       )}
       {layout.order.map((id) => {
@@ -119,7 +119,7 @@ export function DashboardGrid({
               <button
                 onClick={() => cycleSize(id)}
                 title="Cycle widget size"
-                className="rounded-md px-2 py-0.5 font-mono text-[11px] text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                className="rounded-md px-2 py-0.5 font-mono text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
                 {SIZE_LABEL[size]}
               </button>

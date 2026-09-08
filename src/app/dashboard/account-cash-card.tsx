@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Landmark, Minus, Plus, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { FormError } from "@/components/form-error";
 import { InfoTip } from "@/components/ui/InfoTip";
 import type { AccountBalance, AccountTransaction } from "@/lib/account/queries";
 
@@ -76,7 +77,7 @@ export function AccountCashCard({
       setAmount("");
       router.refresh();
     } catch {
-      setError("Could not save — check your connection and try again.");
+      setError("Could not save. Check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -98,7 +99,7 @@ export function AccountCashCard({
     } catch {
       setAccount(previous.account);
       setTransactions(previous.transactions);
-      setError("Could not delete — check your connection and try again.");
+      setError("Could not delete. Check your connection and try again.");
     }
   }
 
@@ -118,7 +119,7 @@ export function AccountCashCard({
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
               Account Cash
-              <InfoTip text="Total cash: money you've added or removed, plus every closed trade's win or loss — updated automatically. Available: total cash minus what's tied up in open positions. New trades pre-fill their position size from what's available." />
+              <InfoTip text="Total cash: money you've added or removed, plus every closed trade's win or loss. Updated automatically. Available: total cash minus what's tied up in open positions. New trades pre-fill their position size from what's available." />
             </p>
             <p className="tnum mt-1.5 truncate text-[22px] font-semibold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
               {account.hasTransactions ? formatMoney(account.balance, true) : "—"}
@@ -130,8 +131,14 @@ export function AccountCashCard({
               <Landmark className="h-4 w-4" strokeWidth={2} />
             </span>
             <div className="flex gap-1">
+              {/* aria-label as well as title: these three buttons contain only
+                  an icon, and `title` is not a name assistive tech can be
+                  relied on to announce -- it is a tooltip, and several screen
+                  readers ignore it when nothing else is present. Without one,
+                  these were announced simply as "button". */}
               <button
                 onClick={() => openPanel("deposit")}
+                aria-label="Add money to your account"
                 title="Add money"
                 className={`flex h-6 w-6 items-center justify-center rounded-md border text-profit transition-colors ${
                   panel === "deposit"
@@ -143,6 +150,7 @@ export function AccountCashCard({
               </button>
               <button
                 onClick={() => openPanel("withdraw")}
+                aria-label="Remove money from your account"
                 title="Remove money"
                 className={`flex h-6 w-6 items-center justify-center rounded-md border text-loss transition-colors ${
                   panel === "withdraw"
@@ -188,7 +196,7 @@ export function AccountCashCard({
                 {panel === "withdraw" ? "Remove" : "Add"}
               </button>
             </div>
-            {error && <p className="text-xs text-loss">{error}</p>}
+            <FormError size="xs">{error}</FormError>
           </form>
 
           {transactions.length > 0 && (
@@ -213,8 +221,9 @@ export function AccountCashCard({
                   </span>
                   <button
                     onClick={() => handleDelete(tx.id)}
+                    aria-label={`Delete the ${formatMoney(tx.amount)} adjustment`}
                     title="Delete adjustment"
-                    className="text-zinc-400 hover:text-loss"
+                    className="text-zinc-500 hover:text-loss dark:text-zinc-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

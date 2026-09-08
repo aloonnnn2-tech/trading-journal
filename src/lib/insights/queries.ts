@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getLocalDayName, WEEKDAY_ORDER } from "@/lib/dates/day-of-week";
+import { buildSegments, type Dimension, type Segment } from "@/lib/segments/engine";
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? (value.filter((v) => typeof v === "string") as string[]) : [];
+}
 
 const MIN_SAMPLE_SIZE = 5;
 const MIN_DEVIATION = 0.15; // 15 percentage points away from overall win rate
@@ -16,22 +21,6 @@ export interface Insight {
   chart: { label: string; winRate: number; trades: number }[];
 }
 
-interface SegmentStats {
-  trades: number;
-  wins: number;
-}
-
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? (value.filter((v) => typeof v === "string") as string[]) : [];
-}
-
-function addToSegment(map: Map<string, SegmentStats>, key: string, won: boolean) {
-  const bucket = map.get(key) ?? { trades: 0, wins: 0 };
-  bucket.trades += 1;
-  if (won) bucket.wins += 1;
-  map.set(key, bucket);
-}
-
 // Flags segments whose win rate deviates meaningfully (>= MIN_DEVIATION)
 // from the overall win rate and has enough trades (>= MIN_SAMPLE_SIZE) to
 // not just be noise. This is a statistical pass over the same closed-trade
@@ -39,38 +28,55 @@ function addToSegment(map: Map<string, SegmentStats>, key: string, won: boolean)
 // every insight traces back to a concrete, re-computable segment.
 function buildInsights(
   dimensionLabel: string,
-  segments: Map<string, SegmentStats>,
+  segments: Segment<InsightRow>[],
   overallWinRate: number,
   template: (label: string, rate: number) => string,
 ): Insight[] {
   const insights: Insight[] = [];
-  const chart = Array.from(segments.entries())
-    .filter(([, stats]) => stats.trades >= MIN_SAMPLE_SIZE)
-    .map(([label, stats]) => ({ label, winRate: stats.wins / stats.trades, trades: stats.trades }));
+  const chart = segments
+    .filter((segment) => segment.stats.trades >= MIN_SAMPLE_SIZE)
+    .map((segment) => ({
+      label: segment.value,
+      winRate: segment.stats.winRate ?? 0,
+      trades: segment.stats.trades,
+    }));
 
   if (dimensionLabel === "day") {
     chart.sort((a, b) => WEEKDAY_ORDER.indexOf(a.label) - WEEKDAY_ORDER.indexOf(b.label));
   }
 
-  for (const [label, stats] of segments) {
-    if (stats.trades < MIN_SAMPLE_SIZE) continue;
-    const rate = stats.wins / stats.trades;
+  for (const segment of segments) {
+    if (segment.stats.trades < MIN_SAMPLE_SIZE) continue;
+    const rate = segment.stats.winRate ?? 0;
     const deviation = rate - overallWinRate;
     if (Math.abs(deviation) < MIN_DEVIATION) continue;
 
     insights.push({
-      id: `${dimensionLabel}:${label}`,
-      segmentLabel: label,
-      text: template(label, rate),
+      id: `${dimensionLabel}:${segment.value}`,
+      segmentLabel: segment.value,
+      text: template(segment.value, rate),
       segmentWinRate: rate,
       overallWinRate,
-      trades: stats.trades,
+      trades: segment.stats.trades,
       direction: deviation > 0 ? "positive" : "negative",
       chart,
     });
   }
 
   return insights;
+}
+
+/** The row shape the dimensions below read. `id`, `dollar_pl` and
+ *  `r_multiple` satisfy SegmentableTrade; the rest are the cut points. */
+interface InsightRow {
+  id: string;
+  exit_date: string;
+  dollar_pl: number | null;
+  r_multiple: number | null;
+  direction: string | null;
+  risk_percent: number | null;
+  emotion_before: unknown;
+  trade_strategies: { strategies: { name: string }[] }[];
 }
 
 export async function getInsights(
@@ -84,7 +90,7 @@ export async function getInsights(
     supabase
       .from("trades")
       .select(
-        "exit_date, dollar_pl, direction, risk_percent, emotion_before:custom_fields->emotion_before, trade_strategies(strategies(name))",
+        "id, exit_date, dollar_pl, r_multiple, direction, risk_percent, emotion_before:custom_fields->emotion_before, trade_strategies(strategies(name))",
       )
       .eq("status", "closed")
       .not("exit_date", "is", null)
@@ -98,58 +104,59 @@ export async function getInsights(
       .range(from, to),
   );
 
-  const rows = data as unknown as {
-    exit_date: string;
-    dollar_pl: number | null;
-    direction: string | null;
-    risk_percent: number | null;
-    emotion_before: unknown;
-    trade_strategies: { strategies: { name: string }[] }[];
-  }[];
-
+  const rows = data as unknown as InsightRow[];
   if (rows.length < MIN_SAMPLE_SIZE) return [];
 
-  let overallWins = 0;
-  const byDay = new Map<string, SegmentStats>();
-  const byDirection = new Map<string, SegmentStats>();
-  const byTag = new Map<string, SegmentStats>();
-  const byEmotion = new Map<string, SegmentStats>();
-  const byRisk = new Map<string, SegmentStats>();
+  // The five cuts this page has always made, now expressed as dimensions for
+  // the shared engine (lib/segments) rather than five hand-rolled maps. No
+  // drill-down urls: this view has never linked out, and adding one here
+  // would change behaviour the characterization tests pin.
+  const dimensions: Record<string, Dimension<InsightRow>> = {
+    day: {
+      id: "day",
+      label: "Day",
+      valuesOf: (row) => [getLocalDayName(row.exit_date, timezone)],
+    },
+    direction: {
+      id: "direction",
+      label: "Direction",
+      valuesOf: (row) => (row.direction ? [row.direction] : []),
+    },
+    tag: {
+      id: "tag",
+      label: "Strategy",
+      valuesOf: (row) =>
+        row.trade_strategies
+          .flatMap((link) => link.strategies)
+          .map((s) => s?.name)
+          .filter((name): name is string => typeof name === "string" && name.trim() !== ""),
+    },
+    emotion: {
+      id: "emotion",
+      label: "Emotion",
+      valuesOf: (row) => asStringArray(row.emotion_before),
+    },
+    risk: {
+      id: "risk",
+      label: "Risk",
+      valuesOf: (row) =>
+        row.risk_percent == null ? [] : [row.risk_percent < 1 ? "under 1% risk" : "1%+ risk"],
+    },
+  };
 
-  for (const row of rows) {
-    const won = (row.dollar_pl ?? 0) > 0;
-    if (won) overallWins += 1;
-
-    const day = getLocalDayName(row.exit_date, timezone);
-    addToSegment(byDay, day, won);
-
-    if (row.direction) addToSegment(byDirection, row.direction, won);
-
-    const strategyNames = row.trade_strategies
-      .flatMap((link) => link.strategies)
-      .map((s) => s?.name)
-      .filter((name): name is string => typeof name === "string" && name.trim() !== "");
-    for (const name of strategyNames) {
-      addToSegment(byTag, name, won);
-    }
-
-    for (const emotion of asStringArray(row.emotion_before)) {
-      addToSegment(byEmotion, emotion, won);
-    }
-
-    if (row.risk_percent != null) {
-      const label = row.risk_percent < 1 ? "under 1% risk" : "1%+ risk";
-      addToSegment(byRisk, label, won);
-    }
-  }
-
+  const overallWins = rows.filter((row) => (row.dollar_pl ?? 0) > 0).length;
   const overallWinRate = overallWins / rows.length;
 
+  const insightsFor = (
+    key: keyof typeof dimensions,
+    template: (label: string, rate: number) => string,
+  ) => buildInsights(key as string, buildSegments(rows, dimensions[key]), overallWinRate, template);
+
   return [
-    ...buildInsights("day", byDay, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades on ${label}s.`),
-    ...buildInsights("direction", byDirection, overallWinRate, (label, rate) => `Your ${label} trades win ${(rate * 100).toFixed(0)}% of the time.`),
-    ...buildInsights("tag", byTag, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades using the "${label}" strategy.`),
-    ...buildInsights("emotion", byEmotion, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades entered while feeling "${label}".`),
-    ...buildInsights("risk", byRisk, overallWinRate, (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades with ${label}.`),
+    ...insightsFor("day", (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades on ${label}s.`),
+    ...insightsFor("direction", (label, rate) => `Your ${label} trades win ${(rate * 100).toFixed(0)}% of the time.`),
+    ...insightsFor("tag", (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades using the "${label}" strategy.`),
+    ...insightsFor("emotion", (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades entered while feeling "${label}".`),
+    ...insightsFor("risk", (label, rate) => `You win ${(rate * 100).toFixed(0)}% of trades with ${label}.`),
   ].sort((a, b) => Math.abs(b.segmentWinRate - b.overallWinRate) - Math.abs(a.segmentWinRate - a.overallWinRate));
 }

@@ -15,7 +15,10 @@ export default function TermsPage() {
   return (
     <div className="flex flex-1 flex-col">
       <LandingHeader />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-16 sm:px-10">
+      {/* Was <main>. The root layout now provides the single <main>
+          landmark for every page, and nesting a second one inside it is
+          invalid and gives assistive tech two competing "main" targets. */}
+      <div className="mx-auto w-full max-w-2xl flex-1 px-6 py-16 sm:px-10">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Terms of Service
         </h1>
@@ -41,7 +44,7 @@ export default function TermsPage() {
             TradingLenzSupport@proton.me
           </a>
         </p>
-      </main>
+      </div>
       <LandingFooter />
     </div>
   );

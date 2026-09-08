@@ -11,15 +11,25 @@ export function FieldInput({
   field,
   value,
   onChange,
+  id,
 }: {
   field: FieldDefinition;
   value: FieldValue;
   onChange: (value: FieldValue) => void;
+  /**
+   * Ties this control to the <label> its caller renders above it. Optional so
+   * existing call sites keep compiling, but every one of them should pass it:
+   * a custom field with no associated label reaches a screen reader as an
+   * unnamed edit box, which on a form of user-defined fields means the whole
+   * form is unnavigable.
+   */
+  id?: string;
 }) {
   switch (field.field_type) {
     case "large_notes":
       return (
         <textarea
+          id={id}
           className={`${inputClass} min-h-28 resize-y`}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -29,6 +39,7 @@ export function FieldInput({
     case "text":
       return (
         <input
+          id={id}
           type="text"
           className={inputClass}
           value={(value as string) ?? ""}
@@ -39,6 +50,7 @@ export function FieldInput({
     case "color_picker":
       return (
         <input
+          id={id}
           type="color"
           className="h-10 w-16 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950"
           value={(value as string) ?? "#10b981"}
@@ -49,6 +61,7 @@ export function FieldInput({
     case "date":
       return (
         <input
+          id={id}
           type="date"
           className={inputClass}
           value={(value as string) ?? ""}
@@ -61,6 +74,7 @@ export function FieldInput({
     case "percentage":
       return (
         <input
+          id={id}
           type="number"
           step="any"
           className={inputClass}
@@ -74,6 +88,7 @@ export function FieldInput({
       const max = field.options.max ?? 10;
       return (
         <input
+          id={id}
           type="number"
           min={min}
           max={max}
@@ -88,6 +103,7 @@ export function FieldInput({
     case "checkbox":
       return (
         <input
+          id={id}
           type="checkbox"
           className="h-5 w-5 rounded border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950"
           checked={Boolean(value)}
@@ -99,6 +115,7 @@ export function FieldInput({
       const choices = field.options.choices ?? [];
       return (
         <select
+          id={id}
           className={inputClass}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -118,6 +135,7 @@ export function FieldInput({
       const arrayValue = Array.isArray(value) ? value : [];
       return (
         <input
+          id={id}
           type="text"
           placeholder="Comma-separated"
           className={inputClass}

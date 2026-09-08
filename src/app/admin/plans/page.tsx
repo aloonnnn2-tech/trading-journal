@@ -46,7 +46,7 @@ export default async function AdminPlansPage() {
         </h1>
         <p className="mt-0.5 text-sm text-zinc-500">
           Grant or revoke the paid plan, which unlocks the AI features on Ask Your Journal. There
-          is no billing integration — nothing changes these automatically. Not linked from the app
+          is no billing integration. Nothing changes these automatically. Not linked from the app
           nav.
         </p>
       </div>

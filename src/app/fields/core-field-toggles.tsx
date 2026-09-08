@@ -33,8 +33,8 @@ export function CoreFieldToggles({ initialHidden }: { initialHidden: EditableCor
   return (
     <ul className="flex flex-col gap-2">
       {saveFailed && (
-        <li className="text-xs text-loss">
-          That change couldn&apos;t be saved — it&apos;ll revert on reload. Check your connection and try again.
+        <li role="status" className="text-xs text-loss">
+          That change couldn&apos;t be saved. It&apos;ll revert on reload. Check your connection and try again.
         </li>
       )}
       {TOGGLEABLE_CORE_FIELDS.map(({ key, label }) => (

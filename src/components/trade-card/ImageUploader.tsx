@@ -6,6 +6,8 @@ import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { ApplyCoreFields, OcrCoreField, ParseResult } from "@/lib/ocr/types";
 import { FIELD_LABELS, OCR_CORE_FIELDS, AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
+import { FormError } from "@/components/form-error";
+import { useDialog } from "@/lib/a11y/use-dialog";
 
 interface ImageItem {
   id: string;
@@ -46,11 +48,18 @@ export function ImageUploader({
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const lightboxCloseRef = useRef<HTMLButtonElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [selected, setSelected] = useState<Set<OcrCoreField>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const lightboxRef = useDialog({
+    open: lightboxUrl !== null,
+    onClose: () => setLightboxUrl(null),
+    initialFocusRef: lightboxCloseRef,
+  });
 
   const detectedCoreKeys = (): OcrCoreField[] =>
     result ? (OCR_CORE_FIELDS.filter((k) => result.core[k]) as OcrCoreField[]) : [];
@@ -128,7 +137,7 @@ export function ImageUploader({
         ]);
       }
     } catch {
-      setError("Upload failed — check your connection and try again.");
+      setError("Upload failed. Check your connection and try again.");
     } finally {
       setUploading(false);
     }
@@ -147,7 +156,7 @@ export function ImageUploader({
         setError((body as { error?: string }).error ?? "Delete failed.");
       }
     } catch {
-      setError("Delete failed — check your connection and try again.");
+      setError("Delete failed. Check your connection and try again.");
     } finally {
       setDeletingId(null);
     }
@@ -206,22 +215,30 @@ export function ImageUploader({
     <div>
       {images.length > 0 && (
         <div className="mb-3 grid grid-cols-3 gap-2">
-          {images.map((img) => (
+          {images.map((img, i) => (
             <div key={img.id} className="group relative aspect-video">
-              <Image
-                src={img.signedUrl}
-                alt="Trade chart"
-                fill
-                unoptimized
-                className={`cursor-pointer rounded-xl object-cover transition-opacity ${
+              {/* Was an onClick straight on the <Image>. A click handler on an
+                  img is invisible to the keyboard -- not focusable, not
+                  activatable by Enter or Space, and announced as a plain
+                  graphic -- so the lightbox simply could not be opened without
+                  a mouse. A real button fixes all four at once. */}
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(img.signedUrl)}
+                aria-label={`View chart ${i + 1} of ${images.length} full size`}
+                className={`absolute inset-0 overflow-hidden rounded-xl transition-opacity ${
                   deletingId === img.id ? "opacity-40" : ""
                 }`}
-                onClick={() => setLightboxUrl(img.signedUrl)}
-              />
+              >
+                <Image src={img.signedUrl} alt="" fill unoptimized className="object-cover" />
+              </button>
               <button
                 onClick={() => handleDelete(img)}
                 disabled={deletingId === img.id}
                 className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity disabled:cursor-not-allowed sm:opacity-0 sm:group-hover:opacity-100"
+                // title alone is not an accessible name a screen reader can be
+                // relied on to read, and the visible label is "✕".
+                aria-label={`Remove chart ${i + 1}`}
                 title="Remove image"
               >
                 ✕
@@ -304,7 +321,7 @@ export function ImageUploader({
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-loss">{error}</p>}
+      <FormError size="xs" className="mt-2">{error}</FormError>
 
       <input
         ref={fileInputRef}
@@ -320,24 +337,35 @@ export function ImageUploader({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setLightboxUrl(null)}
         >
+          {/* Escape now closes this, and focus is trapped inside it and handed
+              back to the thumbnail on close. Before, the only way out was
+              clicking the backdrop or the ✕ -- and Tab moved focus into the
+              trade form behind a full-screen black overlay. */}
           <div
             className="relative h-full max-h-[90vh] w-full max-w-[90vw]"
             onClick={(e) => e.stopPropagation()}
+            ref={lightboxRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Full-size chart"
+            tabIndex={-1}
           >
             <Image
               src={lightboxUrl}
-              alt="Full-size chart"
+              alt="Full-size trade chart"
               fill
               unoptimized
               className="rounded-xl object-contain"
             />
+            <button
+              ref={lightboxCloseRef}
+              onClick={() => setLightboxUrl(null)}
+              aria-label="Close full-size chart"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            onClick={() => setLightboxUrl(null)}
-            className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
-          >
-            ✕
-          </button>
         </div>
       )}
     </div>

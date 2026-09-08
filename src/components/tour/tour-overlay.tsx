@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
-import { TOUR_STEPS, type TourStep } from "@/lib/tour/steps";
+import { TOURS, type TourName, type TourStep } from "@/lib/tour/steps";
 import { WelcomeModal } from "./welcome-modal";
 
 const REPLAY_EVENT = "trading-lens:replay-tour";
@@ -13,8 +13,11 @@ const REPLAY_EVENT = "trading-lens:replay-tour";
 // Replaying (nav-bar HelpCircle icon) skips straight to the spotlight walk --
 // the welcome screen is only for a user's genuine first login, gated by
 // has_completed_tour below.
-export function startTour() {
-  window.dispatchEvent(new Event(REPLAY_EVENT));
+//
+// The tour to run travels on the event rather than in a module variable, so
+// there is no order dependency between dispatching and the overlay reading it.
+export function startTour(tour: TourName = "basics") {
+  window.dispatchEvent(new CustomEvent(REPLAY_EVENT, { detail: tour }));
 }
 
 interface Rect {
@@ -45,9 +48,9 @@ function matchesPath(step: TourStep, pathname: string): boolean {
 // Declining to open the Quick Trade modal has to skip every step that only
 // exists inside it, not just the next one -- landing on a step whose target
 // can never appear would leave the tour waiting forever on nothing.
-function indexAfterSkipping(from: number): number {
+function indexAfterSkipping(steps: TourStep[], from: number): number {
   let i = from + 1;
-  while (i < TOUR_STEPS.length && (TOUR_STEPS[i].awaitAction || !TOUR_STEPS[i].path)) i++;
+  while (i < steps.length && (steps[i].awaitAction || !steps[i].path)) i++;
   return i;
 }
 
@@ -57,9 +60,9 @@ function indexAfterSkipping(from: number): number {
 // broken. A step is a valid destination if the tour can navigate to it, or
 // if its target happens to be on screen already (stepping back through the
 // Quick Trade dialog while it's still open).
-function previousReachableIndex(from: number): number {
+function previousReachableIndex(steps: TourStep[], from: number): number {
   for (let i = from - 1; i > 0; i--) {
-    const candidate = TOUR_STEPS[i];
+    const candidate = steps[i];
     if (candidate.path) return i;
     if (document.querySelector(`[data-tour-id="${candidate.targetId}"]`)) return i;
   }
@@ -100,6 +103,14 @@ const MIN_TOOLTIP_VISIBLE = 160;
 export function TourOverlay() {
   const pathname = usePathname();
   const router = useRouter();
+  // Which of the two tours is running. "basics" walks a first-ever user
+  // through logging a trade; "features" is the tour of everything the app
+  // grew afterwards, and is only worth taking once there are trades to look
+  // at -- which is why it is offered separately rather than bolted onto the
+  // end of signup.
+  const [tour, setTour] = useState<TourName>("basics");
+  const steps = TOURS[tour];
+
   const [phase, setPhaseState] = useState<Phase>("idle");
   const [stepIndex, setStepIndexState] = useState(0);
   // Tagged with the target it was measured from so a stale rect from the
@@ -153,7 +164,11 @@ export function TourOverlay() {
   }, [pathname, setPhase]);
 
   useEffect(() => {
-    function onReplay() {
+    function onReplay(event: Event) {
+      const requested = (event as CustomEvent<TourName>).detail;
+      // Defaults to the basics rather than throwing: an event from an older
+      // cached bundle carries no detail at all.
+      setTour(requested === "features" ? "features" : "basics");
       setStepIndex(0);
       setPhase("touring");
     }
@@ -191,7 +206,7 @@ export function TourOverlay() {
     // during step one promoted the tour into a modal step whose target can
     // never appear on the new page, leaving it polling forever with nothing
     // drawn.
-    const next = TOUR_STEPS[stepIndexRef.current + 1];
+    const next = steps[stepIndexRef.current + 1];
     if (next?.awaitAction && next.pathPrefix != null && matchesPath(next, pathname)) {
       setStepIndex(stepIndexRef.current + 1);
       return;
@@ -201,10 +216,10 @@ export function TourOverlay() {
     // full-screen welcome modal, which blocks the whole app until it's
     // answered, came back at every single login.
     finish();
-  }, [pathname, setPhase, setStepIndex, finish]);
+  }, [pathname, setPhase, setStepIndex, finish, steps]);
 
-  const step = phase === "touring" ? TOUR_STEPS[stepIndex] : undefined;
-  const nextStep = phase === "touring" ? TOUR_STEPS[stepIndex + 1] : undefined;
+  const step = phase === "touring" ? steps[stepIndex] : undefined;
+  const nextStep = phase === "touring" ? steps[stepIndex + 1] : undefined;
 
   // Drives the current step: navigates to its page if we're not already
   // there, then polls for its target element (the page may still be
@@ -221,7 +236,7 @@ export function TourOverlay() {
       // not already on it (they hit Skip instead) just move past it.
       if (!step.path) {
         const skip = setTimeout(() => {
-          if (stepIndex < TOUR_STEPS.length - 1) setStepIndex(stepIndex + 1);
+          if (stepIndex < steps.length - 1) setStepIndex(stepIndex + 1);
           else finish();
         }, 0);
         return () => clearTimeout(skip);
@@ -248,8 +263,8 @@ export function TourOverlay() {
     // for seconds, timing out through each of the remaining form steps in
     // turn; this lands on the next step that can actually be shown.
     function recover() {
-      const next = indexAfterSkipping(stepIndex);
-      if (next < TOUR_STEPS.length) setStepIndex(next);
+      const next = indexAfterSkipping(steps, stepIndex);
+      if (next < steps.length) setStepIndex(next);
       else finish();
     }
 
@@ -277,7 +292,7 @@ export function TourOverlay() {
           // drive this, so a tick count would trip after a couple of frames
           // and abandon a step over a momentary re-render.
           const now = Date.now();
-          const grace = TOUR_STEPS[stepIndex + 1]?.pathPrefix != null
+          const grace = steps[stepIndex + 1]?.pathPrefix != null
             ? GONE_BEFORE_NAV_MS
             : GONE_FOR_GOOD_MS;
           if (!missingSince) missingSince = now;
@@ -339,7 +354,7 @@ export function TourOverlay() {
       if (pollTimer) clearTimeout(pollTimer);
       detachLiveTracking?.();
     };
-  }, [phase, step, stepIndex, pathname, router, finish, setStepIndex]);
+  }, [phase, step, stepIndex, pathname, router, finish, setStepIndex, steps]);
 
   // When the *next* step is one the user has to unlock (the Quick Trade modal
   // opening, say), watch for its target and move on the instant it appears --
@@ -511,12 +526,12 @@ export function TourOverlay() {
         <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">{step.body}</p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs text-zinc-400">
-            {stepIndex + 1} of {TOUR_STEPS.length}
+            {stepIndex + 1} of {steps.length}
           </span>
           <div className="flex gap-2">
             {stepIndex > 0 && (
               <button
-                onClick={() => setStepIndex(previousReachableIndex(stepIndex))}
+                onClick={() => setStepIndex(previousReachableIndex(steps, stepIndex))}
                 className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-200"
               >
                 Back
@@ -527,8 +542,8 @@ export function TourOverlay() {
                 anyone who'd rather not, not the main way forward. */}
             <button
               onClick={() => {
-                const target = nextStep?.awaitAction ? indexAfterSkipping(stepIndex) : stepIndex + 1;
-                if (target < TOUR_STEPS.length) setStepIndex(target);
+                const target = nextStep?.awaitAction ? indexAfterSkipping(steps, stepIndex) : stepIndex + 1;
+                if (target < steps.length) setStepIndex(target);
                 else finish();
               }}
               className={
@@ -537,7 +552,7 @@ export function TourOverlay() {
                   : "rounded-full bg-primary px-3 py-1 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
               }
             >
-              {stepIndex >= TOUR_STEPS.length - 1 ? "Finish" : nextStep?.awaitAction ? "Skip" : "Next"}
+              {stepIndex >= steps.length - 1 ? "Finish" : nextStep?.awaitAction ? "Skip" : "Next"}
             </button>
           </div>
         </div>

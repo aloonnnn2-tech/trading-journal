@@ -59,11 +59,30 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
+          {/* First thing in the tab order, invisible until focused. Every page
+              in the app starts with the same nav bar, so without this a
+              keyboard or screen-reader user tabs through the whole navigation
+              again on every single page before reaching the content they came
+              for. `sr-only` hides it visually; `focus:not-sr-only` brings it
+              back the moment it is focused, which is the whole trick. */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[300] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white dark:focus:text-zinc-950"
+          >
+            Skip to main content
+          </a>
           <NavBar isAdmin={admin} />
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />
-          <PageTransition>{children}</PageTransition>
+          {/* The app's pages had no <main> at all -- only the three legal pages
+              did -- so assistive tech had no "main landmark" to jump to and the
+              skip link above would have had nothing to point at. tabIndex={-1}
+              makes it a valid target for that link without putting it in the
+              tab order itself. */}
+          <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col">
+            <PageTransition>{children}</PageTransition>
+          </main>
         </ThemeProvider>
       </body>
     </html>

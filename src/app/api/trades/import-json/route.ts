@@ -7,6 +7,7 @@ import { EDITABLE_CORE_FIELDS } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const BATCH_SIZE = 500;
 
@@ -28,6 +29,16 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Same budget and the same reasoning as the mapped-CSV import: this is the
+  // other half of the same feature and writes to the same tables.
+  const limited = enforceRateLimit(
+    `import:${userId}`,
+    10,
+    60_000,
+    "Too many imports in a row. Wait a minute, then try again -- rows already imported were saved.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const IMAGE_BUCKET = "trade-images";
 
@@ -10,6 +11,18 @@ export async function DELETE() {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Irreversible and, on the failure paths, partially completed -- storage
+  // objects are removed before the auth user is. Retrying in a loop after a
+  // partial failure is exactly what should not happen, so this is the
+  // tightest limit in the app.
+  const limited = enforceRateLimit(
+    `account-delete:${userId}`,
+    5,
+    60 * 60_000,
+    "Too many deletion attempts. Wait an hour, or contact support if the account still exists.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

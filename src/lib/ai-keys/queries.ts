@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decrypt, encrypt, lastFour } from "./crypto";
+import { decryptWithMeta, encrypt, lastFour } from "./crypto";
 import type { AIProviderName, StoredApiKey } from "./types";
 
 // All reads and writes here go through the RLS-scoped client
@@ -52,7 +52,9 @@ export async function createApiKey(
       user_id: userId,
       provider: input.provider,
       label: input.label,
-      encrypted_key: encrypt(input.key),
+      // Bound to the owner, so this ciphertext is undecryptable in any
+      // other user's row -- see crypto.ts.
+      encrypted_key: encrypt(input.key, userId),
       last_four: lastFour(input.key),
       // Callers must have just test-called the provider with this key -- see
       // the POST route. Stamping it here rather than leaving it null is what
@@ -100,6 +102,7 @@ export async function deleteApiKey(supabase: SupabaseClient, id: string): Promis
 export async function getDecryptedKey(
   supabase: SupabaseClient,
   id: string,
+  userId: string,
 ): Promise<{ provider: AIProviderName; key: string } | null> {
   const { data, error } = await supabase
     .from("user_api_keys")
@@ -111,9 +114,34 @@ export async function getDecryptedKey(
   if (error) throw error;
   if (!data) return null;
 
+  // `userId` is the additional authenticated data. RLS has already confined
+  // this row to the caller, so passing it here is not a second ownership
+  // check against a hostile *client* -- it is what makes the ciphertext
+  // itself refuse to decrypt if it was ever moved between rows in the
+  // database, which is the one path RLS cannot see.
+  const { plaintext, stale } = decryptWithMeta(data.encrypted_key as string, userId);
+
+  // Opportunistic migration: rewrite anything still in the v1 format or still
+  // encrypted under a retired secret. This is what turns a key rotation into
+  // something that actually completes -- otherwise the old secret can never
+  // be dropped, because there is no way to know when the last value using it
+  // has gone. Deliberately not awaited and deliberately swallowing failures:
+  // the user asked a question, and a failed background rewrite must not turn
+  // that into an error. It will simply be retried on the next use.
+  if (stale) {
+    void supabase
+      .from("user_api_keys")
+      .update({ encrypted_key: encrypt(plaintext, userId) })
+      .eq("id", id)
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+  }
+
   return {
     provider: data.provider as AIProviderName,
-    key: decrypt(data.encrypted_key as string),
+    key: plaintext,
   };
 }
 

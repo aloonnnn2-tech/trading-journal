@@ -8,6 +8,12 @@ import type { Trade } from "@/lib/trades/types";
 import { Card } from "@/components/ui/Card";
 import { FieldManager } from "@/app/fields/field-manager";
 import { StrategyManager } from "./strategy-manager";
+import { RuleManager } from "./rule-manager";
+import { listRulesForStrategy } from "@/lib/plan-rules/queries";
+import { getScorecards } from "@/lib/scorecards/queries";
+import { isPaidUser } from "@/lib/settings/plan";
+import { getUserSettings } from "@/lib/settings/queries";
+import { StrategyScorecards, ScorecardUpsell } from "./scorecards";
 
 export default async function StrategiesPage({
   searchParams,
@@ -15,8 +21,15 @@ export default async function StrategiesPage({
   searchParams: Promise<{ strategy?: string }>;
 }) {
   const { strategy: activeStrategyId } = await searchParams;
-  await requireUserId();
+  const userId = await requireUserId();
   const supabase = await createClient();
+  const settings = await getUserSettings(supabase, userId);
+
+  // Scorecards are the paid layer; the win-rate table below stays free and
+  // unchanged. Only fetched for paid users -- it reads the whole journal, and
+  // there is no reason to spend that rendering an upsell.
+  const paid = isPaidUser(settings);
+  const scorecards = paid ? await getScorecards(supabase, settings.timezone).catch(() => null) : null;
 
   const [breakdown, strategies] = await Promise.all([
     getStrategyBreakdown(supabase),
@@ -25,12 +38,16 @@ export default async function StrategiesPage({
 
   const activeStrategy = activeStrategyId ? strategies.find((s) => s.id === activeStrategyId) : undefined;
 
-  const [strategyTrades, strategyFields] = activeStrategy
+  const [strategyTrades, strategyFields, globalFields, strategyRules] = activeStrategy
     ? await Promise.all([
         listTradesPage(supabase, { strategyId: activeStrategy.id, pageSize: 50 }),
         listFieldDefinitions(supabase, "trade", activeStrategy.id),
+        // Rules can test any field a trade using this strategy actually has --
+        // both the global trade fields and this strategy's own scoped ones.
+        listFieldDefinitions(supabase, "trade"),
+        listRulesForStrategy(supabase, activeStrategy.id),
       ])
-    : [null, []];
+    : [null, [], [], []];
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
@@ -46,7 +63,7 @@ export default async function StrategiesPage({
           Win rate by strategy
         </h2>
         {breakdown.length === 0 ? (
-          <p className="text-sm text-zinc-500">No strategies yet — add one below to get started.</p>
+          <p className="text-sm text-zinc-500">No strategies yet. Add one below to get started.</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -86,6 +103,10 @@ export default async function StrategiesPage({
         )}
       </Card>
 
+      <section className="flex flex-col gap-2" data-tour-id="tour-scorecards">
+        {paid ? scorecards && <StrategyScorecards report={scorecards} /> : <ScorecardUpsell />}
+      </section>
+
       <div className="flex flex-wrap gap-2">
         <TabLink href="/strategies" label="Manage Strategies" active={!activeStrategy} />
         {strategies.map((strategy) => (
@@ -114,6 +135,30 @@ export default async function StrategiesPage({
             </div>
             <StrategyTradeList trades={strategyTrades?.trades ?? []} />
           </Card>
+
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Plan rules for {activeStrategy.name}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Measurable conditions this strategy&apos;s trades are scored against. Every trade
+              tagged with it shows which rules it followed. A rule whose field wasn&apos;t recorded
+              on a trade is reported as unchecked, never as broken.
+            </p>
+            <Card hoverable={false} className="mt-4 max-w-2xl">
+              <RuleManager
+                key={activeStrategy.id}
+                strategyId={activeStrategy.id}
+                strategyName={activeStrategy.name}
+                initialRules={strategyRules}
+                customFields={[...globalFields, ...strategyFields].map((f) => ({
+                  key: f.key,
+                  label: f.label,
+                  field_type: f.field_type,
+                }))}
+              />
+            </Card>
+          </div>
 
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">

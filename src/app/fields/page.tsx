@@ -36,7 +36,7 @@ export default async function FieldsPage() {
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Add, rename, retype, reorder, or remove your own custom fields. Removing one
-          only hides it going forward — data already saved under it is kept.
+          only hides it going forward. Data already saved under it is kept.
         </p>
         <div className="mt-4 max-w-lg">
           <FieldManager entityType="trade" initialFields={tradeFields} />

@@ -20,6 +20,7 @@ import {
 const IMPORTABLE_CORE_FIELDS = new Set<string>(EDITABLE_CORE_FIELDS);
 
 const NUMERIC_CORE_FIELDS = new Set([
+  "limit_price",
   "entry_price",
   "exit_price",
   "stop_loss",
@@ -33,10 +34,12 @@ const NUMERIC_CORE_FIELDS = new Set([
 ]);
 const DATE_CORE_FIELDS = new Set(["entry_date", "exit_date"]);
 const ENUM_CORE_FIELDS: Record<string, string[]> = {
-  status: ["pending", "open", "closed"],
+  status: ["pending", "open", "closed", "expired"],
   result: ["open", "win", "loss", "break_even"],
   direction: ["long", "short"],
   mode: ["trade", "investment"],
+  order_type: ["market", "limit", "stop", "stop_limit", "trailing_stop", "other"],
+  time_in_force: ["gtc", "day"],
 };
 
 export type ImportTarget = "ignore" | EditableCoreField | `custom:${string}`;

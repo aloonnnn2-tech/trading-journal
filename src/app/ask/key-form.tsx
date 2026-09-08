@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FormError } from "@/components/form-error";
 // Only the client-safe types module -- importing the provider registry here
 // would pull server-side integration code into the browser bundle.
 import {
@@ -100,7 +101,7 @@ export function KeyForm({
           {ORDERED_PROVIDERS.map((p) => (
             <option key={p} value={p}>
               {PROVIDER_LABELS[p]}
-              {FREE_TIER_PROVIDERS.has(p) ? " — free tier" : ""}
+              {FREE_TIER_PROVIDERS.has(p) ? " (free tier)" : ""}
             </option>
           ))}
         </select>
@@ -121,7 +122,7 @@ export function KeyForm({
 
         {isFree ? (
           <p className="text-xs text-profit">
-            Has a free tier — you can use this without adding a payment method.
+            Has a free tier. You can use this without adding a payment method.
           </p>
         ) : (
           <p className="text-xs text-zinc-500">
@@ -162,7 +163,7 @@ export function KeyForm({
         />
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      <FormError>{error}</FormError>
 
       <button
         type="submit"

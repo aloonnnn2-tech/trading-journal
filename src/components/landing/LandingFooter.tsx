@@ -28,19 +28,32 @@ export function LandingFooter() {
             </Link>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-between gap-3 border-t border-zinc-100 pt-6 text-xs text-zinc-400 dark:border-subtle sm:flex-row">
+        {/* zinc-500, not zinc-400. zinc-400 on this near-white background is
+            about 2.6:1, under the 4.5:1 WCAG AA minimum -- and these are the
+            legal links, which are exactly the ones that must not be hard to
+            read. Dark mode is unaffected: the dark: override was already
+            zinc-400-on-near-black, which passes comfortably.
+
+            Full names rather than "Privacy"/"Terms" so the link text says what
+            the document is, on its own, without the surrounding context a
+            screen-reader user listing links does not get. `flex-wrap` keeps
+            all four on a phone instead of pushing one off the edge. */}
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-zinc-100 pt-6 text-xs text-zinc-500 dark:border-subtle dark:text-zinc-400 sm:flex-row">
           <span>© 2026 Trading Lens</span>
-          <div className="flex gap-5">
+          <nav aria-label="Legal" className="flex flex-wrap justify-center gap-x-5 gap-y-2">
             <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-              Privacy
+              Privacy Policy
             </Link>
             <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-              Terms
+              Terms and Conditions
+            </Link>
+            <Link href="/cookies" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+              Cookies Policy
             </Link>
             <Link href="/contact" className="hover:text-zinc-900 dark:hover:text-zinc-100">
               Contact
             </Link>
-          </div>
+          </nav>
         </div>
       </div>
     </footer>

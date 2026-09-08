@@ -9,5 +9,6 @@ export const PUBLIC_PATHS = [
   "/reset-password",
   "/privacy",
   "/terms",
+  "/cookies",
   "/contact",
 ];

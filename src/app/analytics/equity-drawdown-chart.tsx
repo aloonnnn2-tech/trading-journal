@@ -48,7 +48,11 @@ export function EquityDrawdownChart({ data }: { data: EquityPoint[] }) {
         <Tooltip
           formatter={(value, name) => [
             `$${Number(value).toFixed(2)}`,
-            name === "equity" ? "Equity" : "Drawdown",
+            // NOT "Equity": getAnalyticsSummary accumulates dollar_pl from
+            // zero and never reads account_transactions, so this series is
+            // trading profit, not the account balance. On a journal funded by
+            // deposits the two are wildly different numbers.
+            name === "equity" ? "Cumulative P&L" : "Drawdown",
           ]}
           labelFormatter={(label) => new Date(String(label)).toLocaleDateString()}
           contentStyle={TOOLTIP_STYLE}

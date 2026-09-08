@@ -1,0 +1,48 @@
+-- MANUAL APPLY REQUIRED: paste this file into the Supabase SQL editor and
+-- run it. There is no Supabase CLI / service-role migration runner in this
+-- project, so migrations are never applied automatically -- see
+-- supabase/migrations/*.sql for the existing convention.
+--
+-- Somewhere to record that a suggested tag was turned down.
+--
+-- WHY THIS IS NEEDED AT ALL. The app can already detect four things about a
+-- trade with no help from the trader: a moved stop, a moved target, an exit
+-- short of the recorded target, and a position sized well above their own
+-- median. Those are recomputed on every read and stored nowhere, which is
+-- correct -- but it means a suggestion the trader has considered and rejected
+-- comes back every single time they open the trade. On the journal this was
+-- built against, 183 trades would permanently suggest "Exited before target".
+-- A suggestion that cannot be dismissed is not a suggestion, it is noise, and
+-- noise is what teaches people to stop reading a panel.
+--
+-- A COLUMN ON `trades`, NOT A KEY IN `custom_fields`. custom_fields is the
+-- trader's own data -- it is exported, rendered on the form from
+-- field_definitions, and fed to the AI prompts under the user's own labels. A
+-- housekeeping list of rejected suggestions is none of those things, and
+-- putting it there would leak an internal flag into every export and every
+-- prompt as though the trader had written it.
+--
+-- Accepting a suggestion is deliberately NOT recorded here. Accepting writes
+-- the label into the Mistakes field (0034) like any other tag, which is the
+-- whole point: an approved suggestion becomes ordinary journal data that the
+-- mistake tracker, goals and reports already read. Only the rejection needs
+-- somewhere to live.
+
+alter table trades
+  add column dismissed_suggestions text[] not null default '{}'::text[];
+
+-- No index: this is only ever read as part of the row it belongs to, never
+-- filtered or joined on.
+--
+-- No RLS change either. `trades` already carries an owner policy, and a new
+-- column on an existing table inherits it -- unlike user_settings (0024),
+-- `trades` has never had its table-level grants revoked, so the column is
+-- writable by its owner as soon as it exists.
+--
+-- The 0008 history trigger snapshots the whole row, so dismissals would
+-- otherwise appear in trade_history. They stay invisible in the timeline
+-- either way -- src/lib/replay/build.ts replays an explicit list of fields and
+-- this is not one of them -- but they were still consuming one of the 50
+-- retention slots 0023 allows per trade, which on a heavily edited trade means
+-- deleting a real edit to record a dismissal. **Migration 0038 fixes that and
+-- must be applied alongside this one.**

@@ -9,6 +9,19 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { TrackPageView } from "@/components/track-page-view";
+import { ExcursionPanel, ExcursionUpsell } from "./excursion-panel";
+import { RegimePanel, RegimeUpsell } from "./regime-panel";
+import { RiskPanel, RiskUpsell } from "./risk-panel";
+import { PerformancePanel, PerformanceUpsell } from "./performance-panel";
+import { DrawdownPanel, DrawdownUpsell } from "./drawdown-panel";
+import { buildDrawdownReport } from "@/lib/drawdown/episodes";
+import { buildEquityCurve, type EquityEvent } from "@/lib/equity/build";
+import { getRiskReport } from "@/lib/risk/queries";
+import { getRegimeReport } from "@/lib/regime/queries";
+import { isPaidUser } from "@/lib/settings/plan";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { listExcursions } from "@/lib/excursions/queries";
+import { buildExcursionReport, type ExcursionTrade } from "@/lib/excursions/aggregate";
 
 function money(n: number): string {
   return `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
@@ -20,6 +33,97 @@ export default async function AnalyticsPage() {
 
   const settings = await getUserSettings(supabase, userId);
   const summary = await getAnalyticsSummary(supabase, settings.timezone);
+
+  // MAE/MFE is the paid layer on this page; everything above stays free.
+  // Only fetched for paid users -- no reason to read the journal twice to
+  // render an upsell card.
+  const paid = isPaidUser(settings);
+
+  // One benchmark fetch, already cached by the market-data client and shared
+  // across every user -- unlike excursions, this is the same request whoever
+  // asks. Falls back to an unavailable report rather than breaking the page.
+  const [regimeReport, riskReport, equityCurve] = paid
+    ? await Promise.all([
+        getRegimeReport(supabase).catch(() => null),
+        getRiskReport(supabase).catch(() => null),
+        // Trades and cash movements merged into one series, so account growth
+        // and trading performance can be told apart.
+        (async () => {
+          const [trades, cash] = await Promise.all([
+            fetchAllRows<{ exit_date: string; dollar_pl: number | null; r_multiple: number | null }>(
+              (from, to) =>
+                supabase
+                  .from("trades")
+                  .select("exit_date, dollar_pl, r_multiple")
+                  .eq("status", "closed")
+                  .not("exit_date", "is", null)
+                  .neq("mode", "investment")
+                  .order("exit_date", { ascending: true })
+                  .order("id", { ascending: true })
+                  .range(from, to),
+            ),
+            // Awaited rather than chained: a PostgREST builder is a thenable,
+            // not a Promise, so it has no .catch of its own.
+            (async () => {
+              const result = await supabase
+                .from("account_transactions")
+                .select("amount, created_at")
+                .order("created_at");
+              return (result.data ?? []) as { amount: number; created_at: string }[];
+            })().catch(() => [] as { amount: number; created_at: string }[]),
+          ]);
+
+          const events: EquityEvent[] = [
+            ...trades.map((t) => ({ at: t.exit_date, pl: t.dollar_pl, r: t.r_multiple })),
+            ...cash.map((c) => ({ at: c.created_at, cash: Number(c.amount) })),
+          ];
+          return buildEquityCurve(events);
+        })().catch(() => null),
+      ])
+    : [null, null, null];
+
+  const excursionReport = paid
+    ? await (async () => {
+        const [trades, rows] = await Promise.all([
+          fetchAllRows<{
+            id: string;
+            dollar_pl: number | null;
+            entry_price: number | null;
+            exit_price: number | null;
+            stop_loss: number | null;
+            direction: string | null;
+            trade_strategies: { strategies: { name: string }[] }[];
+          }>((from, to) =>
+            supabase
+              .from("trades")
+              .select(
+                "id, dollar_pl, entry_price, exit_price, stop_loss, direction, trade_strategies(strategies(name))",
+              )
+              .eq("status", "closed")
+              .not("exit_date", "is", null)
+              .neq("mode", "investment")
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
+          // Degrades to "nothing computed" until migration 0035 is applied.
+          listExcursions(supabase).catch(() => []),
+        ]);
+
+        const mapped: ExcursionTrade[] = trades.map((t) => ({
+          id: t.id,
+          dollar_pl: t.dollar_pl,
+          entry_price: t.entry_price,
+          exit_price: t.exit_price,
+          stop_loss: t.stop_loss,
+          direction: t.direction,
+          strategies: t.trade_strategies
+            .flatMap((link) => link.strategies)
+            .map((x) => x?.name)
+            .filter((n): n is string => typeof n === "string"),
+        }));
+        return buildExcursionReport(mapped, rows);
+      })()
+    : null;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
@@ -99,8 +203,8 @@ export default async function AnalyticsPage() {
         <Card hoverable={false}>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
-              Account value over time
-              <InfoTip text="The green line shows your account balance growing over time. The red line below shows 'drawdown' — how far you've dropped from your highest point." />
+              Cumulative P&amp;L over time
+              <InfoTip text="The green line is profit and loss from your trading, added up over time. It starts at zero and does not include deposits or withdrawals, so it is not your account balance. The red line shows drawdown: how far you have fallen from your highest point." />
             </h2>
             <span className="text-xs text-zinc-500">
               Max drawdown <span className="tnum font-mono text-loss">{money(summary.maxDrawdown)}</span>
@@ -140,6 +244,34 @@ export default async function AnalyticsPage() {
           }))}
         />
       </div>
+
+      {/* The five deep panels, always expanded. These used to collapse behind
+          a one-line summary in "Focused" mode, switchable from a toggle in the
+          nav bar; that mode and its toggle have been removed. */}
+      <section className="flex flex-col gap-2">
+        {excursionReport ? <ExcursionPanel report={excursionReport} /> : <ExcursionUpsell />}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        {paid ? equityCurve && <PerformancePanel curve={equityCurve} /> : <PerformanceUpsell />}
+      </section>
+
+      <section className="flex flex-col gap-2" data-tour-id="tour-drawdown">
+        {/* Episodes are a walk over the same curve, so no second query. */}
+        {paid ? (
+          equityCurve && <DrawdownPanel report={buildDrawdownReport(equityCurve.points)} />
+        ) : (
+          <DrawdownUpsell />
+        )}
+      </section>
+
+      <section className="flex flex-col gap-2" data-tour-id="tour-risk">
+        {paid ? riskReport && <RiskPanel report={riskReport} /> : <RiskUpsell />}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        {paid ? regimeReport && <RegimePanel report={regimeReport} /> : <RegimeUpsell />}
+      </section>
     </div>
   );
 }

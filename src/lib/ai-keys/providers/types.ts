@@ -52,8 +52,71 @@ export interface AIProvider {
    */
   validateKey(apiKey: string): Promise<boolean>;
 
-  /** Single-turn question. Throws ProviderError on any failure. */
-  askQuestion(apiKey: string, systemPrompt: string, question: string): Promise<string>;
+  /**
+   * Asks a question. Throws ProviderError on any failure.
+   *
+   * `question` is always the *current* turn. Earlier turns, if any, travel in
+   * `options.history` -- see AskOptions.
+   */
+  askQuestion(
+    apiKey: string,
+    systemPrompt: string,
+    question: string,
+    options?: AskOptions,
+  ): Promise<string>;
+}
+
+/**
+ * Per-call overrides of the two budgets below.
+ *
+ * Both are optional and both default to the module constants, so `/ask` --
+ * which passes nothing -- behaves exactly as it did before this existed.
+ *
+ * The AI review routes do pass them, for one reason: the free tiers this app
+ * deliberately supports (Groq, Cerebras, OpenRouter's `:free` models, Google
+ * AI Studio) limit tokens per MINUTE, not per request. A review that asks for
+ * the full default allowance when it needs half of it spends headroom the
+ * user's next request needs, and the failure lands as an opaque 429 on some
+ * later action rather than on the request that overspent. Sizing each call to
+ * what it actually needs is what keeps the feature usable without a paid key.
+ */
+/**
+ * One earlier turn of a conversation.
+ *
+ * Deliberately just a role and text: no ids, no timestamps, no provider
+ * metadata. Everything here is re-sent to a third party on every follow-up,
+ * so the type is the smallest thing that can carry a conversation, and
+ * anything the model does not need to answer never enters it.
+ */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AskOptions {
+  /** Ceiling on the visible answer, in tokens. */
+  maxTokens?: number;
+  /**
+   * Earlier turns of this conversation, oldest first, NOT including the
+   * question being asked now.
+   *
+   * Lives here rather than as a positional parameter so the callers that have
+   * no conversation -- both AI review routes -- keep working untouched and
+   * keep reading as the single-shot calls they are.
+   *
+   * **The journal context is not in here.** It stays in the system prompt and
+   * is rebuilt fresh on every turn, so a long conversation never drifts onto
+   * a stale snapshot of the journal, and history stays cheap: only the words
+   * actually exchanged accumulate.
+   */
+  history?: ChatTurn[];
+  /**
+   * Wall-clock ceiling for this request. A caller running two calls inside one
+   * serverless invocation (generate, then repair a malformed reply) passes the
+   * time it has left, so the second call can never push the request past the
+   * platform's limit and replace a specific error with a generic one.
+   */
+  timeoutMs?: number;
 }
 
 // A provider that hangs would hold a serverless function open until the

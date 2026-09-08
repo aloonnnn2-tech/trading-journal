@@ -270,8 +270,14 @@ export interface TradeListFilters {
   folderId?: string;
   strategyId?: string;
   market?: string;
+  /** Exact match on the `direction` column. Added so Find My Edge can link a
+   *  long/short segment to the trades behind it. */
+  direction?: string;
   plMin?: number;
   plMax?: number;
+  /** Inclusive bounds on risk_percent, for drilling into a risk band. */
+  riskMin?: number;
+  riskMax?: number;
   emotion?: string;
   customField?: { key: string; value: string };
   sortBy?: TradeSortField;
@@ -317,6 +323,11 @@ export async function listTradesPage(
     .select(embeds.length > 0 ? `*, ${embeds.join(", ")}` : "*", { count: "exact" });
 
   if (filters.status) query = query.eq("status", filters.status);
+  if (filters.direction) query = query.eq("direction", filters.direction);
+  // Bounds are applied independently so a half-open band ("1% or more") works
+  // without inventing an upper limit the user never asked for.
+  if (filters.riskMin !== undefined) query = query.gte("risk_percent", filters.riskMin);
+  if (filters.riskMax !== undefined) query = query.lt("risk_percent", filters.riskMax);
   if (filters.folderId) query = query.eq("trade_folders.folder_id", filters.folderId);
   if (filters.strategyId) query = query.eq("trade_strategies.strategy_id", filters.strategyId);
   if (filters.search) {
@@ -362,14 +373,15 @@ export async function listTradesPage(
 
 export async function getStatusCounts(
   supabase: SupabaseClient,
-): Promise<{ all: number; pending: number; open: number; closed: number }> {
+): Promise<{ all: number; pending: number; open: number; closed: number; expired: number }> {
   const base = () => supabase.from("trades").select("*", { count: "exact", head: true });
 
-  const [all, pending, open, closed] = await Promise.all([
+  const [all, pending, open, closed, expired] = await Promise.all([
     base(),
     base().eq("status", "pending"),
     base().eq("status", "open"),
     base().eq("status", "closed"),
+    base().eq("status", "expired"),
   ]);
 
   return {
@@ -377,6 +389,7 @@ export async function getStatusCounts(
     pending: pending.count ?? 0,
     open: open.count ?? 0,
     closed: closed.count ?? 0,
+    expired: expired.count ?? 0,
   };
 }
 

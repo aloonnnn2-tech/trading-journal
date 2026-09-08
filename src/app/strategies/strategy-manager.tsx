@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { Strategy } from "@/lib/strategies/types";
 
 const inputClass =
@@ -10,6 +10,7 @@ const inputClass =
 export function StrategyManager({ initialStrategies }: { initialStrategies: Strategy[] }) {
   const router = useRouter();
   const [strategies, setStrategies] = useState(initialStrategies);
+  const fieldId = useId();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#2563eb");
@@ -141,8 +142,14 @@ export function StrategyManager({ initialStrategies }: { initialStrategies: Stra
         className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-4"
       >
         <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Add a strategy</h3>
+        {/* aria-label rather than a visible <label>: this compact form is
+            designed around placeholders, and a placeholder is not an
+            accessible name -- it is announced as a hint at best, and vanishes
+            the moment there is a value, so a screen reader user revisiting a
+            filled field hears nothing identifying it. */}
         <input
           type="text"
+          aria-label="Strategy name"
           placeholder="Strategy name, e.g. Breakout"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -150,14 +157,18 @@ export function StrategyManager({ initialStrategies }: { initialStrategies: Stra
         />
         <input
           type="text"
+          aria-label="Strategy description (optional)"
           placeholder="Description (optional)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className={inputClass}
         />
         <div className="flex items-center gap-2">
-          <label className="text-xs text-zinc-500">Color</label>
+          <label className="text-xs text-zinc-500" htmlFor={`${fieldId}-color`}>
+            Color
+          </label>
           <input
+            id={`${fieldId}-color`}
             type="color"
             value={color}
             onChange={(e) => setColor(e.target.value)}

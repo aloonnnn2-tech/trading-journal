@@ -131,7 +131,7 @@ function EquityChartSvg({ withDrawdown = false }: { withDrawdown?: boolean }) {
 
 export function HeroPanel() {
   return (
-    <PanelFrame label="dashboard — overview">
+    <PanelFrame label="dashboard / overview">
       <div className="flex flex-col gap-3 p-4">
         <div className="flex gap-2">
           <MiniStat label="Total P/L" value="+$4,928.61" tone="pos" />
@@ -168,116 +168,6 @@ export function HeroPanel() {
   );
 }
 
-// ——— Feature story: analytics ———
-
-const R_BUCKETS = [
-  { label: "-2R", count: 2 },
-  { label: "-1R", count: 5 },
-  { label: "0R", count: 3 },
-  { label: "+1R", count: 9 },
-  { label: "+2R", count: 6 },
-  { label: "+3R", count: 3 },
-];
-
-function RMultipleHistogramSvg() {
-  const max = Math.max(...R_BUCKETS.map((b) => b.count));
-  return (
-    <svg viewBox="0 0 240 100" className="w-full" aria-hidden="true">
-      <line x1="0" x2="240" y1="80" y2="80" stroke="var(--chart-axis)" strokeWidth="1" />
-      {R_BUCKETS.map((b, i) => {
-        const barHeight = (b.count / max) * 58;
-        const x = 6 + i * 39;
-        const color = b.label.startsWith("-")
-          ? "var(--chart-neg)"
-          : b.label === "0R"
-            ? "var(--chart-ref)"
-            : "var(--chart-pos)";
-        return (
-          <g key={b.label}>
-            <rect x={x} y={80 - barHeight} width="26" height={barHeight} rx="3" fill={color} />
-            <text
-              x={x + 13}
-              y="92"
-              textAnchor="middle"
-              fontSize="8"
-              fontFamily="var(--font-geist-mono)"
-              fill="var(--chart-muted)"
-            >
-              {b.label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function WinLossSizeSvg() {
-  const avgWin = 612;
-  const avgLoss = 284;
-  const max = Math.max(avgWin, avgLoss);
-  const winWidth = (avgWin / max) * 150;
-  const lossWidth = (avgLoss / max) * 150;
-  return (
-    <svg viewBox="0 0 240 88" className="w-full" aria-hidden="true">
-      <text x="0" y="10" fontSize="8" fontFamily="var(--font-geist-mono)" fill="var(--chart-muted)">
-        avg win
-      </text>
-      <rect x="0" y="16" width={winWidth} height="16" rx="4" fill="var(--chart-pos)" />
-      <text x={winWidth + 6} y="28" fontSize="9" fontFamily="var(--font-geist-mono)" fill="var(--chart-pos)">
-        +$612
-      </text>
-      <text x="0" y="54" fontSize="8" fontFamily="var(--font-geist-mono)" fill="var(--chart-muted)">
-        avg loss
-      </text>
-      <rect x="0" y="60" width={lossWidth} height="16" rx="4" fill="var(--chart-neg)" />
-      <text x={lossWidth + 6} y="72" fontSize="9" fontFamily="var(--font-geist-mono)" fill="var(--chart-neg)">
-        −$284
-      </text>
-    </svg>
-  );
-}
-
-export function AnalyticsPanel() {
-  return (
-    <PanelFrame label="analytics — equity & drawdown">
-      <div className="flex flex-col gap-3 p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
-            Account value over time
-          </span>
-          <span className="font-mono text-[10px] text-zinc-500">
-            max drawdown <span className="text-loss">−$2,651.01</span>
-          </span>
-        </div>
-        <EquityChartSvg withDrawdown />
-        <div className="flex items-center gap-4 text-[10px] text-zinc-500">
-          <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-4 rounded-full bg-profit" /> Equity
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-4 rounded-full bg-loss" /> Drawdown
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-4 border-t border-zinc-100 pt-3 dark:border-subtle">
-          <div>
-            <p className="text-[9px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
-              R-multiple distribution
-            </p>
-            <RMultipleHistogramSvg />
-          </div>
-          <div>
-            <p className="text-[9px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
-              Win / loss size
-            </p>
-            <WinLossSizeSvg />
-          </div>
-        </div>
-      </div>
-    </PanelFrame>
-  );
-}
-
 // ——— Feature story: insights ———
 
 const INSIGHT_BARS = [
@@ -290,11 +180,11 @@ const INSIGHT_BARS = [
 
 export function InsightPanel() {
   return (
-    <PanelFrame label="insights — pattern detection">
+    <PanelFrame label="insights / patterns">
       <div className="flex flex-col gap-4 p-4">
         <div>
           <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-            Friday is your best day — 71% win rate.
+            Friday is your best day. 71% win rate.
           </p>
           <p className="mt-0.5 text-xs text-zinc-500">7 trades on Fridays vs. 54% overall.</p>
         </div>
@@ -354,7 +244,7 @@ const HEAT = [
 
 export function CalendarPanel() {
   return (
-    <PanelFrame label="dashboard — monthly p/l">
+    <PanelFrame label="dashboard / calendar">
       <div className="flex flex-col gap-3 p-4">
         <div className="grid grid-cols-7 gap-1">
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
@@ -399,6 +289,79 @@ export function CalendarPanel() {
               </span>
             ))}
           </span>
+        </div>
+      </div>
+    </PanelFrame>
+  );
+}
+
+// ——— Feature story: trading rules and what they catch ———
+
+// Four outcomes, because three of them are the point: a rule can pass, fail,
+// or be impossible to check. That third state is what stops an adherence score
+// being quietly inflated by rules nobody could grade, and showing it here is
+// honest about how the feature actually behaves.
+const RULE_ROWS: { rule: string; state: "pass" | "fail" | "unknown" }[] = [
+  { rule: "Stop loss must be set", state: "pass" },
+  { rule: "Risk at most 1%", state: "pass" },
+  { rule: "Never move the stop", state: "fail" },
+  { rule: "Entry inside session hours", state: "unknown" },
+];
+
+export function RulesPanel() {
+  return (
+    <PanelFrame label="strategies / plan adherence">
+      <div className="flex flex-col gap-4 p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Breakout</p>
+          <p className="font-mono text-xs text-zinc-500">2 of 3 rules followed</p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          {RULE_ROWS.map(({ rule, state }) => (
+            <div
+              key={rule}
+              className="flex items-center gap-2.5 rounded-lg border border-zinc-100 px-2.5 py-2 dark:border-subtle"
+            >
+              <span
+                aria-hidden="true"
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                  state === "pass"
+                    ? "bg-profit/15 text-profit"
+                    : state === "fail"
+                      ? "bg-loss/15 text-loss"
+                      : "bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
+                }`}
+              >
+                {state === "pass" ? "✓" : state === "fail" ? "✕" : "–"}
+              </span>
+              <span
+                className={`flex-1 text-xs ${
+                  state === "unknown"
+                    ? "text-zinc-400 dark:text-zinc-500"
+                    : "text-zinc-700 dark:text-zinc-300"
+                }`}
+              >
+                {rule}
+              </span>
+              {state === "unknown" && (
+                <span className="font-mono text-[9px] uppercase tracking-wide text-zinc-400">
+                  not checkable
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 border-t border-zinc-100 pt-3 dark:border-subtle">
+          {["moved stop ×9", "oversized ×87", "exited early ×183"].map((t) => (
+            <span
+              key={t}
+              className="rounded-full border border-zinc-200 px-2 py-0.5 font-mono text-[10px] text-zinc-500 dark:border-subtle"
+            >
+              {t}
+            </span>
+          ))}
         </div>
       </div>
     </PanelFrame>

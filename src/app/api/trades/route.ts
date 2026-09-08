@@ -4,12 +4,23 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createBlankTrade } from "@/lib/trades/queries";
 import { getAccountBalance } from "@/lib/account/queries";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST() {
   const userId = await getUserIdFromHeader();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Creating a trade is a button press, so 60/min is far above any real use
+  // while stopping a loop from filling an account with blank rows.
+  const limited = enforceRateLimit(
+    `trades-create:${userId}`,
+    60,
+    60_000,
+    "You're creating trades faster than we can keep up. Wait a moment and try again.",
+  );
+  if (limited) return limited;
 
   const supabase = await createClient();
 

@@ -49,7 +49,7 @@ export default async function AskPage() {
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
               Ask free-text questions about your trades and get answers grounded in your own
-              journal — your performance by day, setup, emotion and risk size, plus your recent
+              journal. Your performance by day, setup, emotion and risk size, plus your recent
               trades and notes.
             </p>
           </div>
@@ -57,7 +57,7 @@ export default async function AskPage() {
           <ul className="flex flex-col gap-1.5 text-sm text-zinc-500">
             <li className="flex items-start gap-2">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />
-              Bring your own API key — OpenAI, Anthropic or Google
+              Bring your own API key from OpenAI, Anthropic or Google
             </li>
             <li className="flex items-start gap-2">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />

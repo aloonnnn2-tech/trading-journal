@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Pencil, Trash2, RefreshCw } from "lucide-react";
 import type { CommissionRule, CommissionRuleType, CommissionSide } from "@/lib/commissions/types";
 import { RULE_TYPE_LABELS, SIDE_LABELS } from "@/lib/commissions/types";
+import { FormError } from "@/components/form-error";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -89,6 +90,7 @@ function describeRule(rule: CommissionRule): string {
 export function CommissionManager({ initialRules }: { initialRules: CommissionRule[] }) {
   const router = useRouter();
   const [rules, setRules] = useState(initialRules);
+  const fieldId = useId();
   const [form, setForm] = useState<RuleForm>(BLANK);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -201,12 +203,19 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
     router.refresh();
   }
 
-  const fields = (state: RuleForm, set: (next: RuleForm) => void) => (
+  // `fields` renders twice -- once for the create form, once for whichever
+  // rule is being edited -- and both can be on the page at the same time, so
+  // the ids tying each <label> to its control need a per-instance prefix.
+  // Without it the two forms share ids and a label points at the other form's
+  // input. These labels previously had no htmlFor and wrapped nothing, so
+  // every field here was an unlabelled box to a screen reader.
+  const fields = (state: RuleForm, set: (next: RuleForm) => void, idPrefix: string) => (
     <>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={labelClass}>Name</label>
+          <label className={labelClass} htmlFor={`${idPrefix}-name`}>Name</label>
           <input
+            id={`${idPrefix}-name`}
             className={inputClass}
             placeholder="e.g. Stocks — $2.50 a side"
             value={state.name}
@@ -214,8 +223,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
           />
         </div>
         <div>
-          <label className={labelClass}>Charge type</label>
+          <label className={labelClass} htmlFor={`${idPrefix}-type`}>Charge type</label>
           <select
+            id={`${idPrefix}-type`}
             className={inputClass}
             value={state.rule_type}
             onChange={(e) => set({ ...state, rule_type: e.target.value as CommissionRuleType })}
@@ -228,10 +238,11 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
           </select>
         </div>
         <div>
-          <label className={labelClass}>
+          <label className={labelClass} htmlFor={`${idPrefix}-amount`}>
             {state.rule_type === "percent" ? "Percent (e.g. 0.1 for 0.1%)" : "Amount ($)"}
           </label>
           <input
+            id={`${idPrefix}-amount`}
             className={inputClass}
             type="number"
             step="any"
@@ -242,8 +253,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
           />
         </div>
         <div>
-          <label className={labelClass}>Charged on</label>
+          <label className={labelClass} htmlFor={`${idPrefix}-side`}>Charged on</label>
           <select
+            id={`${idPrefix}-side`}
             className={inputClass}
             value={state.applies_to}
             onChange={(e) => set({ ...state, applies_to: e.target.value as CommissionSide })}
@@ -263,8 +275,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
         </summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelClass}>Asset type (blank = any)</label>
+            <label className={labelClass} htmlFor={`${idPrefix}-asset`}>Asset type (blank = any)</label>
             <input
+              id={`${idPrefix}-asset`}
               className={inputClass}
               placeholder="e.g. crypto"
               value={state.asset_type}
@@ -272,8 +285,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
             />
           </div>
           <div>
-            <label className={labelClass}>Market (blank = any)</label>
+            <label className={labelClass} htmlFor={`${idPrefix}-market`}>Market (blank = any)</label>
             <input
+              id={`${idPrefix}-market`}
               className={inputClass}
               placeholder="e.g. NASDAQ"
               value={state.market}
@@ -281,8 +295,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
             />
           </div>
           <div>
-            <label className={labelClass}>Minimum fee per side ($)</label>
+            <label className={labelClass} htmlFor={`${idPrefix}-min`}>Minimum fee per side ($)</label>
             <input
+              id={`${idPrefix}-min`}
               className={inputClass}
               type="number"
               step="any"
@@ -292,8 +307,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
             />
           </div>
           <div>
-            <label className={labelClass}>Maximum fee per side ($)</label>
+            <label className={labelClass} htmlFor={`${idPrefix}-max`}>Maximum fee per side ($)</label>
             <input
+              id={`${idPrefix}-max`}
               className={inputClass}
               type="number"
               step="any"
@@ -309,9 +325,9 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
 
   return (
     <div className="flex flex-col gap-6">
-      {error && (
-        <p className="rounded-lg border border-loss/30 bg-loss/5 px-3 py-2 text-sm text-loss">{error}</p>
-      )}
+      <FormError className="rounded-lg border border-loss/30 bg-loss/5 px-3 py-2">
+        {error}
+      </FormError>
 
       <div className="rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">Your rules</h2>
@@ -325,7 +341,7 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
               <li key={rule.id} className="py-3 first:pt-0 last:pb-0">
                 {editingId === rule.id ? (
                   <div className="flex flex-col gap-3">
-                    {fields(editForm, setEditForm)}
+                    {fields(editForm, setEditForm, `${fieldId}-edit-${rule.id}`)}
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => handleSaveEdit(rule.id)}
@@ -384,7 +400,7 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
         )}
         {rules.length > 1 && (
           <p className="mt-3 text-xs text-zinc-500">
-            When more than one rule could apply, the first one in this list wins — so keep specific
+            When more than one rule could apply, the first one in this list wins, so keep specific
             rules above catch-all ones.
           </p>
         )}
@@ -395,7 +411,7 @@ export function CommissionManager({ initialRules }: { initialRules: CommissionRu
         className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-4"
       >
         <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Add a rule</h2>
-        {fields(form, setForm)}
+        {fields(form, setForm, `${fieldId}-new`)}
         <button
           type="submit"
           data-tour-id="commissions-add"

@@ -1,6 +1,26 @@
 import type { EntityType } from "@/lib/fields/types";
 
-export type TradeStatus = "pending" | "open" | "closed";
+export type TradeStatus = "pending" | "open" | "closed" | "expired";
+
+/**
+ * How the order was placed.
+ *
+ * Null means unspecified, and null is load-bearing: every trade written before
+ * migration 0039 has it, some of those are live resting orders, and
+ * auto-execution deliberately keeps its original behaviour for them rather
+ * than retroactively applying stricter fill rules to an order somebody is
+ * waiting on.
+ */
+export type TradeOrderType =
+  | "market"
+  | "limit"
+  | "stop"
+  | "stop_limit"
+  | "trailing_stop"
+  | "other";
+
+/** How long a resting order stays alive. */
+export type TradeTimeInForce = "gtc" | "day";
 export type TradeResult = "open" | "win" | "loss" | "break_even";
 export type TradeDirection = "long" | "short";
 
@@ -17,6 +37,13 @@ export interface Trade {
 
   status: TradeStatus;
   result: TradeResult;
+
+  order_type: TradeOrderType | null;
+  /** The user's own name for the order, when order_type is "other". */
+  order_type_other: string | null;
+  /** The limit leg of a stop-limit: the stop triggers, then it rests here. */
+  limit_price: number | null;
+  time_in_force: TradeTimeInForce;
 
   entry_price: number | null;
   exit_price: number | null;
@@ -76,6 +103,10 @@ export const EDITABLE_CORE_FIELDS = [
   "direction",
   "status",
   "result",
+  "order_type",
+  "order_type_other",
+  "limit_price",
+  "time_in_force",
   "entry_price",
   "exit_price",
   "stop_loss",

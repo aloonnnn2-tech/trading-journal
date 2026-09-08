@@ -1,8 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { FormError } from "@/components/form-error";
+import { failureMessage } from "@/lib/api/failure-message";
+import { useDialog } from "@/lib/a11y/use-dialog";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
 
@@ -13,6 +16,7 @@ const labelClass = "mb-1 block text-xs font-medium text-zinc-500";
 export function AddTradeButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Without the res.ok check, a failed create still parsed a body, read
   // `undefined` off it and navigated to /trades/undefined -- and because
@@ -21,25 +25,37 @@ export function AddTradeButton() {
   // and screenshot paths already use.
   async function handleClick() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/trades", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to create trade");
+      if (!res.ok) {
+        // Reads the route's own message rather than discarding it, so a
+        // rate-limited create says so instead of blaming the connection.
+        setError(await failureMessage(res, "Couldn't create the trade. Please try again."));
+        setLoading(false);
+        return;
+      }
       const trade = (await res.json()) as { id: string };
       router.push(`/trades/${trade.id}`);
     } catch {
       setLoading(false);
-      alert("Couldn't create the trade. Check your connection and try again.");
+      // Was window.alert(): modal, unstyled, and dismissed before a screen
+      // reader user could reach it.
+      setError("Couldn't create the trade. Check your connection and try again.");
     }
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500 disabled:opacity-50"
-    >
-      {loading ? "Creating..." : "+ Add trade"}
-    </button>
+    <div className="flex flex-col items-start gap-1.5">
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500 disabled:opacity-50"
+      >
+        {loading ? "Creating..." : "+ Add trade"}
+      </button>
+      <FormError size="xs">{error}</FormError>
+    </div>
   );
 }
 
@@ -57,18 +73,24 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
   const [dollarAmount, setDollarAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // The backdrop click already closes the dialog (below); Escape had no
-  // equivalent, so it was the one obvious way to dismiss a modal that
-  // didn't work here. Same submitting-guard as the backdrop, so a request
-  // already in flight can't be abandoned out from under itself.
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !submitting) setOpen(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, submitting]);
+  // Escape, the Tab focus trap, background scroll lock and focus restore all
+  // come from the shared hook now. Previously only Escape was handled here,
+  // so tabbing walked focus out of the dialog and into the page behind it --
+  // which is covered by a backdrop and impossible to see.
+  const tickerRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useDialog({
+    open,
+    onClose: () => setOpen(false),
+    // Same submitting-guard the backdrop click already used: a request in
+    // flight can't be abandoned out from under itself.
+    closeOnEscape: !submitting,
+    initialFocusRef: tickerRef,
+  });
+
+  // Ties each <label> to its control. These were bare <label> elements with no
+  // htmlFor and no wrapped input, which renders them decorative: every field
+  // in this dialog reached a screen reader as an unlabelled edit box.
+  const fieldId = useId();
 
   function reset() {
     setError(null);
@@ -212,15 +234,26 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
               transition={{ duration: 0.15 }}
               className="w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
               onClick={(e) => e.stopPropagation()}
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`${fieldId}-title`}
+              tabIndex={-1}
             >
-              <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">Quick Trade</h2>
+              <h2
+                id={`${fieldId}-title`}
+                className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+              >
+                Quick Trade
+              </h2>
 
               <div className="flex flex-col gap-3">
                 <div>
-                  <label className={labelClass}>Ticker</label>
+                  <label className={labelClass} htmlFor={`${fieldId}-ticker`}>Ticker</label>
                   <input
+                    id={`${fieldId}-ticker`}
+                    ref={tickerRef}
                     type="text"
-                    autoFocus
                     data-tour-id="quick-ticker"
                     placeholder="e.g. AAPL"
                     className={inputClass}
@@ -230,8 +263,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Direction</label>
+                    <label className={labelClass} htmlFor={`${fieldId}-direction`}>Direction</label>
                     <select
+                      id={`${fieldId}-direction`}
                       data-tour-id="quick-direction"
                       className={inputClass}
                       value={direction}
@@ -242,8 +276,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                     </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Status</label>
+                    <label className={labelClass} htmlFor={`${fieldId}-status`}>Status</label>
                     <select
+                      id={`${fieldId}-status`}
                       data-tour-id="quick-status"
                       className={inputClass}
                       value={status}
@@ -257,8 +292,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Entry Price</label>
+                    <label className={labelClass} htmlFor={`${fieldId}-entry`}>Entry Price</label>
                     <input
+                      id={`${fieldId}-entry`}
                       type="number"
                       step="any"
                       data-tour-id="quick-entry"
@@ -269,8 +305,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Number of Shares</label>
+                    <label className={labelClass} htmlFor={`${fieldId}-shares`}>Number of Shares</label>
                     <input
+                      id={`${fieldId}-shares`}
                       type="number"
                       step="any"
                       data-tour-id="quick-shares"
@@ -282,8 +319,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                   </div>
                 </div>
                 <div>
-                  <label className={labelClass}>Dollar Amount</label>
+                  <label className={labelClass} htmlFor={`${fieldId}-amount`}>Dollar Amount</label>
                   <input
+                    id={`${fieldId}-amount`}
                     type="number"
                     step="any"
                     placeholder="0.00"
@@ -294,8 +332,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelClass}>Stop Loss</label>
+                    <label className={labelClass} htmlFor={`${fieldId}-stop`}>Stop Loss</label>
                     <input
+                      id={`${fieldId}-stop`}
                       type="number"
                       step="any"
                       data-tour-id="quick-stop"
@@ -306,8 +345,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Take Profit</label>
+                    <label className={labelClass} htmlFor={`${fieldId}-target`}>Take Profit</label>
                     <input
+                      id={`${fieldId}-target`}
                       type="number"
                       step="any"
                       placeholder="0.00"
@@ -320,14 +360,12 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
               </div>
 
               <p className="mt-3 text-xs text-zinc-500">
-                All fields are optional — you can fill in notes, emotions, and everything else on the next screen.
+                All fields are optional. You can fill in notes, emotions, and everything else on the next screen.
               </p>
 
-              {error && (
-                <p className="mt-3 rounded-lg border border-loss/30 bg-loss/5 px-3 py-2 text-sm text-loss">
-                  {error}
-                </p>
-              )}
+              <FormError className="mt-3 rounded-lg border border-loss/30 bg-loss/5 px-3 py-2">
+                {error}
+              </FormError>
 
               <div className="mt-5 flex items-center justify-between">
                 <button

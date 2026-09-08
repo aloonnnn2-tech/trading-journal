@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import exampleTradeScreenshot from "../../../public/example-trade-screenshot.png";
@@ -9,6 +9,8 @@ import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { OcrCoreField, ParseResult } from "@/lib/ocr/types";
 import { AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
+import { FormError } from "@/components/form-error";
+import { useDialog } from "@/lib/a11y/use-dialog";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
 
@@ -103,6 +105,19 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
     reset();
   }
 
+  // Escape, focus trap, scroll lock and focus restore. This dialog had none of
+  // them: it could only be dismissed by clicking the backdrop, which is not
+  // something a keyboard user can do, and it scrolls internally
+  // (max-h-[90vh] overflow-y-auto) so tabbing out of it was especially easy.
+  const fieldId = useId();
+  const dialogRef = useDialog({
+    open,
+    onClose: close,
+    // Matches the guard `close()` already applies -- a scan or a submit in
+    // flight shouldn't be abandonable with a keystroke.
+    closeOnEscape: !submitting && step !== "scanning",
+  });
+
   function set(key: string, value: string) {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
@@ -152,10 +167,10 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
       applyDetected(parsed);
       const detectedCount = Object.keys(parsed.core ?? {}).length;
       if (detectedCount === 0 && (parsed.extra?.length ?? 0) === 0) {
-        setError("Couldn't read any trade details from the image — fill them in below.");
+        setError("Couldn't read any trade details from the image. Fill them in below.");
       }
     } catch {
-      setError("Couldn't read the image — fill in the details below.");
+      setError("Couldn't read the image. Fill in the details below.");
       setValues({ direction: "long", status: "open" });
     }
     setStep("review");
@@ -235,7 +250,7 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
 
       router.push(`/trades/${trade.id}`);
     } catch {
-      setError("Failed to create the trade — check your connection and try again.");
+      setError("Failed to create the trade. Check your connection and try again.");
       setSubmitting(false);
     }
   }
@@ -257,31 +272,41 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
         onClick={() => set(key, toInput(key, f.value))}
         className="mt-1 text-[11px] text-amber-500 hover:underline"
       >
-        Detected {String(f.value)} ({Math.round(f.confidence * 100)}%) — use it?
+        Detected {String(f.value)} ({Math.round(f.confidence * 100)}%). Use it?
       </button>
     );
   }
 
   function renderField({ key, label, type }: FieldDef) {
+    // One id per field, tying the <label> to the control it names. The label
+    // used to wrap neither the input nor an htmlFor, so every field in this
+    // dialog -- the whole point of the screenshot flow -- reached a screen
+    // reader as an unlabelled edit box.
+    //
+    // The confidence badge is a <button>, so it sits outside the <label>
+    // rather than inside it: a control nested in a label steals the label's
+    // click, and clicking "Use it?" would also focus the field behind it.
+    const controlId = `${fieldId}-${key}`;
     return (
       <div key={key}>
-        <label className={labelClass}>
-          {label}
+        <div className={labelClass}>
+          <label htmlFor={controlId}>{label}</label>
           {badge(key)}
-        </label>
+        </div>
         {type === "direction" ? (
-          <select className={inputClass} value={values.direction ?? "long"} onChange={(e) => set("direction", e.target.value)}>
+          <select id={controlId} className={inputClass} value={values.direction ?? "long"} onChange={(e) => set("direction", e.target.value)}>
             <option value="long">Long</option>
             <option value="short">Short</option>
           </select>
         ) : type === "status" ? (
-          <select className={inputClass} value={values.status ?? "open"} onChange={(e) => set("status", e.target.value)}>
+          <select id={controlId} className={inputClass} value={values.status ?? "open"} onChange={(e) => set("status", e.target.value)}>
             <option value="pending">Pending</option>
             <option value="open">Open</option>
             <option value="closed">Closed</option>
           </select>
         ) : (
           <input
+            id={controlId}
             type={type === "number" ? "number" : type === "date" ? "date" : "text"}
             step={type === "number" ? "any" : undefined}
             placeholder={type === "number" ? "0.00" : type === "text" ? "" : undefined}
@@ -322,11 +347,21 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
               transition={{ duration: 0.15 }}
               className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
               onClick={(e) => e.stopPropagation()}
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`${fieldId}-title`}
+              tabIndex={-1}
             >
-              <h2 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">Trade from Screenshot</h2>
+              <h2
+                id={`${fieldId}-title`}
+                className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+              >
+                Trade from Screenshot
+              </h2>
               <p className="mb-4 text-xs text-zinc-500">
                 Upload a screenshot of your fill, order, or position. It&apos;s parsed by the app&apos;s built-in
-                reader — never sent to any third-party AI service or API.
+                reader. Never sent to any third-party AI service or API.
               </p>
 
               {step === "pick" && (
@@ -372,7 +407,7 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
                         />
                         <p className="mt-2 text-[11px] text-zinc-500">
                           Crop or capture a view that clearly shows the ticker, direction (long/short), and as many of
-                          the highlighted fields as your broker shows — labeled or not, any layout, dark or light mode.
+                          the highlighted fields as your broker shows. Labeled or not, any layout, dark or light mode.
                         </p>
                       </div>
                     )}
@@ -494,7 +529,7 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
                 </div>
               )}
 
-              {error && <p className="mt-3 text-xs text-loss">{error}</p>}
+              <FormError size="xs" className="mt-3">{error}</FormError>
             </motion.div>
           </motion.div>
         )}

@@ -9,6 +9,7 @@ import {
   failureFromStatus,
   providerFetch,
   type AIProvider,
+  type AskOptions,
 } from "./types";
 
 // One adapter for every provider that speaks OpenAI's REST shape: a Bearer
@@ -69,7 +70,12 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
       return true;
     },
 
-    async askQuestion(apiKey: string, systemPrompt: string, question: string): Promise<string> {
+    async askQuestion(
+      apiKey: string,
+      systemPrompt: string,
+      question: string,
+      options?: AskOptions,
+    ): Promise<string> {
       const res = await providerFetch(
         `${baseUrl}/chat/completions`,
         {
@@ -77,14 +83,19 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
           headers: { ...auth(apiKey), "Content-Type": "application/json" },
           body: JSON.stringify({
             model,
-            max_tokens: MAX_ANSWER_TOKENS,
+            max_tokens: options?.maxTokens ?? MAX_ANSWER_TOKENS,
+            // System prompt first, then earlier turns, then the current
+            // question. Ordering matters: several of these providers weight
+            // the final message most heavily, and burying the live question
+            // mid-array makes follow-ups answer the wrong turn.
             messages: [
               { role: "system", content: systemPrompt },
+              ...(options?.history ?? []),
               { role: "user", content: question },
             ],
           }),
         },
-        ASK_TIMEOUT_MS,
+        options?.timeoutMs ?? ASK_TIMEOUT_MS,
       );
 
       if (!res.ok) {

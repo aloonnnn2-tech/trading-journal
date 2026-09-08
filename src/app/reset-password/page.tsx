@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { FormError } from "@/components/form-error";
+import { authErrorMessage } from "@/lib/auth/error-messages";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -42,7 +44,7 @@ export default function ResetPasswordPage() {
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      setError(authErrorMessage(error));
       return;
     }
     setDone(true);
@@ -127,7 +129,7 @@ export default function ResetPasswordPage() {
             className={INPUT_CLASS}
           />
         </label>
-        {error && <p className="text-sm text-loss">{error}</p>}
+        <FormError>{error}</FormError>
         <button
           type="submit"
           disabled={loading}

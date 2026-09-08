@@ -44,8 +44,16 @@ export const coreFieldsSchema = z
     asset_type: boundedString(64),
     market: boundedString(64),
     direction: z.enum(["long", "short"]).nullable(),
-    status: z.enum(["pending", "open", "closed"]),
+    status: z.enum(["pending", "open", "closed", "expired"]),
     result: z.enum(["open", "win", "loss", "break_even"]),
+    order_type: z
+      .enum(["market", "limit", "stop", "stop_limit", "trailing_stop", "other"])
+      .nullable(),
+    // Bounded like ticker and company_name above, and for the same reason:
+    // it exports to CSV and renders in the trades table.
+    order_type_other: boundedString(64),
+    limit_price: nullableFiniteNumber,
+    time_in_force: z.enum(["gtc", "day"]),
     entry_price: nullableFiniteNumber,
     exit_price: nullableFiniteNumber,
     stop_loss: nullableFiniteNumber,

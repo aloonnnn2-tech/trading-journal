@@ -4,6 +4,14 @@ import { motion } from "framer-motion";
 import { fadeInUp } from "@/components/motion/variants";
 import { CategoryTag } from "@/components/landing/CategoryTag";
 
+// A feature story: copy beside its product panel, alternating sides.
+//
+// A centred full-width variant lived here briefly and was removed once it was
+// actually looked at -- the illustrations are proportional SVG, so a panel
+// stretched across the full measure scaled its contents up with it rather than
+// gaining detail. The variety this page needed came from the sections around
+// these instead.
+
 interface FeatureStoryProps {
   tag: { text: string; tone: "primary" | "profit" };
   headline: string;
@@ -12,7 +20,13 @@ interface FeatureStoryProps {
   reverse?: boolean;
 }
 
-export function FeatureStory({ tag, headline, description, visual, reverse = false }: FeatureStoryProps) {
+export function FeatureStory({
+  tag,
+  headline,
+  description,
+  visual,
+  reverse = false,
+}: FeatureStoryProps) {
   return (
     <motion.div
       variants={fadeInUp}
@@ -26,7 +40,9 @@ export function FeatureStory({ tag, headline, description, visual, reverse = fal
         <h3 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
           {headline}
         </h3>
-        <p className="text-base leading-relaxed text-zinc-600 dark:text-zinc-400 sm:text-lg">{description}</p>
+        <p className="text-base leading-relaxed text-zinc-600 dark:text-zinc-400 sm:text-lg">
+          {description}
+        </p>
       </div>
       <div className={reverse ? "lg:order-1" : ""}>{visual}</div>
     </motion.div>

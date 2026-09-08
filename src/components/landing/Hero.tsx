@@ -4,13 +4,17 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { HeroPanel } from "@/components/landing/illustrations";
 
+// The strip under the buttons. Free capabilities only -- it sits directly
+// beneath a "Free · No credit card" badge, so naming a gated feature here
+// would read as a promise the signup does not keep.
 const CAPABILITIES = [
   "equity curve",
   "r-multiples",
-  "emotion tags",
+  "trading rules",
+  "mistake tracking",
+  "goals",
   "pattern detection",
   "csv / xlsx import",
-  "version history",
 ];
 
 export function Hero() {
@@ -25,8 +29,9 @@ export function Hero() {
             See the <span className="text-primary">pattern</span> behind every&nbsp;trade.
           </h1>
           <p className="max-w-lg text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Log entries in seconds, then let equity curves, R-multiples, and emotion tags
-            show you exactly what&apos;s working — and what&apos;s quietly costing you money.
+            Log a trade in seconds. Then write down the rules you actually trade by.
+            Every trade gets checked against them, so what works and what costs you
+            stops being guesswork.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link

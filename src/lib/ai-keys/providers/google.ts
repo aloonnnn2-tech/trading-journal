@@ -9,6 +9,7 @@ import {
   failureFromStatus,
   providerFetch,
   type AIProvider,
+  type AskOptions,
 } from "./types";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -54,7 +55,12 @@ export const googleProvider: AIProvider = {
     throw new ProviderError("unavailable", await errorDetail(res));
   },
 
-  async askQuestion(apiKey: string, systemPrompt: string, question: string): Promise<string> {
+  async askQuestion(
+    apiKey: string,
+    systemPrompt: string,
+    question: string,
+    options?: AskOptions,
+  ): Promise<string> {
     const res = await providerFetch(
       `${BASE}/models/${MODEL}:generateContent`,
       {
@@ -62,11 +68,19 @@ export const googleProvider: AIProvider = {
         headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: question }] }],
-          generationConfig: { maxOutputTokens: MAX_ANSWER_TOKENS },
+          // Gemini calls the assistant role "model" and wraps text in parts[],
+          // so ChatTurn needs translating rather than spreading.
+          contents: [
+            ...(options?.history ?? []).map((turn) => ({
+              role: turn.role === "assistant" ? "model" : "user",
+              parts: [{ text: turn.content }],
+            })),
+            { role: "user", parts: [{ text: question }] },
+          ],
+          generationConfig: { maxOutputTokens: options?.maxTokens ?? MAX_ANSWER_TOKENS },
         }),
       },
-      ASK_TIMEOUT_MS,
+      options?.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
     if (!res.ok) {
