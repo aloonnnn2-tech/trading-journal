@@ -1,0 +1,73 @@
+# Automated dependency updates.
+#
+# WHY THIS EXISTS. On 2026-09-08 `npm audit` reported six vulnerabilities (five
+# high). All six turned out to be unreachable -- build tooling only, verified
+# against Next's own server trace -- and all six had non-breaking patch fixes
+# that had simply never been applied, because nothing was watching. The count
+# was harmless; the silence was the actual problem.
+#
+# **The reporting is noisier than the risk, and that is the danger.**
+# @sentry/nextjs pulls @sentry/webpack-plugin and @sentry/bundler-plugin-core,
+# which drag webpack, babel and ajv into the tree. Those run only during
+# `next build`, but @sentry/nextjs is a runtime dependency, so npm classifies
+# the whole subtree as production and reports build tooling as production
+# exposure. That will keep happening no matter how current this project is.
+# Treat a finding there as "check whether it ships" -- Next writes a trace of
+# everything that reaches the server under .next/server/*.nft.json, and
+# grepping those for the package name answers it in seconds -- rather than as
+# an automatic emergency. Training yourself to ignore the report is how a real
+# finding eventually gets missed.
+#
+# Grouped and weekly on purpose. One PR per package per day is how teams learn
+# to close Dependabot PRs unread, which is worse than not running it.
+
+version: 2
+
+updates:
+  # --- npm ---------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      # Patch and minor bumps are where security fixes land and where the
+      # risk of breakage is lowest. One PR a week for the lot of them keeps
+      # the routine cheap enough to actually do. CI (vitest + lint + build)
+      # runs on the PR, so "does this break anything" is answered before
+      # anyone reads it.
+      routine:
+        update-types: ["minor", "patch"]
+      # Majors stay separate and one at a time: they are the ones that
+      # actually need reading, and burying a React or Next major in a group
+      # of thirty patch bumps guarantees it gets merged unexamined.
+      majors:
+        update-types: ["major"]
+    ignore:
+      # Next and React move together and are the two most disruptive upgrades
+      # in this project (AGENTS.md exists because this Next version already
+      # differs from what a model expects). Upgrade them deliberately, not
+      # because a bot opened a PR on a Monday.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  # --- GitHub Actions ----------------------------------------------------
+  #
+  # Not optional here. .github/workflows/backup.yml pins its actions to commit
+  # SHAs rather than tags, because that workflow runs with the service-role key
+  # in its environment and a tag is mutable -- whoever controls it can repoint
+  # it at new code. The cost of pinning is that a SHA never moves on its own,
+  # so security fixes to those actions would never land. This is what closes
+  # that gap: Dependabot bumps the SHA and records which version it now points
+  # at, keeping the pin honest instead of merely frozen.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
