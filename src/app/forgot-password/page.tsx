@@ -6,10 +6,18 @@ import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage } from "@/lib/auth/error-messages";
-import { Turnstile, type TurnstileHandle } from "@/components/turnstile";
+import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
+
+// Shown when CAPTCHA is configured but no token is available at submit time.
+// The previous behaviour sent the call anyway, Supabase answered
+// `captcha_failed`, and the user was told "the security check didn't pass" --
+// which reads as a rejection when the truth is that the check had not
+// finished. Never send a call we already know Supabase will refuse.
+const CAPTCHA_INCOMPLETE =
+  "Please complete the security check below, then try again.";
 
 export default function ForgotPasswordPage() {
   const supabase = createClient();
@@ -25,6 +33,11 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     const captchaToken = await captcha.current?.getToken();
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      setError(CAPTCHA_INCOMPLETE);
+      setLoading(false);
+      return;
+    }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
       captchaToken,

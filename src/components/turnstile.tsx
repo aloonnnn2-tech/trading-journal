@@ -27,13 +27,39 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+/**
+ * Whether CAPTCHA is configured for this build.
+ *
+ * Call sites need this to tell two situations apart that both produce an
+ * undefined token: "no site key, so no token is expected and the call should
+ * proceed" and "a token was expected and we do not have one, so the call must
+ * NOT be sent". Sending the second produces `captcha_failed` from Supabase and
+ * a user staring at "the security check didn't pass" when the real state is
+ * that the check has not finished.
+ */
+export const CAPTCHA_ENABLED = Boolean(SITE_KEY);
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
 /** How long getToken() waits for a challenge to resolve before giving up.
- *  Managed mode is usually well under a second; this exists so a wedged
- *  widget produces a failed submit the user can retry rather than a button
- *  that never comes back. */
-const TOKEN_TIMEOUT_MS = 20_000;
+ *  Managed mode is usually well under a second. Dropped from 20s to 8s: this
+ *  is a person waiting on a button, and beyond a few seconds the honest answer
+ *  is "the check has not completed" rather than a longer stare at a spinner. */
+const TOKEN_TIMEOUT_MS = 8_000;
+
+/**
+ * Treat a token older than this as spent.
+ *
+ * Cloudflare expires tokens at 300s and fires `expired-callback` when it
+ * happens -- but that callback is a timer, and browsers throttle timers hard
+ * in background tabs. A form left open in another tab can therefore hold a
+ * token Cloudflare already considers dead, with no callback having fired to
+ * say so. Sending it gets `captcha_failed`, which the user reads as "my
+ * password is being rejected for some security reason".
+ *
+ * 240s leaves a full minute of margin under Cloudflare's 300s.
+ */
+const TOKEN_MAX_AGE_MS = 240_000;
 
 interface TurnstileApi {
   render: (
@@ -113,12 +139,15 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
     const containerRef = useRef<HTMLDivElement>(null);
     const widgetIdRef = useRef<string | null>(null);
     const tokenRef = useRef<string | null>(null);
+    /** When tokenRef was set, for the staleness check in getToken(). */
+    const tokenAtRef = useRef<number>(0);
     // Resolvers for getToken() calls made before a token exists.
     const waitersRef = useRef<Array<(token: string | undefined) => void>>([]);
     const [failed, setFailed] = useState(false);
 
     const settle = useCallback((token: string | undefined) => {
       tokenRef.current = token ?? null;
+      tokenAtRef.current = token ? Date.now() : 0;
       waitersRef.current.splice(0).forEach((resolve) => resolve(token));
     }, []);
 
@@ -169,7 +198,20 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
       () => ({
         getToken: () => {
           if (!SITE_KEY) return Promise.resolve(undefined);
-          if (tokenRef.current) return Promise.resolve(tokenRef.current);
+
+          const fresh =
+            tokenRef.current !== null && Date.now() - tokenAtRef.current < TOKEN_MAX_AGE_MS;
+          if (fresh) return Promise.resolve(tokenRef.current ?? undefined);
+
+          // Either there is no token yet, or the one we have is old enough
+          // that Cloudflare may already have expired it. Discarding a
+          // possibly-stale token and waiting for a fresh one costs a moment;
+          // sending it costs the user a failed sign-in they cannot explain.
+          if (tokenRef.current !== null && widgetIdRef.current && window.turnstile) {
+            tokenRef.current = null;
+            tokenAtRef.current = 0;
+            window.turnstile.reset(widgetIdRef.current);
+          }
 
           return new Promise<string | undefined>((resolve) => {
             let done = false;
@@ -184,6 +226,7 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
         },
         reset: () => {
           tokenRef.current = null;
+          tokenAtRef.current = 0;
           if (widgetIdRef.current && window.turnstile) window.turnstile.reset(widgetIdRef.current);
         },
       }),
