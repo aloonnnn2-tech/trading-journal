@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { clientIpKey, enforceRateLimit } from "@/lib/rate-limit";
 
 // Route handlers and Server Components used to each call `getUser()`
 // themselves purely to read `user.id` and gate access -- a second real
@@ -37,6 +38,22 @@ function safeOrigin(value: string | undefined): string | null {
 const SUPABASE_ORIGIN = safeOrigin(process.env.NEXT_PUBLIC_SUPABASE_URL);
 const SENTRY_ORIGIN = safeOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN);
 
+// Cloudflare Turnstile, the CAPTCHA on the four auth screens
+// (src/components/turnstile.tsx). Hardcoded rather than derived from an env
+// var like the two above: it is Cloudflare's fixed service origin, not a
+// per-project URL, and the site key that IS per-project is not a URL to
+// derive it from.
+//
+// **This is the CSP/CAPTCHA coupling, and getting it wrong locks users out.**
+// The widget renders in an iframe from this origin and posts the challenge
+// back to it, so `frame-src 'none'` -- which is what this policy said before
+// CAPTCHA existed -- blocks the widget outright. While the policy is
+// Report-Only that failure is invisible: the widget works and merely files a
+// violation report. The day the header is flipped to enforcing, sign-in,
+// sign-up and password reset all break at once. Never remove this while
+// src/components/turnstile.tsx is in use.
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 /**
  * Builds the policy for one request. The nonce must be fresh every time:
  * a predictable or reused nonce is worth exactly as much as
@@ -45,7 +62,7 @@ const SENTRY_ORIGIN = safeOrigin(process.env.NEXT_PUBLIC_SENTRY_DSN);
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV === "development";
 
-  const connect = ["'self'", SUPABASE_ORIGIN, SENTRY_ORIGIN]
+  const connect = ["'self'", SUPABASE_ORIGIN, SENTRY_ORIGIN, TURNSTILE_ORIGIN]
     // Dev server HMR runs over a websocket; without this the policy breaks
     // fast refresh locally and nowhere else, which is a maddening way to
     // discover a header that is otherwise fine.
@@ -81,12 +98,18 @@ function buildCsp(nonce: string): string {
     "font-src 'self'",
     `img-src ${img}`,
     `connect-src ${connect}`,
-    // Nothing embeds this app and this app embeds nothing. frame-ancestors
-    // is the directive that actually stops clickjacking; the
-    // X-Frame-Options header in next.config.ts is the same rule restated for
-    // browsers too old to honour this one.
+    // Nothing embeds this app. frame-ancestors is the directive that actually
+    // stops clickjacking; the X-Frame-Options header in next.config.ts is the
+    // same rule restated for browsers too old to honour this one.
+    //
+    // (This app does now embed one thing -- see frame-src below. That is the
+    // opposite direction and does not weaken this line.)
     "frame-ancestors 'none'",
-    "frame-src 'none'",
+    // Was 'none'. Turnstile is the only thing this app embeds, and it embeds
+    // nothing else -- so this stays an allowlist of exactly one origin rather
+    // than becoming 'self' or a wildcard. frame-ancestors above is unchanged
+    // and still forbids anyone embedding US, which is the clickjacking half.
+    `frame-src ${TURNSTILE_ORIGIN}`,
     "object-src 'none'",
     // Stops an injected <base> tag from re-pointing every relative script
     // URL on the page at an attacker's host.
@@ -95,8 +118,58 @@ function buildCsp(nonce: string): string {
     "form-action 'self'",
     "worker-src 'self' blob:",
     "upgrade-insecure-requests",
+    // WHERE VIOLATIONS GO. Both directives name the same collector
+    // (src/app/api/csp-report/route.ts) because neither is supported
+    // everywhere: `report-uri` is deprecated but is still the only one
+    // Firefox and Safari implement, while `report-to` is the replacement
+    // Chromium prefers. Sending only the modern one would mean hearing
+    // nothing from Safari, whose CSP behaviour differs most.
+    //
+    // Browsers that support both send to `report-to` only, so this is not
+    // double-reporting; the collector accepts either wire format regardless.
+    "report-uri /api/csp-report",
+    "report-to csp-endpoint",
   ].join("; ");
 }
+
+// --- Blanket API rate limit ------------------------------------------------
+//
+// **Why here and not in each route.** There are ~49 route handlers; eight of
+// them carried their own limit and the other forty-one had none. Adding a
+// hand-written limit to every one of those is forty-one chances to forget,
+// and the next route added would be the forty-second. This runs before all of
+// them, so a new route is covered the day it is written.
+//
+// The per-route limits still exist and still matter -- they are much tighter,
+// and they are what actually protects the expensive handlers (OCR, AI,
+// imports). This is the floor underneath them, not a replacement.
+//
+// **Scoped to /api/ deliberately.** The matcher below also covers page
+// navigations and Next's own RSC payload requests, and a single page load can
+// fire a dozen of those. Rate limiting them would break ordinary browsing,
+// which is the exact failure the brief warns against.
+//
+// **Generous on purpose.** Autosave alone can issue a PATCH every 600ms while
+// someone types, and the trade page fans out to several endpoints at once, so
+// the ceiling has to sit well above sustained real use. 300/min bounds a
+// runaway loop without ever being reachable by a person using the app.
+//
+// Same per-instance caveat as everything else built on src/lib/rate-limit.ts:
+// serverless instances do not share memory, so this bounds abuse per warm
+// instance rather than globally. See SECURITY.md.
+const API_RATE_LIMIT = 300;
+const API_RATE_WINDOW_MS = 60_000;
+
+// Unauthenticated callers get a much smaller budget: nothing legitimate hits
+// this app's API without a session (every handler 401s), so sustained
+// unauthenticated traffic is either a probe or a misconfigured client.
+//
+// Note this does NOT save the Supabase getUser() round-trip below -- the check
+// runs after it, because whether a caller is authenticated is what decides
+// which key to limit them by. Skipping that call for requests carrying no auth
+// cookie at all would avoid it, and is worth doing if anonymous traffic ever
+// becomes a real cost; it is not the problem this limit exists to solve.
+const ANON_API_RATE_LIMIT = 60;
 
 export async function proxy(request: NextRequest) {
   // getUser() can trigger a token refresh mid-call, which needs new cookies
@@ -132,6 +205,21 @@ export async function proxy(request: NextRequest) {
   requestHeaders.delete(USER_ID_HEADER);
   if (data.user) requestHeaders.set(USER_ID_HEADER, data.user.id);
 
+  // Applied after getUser() so an authenticated caller is limited by user id
+  // rather than by IP -- otherwise everyone behind one office NAT or mobile
+  // carrier gateway shares a single bucket and throttles each other.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    const limited = data.user
+      ? enforceRateLimit(`api:${data.user.id}`, API_RATE_LIMIT, API_RATE_WINDOW_MS)
+      : enforceRateLimit(
+          `api-anon:${clientIpKey(request.headers)}`,
+          ANON_API_RATE_LIMIT,
+          API_RATE_WINDOW_MS,
+          "Too many requests. Wait a minute and try again.",
+        );
+    if (limited) return limited;
+  }
+
   const nonce = crypto.randomUUID();
   const csp = buildCsp(nonce);
 
@@ -159,6 +247,20 @@ export async function proxy(request: NextRequest) {
   // production. Watch the browser console for a few days of real use, then
   // rename this single header to `Content-Security-Policy` to turn it on.
   response.headers.set("Content-Security-Policy-Report-Only", csp);
+
+  // Defines the `csp-endpoint` group that `report-to` above refers to.
+  // Without this header that directive names a group the browser has never
+  // heard of and is silently ignored -- the policy would look like it
+  // reports and would not. `report-uri` needs nothing here; it carries its
+  // own URL.
+  //
+  // Absolute rather than relative: the Reporting API resolves endpoint URLs
+  // against the document, and a report generated inside a worker or a
+  // sandboxed context does not always have the base URL you would expect.
+  response.headers.set(
+    "Reporting-Endpoints",
+    `csp-endpoint="${request.nextUrl.origin}/api/csp-report"`,
+  );
 
   return response;
 }

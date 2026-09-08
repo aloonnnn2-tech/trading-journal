@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { FormError } from "@/components/form-error";
+import { authErrorMessage } from "@/lib/auth/error-messages";
+import { Turnstile, type TurnstileHandle } from "@/components/turnstile";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -14,19 +17,23 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const captcha = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    const captchaToken = await captcha.current?.getToken();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
+      captchaToken,
     });
 
+    captcha.current?.reset();
     setLoading(false);
     if (error) {
-      setError(error.message);
+      setError(authErrorMessage(error));
       return;
     }
     setSent(true);
@@ -81,7 +88,8 @@ export default function ForgotPasswordPage() {
             className={INPUT_CLASS}
           />
         </label>
-        {error && <p className="text-sm text-loss">{error}</p>}
+        <Turnstile ref={captcha} />
+        <FormError>{error}</FormError>
         <button
           type="submit"
           disabled={loading}

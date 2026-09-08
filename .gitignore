@@ -35,9 +35,35 @@ dev-local.log
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the example, which is documentation and holds no values. Without
+# this negation `.env*` above swallows it, so it was untracked and every
+# "documented in .env.local.example" note reached nobody but whoever wrote it.
+!.env.local.example
 
-# manual DB backups (scripts/backup-db.ts) -- real user data, never commit
+# DB backups (scripts/backup-db.ts) -- real user data, never commit
 /backups/
+
+# Artifacts from .github/workflows/backup.yml, and whatever a restore test
+# leaves behind. /backups/ above does not cover these: they land in the repo
+# ROOT, because that is where you unzip the artifact and where `tar -xzf`
+# is run from. The decrypted tarball in particular is every user's journal in
+# plaintext, one `git add -A` away from a public repo.
+/backup.tar.gz
+/trading-lens-backup-*.tar.gz
+/trading-lens-backup-*.tar.gz.gpg
+
+# Playwright output. test-results/ holds failure traces and screenshots, which
+# are recordings of a signed-in session against the real project -- never
+# commit them.
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Ad-hoc admin/seed scratch scripts kept in the repo root so they can resolve
+# node_modules. They run against the live database with the service-role key
+# and are not part of the app.
+*.tmp.mjs
 
 # vercel
 .vercel
@@ -50,3 +76,6 @@ next-env.d.ts
 # OCR_MODEL_VARIANT=server) — not accurate/fast enough to be worth committing,
 # see scripts/ocr-eval/README.md
 /models/paddleocr-server/*.onnx
+
+# Playwright MCP browser artifacts (snapshots, console logs)
+.playwright-mcp/

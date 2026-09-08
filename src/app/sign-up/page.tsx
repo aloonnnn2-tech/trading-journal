@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { FormError } from "@/components/form-error";
+import { authErrorMessage } from "@/lib/auth/error-messages";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
+import { Turnstile, type TurnstileHandle } from "@/components/turnstile";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -18,24 +21,34 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [resent, setResent] = useState(false);
+  const captcha = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    const captchaToken = await captcha.current?.getToken();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       // Where the link in the confirmation email lands. The email template
       // sends the user through /auth/confirm, which exchanges the token for
       // a cookie session server-side before forwarding them on.
-      options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
+        captchaToken,
+      },
     });
 
+    // Reset after every completed call -- the token is spent either way.
+    captcha.current?.reset();
     setLoading(false);
     if (error) {
-      setError(error.message);
+      // See src/lib/auth/error-messages.ts -- the SDK's own message is never
+      // shown. "User already registered" in particular reads as an error the
+      // reader caused rather than a sign-in they should be taking instead.
+      setError(authErrorMessage(error));
       return;
     }
     track("signup_completed");
@@ -54,13 +67,18 @@ export default function SignUpPage() {
 
   async function handleResend() {
     setError(null);
+    const captchaToken = await captcha.current?.getToken();
     const { error } = await supabase.auth.resend({
       type: "signup",
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
+        captchaToken,
+      },
     });
+    captcha.current?.reset();
     if (error) {
-      setError(error.message);
+      setError(authErrorMessage(error));
       return;
     }
     setResent(true);
@@ -79,9 +97,12 @@ export default function SignUpPage() {
             <span className="font-medium text-zinc-700 dark:text-zinc-300">{email}</span>. Click it
             and you&apos;ll be signed straight in.
           </p>
-          {error && <p className="text-sm text-loss">{error}</p>}
+          <Turnstile ref={captcha} />
+          <FormError>{error}</FormError>
           {resent ? (
-            <p className="text-sm text-zinc-500">Sent again — it can take a minute to arrive.</p>
+            <p role="status" className="text-sm text-zinc-500">
+              Sent again. It can take a minute to arrive.
+            </p>
           ) : (
             <button
               onClick={handleResend}
@@ -136,7 +157,8 @@ export default function SignUpPage() {
             className={INPUT_CLASS}
           />
         </label>
-        {error && <p className="text-sm text-loss">{error}</p>}
+        <Turnstile ref={captcha} />
+        <FormError>{error}</FormError>
         <button
           type="submit"
           disabled={loading}
@@ -149,6 +171,24 @@ export default function SignUpPage() {
           <Link href="/sign-in" className="font-medium text-primary hover:underline">
             Sign in
           </Link>
+        </p>
+        {/* The legal terms belong at the point the account is actually
+            created, not only in a footer three scrolls down the marketing
+            page. Same three documents, same plain labels as the footer. */}
+        <p className="border-t border-zinc-100 pt-4 text-center text-xs leading-relaxed text-zinc-500 dark:border-subtle">
+          By creating an account you agree to our{" "}
+          <Link href="/terms" className="font-medium text-primary hover:underline">
+            Terms and Conditions
+          </Link>
+          ,{" "}
+          <Link href="/privacy" className="font-medium text-primary hover:underline">
+            Privacy Policy
+          </Link>
+          , and{" "}
+          <Link href="/cookies" className="font-medium text-primary hover:underline">
+            Cookies Policy
+          </Link>
+          .
         </p>
       </form>
     </div>

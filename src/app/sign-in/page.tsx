@@ -1,11 +1,14 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { FormError } from "@/components/form-error";
+import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
+import { Turnstile, type TurnstileHandle } from "@/components/turnstile";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -37,6 +40,7 @@ function SignInForm() {
   // is a dead end -- the account exists, so signing up again fails too.
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [resent, setResent] = useState(false);
+  const captcha = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,12 +52,25 @@ function SignInForm() {
     // hiding the button that would actually send it.
     setResent(false);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const captchaToken = await captcha.current?.getToken();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken },
+    });
 
+    // Every completed call, not just failed ones: Supabase redeems the token
+    // on success too, so leaving it in place would make the next action on
+    // this page (a resend, or a second sign-in after signing out) fail with
+    // captcha_failed for a reason that has nothing to do with the user.
+    captcha.current?.reset();
     setLoading(false);
     if (error) {
-      setError(error.message);
-      if (error.message.toLowerCase().includes("not confirmed")) setNeedsConfirmation(true);
+      // Never `error.message`: that is GoTrue's own wording, which is written
+      // for a log reader and can carry internal detail. See
+      // src/lib/auth/error-messages.ts.
+      setError(authErrorMessage(error));
+      if (isEmailNotConfirmed(error)) setNeedsConfirmation(true);
       return;
     }
     track("login");
@@ -61,13 +78,18 @@ function SignInForm() {
   }
 
   async function handleResend() {
+    const captchaToken = await captcha.current?.getToken();
     const { error } = await supabase.auth.resend({
       type: "signup",
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
+        captchaToken,
+      },
     });
+    captcha.current?.reset();
     if (error) {
-      setError(error.message);
+      setError(authErrorMessage(error));
       return;
     }
     setResent(true);
@@ -118,11 +140,15 @@ function SignInForm() {
             className={INPUT_CLASS}
           />
         </label>
-        {error && <p className="text-sm text-loss">{error}</p>}
+        <Turnstile ref={captcha} />
+        <FormError>{error}</FormError>
         {needsConfirmation &&
           (resent ? (
-            <p className="text-sm text-zinc-500">
-              Confirmation email sent again — it can take a minute to arrive.
+            // role="status" rather than "alert": this is a confirmation, so it
+            // should be announced politely once the screen reader finishes what
+            // it is saying, not interrupt mid-sentence the way an error should.
+            <p role="status" className="text-sm text-zinc-500">
+              Confirmation email sent again. It can take a minute to arrive.
             </p>
           ) : (
             <button
@@ -146,7 +172,10 @@ function SignInForm() {
             Sign up free
           </Link>
         </p>
-        <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-zinc-400">
+        {/* zinc-500, not zinc-400: these are real links, and zinc-400 on this
+            card sits around 2.6:1 against the background -- below the 4.5:1
+            WCAG AA minimum for text this size. */}
+        <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-zinc-500">
           <a href="mailto:TradingLenzSupport@proton.me" className="hover:text-zinc-600 dark:hover:text-zinc-300">
             Contact support
           </a>
