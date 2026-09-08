@@ -9,8 +9,10 @@
     "lint": "eslint",
     "ocr:fixtures": "tsx scripts/ocr-eval/generate.ts",
     "ocr:eval": "tsx scripts/ocr-eval/run.ts",
-    "backup:db": "tsx --env-file=.env.local scripts/backup-db.ts",
-    "verify:ai-secret": "tsx --env-file=.env.local scripts/verify-ai-key-secret.ts",
+    "backup:db": "tsx --env-file-if-exists=.env.local scripts/backup-db.ts",
+    "restore:db": "tsx --env-file-if-exists=.env.local scripts/restore-db.ts",
+    "migrations:status": "tsx --env-file=.env.local scripts/migrations-status.ts",
+    "verify:ai-secret": "tsx --conditions=react-server --env-file=.env.local scripts/verify-ai-key-secret.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "check:bundle": "tsx --env-file=.env.local scripts/check-bundle-secrets.ts"

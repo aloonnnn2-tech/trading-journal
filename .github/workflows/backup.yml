@@ -1,0 +1,143 @@
+# Scheduled database backup.
+#
+# WHY THIS EXISTS. `npm run backup:db` was manual, and manual did not work:
+# between 2026-08-13 and 2026-09-08 the project had exactly one backup, taken
+# 26 days before anyone noticed. Supabase's free plan has no automated backups
+# and no PITR, so that dump was the only recovery path in existence.
+#
+# WHY THE ARTIFACT IS ENCRYPTED, AND WHY THAT IS NOT OPTIONAL. This repository
+# is PUBLIC. Downloading a workflow artifact requires authentication, but on a
+# public repo "read access" means any logged-in GitHub account -- so an
+# unencrypted artifact here would publish every user's complete trading
+# journal, plus the user_api_keys table, to anyone who cared to look. The
+# dump is therefore encrypted on the runner, before upload, and the artifact
+# is an opaque blob. Never add a step that uploads the raw backups/ directory.
+#
+# SETUP -- three repository secrets are required
+# (Settings > Secrets and variables > Actions > New repository secret):
+#
+#   NEXT_PUBLIC_SUPABASE_URL   the project URL (not actually secret -- it
+#                              ships in the browser bundle -- but kept here so
+#                              setup is one screen)
+#   SUPABASE_SERVICE_ROLE_KEY  Dashboard > Settings > API > service_role
+#   BACKUP_PASSPHRASE          a long random string YOU generate and store in
+#                              a password manager. It is the ONLY way to
+#                              decrypt these artifacts. Lose it and every
+#                              backup this workflow has ever produced is
+#                              permanently unreadable -- GitHub cannot show
+#                              you a secret's value after you save it, so
+#                              storing it somewhere else first is the whole
+#                              job.
+#
+# TO RESTORE FROM AN ARTIFACT (verified end-to-end in Git Bash on Windows,
+# which is where you would actually be doing this)
+#   1. Download and unzip it from the workflow run page.
+#   2. printf '%s' '<BACKUP_PASSPHRASE>' | gpg --batch --yes --decrypt \
+#        --passphrase-fd 0 trading-lens-backup-<stamp>.tar.gz.gpg > backup.tar.gz
+#      (piping rather than --passphrase keeps the passphrase out of your
+#       shell history and off the process list)
+#   3. tar -xzf backup.tar.gz            # yields backups/<stamp>/*.json
+#   4. npm run restore:db -- --dir backups/<stamp>
+#      (dry run; add `-- --apply` once the output looks right, and read the
+#       header of scripts/restore-db.ts before pointing it at a fresh project)
+
+name: Backup database
+
+on:
+  schedule:
+    # Daily at 03:00 UTC. Kept 30 days.
+    - cron: "0 3 * * *"
+    # Weekly on Sunday at 04:00 UTC. Kept the 90-day maximum, so a problem
+    # noticed late still has an older reference point than the daily window.
+    # A different hour from the daily run on purpose: identical times would
+    # fire two runs at once every Sunday for no benefit.
+    - cron: "0 4 * * 0"
+  # Lets you take a backup on demand -- do this before applying a migration.
+  workflow_dispatch:
+
+# Read-only. This job clones the repo and talks to Supabase; it has no reason
+# to be able to write to the repository, and a token that cannot write is one
+# fewer thing an compromised dependency can misuse.
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    # A backup that hangs should not burn 6 hours of the default timeout.
+    timeout-minutes: 15
+
+    steps:
+      # Actions are pinned to commit SHAs rather than the v4 tags used in
+      # ci.yml. A tag is mutable: whoever controls it can repoint it at new
+      # code, which in THIS workflow would run with the service-role key in
+      # its environment. ci.yml only ever sees placeholder credentials, so the
+      # same argument does not apply there.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Fail loudly and immediately on a missing secret. Without this the
+      # backup script exits non-zero anyway, but the run reads as "the backup
+      # is broken" rather than "nobody added the passphrase", and the
+      # difference matters at 3am months from now.
+      - name: Check required secrets are set
+        env:
+          URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=""
+          [ -z "$URL" ] && missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          [ -z "$KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+          [ -z "$PASSPHRASE" ] && missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Dump database
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run backup:db
+
+      # Encrypt on the runner, before anything is uploaded. gpg is preinstalled
+      # on ubuntu-latest. --batch with --passphrase-fd 0 keeps the passphrase
+      # off the process command line, where it would otherwise be visible to
+      # anything that can read /proc on the runner.
+      - name: Archive and encrypt
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          tar -czf backup.tar.gz backups/
+          printf '%s' "$PASSPHRASE" | gpg --batch --yes --symmetric \
+            --cipher-algo AES256 \
+            --passphrase-fd 0 \
+            --output "trading-lens-backup-$stamp.tar.gz.gpg" \
+            backup.tar.gz
+          # Remove the plaintext so no later step can upload it by accident.
+          rm -rf backup.tar.gz backups/
+          ls -lh "trading-lens-backup-$stamp.tar.gz.gpg"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backup-${{ env.STAMP }}
+          path: trading-lens-backup-*.tar.gz.gpg
+          # The weekly run keeps the 90-day maximum a public repo allows; the
+          # daily run keeps 30, which is long enough to notice a problem
+          # without holding 90 near-identical copies.
+          retention-days: ${{ github.event.schedule == '0 4 * * 0' && 90 || 30 }}
+          # An empty upload means the encrypt step produced nothing and the
+          # run should fail rather than report a green tick over no backup.
+          if-no-files-found: error
