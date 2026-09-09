@@ -1,10 +1,13 @@
 # Design V2 — "Terminal Pro" — Plan & Coverage Tracker
 
 Branch: `design/terminal-v2` (from `main` @ `37f544e`)
-Status: **Phase 0 complete — awaiting approval before Phase 1.**
-Nothing has been styled. No file in the repo has been modified except this one.
+Status: **Phase 1 complete — awaiting sign-off on the reference page before Phase 2.**
 
 Revert path: `git checkout main`. Nothing pushed, nothing deployed.
+
+**Switch modes:** `localStorage.setItem('tl-design','v2'); location.reload()` — or append
+`?design=v2` to any URL. `'v1'` / `?design=v1` switches back. In development a V1/V2 pill
+sits in the bottom-right corner.
 
 ---
 
@@ -192,7 +195,7 @@ V2-only.
 
 | Conflict | Detail | Proposal |
 |---|---|---|
-| **Adding IBM Plex changes the `<html>` DOM even in V1** | `next/font` injects one class per font. Adding Plex Sans and Plex Mono appends two class names and two `<style>` blocks to the document **regardless of the flag**. Requirement 2 asks for identical rendering to `main`. | Rendered output stays pixel-identical, because no V1 rule consumes `--font-plex-*`. The DOM string is not byte-identical. **I need you to accept this as one of two deliberate exceptions** (the other being the flag `<script>`). Loading Plex only in V2 is impossible: the font must be in the document before the flag is known. |
+| **Adding IBM Plex changes the `<html>` DOM even in V1** | `next/font` injects one class per font. Adding Plex Sans and Plex Mono appends two class names and two `<style>` blocks to the document **regardless of the flag**. Requirement 2 asks for identical rendering to `main`. | **ACCEPTED (see §13, exception 1).** Requirement 2 means visually identical, not a byte-identical DOM string. Verified: 0 computed-style differences. |
 | **13px base vs Tailwind's `text-sm` / `text-base` scale** | The app uses `text-xs/sm/base` everywhere; Part 2 wants a 10/11/12/13/15/18/24/32 ramp on a 13px base. | Remap the Tailwind size utilities *inside the V2 scope* rather than rewriting class names across 66 files. One rule block, zero JSX churn. |
 | **`--color-primary` is a bright blue doing five jobs** | It drives buttons, focus rings, links, charts and meters. Part 2 permits exactly one accent (`#C8862A` amber) and says a color that means nothing is a bug. | Remapping `--color-primary` inside V2 is a one-property change, but it repaints nearly everything at once. Flagging so the first V2 commit is not a shock. |
 | **`.dark` is the theme mechanism; V2 wants dark as its default** | Part 2 says dark is "the default for V2", but next-themes has `defaultTheme="light"` and `enableSystem={false}`. Changing that default would change V1 behaviour. | **Do not change the theme default.** V2 will be complete in both modes; switch the app to dark and you get V2-dark. I will not touch `ThemeProvider` props. |
@@ -251,10 +254,10 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `/sign-up` | `app/sign-up/page.tsx` | hosts the Turnstile widget | todo |
 | `/strategies` | `app/strategies/page.tsx` | tables + scorecards | todo |
 | `/terms` | `app/terms/page.tsx` | legal; copy frozen | todo |
-| `/trades` | `app/trades/page.tsx` | reference-page candidate; real table | todo |
+| `/trades` | `app/trades/page.tsx` | **reference page — done in Phase 1** | done |
 | `/trades/[id]` | `app/trades/[id]/page.tsx` | hosts the 1013-line TradeCard | todo |
 | `/trades/import` | `app/trades/import/page.tsx` | wizard, table preview | todo |
-| root layout | `app/layout.tsx` | flag script + fonts land here | todo |
+| root layout | `app/layout.tsx` | flag script, Plex fonts, toggle | done |
 | error boundary | `app/error.tsx` | 1 shadow | todo |
 | global error | `app/global-error.tsx` | renders its own `<html>` — needs its own V2 handling | todo |
 | 404 | `app/not-found.tsx` | 1 shadow | todo |
@@ -305,7 +308,7 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 
 | File | Notes | Status |
 |---|---|---|
-| `ui/Card.tsx` | radius + shadow + hover lift; highest-leverage single file in the repo | todo |
+| `ui/Card.tsx` | entrance + hover lift neutralised via `data-v2-flat`; radius/shadow via tokens. Padding and internals still to review in batch 1 | partial |
 | `ui/StatCard.tsx` | gradient meter, icon chip; markup change per §5.2 | todo |
 | `ui/InfoTip.tsx` | rounded-full | todo |
 | `nav-bar.tsx` | backdrop-blur, 2 shadows, `print:hidden` | todo |
@@ -313,7 +316,7 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `field-input.tsx` | every form control state lives here | todo |
 | `form-error.tsx` | `role="alert"` — do not change its text | todo |
 | `turnstile.tsx` | third-party iframe; only surrounding chrome is ours | todo |
-| `page-transition.tsx` | framer-motion; neutralise in V2 | todo |
+| `page-transition.tsx` | framer-motion neutralised via `data-v2-flat` | done |
 | `motion/StaggerGrid.tsx` | framer-motion; neutralise in V2 | todo |
 | `theme-provider.tsx` | **n-a** — renders no markup, and its props must not change (§6) | n-a |
 | `analytics-tracker.tsx` | **n-a** — returns null | n-a |
@@ -375,17 +378,21 @@ Stop for sign-off.
 
 ---
 
-## 11. Decisions I need from you before Phase 1
+## 11. Decisions — answered
 
-1. **Accept the two deliberate V1 DOM additions** — the nonced flag `<script>`, and the two
-   IBM Plex `next/font` class names on `<html>`? (§6, first row.) Rendered output is
-   unchanged; the DOM string is not byte-identical.
-2. **Loading states (§7):** shape-matched skeletons for all 25 routes rendered in *both* V1
-   and V2 (V1 currently renders nothing there), or V2-only to keep V1 pristine?
-3. **Status bar (§5.5):** build it from data the dashboard already has, or defer?
-4. **The 5 genuine prose em dashes:** rewrite them, or list them only? The 87 null
-   placeholders and all legal-page text stay as they are either way.
-5. **Markup-change budget (§5.2, §5.3):** approve up to ~6 components behind `useDesign()`?
+All five were settled before Phase 1 began. Recorded here so they are not reopened.
+
+1. **Font/script DOM exception — accepted.** Requirement 2 means visually identical, not a
+   byte-identical DOM string. See §13.
+2. **Skeletons — build all 25 once, inert under V1.** The markup ships hidden
+   (`<div data-v2-skeleton hidden>`) and V2 reveals it, so V1 keeps its current behaviour of
+   showing nothing while a route loads. Written that way round — V2 revealing rather than V1
+   hiding — so 100% of the CSS stays inside the V2 scope and requirement 6 still holds.
+   Mechanism is built (design-v2.css §12); the 25 files land in Phase 2 batch 9.
+3. **Status bar — deferred** to after Phase 2 coverage.
+4. **The 5 prose em dashes — fix them now.** Phase 2, alongside the pages they sit on.
+5. **~6-component `useDesign()` budget — approved.** Spent so far: **0**. Everything in
+   Phase 1 was CSS plus inert `data-*` attributes.
 
 ---
 
@@ -396,3 +403,96 @@ Stop for sign-off.
 - **#26 Terms of Service / #27 Privacy Policy** — **not gaps.** `/terms`, `/privacy` and
   `/cookies` all exist. Recorded here so they are not re-flagged later.
 - **#12 fake testimonials** — none found anywhere. Nothing removed.
+
+
+---
+
+## 13. Phase 1 record
+
+### What was built
+
+| Piece | File |
+|---|---|
+| Flag constants + pre-paint script | `src/components/design/design-flag.tsx` |
+| `useDesign()` hook (unused so far) | `src/components/design/use-design.ts` |
+| Dev V1/V2 toggle pill | `src/components/design/design-toggle.tsx` |
+| The entire V2 stylesheet | `src/styles/design-v2.css` |
+| Scope enforcement | `scripts/check-design-v2-scope.ts`, `npm run check:design-v2` |
+
+Markup changes were limited to **inert `data-*` attributes** — `data-v2-flat`,
+`data-v2-page`, `data-v2-overlay`, `data-v2-empty`, `data-num`, `data-v2-toggle`. None of
+them changes a rendered pixel in V1, and none needs a hydration guard. **The `useDesign()`
+budget is untouched: 0 of ~6 spent.**
+
+### The two accepted V1 DOM exceptions
+
+Both are inert with the flag off, and both are unavoidable — the font and the flag must be
+in the document before the flag's value is known:
+
+1. Two extra `next/font` class names on `<html>` plus their `<style>` blocks (IBM Plex Sans,
+   IBM Plex Mono). No V1 rule consumes `--font-plex-*`.
+2. One nonced inline `<script>` in `<head>` that sets `data-design`. For V1 it *removes* the
+   attribute rather than writing `"v1"`, so the V1 `<html>` element is unchanged.
+
+Nothing else differs. Any future difference is a regression, not a third exception.
+
+### Verification actually run — not assumed
+
+**Requirement 2, V1 identity.** 26 computed properties captured for every element on 7
+routes (`/`, `/sign-in`, `/sign-up`, `/forgot-password`, `/terms`, `/privacy`, `/contact`),
+on this branch and on `main`, in both themes:
+
+| Comparison | Nodes | Property differences |
+|---|---|---|
+| `main` vs branch, V1 light | 805 | **0** |
+| `main` vs branch, V1 dark | 837 | **0** |
+
+The same harness confirms V2 is doing real work: 5,380 property differences in light and
+5,572 in dark between V1 and V2 on those same nodes.
+
+**Requirements 3 and 4, the flag.** Fresh visit → no attribute. `?design=v2` → attribute set
+and persisted. Plain reload → still V2. `?design=v1` → attribute removed and persisted. A
+garbage value (`banana`) → treated as V1. The flag `<script>` is inside `<head>`, before
+first paint, carrying the CSP nonce.
+
+**Requirement 6.** `npm run check:design-v2` reports all 88 rules scoped. The checker was
+itself tested against injected leaks at top level and nested inside `@media`; it catches both
+and exits non-zero.
+
+**Requirement 8, on `/trades` in V2**, counted from the live DOM in both themes:
+gradients 0, `backdrop-filter` 0, radius over 2px 0, Inter/Geist/Space Grotesk 0, controls
+under 32px 0, `box-shadow` 1 — the export dropdown, which is a genuine overlay and the one
+permitted exception.
+
+**Requirement 12.** `npx vitest run` → 65 files, 935 tests passed. Identical to the baseline
+taken before the branch.
+
+### Two bugs found and fixed during verification
+
+- **Lightning CSS silently dropped a declaration.** Writing `backdrop-filter: none` and
+  `-webkit-backdrop-filter: none` as a pair made the build treat them as duplicates and emit
+  *only* the prefixed one, which Chromium ignores — the nav bar kept its blur. Fixed by
+  writing the unprefixed property alone and leaving prefixing to the build. Worth
+  remembering: **the compiled CSS is not always what was written.**
+- **My own density rule broke the accessibility floor.** The `/trades` filter tabs were set
+  to `min-height: 26px`, which is denser but below the 32px desktop hit target. Raised to
+  32px, and every control and control-link on the page now clears it. Where density and the
+  hit-target floor collide, the floor wins.
+
+### Density result
+
+Same 1512×950 viewport, same account: V1 shows **11 trade rows**, V2 shows **23**. Row
+height 45px → 29.8px, base font 16px → 13px, page gutter 32px → 20px.
+
+### What V2 looks like now
+
+Paper (`#f5f4f1`) or near-black (`#0b0d0f`) ground, never white. IBM Plex Sans at 13px, IBM
+Plex Mono with tabular figures for every number. 10px uppercase column headers on a stepped
+header band with a stronger rule under it. Square corners, hairline separation, no shadows,
+no blur, no gradients. One muted amber accent marking only the active thing; green and red
+reserved for gain and loss.
+
+**The accent change is the loudest single difference and it is deliberate.** `--color-primary`
+was a bright blue doing five unrelated jobs; in V2 it is one muted amber that means "active,
+focused, or selected" and nothing else. Every blue button, link, tab and chart stroke in the
+app changed colour in one token edit.

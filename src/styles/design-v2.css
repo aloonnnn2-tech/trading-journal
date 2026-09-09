@@ -221,7 +221,10 @@ html[data-design="v2"] {
 }
 
 html[data-design="v2"] [class*="rounded-full"],
-html[data-design="v2"] [class*="rounded-\["] {
+html[data-design="v2"] [class*="rounded-\["],
+/* Bare `rounded` compiles to a literal .25rem rather than var(--radius-*),
+   so the scale above cannot reach it. */
+html[data-design="v2"] [class~="rounded"] {
   border-radius: 2px;
 }
 
@@ -258,9 +261,11 @@ html[data-design="v2"] [data-v2-overlay] {
 
 /* No frosted glass. The blurred panels are all sticky headers and modal
    scrims, which become opaque instead. */
+/* One declaration only. Writing the -webkit- pair by hand made Lightning CSS
+   treat them as duplicates and emit *just* the prefixed one, which Chromium
+   ignores -- the blur survived. Prefixing is the build's job. */
 html[data-design="v2"] [class*="backdrop-blur"] {
   backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 /* No gradients anywhere -- background images on this codebase are exclusively
@@ -680,7 +685,18 @@ html[data-design="v2"] [data-v2-page="trades"] summary[class*="rounded-full"] {
   background: transparent;
   border: 1px solid var(--v2-line);
   color: var(--v2-text-2);
-  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Every control on this page clears 32px, tabs and text links included.
+   A 26px pill is denser and was what this rule originally set, but the
+   density target loses to the hit-target floor wherever the two collide. */
+html[data-design="v2"] [data-v2-page="trades"] a[class*="rounded"],
+html[data-design="v2"] [data-v2-page="trades"] nav a,
+html[data-design="v2"] [data-v2-page="trades"] summary,
+html[data-design="v2"] [data-v2-page="trades"] button {
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
 }
