@@ -71,6 +71,9 @@ export function DesignToggle() {
 
   return (
     <div
+      // Marks the whole pill as scaffolding rather than app UI, so a V1/V2
+      // style comparison can exclude it.
+      data-v2-toggle
       style={{
         position: "fixed",
         right: 12,
