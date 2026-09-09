@@ -38,6 +38,54 @@ const admin = createClient(url, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+/**
+ * Whether Supabase is currently rejecting auth calls that carry no CAPTCHA
+ * token, determined by asking it rather than by a hand-maintained flag.
+ *
+ * **Why this is detected and not configured.** auth.spec.ts drives the real
+ * sign-in form, and once CAPTCHA is enforced that form needs a token no
+ * automated browser can mint -- Cloudflare's dummy sitekey only validates
+ * against the dummy secret, and this project has one Supabase project sharing
+ * one secret with production. So those tests genuinely cannot pass, and a
+ * suite that is permanently three-red is a suite people stop reading.
+ *
+ * Skipping on a detected condition rather than a checked-in constant means
+ * the tests come BACK automatically if CAPTCHA is ever turned off, instead of
+ * staying silently disabled because nobody remembered to flip a flag.
+ *
+ * Deliberately bogus credentials: a wrong password answers
+ * `invalid_credentials`, which proves the request got past the CAPTCHA gate.
+ * `captcha_failed` proves it did not.
+ */
+let captchaProbe: Promise<boolean> | null = null;
+
+export function captchaEnforced(): Promise<boolean> {
+  captchaProbe ??= (async () => {
+    try {
+      const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: "captcha-probe@tradinglens-e2e.invalid",
+          password: "not-a-real-password",
+        }),
+      });
+      const body: unknown = await res.json().catch(() => ({}));
+      const code = (body as { error_code?: string }).error_code ?? "";
+      const msg = (body as { msg?: string }).msg ?? "";
+      return code === "captcha_failed" || /captcha/i.test(msg);
+    } catch {
+      // Unreachable Supabase is a different failure, and one the tests should
+      // report rather than skip over.
+      return false;
+    }
+  })();
+  return captchaProbe;
+}
+
 export interface TestUser {
   id: string;
   email: string;

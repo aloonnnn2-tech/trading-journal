@@ -171,6 +171,25 @@ const API_RATE_WINDOW_MS = 60_000;
 // becomes a real cost; it is not the problem this limit exists to solve.
 const ANON_API_RATE_LIMIT = 60;
 
+// CSP violation reports get their own bucket, keyed by IP, and never touch the
+// two above.
+//
+// **Why they must not share.** Browsers send same-origin `report-uri` POSTs
+// with cookies, so a signed-in user's violation reports would otherwise be
+// charged to `api:<userId>` -- the same 300/min budget autosave spends a PATCH
+// from every 600ms of typing. One repeating violation on a page would then
+// throttle that user's own saves, which is precisely the data loss autosave
+// exists to prevent. A browser reporting on a broken policy must never be able
+// to cost someone their trade edits.
+//
+// Generous, because a report is cheap and losing them defeats the point of
+// collecting: the endpoint answers 204 and does almost nothing, and it already
+// caps what reaches Sentry at 5 per directive+origin per 10 minutes
+// (src/app/api/csp-report/route.ts). This limit is only about bounding abuse
+// of an unauthenticated endpoint, not about protecting Sentry.
+const CSP_REPORT_PATH = "/api/csp-report";
+const CSP_REPORT_RATE_LIMIT = 120;
+
 export async function proxy(request: NextRequest) {
   // getUser() can trigger a token refresh mid-call, which needs new cookies
   // written to both the outgoing request (so this same request sees them)
@@ -208,7 +227,14 @@ export async function proxy(request: NextRequest) {
   // Applied after getUser() so an authenticated caller is limited by user id
   // rather than by IP -- otherwise everyone behind one office NAT or mobile
   // carrier gateway shares a single bucket and throttles each other.
-  if (request.nextUrl.pathname.startsWith("/api/")) {
+  if (request.nextUrl.pathname === CSP_REPORT_PATH) {
+    const limited = enforceRateLimit(
+      `csp:${clientIpKey(request.headers)}`,
+      CSP_REPORT_RATE_LIMIT,
+      API_RATE_WINDOW_MS,
+    );
+    if (limited) return limited;
+  } else if (request.nextUrl.pathname.startsWith("/api/")) {
     const limited = data.user
       ? enforceRateLimit(`api:${data.user.id}`, API_RATE_LIMIT, API_RATE_WINDOW_MS)
       : enforceRateLimit(

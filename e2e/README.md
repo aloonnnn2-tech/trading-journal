@@ -32,6 +32,11 @@ with `process.loadEnvFile`, and the tests need:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` — to create and delete their own throwaway users
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **also needed for local development
+  generally.** Supabase enforces CAPTCHA project-wide, so a local build
+  without this sends no token and every sign-in is rejected, on localhost as
+  much as in production. The Turnstile widget's hostname list includes
+  `localhost`, so the production site key works here too.
 
 No seed data. Each run creates the users and trades it needs and deletes them
 afterwards.
@@ -69,10 +74,20 @@ shared with production. Service-role calls bypass CAPTCHA, so the autosave and
 OCR specs keep working regardless.
 
 `auth.spec.ts` is the exception: it drives the real form on purpose, because
-that form is what it is testing. **It is therefore the one file expected to
-fail once CAPTCHA is switched on.** Fixing that properly needs a second
-Supabase project configured with Turnstile's dummy secret; there is no way
-around it on a single project.
+that form is what it is testing. Once CAPTCHA is enforced those tests cannot
+pass — an automated browser cannot mint a valid Turnstile token, because
+Cloudflare's dummy sitekey only validates against the dummy *secret*, and this
+project has one Supabase project sharing one secret with production.
+
+**So `auth.spec.ts` skips itself when CAPTCHA is on**, with the reason printed
+on each skipped test. It detects that by asking Supabase (a tokenless password
+grant answers `captcha_failed`) rather than reading a checked-in flag — so if
+CAPTCHA is ever switched off, the tests come back on their own instead of
+staying silently disabled because nobody remembered to flip something.
+
+A permanently three-red suite is a suite people stop reading, which is worse
+than an honest skip. Fixing it properly needs a second Supabase project
+configured with Turnstile's dummy secret.
 
 **2. `trade-autosave.spec.ts` contradicts the brief that asked for it.**
 That brief asked to verify "no premature save" when waiting past the debounce

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { deleteUserByEmail } from "./fixtures/test-user";
+import { captchaEnforced, deleteUserByEmail } from "./fixtures/test-user";
 
 /**
  * Sign up, sign out, sign back in, plus the two failure paths that matter:
@@ -29,7 +29,14 @@ const NEW_PASSWORD = 'input[autocomplete="new-password"]';
 const FORM_ERROR = 'p[role="alert"]';
 let email: string;
 
-test.beforeEach(() => {
+// Skipped wholesale while CAPTCHA is enforced -- see captchaEnforced(). The
+// autosave and OCR specs are unaffected: they take a session from a
+// service-role magic link, and service-role calls bypass CAPTCHA.
+test.beforeEach(async () => {
+  test.skip(
+    await captchaEnforced(),
+    "CAPTCHA is enforced on this Supabase project; an automated browser cannot mint a valid Turnstile token. Needs a second Supabase project configured with Cloudflare's dummy secret.",
+  );
   email = `e2e-auth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@tradinglens-e2e.invalid`;
 });
 
