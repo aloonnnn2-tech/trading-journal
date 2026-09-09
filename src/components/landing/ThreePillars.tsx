@@ -44,7 +44,7 @@ const PILLARS = [
 export function ThreePillars() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-10">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div data-v2-cards className="grid gap-4 md:grid-cols-3">
         {PILLARS.map((pillar, i) => (
           <motion.div
             key={pillar.word}

@@ -19,7 +19,14 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div
+      // data-v2-ready opts this route into Design V2; without it the flag has
+      // no effect here. data-v2-page scopes the rules for this page.
+      // See src/styles/design-v2.css, header and section 16.
+      data-v2-ready
+      data-v2-page="landing"
+      className="flex flex-1 flex-col"
+    >
       <LandingHeader />
       <Hero />
       {/* Deliberately alternating shapes down the page: a split hero, three

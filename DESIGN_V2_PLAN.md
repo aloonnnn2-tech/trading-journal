@@ -1,7 +1,7 @@
 # Design V2 — "Terminal Pro" — Plan & Coverage Tracker
 
 Branch: `design/terminal-v2` (from `main` @ `37f544e`)
-Status: **Phase 1 complete + route-readiness gate added. Phase 2 starting with landing/auth.**
+Status: **Phase 2 batch 1 of 9 done (landing + auth). 6 of 31 routes ready.**
 
 Revert path: `git checkout main`. Nothing pushed, nothing deployed.
 
@@ -235,7 +235,7 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 
 | Route | File | Notes | Status |
 |---|---|---|---|
-| `/` | `app/page.tsx` | Landing; gradients, orbs, blur, ThreePillars | todo |
+| `/` | `app/page.tsx` | **done** — hairline bands, 32px headline, fake window chrome removed | done |
 | `/account` | `app/account/page.tsx` | + `delete-account-section.tsx` | todo |
 | `/admin/analytics` | `app/admin/analytics/page.tsx` | tables + 2 recharts | todo |
 | `/admin/plans` | `app/admin/plans/page.tsx` | + `plan-manager.tsx` | todo |
@@ -247,15 +247,15 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `/dashboard` | `app/dashboard/page.tsx` | reference-page candidate | todo |
 | `/emotions` | `app/emotions/page.tsx` | already a table | todo |
 | `/fields` | `app/fields/page.tsx` | 3 managers | todo |
-| `/forgot-password` | `app/forgot-password/page.tsx` | auth shell, 2 shadows | todo |
+| `/forgot-password` | `app/forgot-password/page.tsx` | **done** — all 2 return branches marked | done |
 | `/goals` | `app/goals/page.tsx` | card grid → table candidate | todo |
 | `/insights` | `app/insights/page.tsx` | 3 panels + chart | todo |
 | `/privacy` | `app/privacy/page.tsx` | legal; copy frozen | todo |
 | `/reports` | `app/reports/page.tsx` | **only route with print styles** | todo |
-| `/reset-password` | `app/reset-password/page.tsx` | 3 shadows | todo |
+| `/reset-password` | `app/reset-password/page.tsx` | **done** — all 3 return branches marked | done |
 | `/reviews` | `app/reviews/page.tsx` | Sparkles ×2 | todo |
-| `/sign-in` | `app/sign-in/page.tsx` | hosts the Turnstile widget | todo |
-| `/sign-up` | `app/sign-up/page.tsx` | hosts the Turnstile widget | todo |
+| `/sign-in` | `app/sign-in/page.tsx` | **done** — Turnstile iframe chrome is third-party, untouched | done |
+| `/sign-up` | `app/sign-up/page.tsx` | **done** — all 2 return branches marked | done |
 | `/strategies` | `app/strategies/page.tsx` | tables + scorecards | todo |
 | `/terms` | `app/terms/page.tsx` | legal; copy frozen | todo |
 | `/trades` | `app/trades/page.tsx` | **reference page — done in Phase 1** | done |
@@ -341,20 +341,20 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `trade-card/tag-suggestions-panel.tsx` | todo |
 | `trade-card/trade-history-panel.tsx` | todo |
 | `trade-card/trade-timeline.tsx` | todo |
-| `landing/Hero.tsx` | gradient + `blur-2xl` orb | todo |
-| `landing/LandingHeader.tsx` | backdrop-blur | todo |
-| `landing/LandingFooter.tsx` | todo |
-| `landing/ThreePillars.tsx` | anti-pattern #6 + radial glow | todo |
-| `landing/FeatureGrid.tsx` | Sparkles ×2 | todo |
-| `landing/FeatureStories.tsx` | todo |
-| `landing/FeatureStory.tsx` | todo |
-| `landing/HowItWorks.tsx` | gradient | todo |
-| `landing/PricingTeaser.tsx` | radial glow, Sparkles ×2 | todo |
-| `landing/ClosingCTA.tsx` | shadow | todo |
-| `landing/SectionHeadline.tsx` | todo |
+| `landing/Hero.tsx` | gradient + orb removed | done |
+| `landing/LandingHeader.tsx` | flat, opaque, 44px | done |
+| `landing/LandingFooter.tsx` | 11px hairline strip | done |
+| `landing/ThreePillars.tsx` | now one hairline-ruled block, `data-v2-cards` | done |
+| `landing/FeatureGrid.tsx` | bento flattened, `data-v2-cards`; Sparkles still to remove | partial |
+| `landing/FeatureStories.tsx` | two-column stories, tightened | done |
+| `landing/FeatureStory.tsx` | `align-items: start`, 20px gap | done |
+| `landing/HowItWorks.tsx` | square step markers, gradient rule gone | done |
+| `landing/PricingTeaser.tsx` | glow gone; Sparkles still to remove | partial |
+| `landing/ClosingCTA.tsx` | flat band | done |
+| `landing/SectionHeadline.tsx` | left-aligned, 18px | done |
 | `landing/CategoryTag.tsx` | todo |
 | `landing/PaidPlanModal.tsx` | 578 lines; backdrop-blur ×2, Sparkles ×3 | todo |
-| `landing/illustrations.tsx` | **check for anti-pattern #14** (fake terminal mockup) | todo |
+| `landing/illustrations.tsx` | **#14 confirmed and fixed** — the window dots, fake breadcrumb and "live" pip are hidden in V2; the dense figures underneath are kept. SVG axis labels and bar corners corrected via CSS | done |
 
 **Totals:** 26 routes + 5 root-level route files + 35 route-local components + 43 shared
 components = **109 tracked items**, 4 of them `n-a`.
@@ -560,3 +560,68 @@ entirely, which yields V1 everywhere rather than a broken V1.
 
 The landing page under the flag is now identical to V1 in both themes — the flag is inert
 there until its own design pass lands.
+
+
+---
+
+## 15. Phase 2 — batch 1: landing and auth
+
+Routes now marked ready: `/`, `/sign-in`, `/sign-up`, `/forgot-password`, `/reset-password`,
+plus `/trades` from Phase 1. **6 of 31.** Everything else still renders as V1 under the flag.
+
+### Landing
+
+Bands separated by hairlines instead of 96px of air; 32px headline (the only place the scale
+reaches 32); left-aligned rather than centred; the three pillars and the feature bento are now
+single hairline-ruled blocks rather than rows of floating cards. Page height fell from roughly
+6,000px to **3,519px** for the same content.
+
+**Anti-pattern #14 was real and is fixed.** `illustrations.tsx` drew a fake app window — three
+grey dots, a `dashboard / overview` breadcrumb and a green "live" pip. That chrome is hidden in
+V2. The dense figures inside it are kept: they are a hand-built HTML/SVG illustration of real
+product output, which is the opposite of the thing the anti-pattern bans. This does **not**
+close #18 — there is still no screenshot or recording of the actual app.
+
+### Auth
+
+One hairline panel per screen, uppercase micro-labels, square accent submit. `/sign-up`,
+`/forgot-password` and `/reset-password` each return from **several branches** (form, sent,
+error) and every branch carries the marker — otherwise one state of a flow would drop back to
+V1 mid-journey. The Turnstile widget is a third-party iframe and is left alone.
+
+### Four bugs found and fixed in this batch
+
+1. **The density block only moved one axis.** §6 overrode `py-*` but not `pt-*`/`pb-*`, so the
+   hero kept 96–112px of padding around 13px type. That was the single biggest contributor to
+   the "broken, not redesigned" look. Both axes now move together.
+2. **Class-substring matching caught the wrong grids.** A rule aimed at card rows also hit the
+   hero's two-column grid and the two-column feature stories, painting grey bands where
+   `items-center` left a column short. Replaced with an explicit `data-v2-cards` marker on the
+   two grids that really are card rows.
+3. **Fixed panel heights outlived their type.** The pillars carry `md:min-h-[19rem]` with
+   `mt-auto` on the body copy, both sized for 16px text. At 13px the box no longer filled and
+   opened a ~150px void in each card.
+4. **framer-motion left whole sections invisible.** Sections fade in on scroll, so anything
+   below the fold sat at `opacity: 0` while still occupying its height. V2 drops the animation,
+   which also makes the page reviewable in a full-page screenshot.
+
+### Verified
+
+| Check | Result |
+|---|---|
+| Landing in V2: shadows / radius>2 / gradients / backdrop / banned fonts / controls <32px | **0 / 0 / 0 / 0 / 0 / 0** |
+| Elements left invisible by motion | **0** |
+| Un-ready routes (`/terms`, `/privacy`, `/contact`, `/cookies`), flag off vs on, light | 269 nodes, **0 differences** |
+| Un-ready routes, dark | 301 nodes, **0 differences** |
+| `npx vitest run` | 65 files, **935 passed** |
+| `npm run check:design-v2` | all 145 rules carry both gates |
+
+Two ESLint warnings remain in `sign-in`/`sign-up` (`window.location.href`). Both are on `main`
+already and are unrelated to this work.
+
+### Still open on these routes
+
+- `Sparkles` icons remain in `FeatureGrid` (×2) and `PricingTeaser` (×2) — removing an icon is
+  a markup edit, batched with the other 14 Sparkles usages in a later pass.
+- `PricingTeaser` and `ClosingCTA` have had the band and panel treatment but not a close read
+  of their internal copy and spacing.

@@ -113,7 +113,10 @@ function SignInForm() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+    <div
+      data-v2-ready
+      data-v2-page="auth"
+      className="flex flex-1 flex-col items-center justify-center px-6 py-16">
       <form
         onSubmit={handleSubmit}
         className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]"

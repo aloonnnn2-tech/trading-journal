@@ -461,9 +461,33 @@ html[data-design="v2"]:has([data-v2-ready]) .py-12 { padding-block: 18px; }
 html[data-design="v2"]:has([data-v2-ready]) .py-16 { padding-block: 22px; }
 html[data-design="v2"]:has([data-v2-ready]) .py-20 { padding-block: 24px; }
 html[data-design="v2"]:has([data-v2-ready]) .py-24 { padding-block: 28px; }
+
+/* The directional halves of the same scale. Leaving these out was the bug
+   behind the broken landing page: `pt-16 pb-20 lg:pt-24 lg:pb-28` kept its
+   full 96-112px while the type inside shrank to 13px, so the hero floated in
+   a void. A density pass has to move both axes or neither. */
+html[data-design="v2"]:has([data-v2-ready]) .pt-10, html[data-design="v2"]:has([data-v2-ready]) .pb-10 { padding-top: 16px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-10 { padding-top: 0; padding-bottom: 16px; }
+html[data-design="v2"]:has([data-v2-ready]) .pt-12 { padding-top: 18px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-12 { padding-bottom: 18px; }
+html[data-design="v2"]:has([data-v2-ready]) .pt-14 { padding-top: 20px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-14 { padding-bottom: 20px; }
+html[data-design="v2"]:has([data-v2-ready]) .pt-16 { padding-top: 22px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-16 { padding-bottom: 22px; }
+html[data-design="v2"]:has([data-v2-ready]) .pt-20 { padding-top: 24px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-20 { padding-bottom: 24px; }
+html[data-design="v2"]:has([data-v2-ready]) .pt-24 { padding-top: 28px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-24 { padding-bottom: 28px; }
+html[data-design="v2"]:has([data-v2-ready]) .pt-28 { padding-top: 30px; }
+html[data-design="v2"]:has([data-v2-ready]) .pb-28 { padding-bottom: 30px; }
 html[data-design="v2"]:has([data-v2-ready]) .gap-6 { gap: 14px; }
 html[data-design="v2"]:has([data-v2-ready]) .gap-8 { gap: 16px; }
 html[data-design="v2"]:has([data-v2-ready]) .gap-10 { gap: 18px; }
+html[data-design="v2"]:has([data-v2-ready]) .gap-12 { gap: 20px; }
+html[data-design="v2"]:has([data-v2-ready]) .gap-14 { gap: 22px; }
+html[data-design="v2"]:has([data-v2-ready]) .gap-16 { gap: 24px; }
+html[data-design="v2"]:has([data-v2-ready]) .gap-20 { gap: 26px; }
+html[data-design="v2"]:has([data-v2-ready]) .gap-24 { gap: 28px; }
 
 
 /* ---------------------------------------------------------------------------
@@ -838,4 +862,314 @@ html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="trades"] [data-v2-emp
   html[data-design="v2"]:has([data-v2-ready]) [data-v2-overlay] {
     box-shadow: none;
   }
+}
+
+
+/* ---------------------------------------------------------------------------
+   16. Landing page
+   ---------------------------------------------------------------------------
+   A marketing page for a trading tool should look like the tool. The V1 page
+   is a stack of 96px-padded sections with 60px headlines, radial glows, a
+   bento grid and a fake app window -- the template shape the whole redesign
+   exists to get away from.
+
+   V2 turns it into a document: full-bleed bands separated by hairlines, a
+   32px headline (the only place the scale goes that high), and left-aligned
+   text. Nothing is centred except where centring carries meaning, because
+   centred marketing copy is the other half of the template look.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] section,
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] > div {
+  max-width: none;
+  padding-inline: 20px;
+  padding-block: 30px;
+  border-bottom: 1px solid var(--v2-line);
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] section > *,
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] > div > * {
+  max-width: 1100px;
+  margin-inline: auto;
+}
+
+/* A section headline introduces the band below it, so it keeps the rule off
+   its own bottom edge. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] > div {
+  padding-block: 26px 0;
+  border-bottom: 0;
+}
+
+/* The hero is the one band that gets room to breathe. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] section:first-of-type {
+  padding-block: 40px 34px;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] h1 {
+  font-size: 32px;
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  max-width: 18ch;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] h2 {
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--v2-text-2);
+}
+
+/* The eyebrow above the headline, and the numbered pillar kickers. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] section span[class*="tracking-["] {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--v2-text-3);
+}
+
+/* Section headlines read as column headers, not as billboards, and sit left
+   with the content rather than centred over it. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="items-center"][class*="text-center"] {
+  align-items: flex-start;
+  text-align: left;
+}
+
+/* Buttons: square, hairline, one accent for the single primary action. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] a[class*="rounded"] {
+  border-radius: 2px;
+  padding: 0 14px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] a[class*="bg-primary"] {
+  background: var(--v2-accent);
+  color: var(--v2-on-accent);
+}
+
+/* The capability strip under the hero buttons is already mono; make it read
+   as metadata. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="font-mono"] {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 11px;
+}
+
+/* The hero illustration keeps its data and loses the window dressing. The
+   three dots, the fake breadcrumb and the "live" pip are a picture of an app
+   window, which is the decoration anti-pattern #14 bans -- the dense figures
+   underneath are the part worth showing. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="overflow-hidden"][class*="rounded"] > div:first-child:has(span > span[class*="rounded-full"]) {
+  display: none;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="overflow-hidden"][class*="rounded"] {
+  border-radius: 0;
+  border: 1px solid var(--v2-line);
+  background: var(--v2-surface);
+}
+
+/* Cards stop being cards. Equal-height rows are what produced the voids on
+   the flag-only build: the text shrank, the row heights did not. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="auto-rows-fr"] {
+  grid-auto-rows: auto;
+}
+
+/* Card grids become one hairline-ruled block rather than a row of floating
+   panels: a 1px gap over a line-coloured background draws the rules, and the
+   children paint themselves back in.
+
+   Restricted to a section's own direct grid child, and never the first
+   section: the hero is also a grid, and treating it as a card row painted
+   grey bands above and below the hero copy where `items-center` left the
+   short column short. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [data-v2-cards] {
+  gap: 1px;
+  background: var(--v2-line);
+  border: 1px solid var(--v2-line);
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [data-v2-cards] > * {
+  background: var(--v2-bg);
+  border: 0;
+  border-radius: 0;
+  padding: 14px 16px;
+}
+
+/* The feature stories are text beside a visual, not a card row. Their
+   `items-center` leaves the short column short, so any background painted on
+   the grid shows through as a band. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="lg:grid-cols-2"] {
+  gap: 20px;
+  align-items: start;
+}
+
+/* Fixed panel heights are the other half of the void problem: the pillars
+   carry `md:min-h-[19rem]` and push their body copy down with `mt-auto`, both
+   sized for 16px type. At 13px the box no longer fills. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="min-h-["] {
+  min-height: 0;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="mt-auto"] {
+  margin-top: 12px;
+  padding-top: 0;
+}
+
+/* Icon chips lose the tint and the pill. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] span[class*="bg-primary/10"] {
+  background: transparent;
+  border-radius: 0;
+  width: auto;
+  height: auto;
+  color: var(--v2-text-3);
+}
+
+/* The numbered step markers in "How it works" square off. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] span[class*="h-12"][class*="rounded-full"] {
+  border-radius: 2px;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  font-size: 11px;
+  background: var(--v2-surface-2);
+  color: var(--v2-text-2);
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] header {
+  padding: 0 20px;
+  min-height: 44px;
+  background: var(--v2-surface);
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] footer {
+  padding: 18px 20px;
+  font-size: 11px;
+  border-bottom: 0;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] footer a {
+  font-size: 11px;
+}
+
+/* Nothing on this page is decorative. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] svg[class*="absolute"],
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [class*="pointer-events-none"][class*="absolute"] {
+  display: none;
+}
+
+/* Every section of this page fades and slides in on scroll. V2 keeps motion
+   functional only, so they simply exist. framer-motion writes opacity and
+   transform onto the style attribute, hence !important; matching on
+   [style*="opacity"] hits exactly its animated wrappers and nothing else.
+
+   This also fixes a review hazard: with the animation in place, anything
+   below the fold never scrolls into view, so it sits at opacity 0 while still
+   occupying its full height -- a full-page screenshot shows several hundred
+   pixels of apparently empty page. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] [style*="opacity"] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* The hand-drawn SVG illustrations set their own chrome as presentation
+   attributes -- `fontFamily="var(--font-geist-mono)"` on axis labels and
+   `rx="3"` on bars. CSS wins over presentation attributes, so both can be
+   corrected here rather than by editing the illustration components. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] svg text {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="landing"] svg rect {
+  rx: 0;
+  ry: 0;
+}
+
+
+/* ---------------------------------------------------------------------------
+   17. Auth screens
+   ---------------------------------------------------------------------------
+   sign-in, sign-up, forgot-password, reset-password. Each has several return
+   branches (form, sent, error) and every one carries the readiness marker, so
+   no state of these routes falls back to V1 halfway through a flow.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] {
+  padding: 24px 20px;
+}
+
+/* One hairline panel on the page ground. No shadow, no radius, no lift. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] form,
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] > div:has(> h1),
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] > div[class*="max-w"] {
+  border: 1px solid var(--v2-line);
+  border-radius: 0;
+  background: var(--v2-surface);
+  padding: 20px;
+  max-width: 340px;
+  gap: 12px;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Field labels get the same uppercase micro-label treatment as column
+   headers, which is what ties these screens to the app behind them. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] label {
+  font-size: 10px;
+  font-weight: 550;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--v2-text-3);
+  gap: 5px;
+}
+
+/* The "Forgot password?" link sits inside a label and must not be shouted. */
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] label a {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  color: var(--v2-accent);
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] input {
+  border-radius: 2px;
+  border: 1px solid var(--v2-line-str);
+  background: var(--v2-bg);
+  padding: 6px 9px;
+  font-size: 13px;
+  min-height: 32px;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] button[type="submit"] {
+  border-radius: 2px;
+  background: var(--v2-accent);
+  color: var(--v2-on-accent);
+  font-size: 12px;
+  font-weight: 550;
+  min-height: 32px;
+  padding: 0 14px;
+}
+
+html[data-design="v2"]:has([data-v2-ready]) [data-v2-page="auth"] [role="alert"] {
+  border: 1px solid var(--v2-neg);
+  border-radius: 0;
+  background: transparent;
+  color: var(--v2-neg);
+  padding: 6px 9px;
+  font-size: 12px;
 }
