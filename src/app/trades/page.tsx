@@ -130,7 +130,12 @@ export default async function TradesPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div
+      // Inert in V1; scopes the Design V2 rules for this page. See
+      // design-v2.css section 13.
+      data-v2-page="trades"
+      className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Trades</h1>
         <div className="flex flex-wrap items-center gap-3">
@@ -354,7 +359,10 @@ function ExportMenu({ folderId }: { folderId?: string }) {
       <summary className="cursor-pointer list-none rounded-full border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:border-zinc-500">
         Export
       </summary>
-      <div className="absolute right-0 z-10 mt-2 flex w-40 flex-col gap-1 rounded-lg border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-2 shadow-lg">
+      <div
+        data-v2-overlay
+        className="absolute right-0 z-10 mt-2 flex w-40 flex-col gap-1 rounded-lg border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-2 shadow-lg"
+      >
         <a
           href={`/api/trades/export?format=csv${query}`}
           className="rounded px-2 py-1 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -445,7 +453,11 @@ function TradeTable({
   stratNamesByTradeId: Record<string, string[]>;
 }) {
   if (trades.length === 0) {
-    return <p className="py-8 text-center text-sm text-zinc-500">No trades match your filters.</p>;
+    return (
+      <p data-v2-empty className="py-8 text-center text-sm text-zinc-500">
+        No trades match your filters.
+      </p>
+    );
   }
 
   return (
@@ -457,9 +469,11 @@ function TradeTable({
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Result</th>
             <th className="px-4 py-3">Tags</th>
-            <th className="px-4 py-3">Entry Date</th>
-            <th className="px-4 py-3">R:R</th>
-            <th className="px-4 py-3">Dollar P/L</th>
+            {/* data-num is inert in V1. In V2 it right-aligns the column and
+                gives it the mono, tabular figures a numeric column needs. */}
+            <th data-num className="px-4 py-3">Entry Date</th>
+            <th data-num className="px-4 py-3">R:R</th>
+            <th data-num className="px-4 py-3">Dollar P/L</th>
           </tr>
         </thead>
         <tbody>
@@ -483,20 +497,20 @@ function TradeTable({
               <td className="px-4 py-3">
                 <TagChips tags={stratNamesByTradeId[trade.id] ?? []} />
               </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+              <td data-num className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
                 {trade.entry_date ? new Date(trade.entry_date).toLocaleDateString() : "—"}
               </td>
               {/* Planned reward against planned risk. Unlike P/L it's known
                   before the trade is over, so it's the one number here that
                   says something about a position still open. */}
-              <td className="tnum px-4 py-3 font-mono text-zinc-600 dark:text-zinc-400">
+              <td data-num className="tnum px-4 py-3 font-mono text-zinc-600 dark:text-zinc-400">
                 {trade.risk_reward_ratio != null ? (
                   `${trade.risk_reward_ratio.toFixed(2)}`
                 ) : (
                   <span className="font-sans text-zinc-400 dark:text-zinc-600">—</span>
                 )}
               </td>
-              <td className="px-4 py-3">
+              <td data-num className="px-4 py-3">
                 {trade.dollar_pl !== null ? (
                   <span className={trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}>
                     ${trade.dollar_pl.toFixed(2)}

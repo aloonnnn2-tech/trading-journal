@@ -1,0 +1,804 @@
+/* ===========================================================================
+   Design V2 -- "Terminal Pro"
+   ===========================================================================
+
+   Every rule in this file MUST begin with `html[data-design="v2"]`. That is
+   the entire safety mechanism: with the flag off the attribute is absent, not
+   one selector here matches, and the app is V1 down to the computed style.
+   A selector in this file without that ancestor is a bug, and
+   `npm run check:design-v2` fails the build over it.
+
+   This file is deliberately NOT inside a Tailwind `@layer`. Tailwind v4 emits
+   every utility inside `@layer utilities`, and an unlayered rule beats a
+   layered one no matter the specificity -- so plain rules here override
+   `.rounded-xl`, `.bg-white`, `.text-sm` and the rest without `!important`
+   and without touching a single line of JSX.
+
+   The leverage comes from the layer below the utilities: Tailwind v4 compiles
+   `.bg-zinc-50` to `background-color: var(--color-zinc-50)` and `.rounded-xl`
+   to `border-radius: var(--radius-xl)`. Redefining those theme variables
+   inside the V2 scope repoints thousands of existing class names at once.
+   That is why section 2 below is the largest and most important part of the
+   file, and why most of the redesign needs no per-component work at all.
+
+   Section map:
+     1  V2 palette
+     2  Repointing the existing token systems (app tokens, Tailwind palette)
+     3  Shape: radius, borders, shadows, blur, gradients
+     4  Type: faces, scale, numerals
+     5  Motion
+     6  Density
+     7  Base elements and layout chrome
+     8  Forms, focus, hit targets
+     9  Tables
+    10  Icons
+    11  Charts
+    12  Loading skeletons
+    13  Reference page: /trades
+    14  Mobile
+    15  Print
+   ======================================================================== */
+
+
+/* ---------------------------------------------------------------------------
+   1. V2 palette
+   ---------------------------------------------------------------------------
+   Both ramps are deliberately desaturated. A color that means nothing is a
+   bug: chroma is reserved for gain, loss, warning, and one accent that marks
+   the active/focused/selected thing and nothing else.
+
+   Light is defined on the bare V2 scope and dark on `[data-design="v2"].dark`.
+   next-themes puts `.dark` on <html>, the same element carrying data-design,
+   so `html[data-design="v2"].dark` (0,2,1) reliably outranks the base V2 rule
+   (0,1,1) -- and both outrank the `.dark` block in globals.css (0,1,0).
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] {
+  --v2-bg: #f5f4f1;        /* paper, never #fff */
+  --v2-surface: #fcfbf9;
+  --v2-surface-2: #efede9;
+  --v2-line: #dcd9d3;
+  --v2-line-str: #bfbbb3;
+  --v2-text: #16191c;
+  --v2-text-2: #5c646b;
+  --v2-text-3: #838c93;
+  --v2-accent: #a66c15;
+  --v2-pos: #2e7d57;
+  --v2-neg: #a63f39;
+  --v2-warn: #8a6410;
+  /* Ink for text sitting on --v2-accent. The light accent is dark enough that
+     it needs light ink; the dark accent needs dark ink. Both clear 4.5:1. */
+  --v2-on-accent: #fcfbf9;
+}
+
+html[data-design="v2"].dark {
+  --v2-bg: #0b0d0f;
+  --v2-surface: #121619;
+  --v2-surface-2: #171c20;
+  --v2-line: #232a30;
+  --v2-line-str: #333c44;
+  --v2-text: #e4e7ea;
+  --v2-text-2: #9aa4ad;
+  --v2-text-3: #6b757e;
+  --v2-accent: #c8862a;
+  --v2-pos: #3e9b6e;
+  --v2-neg: #c0504a;
+  --v2-warn: #b8860b;
+  --v2-on-accent: #0b0d0f;
+}
+
+
+/* ---------------------------------------------------------------------------
+   2. Repointing the existing token systems
+------------------------------------------------------------------------- */
+
+/* 2a. The app's own tokens from globals.css. Everything written as bg-card,
+   text-profit, border-subtle, bg-background or text-foreground follows these,
+   so this block alone converts the majority of the app.
+
+   --color-primary is the big one: in V1 it is a bright blue doing five
+   different jobs (buttons, links, focus, charts, meters). Pointing it at the
+   single muted accent is what makes the app stop reading as a template. */
+html[data-design="v2"] {
+  --background: var(--v2-bg);
+  --foreground: var(--v2-text);
+  --color-primary: var(--v2-accent);
+  --color-accent: var(--v2-accent);
+  --color-profit: var(--v2-pos);
+  --color-loss: var(--v2-neg);
+  --color-deep: var(--v2-bg);
+  --color-card: var(--v2-surface);
+  --color-subtle: var(--v2-line);
+
+  --chart-pos: var(--v2-pos);
+  --chart-neg: var(--v2-neg);
+  --chart-ref: var(--v2-line-str);
+  --chart-grid: var(--v2-line);
+  --chart-axis: var(--v2-line-str);
+  --chart-muted: var(--v2-text-3);
+}
+
+/* 2b. Tailwind's own palette. 1798 of the ~1885 palette utilities in this
+   codebase are zinc, so remapping the ramp is the single highest-leverage
+   block in the file.
+
+   The ramp is written twice because the app always pairs the two ends --
+   `bg-zinc-50 dark:bg-zinc-950`, `text-zinc-900 dark:text-zinc-100`. In light
+   the low numbers are surfaces and the high numbers are ink; in dark that
+   inverts. Each theme therefore gets a ramp where its own end lands correctly,
+   and the other end is simply unused. */
+html[data-design="v2"] {
+  --color-white: var(--v2-surface);
+  --color-black: var(--v2-bg);
+
+  --color-zinc-50: var(--v2-bg);
+  --color-zinc-100: var(--v2-surface-2);
+  --color-zinc-200: var(--v2-line);
+  --color-zinc-300: var(--v2-line-str);
+  --color-zinc-400: var(--v2-text-3);
+  --color-zinc-500: var(--v2-text-2);
+  --color-zinc-600: var(--v2-text-2);
+  --color-zinc-700: #3a4046;
+  --color-zinc-800: #22262a;
+  --color-zinc-900: var(--v2-text);
+  --color-zinc-950: var(--v2-text);
+}
+
+html[data-design="v2"].dark {
+  --color-white: var(--v2-surface);
+  --color-black: var(--v2-bg);
+
+  --color-zinc-50: var(--v2-text);
+  --color-zinc-100: var(--v2-text);
+  --color-zinc-200: var(--v2-text);
+  --color-zinc-300: var(--v2-text-2);
+  --color-zinc-400: var(--v2-text-2);
+  --color-zinc-500: var(--v2-text-3);
+  --color-zinc-600: var(--v2-line-str);
+  --color-zinc-700: var(--v2-line-str);
+  --color-zinc-800: var(--v2-surface-2);
+  --color-zinc-900: var(--v2-surface);
+  --color-zinc-950: var(--v2-bg);
+}
+
+/* 2c. The two accent families. Amber is used for warnings and highlights
+   (71 occurrences), red for destructive actions (15). Both collapse onto the
+   semantic tokens so no third or fourth hue survives. */
+html[data-design="v2"] {
+  --color-amber-50: var(--v2-surface-2);
+  --color-amber-100: var(--v2-surface-2);
+  --color-amber-200: var(--v2-line);
+  --color-amber-300: var(--v2-warn);
+  --color-amber-400: var(--v2-warn);
+  --color-amber-500: var(--v2-warn);
+  --color-amber-600: var(--v2-warn);
+  --color-amber-700: var(--v2-warn);
+  --color-amber-800: var(--v2-surface-2);
+  --color-amber-900: var(--v2-surface-2);
+  --color-amber-950: var(--v2-surface-2);
+
+  --color-red-50: var(--v2-surface-2);
+  --color-red-100: var(--v2-surface-2);
+  --color-red-200: var(--v2-line);
+  --color-red-300: var(--v2-neg);
+  --color-red-400: var(--v2-neg);
+  --color-red-500: var(--v2-neg);
+  --color-red-600: var(--v2-neg);
+  --color-red-700: var(--v2-neg);
+  --color-red-800: var(--v2-surface-2);
+  --color-red-900: var(--v2-surface-2);
+  --color-red-950: var(--v2-surface-2);
+
+  --color-green-500: var(--v2-pos);
+  --color-green-600: var(--v2-pos);
+}
+
+/* Text sitting on the accent needs the paired ink, and `text-white` on a
+   primary button would otherwise resolve to the near-white surface -- fine on
+   the light accent, illegible on the dark one. */
+html[data-design="v2"] .bg-primary,
+html[data-design="v2"] .bg-accent {
+  color: var(--v2-on-accent);
+}
+
+
+/* ---------------------------------------------------------------------------
+   3. Shape: radius, borders, shadows, blur, gradients
+------------------------------------------------------------------------- */
+
+/* 2px on controls, 0 on panels and cells. Redefining the radius scale catches
+   all 162 rounded-* occurrences; `rounded-full` compiles to a literal rather
+   than a variable, so it needs its own rule. */
+html[data-design="v2"] {
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+}
+
+html[data-design="v2"] [class*="rounded-full"],
+html[data-design="v2"] [class*="rounded-\["] {
+  border-radius: 2px;
+}
+
+/* Panels, table cells and the shell are square. */
+html[data-design="v2"] table,
+html[data-design="v2"] thead,
+html[data-design="v2"] tbody,
+html[data-design="v2"] tr,
+html[data-design="v2"] th,
+html[data-design="v2"] td,
+html[data-design="v2"] header,
+html[data-design="v2"] footer {
+  border-radius: 0;
+}
+
+/* Separation is by hairline, never by shadow. The class-substring match is
+   deliberate: it catches the arbitrary `shadow-[0_1px_2px_...]` values as well
+   as the named scale, and it cannot touch ring utilities, which the focus
+   treatment in section 8 still needs. */
+html[data-design="v2"] [class*="shadow"] {
+  box-shadow: none;
+}
+
+html[data-design="v2"] [class*="drop-shadow"] {
+  filter: none;
+}
+
+/* The one permitted exception: a genuine overlay floating above the page.
+   1px offset, no blur halo -- enough to say "this is on top", not enough to
+   read as a card lifting off the surface. */
+html[data-design="v2"] [data-v2-overlay] {
+  box-shadow: 0 1px 0 0 var(--v2-line-str);
+}
+
+/* No frosted glass. The blurred panels are all sticky headers and modal
+   scrims, which become opaque instead. */
+html[data-design="v2"] [class*="backdrop-blur"] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* No gradients anywhere -- background images on this codebase are exclusively
+   linear and radial gradients (hero glows, meter fills, section washes). */
+html[data-design="v2"] [class*="gradient"] {
+  background-image: none;
+}
+
+/* Decorative blur orbs have no content and no border; with their gradient
+   gone they are invisible but still occupy stacking context. */
+html[data-design="v2"] [class*="blur-2xl"],
+html[data-design="v2"] [class*="blur-3xl"] {
+  display: none;
+}
+
+html[data-design="v2"] * {
+  border-color: var(--v2-line);
+}
+
+
+/* ---------------------------------------------------------------------------
+   4. Type
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] {
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+
+  /* 10 / 11 / 12 / 13 / 15 / 18 / 24 / 32 on a 13px base. Remapping the scale
+     rather than rewriting `text-sm` to `text-[12px]` across 66 files. */
+  --text-xs: 11px;
+  --text-xs--line-height: 1.35;
+  --text-sm: 12px;
+  --text-sm--line-height: 1.4;
+  --text-base: 13px;
+  --text-base--line-height: 1.45;
+  --text-lg: 15px;
+  --text-lg--line-height: 1.4;
+  --text-xl: 18px;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 24px;
+  --text-3xl--line-height: 1.25;
+  --text-4xl: 32px;
+  --text-4xl--line-height: 1.15;
+  --text-5xl: 32px;
+  --text-5xl--line-height: 1.15;
+  --text-6xl: 32px;
+  --text-6xl--line-height: 1.15;
+
+  /* 400 and 550/600 only. `font-bold` and `font-extrabold` collapse onto 600
+     so nothing in V2 renders heavier than semibold. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 550;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+}
+
+html[data-design="v2"] body {
+  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+  font-feature-settings: normal;
+  background: var(--v2-bg);
+  color: var(--v2-text);
+}
+
+/* Prose gets the looser measure; UI keeps 1.35. */
+html[data-design="v2"] p,
+html[data-design="v2"] li {
+  line-height: 1.55;
+}
+
+html[data-design="v2"] h1,
+html[data-design="v2"] h2,
+html[data-design="v2"] h3,
+html[data-design="v2"] h4 {
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+/* Numbers are monospace, tabular, and align on the decimal.
+
+   `.tnum` and `font-mono` are the explicit opt-ins that already exist.
+   `[data-num]` is the convention this redesign adds: an inert attribute on
+   numeric cells, which changes nothing in V1 and needs no hydration guard,
+   used where a column is numeric but was never marked as such. */
+html[data-design="v2"] .tnum,
+html[data-design="v2"] [class*="font-mono"],
+html[data-design="v2"] [data-num] {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-design="v2"] [data-num] {
+  text-align: right;
+}
+
+/* Uppercase micro-labels. This one treatment does most of the terminal work:
+   column headers, section eyebrows and metadata labels all read as chrome
+   rather than as content. */
+html[data-design="v2"] th,
+html[data-design="v2"] [data-v2-label] {
+  font-size: 10px;
+  font-weight: 550;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--v2-text-3);
+}
+
+
+/* ---------------------------------------------------------------------------
+   5. Motion -- functional only
+------------------------------------------------------------------------- */
+
+/* globals.css transitions transform and box-shadow on every control at 150ms.
+   V2 keeps only the two properties that carry information about state. */
+html[data-design="v2"] a,
+html[data-design="v2"] button,
+html[data-design="v2"] select,
+html[data-design="v2"] input,
+html[data-design="v2"] summary {
+  transition-property: opacity, background-color, border-color, color;
+  transition-duration: 120ms;
+  transition-timing-function: linear;
+}
+
+html[data-design="v2"] button:active,
+html[data-design="v2"] summary:active {
+  transform: none;
+}
+
+/* framer-motion writes transform and opacity straight onto the element's style
+   attribute, so nothing but `!important` reaches it. `data-v2-flat` marks the
+   wrappers whose entrance and hover animation V2 drops: the shared Card and
+   the global page transition. Scoped to those rather than applied globally,
+   because a blanket `opacity: 1 !important` would also break legitimate
+   fade-outs elsewhere. */
+html[data-design="v2"] [data-v2-flat] {
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* Decorative pulse dots. The spinners and pulses that mean "working" stay --
+   those are the loading states requirement 9 asks for, not decoration. */
+html[data-design="v2"] [class*="animate-ping"] {
+  display: none;
+}
+
+
+/* ---------------------------------------------------------------------------
+   6. Density
+   ---------------------------------------------------------------------------
+   Deliberately NOT done by shrinking Tailwind's `--spacing`. Every width and
+   height utility derives from that same variable, so a global 20% reduction
+   would take `h-9` buttons from 36px to 29px and break the 32px hit-target
+   floor everywhere at once. Padding is therefore tightened on the specific
+   panel-scale utilities instead, and sizing is left alone.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] .p-5 { padding: 10px 12px; }
+html[data-design="v2"] .p-6 { padding: 12px 14px; }
+html[data-design="v2"] .p-8 { padding: 14px 16px; }
+html[data-design="v2"] .px-6 { padding-inline: 16px; }
+html[data-design="v2"] .px-8 { padding-inline: 18px; }
+html[data-design="v2"] .py-8 { padding-block: 14px; }
+html[data-design="v2"] .py-10 { padding-block: 16px; }
+html[data-design="v2"] .py-12 { padding-block: 18px; }
+html[data-design="v2"] .py-16 { padding-block: 22px; }
+html[data-design="v2"] .py-20 { padding-block: 24px; }
+html[data-design="v2"] .py-24 { padding-block: 28px; }
+html[data-design="v2"] .gap-6 { gap: 14px; }
+html[data-design="v2"] .gap-8 { gap: 16px; }
+html[data-design="v2"] .gap-10 { gap: 18px; }
+
+
+/* ---------------------------------------------------------------------------
+   7. Base elements and layout chrome
+------------------------------------------------------------------------- */
+
+/* Panels: hairline and a background step, never a shadow. */
+html[data-design="v2"] header,
+html[data-design="v2"] footer {
+  background: var(--v2-surface);
+  border-color: var(--v2-line);
+}
+
+html[data-design="v2"] hr {
+  border-color: var(--v2-line);
+}
+
+html[data-design="v2"] a {
+  text-underline-offset: 2px;
+}
+
+html[data-design="v2"] ::selection {
+  background: var(--v2-accent);
+  color: var(--v2-on-accent);
+}
+
+html[data-design="v2"] ::placeholder {
+  color: var(--v2-text-3);
+}
+
+
+/* ---------------------------------------------------------------------------
+   8. Forms, focus, hit targets
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] input,
+html[data-design="v2"] select,
+html[data-design="v2"] textarea {
+  background: var(--v2-surface);
+  border-color: var(--v2-line-str);
+  color: var(--v2-text);
+  border-radius: 2px;
+}
+
+/* Accessibility floor beats the density target: 32px on desktop even where a
+   28px row would be denser. Checkboxes and radios are excluded -- they are
+   sized intrinsically and a min-height would only misalign them. */
+html[data-design="v2"] button,
+html[data-design="v2"] select,
+html[data-design="v2"] summary,
+html[data-design="v2"] textarea,
+html[data-design="v2"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+  min-height: 32px;
+}
+
+html[data-design="v2"] input:focus,
+html[data-design="v2"] select:focus,
+html[data-design="v2"] textarea:focus {
+  border-color: var(--v2-accent);
+}
+
+/* One visible focus ring on everything focusable: 1px accent, 1px offset. */
+html[data-design="v2"] :focus-visible {
+  outline: 1px solid var(--v2-accent);
+  outline-offset: 1px;
+}
+
+html[data-design="v2"] :disabled,
+html[data-design="v2"] [aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+html[data-design="v2"] [role="alert"] {
+  color: var(--v2-neg);
+  border-color: var(--v2-neg);
+}
+
+
+/* ---------------------------------------------------------------------------
+   9. Tables -- the core of the redesign
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* The stronger rule under the header is the one line that makes a table read
+   as a terminal grid rather than as a styled list. */
+html[data-design="v2"] thead {
+  background: var(--v2-surface-2);
+  border-bottom: 1px solid var(--v2-line-str);
+}
+
+html[data-design="v2"] th {
+  padding: 5px 10px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+html[data-design="v2"] td {
+  padding: 6px 10px;
+  height: 28px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--v2-line);
+  font-size: 12px;
+}
+
+html[data-design="v2"] tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+html[data-design="v2"] tbody tr:hover {
+  background: var(--v2-surface-2);
+}
+
+/* A numeric header aligns with the column it labels. */
+html[data-design="v2"] th[data-num] {
+  text-align: right;
+}
+
+
+/* ---------------------------------------------------------------------------
+   10. Icons
+   ---------------------------------------------------------------------------
+   The icon library stays -- ripping out lucide would be a large, risky
+   refactor for no visual gain. What changes is the usage: hairline stroke,
+   inherited color, never a colored glyph carrying no information.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] svg.lucide {
+  stroke-width: 1.25;
+  color: inherit;
+  width: 14px;
+  height: 14px;
+}
+
+/* Tinted icon chips lose the tint and the pill; the glyph alone is enough. */
+html[data-design="v2"] [class*="bg-primary/10"] > svg.lucide,
+html[data-design="v2"] [class*="bg-amber-500/10"] > svg.lucide {
+  color: var(--v2-text-3);
+}
+
+
+/* ---------------------------------------------------------------------------
+   11. Charts
+   ---------------------------------------------------------------------------
+   Colors already follow CSS variables through src/lib/theme/colors.ts, so
+   section 2a repoints them for free. What remains is the chrome that module
+   sets as inline style objects -- radius, shadow, font -- which can only be
+   reached with !important, and which is preferable to editing lib/.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] .recharts-tooltip-wrapper > * {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--v2-line-str) !important;
+  background: var(--v2-surface) !important;
+  font-family: var(--font-plex-mono), ui-monospace, monospace !important;
+  font-size: 11px !important;
+}
+
+html[data-design="v2"] .recharts-cartesian-axis-tick text,
+html[data-design="v2"] .recharts-label {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+/* 1px strokes, no rounded caps, no gradient fills. */
+html[data-design="v2"] .recharts-cartesian-grid line {
+  stroke: var(--v2-line);
+  stroke-width: 1;
+}
+
+html[data-design="v2"] .recharts-curve.recharts-line-curve {
+  stroke-width: 1;
+}
+
+html[data-design="v2"] .recharts-rectangle {
+  rx: 0;
+  ry: 0;
+}
+
+
+/* ---------------------------------------------------------------------------
+   12. Loading skeletons
+   ---------------------------------------------------------------------------
+   V1 renders nothing while a route loads, and that behaviour must not change.
+   So skeleton markup ships hidden -- `<div data-v2-skeleton hidden>` -- and
+   V2 reveals it. Written this way round rather than as a `:not()` rule so
+   that 100% of the CSS here stays inside the V2 scope.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] [data-v2-skeleton][hidden] {
+  display: block;
+}
+
+html[data-design="v2"] [data-v2-skeleton] .skel {
+  background: var(--v2-surface-2);
+  border-radius: 0;
+}
+
+@keyframes v2-skel {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+html[data-design="v2"] [data-v2-skeleton] .skel {
+  animation: v2-skel 1.2s ease-in-out infinite;
+}
+
+
+/* ---------------------------------------------------------------------------
+   13. Reference page: /trades
+   ---------------------------------------------------------------------------
+   Scoped by `[data-v2-page="trades"]` on the page wrapper rather than by
+   fragile positional selectors. The attribute is inert in V1.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"] [data-v2-page="trades"] {
+  padding: 16px 20px;
+  gap: 14px;
+  max-width: none;
+}
+
+html[data-design="v2"] [data-v2-page="trades"] h1 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Filter tabs: square, hairline, accent only when active. The V1 treatment is
+   a row of rounded pills with a tinted background, which is most of what makes
+   this page read as a template. */
+html[data-design="v2"] [data-v2-page="trades"] a[class*="rounded-full"],
+html[data-design="v2"] [data-v2-page="trades"] summary[class*="rounded-full"] {
+  border-radius: 2px;
+  padding: 5px 9px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  background: transparent;
+  border: 1px solid var(--v2-line);
+  color: var(--v2-text-2);
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+}
+
+html[data-design="v2"] [data-v2-page="trades"] a[class*="border-primary"] {
+  border-color: var(--v2-accent);
+  color: var(--v2-accent);
+  background: transparent;
+}
+
+/* The table shell: one hairline box, no radius, no shadow, flush to the grid. */
+html[data-design="v2"] [data-v2-page="trades"] [class*="overflow-x-auto"] {
+  border: 1px solid var(--v2-line);
+  border-radius: 0;
+  background: var(--v2-surface);
+}
+
+/* Ticker column: the identifier, so mono and slightly stronger than the row. */
+html[data-design="v2"] [data-v2-page="trades"] tbody td:first-child a {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 600;
+  color: var(--v2-text);
+}
+
+/* Status and result read as metadata, not as badges. */
+html[data-design="v2"] [data-v2-page="trades"] tbody td span[class*="rounded-full"] {
+  border-radius: 2px;
+  padding: 1px 5px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+html[data-design="v2"] [data-v2-page="trades"] .tnum,
+html[data-design="v2"] [data-v2-page="trades"] [data-num] {
+  font-size: 12px;
+}
+
+/* Search and filter controls line up as one strip of instruments. */
+html[data-design="v2"] [data-v2-page="trades"] form input,
+html[data-design="v2"] [data-v2-page="trades"] form select {
+  border-radius: 2px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-line-str);
+}
+
+html[data-design="v2"] [data-v2-page="trades"] form input[type="number"] {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty state: still a designed state, not a centred sentence floating in
+   whitespace. */
+html[data-design="v2"] [data-v2-page="trades"] [data-v2-empty] {
+  border: 1px solid var(--v2-line);
+  background: var(--v2-surface);
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--v2-text-2);
+  font-size: 12px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   14. Mobile
+   ---------------------------------------------------------------------------
+   Density relaxes for touch; the visual language does not change.
+------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  html[data-design="v2"] td {
+    height: 36px;
+    padding: 8px 10px;
+  }
+
+  html[data-design="v2"] button,
+  html[data-design="v2"] select,
+  html[data-design="v2"] summary,
+  html[data-design="v2"] textarea,
+  html[data-design="v2"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) {
+    min-height: 40px;
+  }
+
+  html[data-design="v2"] [data-v2-page="trades"] {
+    padding: 12px;
+  }
+
+  html[data-design="v2"] [data-v2-page="trades"] a[class*="rounded-full"],
+  html[data-design="v2"] [data-v2-page="trades"] summary[class*="rounded-full"] {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   15. Print
+   ---------------------------------------------------------------------------
+   Only /reports prints. Ink on paper: the dark palette would waste a cartridge
+   and read badly, so print always uses the light ramp.
+------------------------------------------------------------------------- */
+
+@media print {
+  html[data-design="v2"],
+  html[data-design="v2"].dark {
+    --v2-bg: #fff;
+    --v2-surface: #fff;
+    --v2-surface-2: #fff;
+    --v2-line: #c9c6c0;
+    --v2-line-str: #8a8781;
+    --v2-text: #000;
+    --v2-text-2: #333;
+    --v2-text-3: #555;
+  }
+
+  html[data-design="v2"] [data-v2-overlay] {
+    box-shadow: none;
+  }
+}

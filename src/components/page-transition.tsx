@@ -15,6 +15,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
+        // Inert in V1. Design V2 drops the page transition entirely, and
+        // framer-motion writes transform/opacity onto the style attribute
+        // where only !important can reach it -- see design-v2.css section 5.
+        data-v2-flat
         className="flex flex-1 flex-col"
       >
         {children}

@@ -21,6 +21,9 @@ export function Card({ className = "", hoverable = true, standalone = true, ...p
           ? { y: -1, transition: { duration: 0.15 } }
           : undefined
       }
+      // Inert in V1; Design V2 uses it to cancel the entrance animation and
+      // the hover lift. See design-v2.css section 5.
+      data-v2-flat
       className={`rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-5 shadow-[0_1px_2px_rgba(28,27,24,0.05)] transition-colors ${className}`}
       {...props}
     />

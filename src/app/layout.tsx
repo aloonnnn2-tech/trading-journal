@@ -1,7 +1,12 @@
 ﻿import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Inter, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+// Design V2's entire stylesheet. Imported after globals.css and deliberately
+// outside any Tailwind @layer, so its rules outrank the utility classes they
+// override. Every selector in it is scoped under html[data-design="v2"], so
+// with the flag off this file contributes nothing at all.
+import "@/styles/design-v2.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { NavBar } from "@/components/nav-bar";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +16,8 @@ import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
+import { DesignFlagScript } from "@/components/design/design-flag";
+import { DesignToggle } from "@/components/design/design-toggle";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -20,6 +27,33 @@ const inter = Inter({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Design V2's faces. They are loaded unconditionally, and that is unavoidable:
+// the flag lives in localStorage, which the server cannot read, so there is no
+// point at which we could know to load them and still have them in the document
+// before first paint.
+//
+// Loading them is inert for V1. Nothing outside src/styles/design-v2.css
+// mentions --font-plex-sans or --font-plex-mono, so with the flag off these
+// only add two class names on <html> and two <style> blocks; not one rendered
+// pixel changes. Along with the flag <script>, this is one of exactly two
+// accepted differences between this branch's V1 and the default branch --
+// see DESIGN_V2_PLAN.md section 6.
+//
+// Plex Sans is loaded variable so V2 can use the 550 weight its type scale
+// calls for. Plex Mono ships only fixed weights, hence the explicit pair.
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -54,9 +88,15 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${geistMono.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Design V2's flag, applied before first paint so a V2 session never
+            flashes V1 chrome. See src/components/design/design-flag.tsx --
+            with the flag off this writes no attribute at all. */}
+        <DesignFlagScript nonce={nonce} />
+      </head>
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
           {/* First thing in the tab order, invisible until focused. Every page
@@ -83,6 +123,9 @@ export default async function RootLayout({
           <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col">
             <PageTransition>{children}</PageTransition>
           </main>
+          {/* Renders nothing outside development unless a session has opted in
+              by hand; see src/components/design/design-toggle.tsx. */}
+          <DesignToggle />
         </ThemeProvider>
       </body>
     </html>
