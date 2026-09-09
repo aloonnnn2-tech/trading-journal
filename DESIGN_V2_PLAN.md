@@ -1,7 +1,7 @@
 # Design V2 — "Terminal Pro" — Plan & Coverage Tracker
 
 Branch: `design/terminal-v2` (from `main` @ `37f544e`)
-Status: **Phase 2 batch 1 of 9 done (landing + auth). 6 of 31 routes ready.**
+Status: **DIRECTION PIVOTED — Terminal Pro scrapped. Three Editorial variants of landing + login are up for a pick; see §16.**
 
 Revert path: `git checkout main`. Nothing pushed, nothing deployed.
 
@@ -625,3 +625,78 @@ already and are unrelated to this work.
   a markup edit, batched with the other 14 Sparkles usages in a later pass.
 - `PricingTeaser` and `ClosingCTA` have had the band and panel treatment but not a close read
   of their internal copy and spacing.
+
+
+---
+
+## 16. Pivot — Terminal Pro out, Editorial in
+
+Terminal Pro is scrapped. The dense, desaturated, 13px/2px-radius direction is replaced by
+**Editorial / print-ledger**: serif headlines, warm paper stock, generous whitespace, one
+restrained accent, the feel of a financial publication rather than a spreadsheet.
+
+The flag mechanism, the branch and the localStorage/URL plumbing are **unchanged** — that
+infrastructure was right and none of it was touched.
+
+### What carried over, and what did not
+
+| Kept | Dropped |
+|---|---|
+| The flag, the gate discipline, the scope checker | 13px base → **16px** |
+| The Tailwind theme-variable trick (`--color-zinc-*`, `--radius-*`, `--text-*`) — it is direction-agnostic | 2px radius ceiling → **3px** |
+| The thirty anti-tells, unchanged | Hairline-everywhere separation |
+| Mono tabular figures | The desaturated grey palette |
+| Motion discipline | **The density overrides entirely** — Editorial wants the spacing the page already had, so the Tailwind spacing scale is now left completely alone |
+
+### The two directions coexist on one branch
+
+Terminal Pro rules are gated `:has([data-v2-ready])`; Editorial rules are gated
+`data-v2-variant`. Swapping the marker on a page switches directions without editing either
+stylesheet. `/trades` keeps the old marker and is deliberately left in Terminal Pro so the two
+can be compared; landing and login carry variant markers; `/sign-up`, `/forgot-password` and
+`/reset-password` had their markers removed and are back to V1.
+
+`scripts/check-design-v2-scope.ts` now checks both sheets against their own required gates.
+
+### The three variants
+
+| | Structure | Accent |
+|---|---|---|
+| **A** Restrained | 38px display, tight scale, accent on links and one button | deep green `#2C5545` |
+| **B** Bold hierarchy | 64px display, accent on rules, kickers, buttons, pull-word | oxblood `#7B2E2C` |
+| **C** Considered imagery | A's restraint + a real `/trades` capture as a full-width captioned plate | ink navy `#1F3A5F` |
+
+`?accent=green|oxblood|navy` overrides the per-variant hue, so structure and colour can be
+judged separately.
+
+**View:** `/?design=v2&variant=a` (also `b`, `c`), or the A/B/C pill bottom-left.
+Login: `/sign-in?design=v2&variant=a`.
+
+### Verified
+
+| Check | Result |
+|---|---|
+| Flag off, branch vs `main`, 8 routes × 2 themes | 1,848 nodes, **0 differences** |
+| `/trades` under the flag, before vs after the pivot | 779 light + 787 dark nodes, **0 differences** |
+| Anti-tells across 3 variants × 2 pages × 2 themes | shadow, radius>3, gradient, backdrop, banned font, purple, sparkles, invisible-by-motion — **all 0** |
+| Contrast: text, accents, on-accent ink, both themes | **all pass ≥4.5:1** (lowest 4.68) |
+| Form boundaries (WCAG 1.4.11, 3:1) | fixed — see below |
+| `npx vitest run` | 65 files, **935 passed** |
+| `npm run check:design-v2` | 107 + 79 rules, all gated |
+
+### Findings
+
+- **Form borders failed WCAG 1.4.11.** The editorial hairline is soft on purpose (1.3:1) and
+  that is fine for a decorative divider, which the standard exempts — but the same token was
+  outlining inputs, where 3:1 is required, at 1.8:1. Fields now use a dedicated `--ed-field`
+  token measuring 3.4–3.8:1 in both themes. **Worth carrying into the real spec: a warm
+  low-chroma palette will keep producing this class of failure.**
+- **`Sparkles` needs no markup edit.** lucide stamps a per-icon class, so
+  `svg.lucide-sparkles { display: none }` removes all 18 in one rule.
+- **✓ / ✕ glyphs remain** in the plan-adherence illustration (U+2713 / U+2715). They are
+  pass/fail markers on trading rules — data, not decorative emoji and not marketing checkmark
+  bullets — so they were left alone. Flagging as a judgement call for the real spec.
+- **`public/screenshots/` holds three dead assets** — a neon-green-on-black design that no
+  longer exists, referenced by nothing. Not deleted.
+- **#18 is partly addressed by variant C only.** It puts a genuine capture of the running app
+  on the landing page for the first time. A/B still have no real product imagery.
