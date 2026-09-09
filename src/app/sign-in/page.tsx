@@ -114,9 +114,18 @@ function SignInForm() {
 
   return (
     <div
-      data-v2-ready
-      data-v2-page="auth"
-      className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+      // Editorial preview scaffolding, mirroring the landing page so a variant
+      // survives the click through from there. searchParams is already read in
+      // this component for the post-auth redirect, so this costs no new
+      // plumbing and stays inside the existing Suspense boundary.
+      data-v2-variant={["a", "b", "c"].includes(searchParams.get("variant") ?? "")
+        ? (searchParams.get("variant") as string)
+        : "a"}
+      data-v2-accent={["green", "oxblood", "navy"].includes(searchParams.get("accent") ?? "")
+        ? (searchParams.get("accent") as string)
+        : undefined}
+      className="flex flex-1 flex-col items-center justify-center px-6 py-16"
+    >
       <form
         onSubmit={handleSubmit}
         className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]"

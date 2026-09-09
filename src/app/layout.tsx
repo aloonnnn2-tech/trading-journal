@@ -1,12 +1,17 @@
 ﻿import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Inter, Geist_Mono, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Inter, Geist_Mono, IBM_Plex_Sans, IBM_Plex_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 // Design V2's entire stylesheet. Imported after globals.css and deliberately
 // outside any Tailwind @layer, so its rules outrank the utility classes they
 // override. Every selector in it is scoped under html[data-design="v2"], so
 // with the flag off this file contributes nothing at all.
 import "@/styles/design-v2.css";
+// The Editorial direction. Scoped to html[data-design="v2"]:has([data-v2-variant]),
+// so it reaches only the routes carrying a variant marker and is inert
+// everywhere else -- including on the Terminal Pro routes, which carry
+// data-v2-ready instead.
+import "@/styles/design-v2-editorial.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { NavBar } from "@/components/nav-bar";
 import { createClient } from "@/lib/supabase/server";
@@ -45,6 +50,14 @@ const geistMono = Geist_Mono({
 // calls for. Plex Mono ships only fixed weights, hence the explicit pair.
 const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+// Headline face for the Editorial direction. Variable, so the display sizes
+// can sit at 600 and the running heads at 500 off one file.
+const sourceSerif = Source_Serif_4({
+  variable: "--font-source-serif",
   subsets: ["latin"],
   display: "swap",
 });
@@ -88,7 +101,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistMono.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${geistMono.variable} ${plexSans.variable} ${plexMono.variable} ${sourceSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

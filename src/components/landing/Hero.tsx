@@ -60,6 +60,9 @@ export function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+          // Inert in V1. Variant C of the Editorial preview swaps this whole
+          // column for a real screenshot of the app, presented as a figure.
+          data-v2-hero-figure
           className="relative"
         >
           <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-primary/20 via-accent/10 to-transparent blur-2xl" />
