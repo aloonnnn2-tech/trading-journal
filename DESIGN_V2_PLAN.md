@@ -1,13 +1,17 @@
 # Design V2 — "Terminal Pro" — Plan & Coverage Tracker
 
 Branch: `design/terminal-v2` (from `main` @ `37f544e`)
-Status: **Phase 1 complete — awaiting sign-off on the reference page before Phase 2.**
+Status: **Phase 1 complete + route-readiness gate added. Phase 2 starting with landing/auth.**
 
 Revert path: `git checkout main`. Nothing pushed, nothing deployed.
 
 **Switch modes:** `localStorage.setItem('tl-design','v2'); location.reload()` — or append
 `?design=v2` to any URL. `'v1'` / `?design=v1` switches back. In development a V1/V2 pill
 sits in the bottom-right corner.
+
+**V2 only applies to routes marked `done` below.** Turning the flag on does *not* restyle a
+route that has not been redesigned yet — see §14. A route opts in by putting `data-v2-ready`
+on its top-level wrapper; without it the route renders as V1 even with V2 on.
 
 ---
 
@@ -257,7 +261,7 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `/trades` | `app/trades/page.tsx` | **reference page — done in Phase 1** | done |
 | `/trades/[id]` | `app/trades/[id]/page.tsx` | hosts the 1013-line TradeCard | todo |
 | `/trades/import` | `app/trades/import/page.tsx` | wizard, table preview | todo |
-| root layout | `app/layout.tsx` | flag script, Plex fonts, toggle | done |
+| root layout | `app/layout.tsx` | hosts the flag mechanism; no design pass of its own | n-a |
 | error boundary | `app/error.tsx` | 1 shadow | todo |
 | global error | `app/global-error.tsx` | renders its own `<html>` — needs its own V2 handling | todo |
 | 404 | `app/not-found.tsx` | 1 shadow | todo |
@@ -308,7 +312,7 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 
 | File | Notes | Status |
 |---|---|---|
-| `ui/Card.tsx` | entrance + hover lift neutralised via `data-v2-flat`; radius/shadow via tokens. Padding and internals still to review in batch 1 | partial |
+| `ui/Card.tsx` | `data-v2-flat` hook added; full pass due in batch 1 | todo |
 | `ui/StatCard.tsx` | gradient meter, icon chip; markup change per §5.2 | todo |
 | `ui/InfoTip.tsx` | rounded-full | todo |
 | `nav-bar.tsx` | backdrop-blur, 2 shadows, `print:hidden` | todo |
@@ -316,7 +320,7 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `field-input.tsx` | every form control state lives here | todo |
 | `form-error.tsx` | `role="alert"` — do not change its text | todo |
 | `turnstile.tsx` | third-party iframe; only surrounding chrome is ours | todo |
-| `page-transition.tsx` | framer-motion neutralised via `data-v2-flat` | done |
+| `page-transition.tsx` | `data-v2-flat` hook added; applies only on ready routes | todo |
 | `motion/StaggerGrid.tsx` | framer-motion; neutralise in V2 | todo |
 | `theme-provider.tsx` | **n-a** — renders no markup, and its props must not change (§6) | n-a |
 | `analytics-tracker.tsx` | **n-a** — returns null | n-a |
@@ -496,3 +500,63 @@ reserved for gain and loss.
 was a bright blue doing five unrelated jobs; in V2 it is one muted amber that means "active,
 focused, or selected" and nothing else. Every blue button, link, tab and chart stroke in the
 app changed colour in one token edit.
+
+
+---
+
+## 14. The route-readiness gate (added after Phase 1 review)
+
+### The bug
+
+Phase 1 scoped every V2 rule to the flag alone: `html[data-design="v2"] ...`. The flag is
+global, so the moment it went on, **all 26 routes** got the base sweep — the radius, shadow,
+blur, gradient and palette overrides — while only `/trades` had received the type, spacing
+and layout pass that makes a stripped-down surface look deliberate.
+
+On the landing page the result was not "redesigned", it was **broken**: the hero and the
+three feature cards collapsed into large empty voids, because the type shrank to 13px while
+the layouts around it kept their original heights, and the decorative blur orbs the spacing
+leaned on were set to `display: none`. That page is what every visitor sees before they ever
+reach the app, and Phase 1 was never supposed to touch it.
+
+The root cause is exactly as diagnosed in review: **the sweep was scoped to the flag, not to
+"pages that have actually been redesigned."**
+
+### The fix
+
+Every rule now carries two gates:
+
+```css
+html[data-design="v2"]:has([data-v2-ready]) ...
+```
+
+A route opts in by putting `data-v2-ready` on its top-level wrapper. Until it does, the flag
+has no effect on it whatsoever. Untouched routes render as V1, not as partially-stripped V1.
+
+`npm run check:design-v2` now requires **both** gates and fails the build on a rule carrying
+only the flag — which is precisely the mistake that caused this. Verified against an injected
+flag-only rule: it is rejected with the missing gate named.
+
+### Why `:has()` on `<html>` rather than a descendant of the marker
+
+The literal form suggested in review was `html[data-design="v2"] [data-v2-ready] ...`. I used
+`:has()` at the root instead, because the nav bar, the body background and the footer live
+*outside* the page wrapper in the root layout. Descendant scoping would style the page but
+never its chrome, leaving every redesigned route permanently sitting under a V1 nav bar. With
+`:has()` the whole document flips together, so a route is entirely V2 or entirely V1 and
+never a mixture.
+
+It also fails safe: if `:has()` were unsupported, the selectors would be invalid and dropped
+entirely, which yields V1 everywhere rather than a broken V1.
+
+### Verified after the fix
+
+| Check | Result |
+|---|---|
+| 7 un-ready routes, flag off vs flag on, light | 805 nodes, **0 differences** |
+| 7 un-ready routes, flag off vs flag on, dark | 837 nodes, **0 differences** |
+| `/trades` (ready) still fully V2 | Plex 13px, paper ground, 29.8px rows, nav blur gone, 0 violations |
+| Checker rejects a flag-only rule | yes, names the missing gate |
+
+The landing page under the flag is now identical to V1 in both themes — the flag is inert
+there until its own design pass lands.
