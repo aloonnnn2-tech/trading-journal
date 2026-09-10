@@ -20,7 +20,7 @@ import { motion } from "framer-motion";
 const PROOFS = [
   {
     n: "01",
-    title: "Your rules, checked automatically",
+    title: "Your rules, applied to every trade",
     body:
       "Write your plan once. Every trade is measured against it, and the ones that broke it are " +
       "flagged for you. There is nothing to tag by hand, which is usually what decides whether " +
@@ -28,7 +28,7 @@ const PROOFS = [
   },
   {
     n: "02",
-    title: "Mistakes counted, not remembered",
+    title: "Mistakes counted from the data",
     body:
       "A stop that moved, a position sized above plan, an exit taken early. Each one is read from " +
       "the trade data itself, so the count reflects what happened rather than what you thought to " +
@@ -56,10 +56,10 @@ export function WhatsDifferent() {
             section and read as text sliding over the one below it. */}
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">
-            Beyond the record
+            After the close
           </p>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
-            The work that starts after the trade closes.
+            Three jobs a plain record leaves to you.
           </h2>
           <p className="mt-4 max-w-md text-zinc-600 dark:text-zinc-400">
             Recording trades is the straightforward part, and most tools stop there. What comes

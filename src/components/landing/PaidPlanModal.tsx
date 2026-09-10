@@ -306,8 +306,8 @@ function RestGrid() {
 const STEPS: Step[] = [
   {
     kicker: "The idea",
-    headline: "Your journal already knows why you lose money.",
-    body: "You just can't see it one trade at a time.",
+    headline: "Your history has the answer in it.",
+    body: "One trade at a time, it is very hard to see.",
     cta: "Show me",
     visual: <JournalToInsight />,
   },
@@ -327,8 +327,8 @@ const STEPS: Step[] = [
   },
   {
     kicker: "MAE / MFE",
-    headline: "See the money you left on the table.",
-    body: "How far each trade ran before you closed it, and what you handed back.",
+    headline: "See how much of each move you kept.",
+    body: "How far each trade ran before you closed it, and what you gave back.",
     cta: "And the rest?",
     visual: <CaptureBar />,
   },

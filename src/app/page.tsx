@@ -36,8 +36,8 @@ export default async function Home() {
           scrolling feel like the page repeating itself. */}
       <ThreePillars />
       <FeatureStories />
-      <SectionHeadline kicker="Capabilities">
-        Everything in the box, and what each part costs
+      <SectionHeadline kicker="Features">
+        What&rsquo;s included
       </SectionHeadline>
       <FeatureGrid />
       <HowItWorks />

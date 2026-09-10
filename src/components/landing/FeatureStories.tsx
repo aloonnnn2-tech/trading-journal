@@ -42,7 +42,7 @@ const STORIES = [
   },
   {
     tag: { text: "Insights", tone: "primary" as const },
-    headline: "Find the patterns quietly costing you",
+    headline: "Find the patterns that cost you",
     description:
       "The setups, days and moods where your win rate drifts furthest from your average. Each one shows how many trades it rests on, so you can tell a real pattern from a fluke.",
     visual: <InsightPanel />,
