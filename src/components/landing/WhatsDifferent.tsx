@@ -52,7 +52,9 @@ export function WhatsDifferent() {
       className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 pb-24 sm:px-10"
     >
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
-        <div className="lg:sticky lg:top-24 lg:self-start">
+        {/* Not sticky. A sticky heading here scrolled on past its own
+            section and read as text sliding over the one below it. */}
+        <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">
             Three things a spreadsheet won&rsquo;t do
           </p>

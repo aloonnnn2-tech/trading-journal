@@ -295,6 +295,41 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg polyline {
   animation: v2-draw 1.5s ease-out 0.15s both;
 }
 
+@keyframes v2-lift { from { clip-path: inset(115% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes v2-focus { from { filter: blur(9px); opacity: 0; } to { filter: blur(0); opacity: 1; } }
+@keyframes v2-rule { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes v2-pop { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+
+/* Scroll-linked variants. These deliberately do NOT start from opacity 0.
+   view() is scroll-linked in both directions, so an invisible start state
+   means the element blanks again once it scrolls back out of view -- the
+   same trap that blanked the selling section a pass ago. A shifted or dimmed
+   start state is always legible on its own. */
+@keyframes v2-pop-lin { from { opacity: 0.3; transform: scale(0.72); } to { opacity: 1; transform: none; } }
+@keyframes v2-slide-l { from { transform: translateX(-22px); } to { transform: none; } }
+@keyframes v2-slide-r { from { transform: translateX(22px); } to { transform: none; } }
+
+/* The headline lifts into view from behind its own baseline -- a mask, not a
+   fade. Above the fold, so it runs on load. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of-type h1 {
+  animation: v2-lift 0.85s cubic-bezier(0.16, 0.9, 0.3, 1) both;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of-type h1 + p {
+  animation: v2-focus 0.7s ease-out 0.22s both;
+}
+
+/* The hero figure resolves from soft to sharp, the way a chart snaps into
+   focus. Different in kind from everything else on the page. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-hero-figure] {
+  animation: v2-focus 0.9s ease-out 0.1s both;
+}
+
+/* The kicker draws its own underline out from the left. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of-type h1 ~ div a[class*="bg-primary"] {
+  animation: v2-pop 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.45s both;
+}
+
 @supports (animation-timeline: view()) {
   /* IMPORTANT: `view()` is scroll-*linked*, not scroll-triggered. Progress
      tracks scroll position in both directions, so an element whose start
@@ -328,6 +363,46 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg polyline {
     animation-range: entry 0% cover 35%;
   }
 
+  /* Section kickers underline themselves as they arrive. */
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-different] h2::after,
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="pb-14"] h2::after {
+    content: "";
+    display: block;
+    height: 2px;
+    width: 56px;
+    margin-top: 14px;
+    background: var(--color-primary);
+    transform-origin: left;
+    animation: v2-rule 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 30%;
+  }
+
+  /* The plan-adherence ticks land one after another, each with a small pop
+     rather than a fade -- they are verdicts, and they should feel like it. */
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="h-4"][class*="w-4"][class*="rounded-full"] {
+    animation: v2-pop-lin 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 35%;
+  }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] li:nth-child(2) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.1s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] li:nth-child(3) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.2s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] li:nth-child(4) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.3s; }
+
+  /* The feature stories come in from the side their visual sits on, so the
+     two halves of each story move toward each other. Alternating direction
+     is what keeps four of them from reading as one repeated gesture. */
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="lg:grid-cols-2"] > *:first-child {
+    animation: v2-slide-l 0.6s ease-out both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 32%;
+  }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="lg:grid-cols-2"] > *:last-child {
+    animation: v2-slide-r 0.6s ease-out both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 32%;
+  }
+
   /* Bars grow from their baseline instead of arriving at full height. */
   html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg rect[height] {
     transform-origin: bottom;
@@ -350,55 +425,23 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg polyline {
 
 
 /* ---------------------------------------------------------------------------
-   6. Variety -- section rhythm
+   6. Variety -- rhythm without stripes
    ---------------------------------------------------------------------------
-   The single biggest reason the page reads as generated is that every section
-   is the same: same ground, same centred heading, same row of bordered boxes,
-   scrolled six times. None of that is on the thirty-item list, and all of it
-   is what makes the page feel machine-assembled.
+   An earlier pass alternated section backgrounds to break the monotony. It
+   read as stripes, and it made the sticky heading in the selling section
+   appear to slide across a band boundary as you scrolled. Both are gone.
 
-   The fix is rhythm rather than decoration. Alternate sections sit on the
-   card tone instead of the page tone and carry a hairline, so scrolling moves
-   through bands instead of down a single flat sheet. No new colour, no new
-   shape, nothing to maintain.
+   Variety comes from shape and spacing instead, which is where it should
+   have come from: the hero is split, the pillars are three-up, the stories
+   alternate sides, the timeline runs horizontally, the selling section reads
+   vertically. Five different shapes need no paint to tell them apart.
 ------------------------------------------------------------------------- */
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:nth-of-type(even) {
-  position: relative;
-}
-
-/* Full-bleed, via a pseudo-element. The sections are `mx-auto max-w-6xl`, so
-   painting the background on the section itself stops at the content width
-   and reads as a stray rule floating in the page rather than as a band. The
-   pseudo-element breaks out to the viewport edge and sits behind the content. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:nth-of-type(even)::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
-  background: var(--color-card);
-  border-top: 1px solid var(--color-subtle);
+/* One hairline where the page changes gear -- after the hero and before the
+   close. Two rules on a long page, not six bands. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:first-of-type {
   border-bottom: 1px solid var(--color-subtle);
-  z-index: 0;
 }
-
-/* Everything in the section rides above the band. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:nth-of-type(even) > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* Section headings alternate too: centred once, then ranged left with the
-   content it introduces. Six identical centred headings in a column is its
-   own kind of tell. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > div:nth-of-type(even) [class*="items-center"][class*="text-center"] {
-  align-items: flex-start;
-  text-align: left;
-}
-
 
 /* ---------------------------------------------------------------------------
    7. Landing: the three-card row and the bento
