@@ -24,7 +24,7 @@ export function LandingFooter() {
               Log in
             </Link>
             <Link href="/sign-up" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-              Sign up
+              Start journaling free
             </Link>
           </div>
         </div>

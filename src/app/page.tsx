@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/Hero";
+import { ProductShot } from "@/components/landing/ProductShot";
 import { ThreePillars } from "@/components/landing/ThreePillars";
 import { FeatureStories } from "@/components/landing/FeatureStories";
 import { SectionHeadline } from "@/components/landing/SectionHeadline";
@@ -29,6 +30,7 @@ export default async function Home() {
     >
       <LandingHeader />
       <Hero />
+      <ProductShot />
       {/* Deliberately alternating shapes down the page: a split hero, three
           tall pillars, two stories beside their visuals and one centred under
           it, a bento of varied tiles, then a horizontal timeline. Every
