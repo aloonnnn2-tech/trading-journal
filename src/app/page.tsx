@@ -7,6 +7,7 @@ import { FeatureStories } from "@/components/landing/FeatureStories";
 import { SectionHeadline } from "@/components/landing/SectionHeadline";
 import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { WhatsDifferent } from "@/components/landing/WhatsDifferent";
 import { PricingTeaser } from "@/components/landing/PricingTeaser";
 import { ClosingCTA } from "@/components/landing/ClosingCTA";
 import { LandingFooter } from "@/components/landing/LandingFooter";
@@ -40,6 +41,7 @@ export default async function Home() {
       </SectionHeadline>
       <FeatureGrid />
       <HowItWorks />
+      <WhatsDifferent />
       <PricingTeaser />
       <ClosingCTA />
       <LandingFooter />

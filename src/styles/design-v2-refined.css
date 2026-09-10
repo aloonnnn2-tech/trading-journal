@@ -257,17 +257,95 @@ html[data-design="v2"]:has([data-v2-refined]) summary:active {
   transform: none;
 }
 
-/* framer-motion writes transform and opacity onto the style attribute, where
-   only !important reaches them. This drops the hover lift on cards and the
-   fade-and-rise on every section.
-
-   It also fixes a review hazard: with the scroll animation in place anything
-   below the fold sits at opacity 0 until it is scrolled past, so a full-page
-   screenshot shows several hundred pixels of apparently empty page. */
-html[data-design="v2"]:has([data-v2-refined]) [style*="opacity"],
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-flat] {
-  opacity: 1 !important;
+/* Tell #28 is the hover lift specifically, and that is the only motion taken
+   away. framer-motion writes transform onto the style attribute, so :hover
+   needs !important to win -- but only on :hover, which leaves the entrance
+   animations free to run. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-flat]:hover {
   transform: none !important;
+}
+
+
+/* ---------------------------------------------------------------------------
+   5b. Motion that animates the data, not the boxes
+   ---------------------------------------------------------------------------
+   A row of panels that all fade up on scroll is the motion equivalent of a
+   row of identical cards -- it is what a template does. The animations below
+   move the *content* instead: the equity curve draws itself, the calendar
+   fills in day by day, the timeline connects its own steps, the figures come
+   up in sequence. That reads as a product demonstrating itself, and it is
+   the one kind of motion a trading app can justify.
+
+   Scroll-triggered with `animation-timeline: view()`, no JavaScript. The
+   whole block sits inside @supports so that a browser without it shows the
+   finished state rather than an empty one -- the failure mode is "no
+   animation", never "no content".
+------------------------------------------------------------------------- */
+
+@keyframes v2-draw { from { stroke-dashoffset: 2400; } to { stroke-dashoffset: 0; } }
+@keyframes v2-fill { from { opacity: 0.15; } to { opacity: 1; } }
+@keyframes v2-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes v2-grow { from { transform: scaleY(0.35); } to { transform: none; } }
+
+/* The hero curve draws once on load. It sits above the fold, so it needs no
+   trigger -- and a plain animation cannot be scrubbed backwards, which the
+   scroll-linked ones below can. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg polyline {
+  stroke-dasharray: 2400;
+  animation: v2-draw 1.5s ease-out 0.15s both;
+}
+
+@supports (animation-timeline: view()) {
+  /* IMPORTANT: `view()` is scroll-*linked*, not scroll-triggered. Progress
+     tracks scroll position in both directions, so an element whose start
+     state is `opacity: 0` is invisible again the moment it leaves the
+     viewport -- which looks exactly like a section that silently failed to
+     render. It cost one round of this page looking broken.
+
+     So nothing here starts from invisible. Every start state below is still
+     legible on its own: a dimmed cell, a short bar, an undrawn hairline.
+     One-shot reveals are framer-motion's job, because it fires once and
+     then stays put. */
+
+  /* The calendar fills in as a wave across the grid rather than all at once.
+     Delay comes from column position, so it works for any number of cells. */
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"] {
+    animation: v2-fill 0.4s ease-out both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 40%;
+  }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+2) { animation-delay: 0.04s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+3) { animation-delay: 0.08s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+4) { animation-delay: 0.12s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+5) { animation-delay: 0.16s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+6) { animation-delay: 0.2s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+7) { animation-delay: 0.24s; }
+
+  /* The timeline draws its own connecting rule, left to right. */
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="top-6"][class*="h-px"] {
+    animation: v2-wipe 0.9s ease-out both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 35%;
+  }
+
+  /* Bars grow from their baseline instead of arriving at full height. */
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg rect[height] {
+    transform-origin: bottom;
+    animation: v2-grow 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 40%;
+  }
+}
+
+/* Motion is a preference, not a decision the page gets to make. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] *,
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] *::before,
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] *::after {
+    animation-duration: 0.001s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.001s !important;
+  }
 }
 
 
