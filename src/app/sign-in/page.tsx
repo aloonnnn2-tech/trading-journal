@@ -114,7 +114,7 @@ function SignInForm() {
 
   return (
     <div
-      data-v2-refined
+      data-v2-page="auth"
       className="flex flex-1 flex-col items-center justify-center px-6 py-16"
     >
       <form

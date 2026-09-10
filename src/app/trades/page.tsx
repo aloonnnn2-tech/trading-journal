@@ -130,16 +130,7 @@ export default async function TradesPage({
   }
 
   return (
-    <div
-      // Both inert in V1. `data-v2-ready` is the opt-in that lets Design V2
-      // apply to this route at all -- a route without it renders as V1 even
-      // with the flag on, so pages that have not been redesigned yet are never
-      // shown as V1-with-the-surface-stripped-off. `data-v2-page` scopes the
-      // rules specific to this page. See design-v2.css, header and section 13.
-      data-v2-ready
-      data-v2-page="trades"
-      className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8"
-    >
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Trades</h1>
         <div className="flex flex-wrap items-center gap-3">

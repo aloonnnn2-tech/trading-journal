@@ -15,10 +15,6 @@
 //                            as broken rather than as redesigned. That
 //                            happened once; this check is why it cannot again.
 //
-// The two sheets use *different* markers on purpose. That is what lets the
-// retired Terminal Pro direction and the current Editorial one coexist on one
-// branch without either reaching the other's routes.
-//
 // Neither failure is visible until someone loads a page and notices, and
 // neither is catchable by eye across a growing stylesheet. Hence this check.
 //
@@ -35,12 +31,6 @@ interface Sheet {
 }
 
 const SHEETS: Sheet[] = [
-  {
-    // Terminal Pro. Retired, but still live on /trades so the two directions
-    // can be compared side by side.
-    file: "../src/styles/design-v2.css",
-    gates: ['html[data-design="v2"]', ":has([data-v2-ready])"],
-  },
   {
     // The refined direction: the original design with the tells removed.
     // Applies only to routes carrying the refined marker.

@@ -225,13 +225,13 @@ html[data-design="v2"]:has([data-v2-refined]) body {
 
 /* Display sizes come down slightly. 60px was doing the work that the copy
    should be doing, and it is the size that reads as a landing-page template. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] h1 {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] h1 {
   font-size: clamp(32px, 4.2vw, 46px);
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] h2 {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] h2 {
   letter-spacing: -0.015em;
 }
 
@@ -257,11 +257,18 @@ html[data-design="v2"]:has([data-v2-refined]) summary:active {
   transform: none;
 }
 
-/* Tell #28 is the hover lift specifically, and that is the only motion taken
-   away. framer-motion writes transform onto the style attribute, so :hover
-   needs !important to win -- but only on :hover, which leaves the entrance
-   animations free to run. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-flat]:hover {
+/* Tell #28 is the hover transform, and that is the only motion taken away.
+   framer-motion writes transform onto the style attribute, so :hover needs
+   !important to win -- but only on :hover, which leaves the entrance
+   animations free to run.
+
+   Applied to anything framer drives rather than to a hand-placed marker: the
+   card lift was not the only one. The dashboard calendar scales each day cell
+   to 1.06 on hover, which no marker would have caught, and a scan that never
+   hovers does not see it either. Nothing in this design has a legitimate
+   hover transform, so the broad form is the correct one. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-flat]:hover,
+html[data-design="v2"]:has([data-v2-refined]) [style*="transform"]:hover {
   transform: none !important;
 }
 
@@ -290,7 +297,7 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-flat]:hover {
 /* The hero curve draws once on load. It sits above the fold, so it needs no
    trigger -- and a plain animation cannot be scrubbed backwards, which the
    scroll-linked ones below can. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg polyline {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] svg polyline {
   stroke-dasharray: 2400;
   animation: v2-draw 1.5s ease-out 0.15s both;
 }
@@ -311,22 +318,22 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg polyline {
 
 /* The headline lifts into view from behind its own baseline -- a mask, not a
    fade. Above the fold, so it runs on load. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of-type h1 {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] section:first-of-type h1 {
   animation: v2-lift 0.85s cubic-bezier(0.16, 0.9, 0.3, 1) both;
 }
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of-type h1 + p {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] section:first-of-type h1 + p {
   animation: v2-focus 0.7s ease-out 0.22s both;
 }
 
 /* The hero figure resolves from soft to sharp, the way a chart snaps into
    focus. Different in kind from everything else on the page. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-hero-figure] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [data-v2-hero-figure] {
   animation: v2-focus 0.9s ease-out 0.1s both;
 }
 
 /* The kicker draws its own underline out from the left. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of-type h1 ~ div a[class*="bg-primary"] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] section:first-of-type h1 ~ div a[class*="bg-primary"] {
   animation: v2-pop 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.45s both;
 }
 
@@ -344,28 +351,28 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of
 
   /* The calendar fills in as a wave across the grid rather than all at once.
      Delay comes from column position, so it works for any number of cells. */
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"] {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"] {
     animation: v2-fill 0.4s ease-out both;
     animation-timeline: view();
     animation-range: entry 0% cover 40%;
   }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+2) { animation-delay: 0.04s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+3) { animation-delay: 0.08s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+4) { animation-delay: 0.12s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+5) { animation-delay: 0.16s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+6) { animation-delay: 0.2s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="aspect-square"]:nth-child(7n+7) { animation-delay: 0.24s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"]:nth-child(7n+2) { animation-delay: 0.04s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"]:nth-child(7n+3) { animation-delay: 0.08s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"]:nth-child(7n+4) { animation-delay: 0.12s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"]:nth-child(7n+5) { animation-delay: 0.16s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"]:nth-child(7n+6) { animation-delay: 0.2s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="aspect-square"]:nth-child(7n+7) { animation-delay: 0.24s; }
 
   /* The timeline draws its own connecting rule, left to right. */
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="top-6"][class*="h-px"] {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="top-6"][class*="h-px"] {
     animation: v2-wipe 0.9s ease-out both;
     animation-timeline: view();
     animation-range: entry 0% cover 35%;
   }
 
   /* Section kickers underline themselves as they arrive. */
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-different] h2::after,
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="pb-14"] h2::after {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [data-v2-different] h2::after,
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="pb-14"] h2::after {
     content: "";
     display: block;
     height: 2px;
@@ -380,31 +387,31 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of
 
   /* The plan-adherence ticks land one after another, each with a small pop
      rather than a fade -- they are verdicts, and they should feel like it. */
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="h-4"][class*="w-4"][class*="rounded-full"] {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="h-4"][class*="w-4"][class*="rounded-full"] {
     animation: v2-pop-lin 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
     animation-timeline: view();
     animation-range: entry 0% cover 35%;
   }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] li:nth-child(2) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.1s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] li:nth-child(3) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.2s; }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] li:nth-child(4) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.3s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] li:nth-child(2) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.1s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] li:nth-child(3) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.2s; }
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] li:nth-child(4) [class*="h-4"][class*="rounded-full"] { animation-delay: 0.3s; }
 
   /* The feature stories come in from the side their visual sits on, so the
      two halves of each story move toward each other. Alternating direction
      is what keeps four of them from reading as one repeated gesture. */
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="lg:grid-cols-2"] > *:first-child {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="lg:grid-cols-2"] > *:first-child {
     animation: v2-slide-l 0.6s ease-out both;
     animation-timeline: view();
     animation-range: entry 0% cover 32%;
   }
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="lg:grid-cols-2"] > *:last-child {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="lg:grid-cols-2"] > *:last-child {
     animation: v2-slide-r 0.6s ease-out both;
     animation-timeline: view();
     animation-range: entry 0% cover 32%;
   }
 
   /* Bars grow from their baseline instead of arriving at full height. */
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg rect[height] {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] svg rect[height] {
     transform-origin: bottom;
     animation: v2-grow 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
     animation-timeline: view();
@@ -414,9 +421,9 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of
 
 /* Motion is a preference, not a decision the page gets to make. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] *,
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] *::before,
-  html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] *::after {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] *,
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] *::before,
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] *::after {
     animation-duration: 0.001s !important;
     animation-delay: 0s !important;
     transition-duration: 0.001s !important;
@@ -439,7 +446,7 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] section:first-of
 
 /* One hairline where the page changes gear -- after the hero and before the
    close. Two rules on a long page, not six bands. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:first-of-type {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] > section:first-of-type {
   border-bottom: 1px solid var(--color-subtle);
 }
 
@@ -453,7 +460,7 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:first-
 /* Three cards in a row becomes three columns of a single ruled block: one
    border around the set, hairlines between. Same content, same order, same
    three-up layout -- it just stops being three floating boxes. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-cards] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [data-v2-cards] {
   gap: 1px;
   background: var(--color-subtle);
   border: 1px solid var(--color-subtle);
@@ -461,7 +468,7 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-cards] 
   overflow: hidden;
 }
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-cards] > * {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [data-v2-cards] > * {
   background: var(--color-card);
   border: 0;
   border-radius: 0;
@@ -469,43 +476,43 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-cards] 
 
 /* The bento's uneven auto-rows were sized for the old display type and leave
    voids once anything reflows. Equal rows, calmly. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="auto-rows-fr"] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="auto-rows-fr"] {
   grid-auto-rows: auto;
 }
 
 /* Fixed panel heights, likewise. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="min-h-["] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="min-h-["] {
   min-height: 0;
 }
 
 /* The two-column feature stories are a layout, not a card row: `items-center`
    leaves the short column short, and anything painted on the grid shows
    through as a band. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="lg:grid-cols-2"] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="lg:grid-cols-2"] {
   align-items: start;
 }
 
 /* Category labels came in two tones, blue and green. Green means "gain"
    everywhere else in this product, so a green "RULES & MISTAKES" pill is
    colour that carries no meaning -- tell #4. One accent, used consistently. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] span[class*="border-profit/30"] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] span[class*="border-profit/30"] {
   border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   color: var(--color-primary);
 }
 
 /* Tinted icon chips: keep the chip, drop the wash to a hairline. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] span[class*="bg-primary/10"] {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] span[class*="bg-primary/10"] {
   background: transparent;
   border: 1px solid var(--color-subtle);
 }
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] header {
+html[data-design="v2"]:has([data-v2-refined]) header {
   background: var(--color-card);
   border-bottom: 1px solid var(--color-subtle);
 }
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg rect {
+html[data-design="v2"]:has([data-v2-refined]) svg rect {
   rx: 2;
   ry: 2;
 }
@@ -514,7 +521,7 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg rect {
    attribute (fontFamily="var(--font-geist-mono)"), which the theme variables
    above cannot reach. CSS wins over presentation attributes, so this catches
    them without editing the illustration components. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg text {
+html[data-design="v2"]:has([data-v2-refined]) svg text {
   font-family: var(--font-plex-mono), ui-monospace, monospace;
 }
 
@@ -523,7 +530,7 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg text {
    8. Login
 ------------------------------------------------------------------------- */
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form {
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="auth"] form {
   background: var(--color-card);
   border: 1px solid var(--color-subtle);
   border-radius: 10px;
@@ -533,15 +540,36 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form {
    3:1 against its background for those. The warmed zinc-300 the inputs were
    borrowing measures under 2:1, which is fine for a decorative divider and
    not fine here. */
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form input,
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form select,
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form textarea {
+/* App-wide, not auth-only: a field outline is a UI component boundary and
+   WCAG 1.4.11 wants 3:1 against its background for those. The warmed zinc-300
+   the inputs were borrowing measures under 2:1, which is fine for a
+   decorative divider and not fine here. Every input in the product needs
+   this, not just the two on the login screen. */
+html[data-design="v2"]:has([data-v2-refined]) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[data-design="v2"]:has([data-v2-refined]) select,
+html[data-design="v2"]:has([data-v2-refined]) textarea {
   border-color: #8f8a80;
   border-radius: 6px;
 }
 
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form input:focus,
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form select:focus,
-html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form textarea:focus {
+html[data-design="v2"]:has([data-v2-refined]) input:focus,
+html[data-design="v2"]:has([data-v2-refined]) select:focus,
+html[data-design="v2"]:has([data-v2-refined]) textarea:focus {
   border-color: var(--color-primary);
+}
+
+
+/* ---------------------------------------------------------------------------
+   9. Charts
+   ---------------------------------------------------------------------------
+   Colours already follow CSS variables through src/lib/theme/colors.ts, so
+   the token block above repoints them for free. What remains is the chrome
+   that module sets as an inline style object, which only !important reaches
+   -- and which is preferable to editing lib/ for a purely visual concern.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-refined]) .recharts-tooltip-wrapper > * {
+  box-shadow: none !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--color-subtle) !important;
 }

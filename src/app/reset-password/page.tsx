@@ -54,7 +54,10 @@ export default function ResetPasswordPage() {
 
   if (done) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+      <div
+      data-v2-page="auth"
+      className="flex flex-1 flex-col items-center justify-center px-6 py-16"
+    >
         <div className="flex w-full max-w-sm flex-col items-start gap-3 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]">
           <BrandMark className="h-8 w-8" />
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
@@ -71,7 +74,10 @@ export default function ResetPasswordPage() {
 
   if (!hasSession) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+      <div
+      data-v2-page="auth"
+      className="flex flex-1 flex-col items-center justify-center px-6 py-16"
+    >
         <div className="flex w-full max-w-sm flex-col items-start gap-3 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]">
           <BrandMark className="h-8 w-8" />
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
@@ -92,7 +98,10 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+    <div
+      data-v2-page="auth"
+      className="flex flex-1 flex-col items-center justify-center px-6 py-16"
+    >
       <form
         onSubmit={handleSubmit}
         className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 shadow-[0_1px_2px_rgba(28,27,24,0.05)]"

@@ -1,7 +1,7 @@
 # Design V2 — "Terminal Pro" — Plan & Coverage Tracker
 
 Branch: `design/terminal-v2` (from `main` @ `37f544e`)
-Status: **Direction settled: keep the original design, remove the tells. See §17. Terminal Pro and Editorial are both retired.**
+Status: **Rolled out app-wide. One layer, one marker, every route. See §18.**
 
 Revert path: `git checkout main`. Nothing pushed, nothing deployed.
 
@@ -768,3 +768,84 @@ variables (`--font-inter`, `--font-geist-mono`) instead.
 | `npm run check:design-v2` | 107 + 39 rules, all gated |
 
 Not yet applied to the other 24 routes — waiting on a look at these two first.
+
+
+---
+
+## 18. App-wide rollout
+
+The refined layer now covers the whole product, not just the marketing pages.
+
+### One layer, not three
+
+Terminal Pro is **deleted**, not merely disabled: `src/styles/design-v2.css` is gone, its
+import is gone, `/trades` no longer carries `data-v2-ready`, and the scope checker is down to
+a single sheet. Editorial went earlier. `design-v2-refined.css` is the only V2 stylesheet left,
+and the branch is simpler for it.
+
+### How the marker works now
+
+`data-v2-refined` sits on `<main>` in the root layout, so **every route is in** and `:has()`
+on `<html>` finds it once. Rules that only make sense on one kind of page are scoped by a
+second attribute instead:
+
+| Scope | Selector | Count |
+|---|---|---|
+| App-wide | `html[data-design="v2"]:has([data-v2-refined]) …` | 31 rules |
+| Marketing | `… [data-v2-page="landing"] …` | 35 rules |
+| Auth | `… [data-v2-page="auth"] …` | 7 rules |
+
+That split was the whole job. Left global, the hero's `clamp(32px, 4.2vw, 46px)` headline
+would have applied to every `h1` in the app, the login card's chrome would have boxed every
+form including search and filter bars, and the rule that hides decorative absolutely-positioned
+elements would have hidden real overlays.
+
+### Verified across 14 authenticated routes
+
+`/dashboard`, `/trades`, `/analytics`, `/insights`, `/reports`, `/strategies`, `/goals`,
+`/emotions`, `/commissions`, `/reviews`, `/ask`, `/fields`, `/account`, `/trades/import`:
+
+| Check | Result |
+|---|---|
+| Corners over 12px | 0 |
+| Gradients | 0 |
+| Frosted glass | 0 |
+| Inter / Geist | 0 |
+| Visible Sparkles | 0 |
+| Horizontal overflow | 0 |
+| Elements invisible after scrolling | 0 |
+| Real drop shadows | 0 |
+
+Two survive the shadow count and both are correct: the `/trades` export dropdown carries
+`data-v2-overlay`, which is the one permitted shadow, and the dashboard calendar's "today"
+marker is a Tailwind `ring` whose computed value is `rgba(0, 0, 0, 0)` — a fully transparent
+placeholder, invisible.
+
+### Two bugs the rollout surfaced
+
+- **A hover scale the scan could not see.** The dashboard calendar scales each day cell to
+  1.06 on hover. No marker would have caught it and a scan that never hovers does not see it
+  either, so the neutraliser now targets anything framer-motion drives
+  (`[style*="transform"]:hover`) rather than a hand-placed attribute. Verified by actually
+  hovering a cell: transform stays `none`.
+- **Chart tooltips kept their shadow and 10px radius.** `src/lib/theme/colors.ts` sets them as
+  an inline style object, so they are overridden from CSS rather than by editing `lib/`.
+
+### Flag off is still clean
+
+7 of the 8 public routes are byte-identical to `main` with the flag off: 766 nodes across two
+themes, **0 computed-style differences**.
+
+The landing page is the exception, and deliberately so: it gained **+41 nodes** because the
+`ProductShot` and `WhatsDifferent` sections are real page content added on request, not V2-only
+styling. They render in both modes. **Flagging in case that is not what was wanted** — they can
+be moved behind the flag, but as marketing copy and a real product screenshot they seemed to
+belong to the page rather than to the experiment.
+
+### Pre-existing, noted not fixed
+
+Both appear with the flag off and on `main`, so neither is from this work:
+
+- `DashboardPage` renders a list into a `motion.div` without unique `key` props.
+- The CSP sends `upgrade-insecure-requests` in a report-only policy, where browsers ignore it.
+- Four `window.location.href` lint warnings (`nav-bar`, `sign-in`, `sign-up`).

@@ -6,11 +6,10 @@ import "./globals.css";
 // outside any Tailwind @layer, so its rules outrank the utility classes they
 // override. Every selector in it is scoped under html[data-design="v2"], so
 // with the flag off this file contributes nothing at all.
-import "@/styles/design-v2.css";
-// The refined layer: the original design with the AI tells taken out. Scoped
-// to html[data-design="v2"]:has([data-v2-refined]), so it reaches only the
-// routes carrying that marker and is inert everywhere else -- including the
-// Terminal Pro routes, which carry data-v2-ready instead.
+// The whole of Design V2: the original design with the machine-made tells
+// removed. Every rule is scoped under
+// html[data-design="v2"]:has([data-v2-refined]), so with the flag off the
+// file contributes nothing at all.
 import "@/styles/design-v2-refined.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { NavBar } from "@/components/nav-bar";
@@ -125,7 +124,17 @@ export default async function RootLayout({
               skip link above would have had nothing to point at. tabIndex={-1}
               makes it a valid target for that link without putting it in the
               tab order itself. */}
-          <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col">
+          {/* data-v2-refined here rather than on each page: the design now
+              covers the whole app, and :has() on <html> only needs to find it
+              once. Rules specific to one kind of page are scoped by
+              data-v2-page instead, so the marketing hero's type scale and the
+              login card's chrome cannot leak into the app screens. */}
+          <main
+            id="main-content"
+            tabIndex={-1}
+            data-v2-refined
+            className="flex flex-1 flex-col"
+          >
             <PageTransition>{children}</PageTransition>
           </main>
           {/* Renders nothing outside development unless a session has opted in

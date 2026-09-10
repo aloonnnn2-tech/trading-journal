@@ -22,10 +22,7 @@ export default async function Home() {
 
   return (
     <div
-      // Opts this route into the refined layer. Terminal Pro rules are gated
-      // on :has([data-v2-ready]), so carrying a different marker keeps that
-      // direction off here without touching its stylesheet.
-      data-v2-refined
+      data-v2-page="landing"
       className="flex flex-1 flex-col"
     >
       <LandingHeader />
