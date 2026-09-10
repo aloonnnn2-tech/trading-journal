@@ -1,0 +1,426 @@
+/* ===========================================================================
+   Design V2 -- Refined
+   ===========================================================================
+
+   The original design, kept. This is not a new direction: the layout, the
+   structure, the blue, the light ground and the rounded cards all stay, and
+   the app should still read as the same product. What comes out is only the
+   set of things that make it look machine-made -- and what goes in is enough
+   variation between sections that the page stops repeating itself.
+
+   Two earlier attempts went too far. "Terminal Pro" made it a spreadsheet;
+   "Editorial" made it a magazine. Neither was the ask. The ask is the
+   original, cleaned up.
+
+   GATES. Every selector carries both:
+
+     html[data-design="v2"]     the flag
+     data-v2-refined            the route opted in
+
+   `npm run check:design-v2` fails the build on a rule missing either.
+
+   The marker is deliberately not Terminal Pro's `data-v2-ready`: every rule
+   in design-v2.css is gated on `:has([data-v2-ready])`, so a page carrying
+   only `data-v2-refined` gets none of it. /trades still carries the old
+   marker and is untouched.
+
+   Unlayered on purpose. Tailwind v4 emits utilities inside `@layer
+   utilities`, and an unlayered rule beats a layered one regardless of
+   specificity -- so these rules override `.rounded-xl`, `.shadow-lg` and the
+   rest without `!important` and without touching a line of JSX.
+
+     1  Palette -- small corrections, not a replacement
+     2  Shape -- radius comes down, shadows come off
+     3  The tells
+     4  Type -- one substitution
+     5  Motion
+     6  Variety -- section rhythm
+     7  Landing: the three-card row and the bento
+     8  Login
+   ======================================================================== */
+
+
+/* ---------------------------------------------------------------------------
+   1. Palette -- small corrections, not a replacement
+   ---------------------------------------------------------------------------
+   The blue stays. Blue is not one of the thirty tells, and changing it is the
+   fastest way to stop looking like the same product. It is pulled a little
+   deeper and a little less electric, which is the difference between a colour
+   that was chosen and one that came out of a starter template.
+
+   The neutrals get the same treatment: Tailwind's zinc is a cold grey, and
+   cold grey on white is most of what reads as "default". A few degrees of
+   warmth costs nothing and is felt immediately.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-refined]) {
+  --color-primary: #2457c5;
+  --color-accent: #3b6fd4;
+
+  /* Page ground and card, one step apart. That step is what separates a card
+     from the page in this design now -- see section 2 on shadows. */
+  --color-zinc-50: #fbfaf8;
+  --color-white: #fefefd;
+
+  /* The rest of the ramp, warmed by a few degrees and otherwise left where
+     the original had it. */
+  --color-zinc-100: #f3f1ed;
+  --color-zinc-200: #e5e2db;
+  --color-zinc-300: #d2cec5;
+  --color-zinc-400: #9c968b;
+  --color-zinc-500: #6f6961;
+  --color-zinc-600: #55504a;
+  --color-zinc-700: #403c37;
+  --color-zinc-800: #2b2825;
+  --color-zinc-900: #1c1a18;
+  --color-zinc-950: #131211;
+
+  --color-subtle: #e5e2db;
+  --color-card: #fefefd;
+  --background: #fbfaf8;
+}
+
+html[data-design="v2"].dark:has([data-v2-refined]) {
+  --color-primary: #6f9bf0;
+  --color-accent: #8db0f4;
+
+  --color-zinc-50: #f2f0ec;
+  --color-zinc-100: #e6e3dd;
+  --color-zinc-200: #d4d0c9;
+  --color-zinc-300: #a7a199;
+  --color-zinc-400: #837d74;
+  --color-zinc-500: #6a645c;
+  --color-zinc-600: #4d4842;
+  --color-zinc-700: #3a3630;
+  --color-zinc-800: #2a2621;
+  --color-zinc-900: #1d1a17;
+  --color-zinc-950: #141210;
+
+  --color-white: #1d1a17;
+  --color-subtle: #2f2b26;
+  --color-card: #1d1a17;
+  --background: #141210;
+}
+
+
+/* ---------------------------------------------------------------------------
+   2. Shape -- radius comes down, shadows come off
+   ---------------------------------------------------------------------------
+   Tell #19 is soft 12px+ corners on everything, not rounded corners as such.
+   Cards stay rounded; they just stop being pill-soft. 8px still reads as the
+   same design, which 2px would not have.
+
+   Tell #5 is separating elements with drop shadows. Every card here already
+   has a border and now sits a tone-step above the page, so the shadows were
+   doing nothing but adding haze. Genuine overlays keep one, because there a
+   shadow carries real information: this thing is above the page.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-refined]) {
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-3xl: 12px;
+  --radius-4xl: 12px;
+}
+
+/* Pills and dots keep their full radius -- a round badge is not the tell, and
+   squaring them would change the design rather than clean it. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="rounded-\["] {
+  border-radius: 8px;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [class*="shadow"] {
+  box-shadow: none;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [class*="drop-shadow"] {
+  filter: none;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-overlay] {
+  box-shadow: 0 4px 16px -8px rgb(28 27 24 / 0.28);
+}
+
+
+/* ---------------------------------------------------------------------------
+   3. The tells
+------------------------------------------------------------------------- */
+
+/* Gradients: hero wash, section glows, the meter fill on stat cards. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="gradient"] {
+  background-image: none;
+}
+
+/* The meter bar loses its gradient above and needs its colour back. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="bg-gradient-to-r"] {
+  background-color: var(--color-primary);
+}
+
+/* Frosted glass on the sticky headers and modal scrims. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="backdrop-blur"] {
+  backdrop-filter: none;
+}
+
+/* Radial orbs and blurred glow plates. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="blur-2xl"],
+html[data-design="v2"]:has([data-v2-refined]) [class*="blur-3xl"],
+html[data-design="v2"]:has([data-v2-refined]) [class*="animate-ping"] {
+  display: none;
+}
+
+/* Sparkles on anything AI-flavoured is the most specific tell on the list.
+   lucide stamps a per-icon class, so all eighteen go in one rule with no
+   markup change. The features keep their labels; they lose the pixie dust. */
+html[data-design="v2"]:has([data-v2-refined]) svg.lucide-sparkles {
+  display: none;
+}
+
+/* Icons stay, at a weight that stops them shouting. Not 14px hairlines --
+   that was the terminal experiment -- just off the 2px default. */
+html[data-design="v2"]:has([data-v2-refined]) svg.lucide {
+  stroke-width: 1.6;
+}
+
+/* The oversized icon watermarks and decorative washes behind the pillars. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="pointer-events-none"][class*="absolute"] {
+  display: none;
+}
+
+/* The fake app-window chrome on the hero illustration: three dots, a made-up
+   breadcrumb and a "live" pip. Tell #14. The dense figures underneath are
+   real product output and stay -- it is the window dressing that goes. */
+html[data-design="v2"]:has([data-v2-refined]) [class*="overflow-hidden"][class*="rounded"] > div:first-child:has(span > span[class*="rounded-full"]) {
+  display: none;
+}
+
+
+/* ---------------------------------------------------------------------------
+   4. Type -- one substitution
+   ---------------------------------------------------------------------------
+   Inter and Geist are both on the banned list, and both are already loaded
+   here. IBM Plex Sans is the substitution: a neutral humanist sans that sits
+   in the same slot without announcing itself, so the page still reads as the
+   same page. Sizes, weights and the scale are untouched -- the original type
+   hierarchy was fine.
+------------------------------------------------------------------------- */
+
+/* The substitution has to happen on the next/font variables, not on
+   Tailwind's --font-sans/--font-mono. globals.css declares those inside
+   `@theme inline`, and `inline` means Tailwind bakes the *value* into each
+   utility -- `.font-mono` compiles to `var(--font-geist-mono)` directly and
+   never reads `--font-mono` at all. Overriding the Tailwind names looked
+   right and changed nothing; repointing the font variables catches every
+   `font-sans` and `font-mono` in the app at once. */
+html[data-design="v2"]:has([data-v2-refined]) {
+  --font-inter: var(--font-plex-sans);
+  --font-geist-mono: var(--font-plex-mono);
+}
+
+html[data-design="v2"]:has([data-v2-refined]) body {
+  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: normal;
+}
+
+/* Display sizes come down slightly. 60px was doing the work that the copy
+   should be doing, and it is the size that reads as a landing-page template. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] h1 {
+  font-size: clamp(32px, 4.2vw, 46px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] h2 {
+  letter-spacing: -0.015em;
+}
+
+
+/* ---------------------------------------------------------------------------
+   5. Motion
+   ---------------------------------------------------------------------------
+   Tell #28 is hover animations that scale, lift or translate. Colour and
+   opacity still respond -- that is feedback, not decoration.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-refined]) a,
+html[data-design="v2"]:has([data-v2-refined]) button,
+html[data-design="v2"]:has([data-v2-refined]) select,
+html[data-design="v2"]:has([data-v2-refined]) input,
+html[data-design="v2"]:has([data-v2-refined]) summary {
+  transition-property: opacity, background-color, border-color, color;
+  transition-duration: 150ms;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) button:active,
+html[data-design="v2"]:has([data-v2-refined]) summary:active {
+  transform: none;
+}
+
+/* framer-motion writes transform and opacity onto the style attribute, where
+   only !important reaches them. This drops the hover lift on cards and the
+   fade-and-rise on every section.
+
+   It also fixes a review hazard: with the scroll animation in place anything
+   below the fold sits at opacity 0 until it is scrolled past, so a full-page
+   screenshot shows several hundred pixels of apparently empty page. */
+html[data-design="v2"]:has([data-v2-refined]) [style*="opacity"],
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-flat] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+
+/* ---------------------------------------------------------------------------
+   6. Variety -- section rhythm
+   ---------------------------------------------------------------------------
+   The single biggest reason the page reads as generated is that every section
+   is the same: same ground, same centred heading, same row of bordered boxes,
+   scrolled six times. None of that is on the thirty-item list, and all of it
+   is what makes the page feel machine-assembled.
+
+   The fix is rhythm rather than decoration. Alternate sections sit on the
+   card tone instead of the page tone and carry a hairline, so scrolling moves
+   through bands instead of down a single flat sheet. No new colour, no new
+   shape, nothing to maintain.
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:nth-of-type(even) {
+  position: relative;
+}
+
+/* Full-bleed, via a pseudo-element. The sections are `mx-auto max-w-6xl`, so
+   painting the background on the section itself stops at the content width
+   and reads as a stray rule floating in the page rather than as a band. The
+   pseudo-element breaks out to the viewport edge and sits behind the content. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:nth-of-type(even)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: var(--color-card);
+  border-top: 1px solid var(--color-subtle);
+  border-bottom: 1px solid var(--color-subtle);
+  z-index: 0;
+}
+
+/* Everything in the section rides above the band. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > section:nth-of-type(even) > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Section headings alternate too: centred once, then ranged left with the
+   content it introduces. Six identical centred headings in a column is its
+   own kind of tell. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] > div:nth-of-type(even) [class*="items-center"][class*="text-center"] {
+  align-items: flex-start;
+  text-align: left;
+}
+
+
+/* ---------------------------------------------------------------------------
+   7. Landing: the three-card row and the bento
+   ---------------------------------------------------------------------------
+   Tells #6 and #13. Both are structural, and both come out without touching
+   the copy or the components.
+------------------------------------------------------------------------- */
+
+/* Three cards in a row becomes three columns of a single ruled block: one
+   border around the set, hairlines between. Same content, same order, same
+   three-up layout -- it just stops being three floating boxes. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-cards] {
+  gap: 1px;
+  background: var(--color-subtle);
+  border: 1px solid var(--color-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [data-v2-cards] > * {
+  background: var(--color-card);
+  border: 0;
+  border-radius: 0;
+}
+
+/* The bento's uneven auto-rows were sized for the old display type and leave
+   voids once anything reflows. Equal rows, calmly. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="auto-rows-fr"] {
+  grid-auto-rows: auto;
+}
+
+/* Fixed panel heights, likewise. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="min-h-["] {
+  min-height: 0;
+}
+
+/* The two-column feature stories are a layout, not a card row: `items-center`
+   leaves the short column short, and anything painted on the grid shows
+   through as a band. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] [class*="lg:grid-cols-2"] {
+  align-items: start;
+}
+
+/* Category labels came in two tones, blue and green. Green means "gain"
+   everywhere else in this product, so a green "RULES & MISTAKES" pill is
+   colour that carries no meaning -- tell #4. One accent, used consistently. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] span[class*="border-profit/30"] {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+}
+
+/* Tinted icon chips: keep the chip, drop the wash to a hairline. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] span[class*="bg-primary/10"] {
+  background: transparent;
+  border: 1px solid var(--color-subtle);
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] header {
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-subtle);
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg rect {
+  rx: 2;
+  ry: 2;
+}
+
+/* The hand-drawn illustrations set their face as an SVG presentation
+   attribute (fontFamily="var(--font-geist-mono)"), which the theme variables
+   above cannot reach. CSS wins over presentation attributes, so this catches
+   them without editing the illustration components. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] svg text {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+
+/* ---------------------------------------------------------------------------
+   8. Login
+------------------------------------------------------------------------- */
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form {
+  background: var(--color-card);
+  border: 1px solid var(--color-subtle);
+  border-radius: 10px;
+}
+
+/* A form field's outline is a UI component boundary, and WCAG 1.4.11 wants
+   3:1 against its background for those. The warmed zinc-300 the inputs were
+   borrowing measures under 2:1, which is fine for a decorative divider and
+   not fine here. */
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form input,
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form select,
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form textarea {
+  border-color: #8f8a80;
+  border-radius: 6px;
+}
+
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form input:focus,
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form select:focus,
+html[data-design="v2"]:has([data-v2-refined]) [data-v2-refined] form textarea:focus {
+  border-color: var(--color-primary);
+}

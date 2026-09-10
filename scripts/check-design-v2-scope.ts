@@ -42,9 +42,10 @@ const SHEETS: Sheet[] = [
     gates: ['html[data-design="v2"]', ":has([data-v2-ready])"],
   },
   {
-    // Editorial. Applies only to routes carrying a variant marker.
-    file: "../src/styles/design-v2-editorial.css",
-    gates: ['html[data-design="v2"]', "data-v2-variant"],
+    // The refined direction: the original design with the tells removed.
+    // Applies only to routes carrying the refined marker.
+    file: "../src/styles/design-v2-refined.css",
+    gates: ['html[data-design="v2"]', "data-v2-refined"],
   },
 ];
 

@@ -1,7 +1,7 @@
 # Design V2 — "Terminal Pro" — Plan & Coverage Tracker
 
 Branch: `design/terminal-v2` (from `main` @ `37f544e`)
-Status: **DIRECTION PIVOTED — Terminal Pro scrapped. Three Editorial variants of landing + login are up for a pick; see §16.**
+Status: **Direction settled: keep the original design, remove the tells. See §17. Terminal Pro and Editorial are both retired.**
 
 Revert path: `git checkout main`. Nothing pushed, nothing deployed.
 
@@ -700,3 +700,71 @@ Login: `/sign-in?design=v2&variant=a`.
   longer exists, referenced by nothing. Not deleted.
 - **#18 is partly addressed by variant C only.** It puts a genuine capture of the running app
   on the landing page for the first time. A/B still have no real product imagery.
+
+
+---
+
+## 17. Refined — the original design, cleaned up
+
+Both earlier attempts overshot. Terminal Pro turned the app into a spreadsheet; Editorial
+turned it into a magazine. Neither was the ask. **The ask is the original design with the
+machine-made tells taken out, plus enough variation between sections that the page stops
+repeating itself.**
+
+`src/styles/design-v2-refined.css`, gated `html[data-design="v2"]:has([data-v2-refined])`.
+Applied so far to `/` and `/sign-in`.
+
+### What stays
+
+The layout, the structure, the blue, the light ground, the rounded cards, the type
+hierarchy. The app still reads as the same product — that was the point.
+
+### What changed
+
+| | Original | Refined |
+|---|---|---|
+| Shadows | 7 on the landing page | **0** (border + a tone step instead; overlays keep one) |
+| Corners over 12px | 19 elements | **0** (cards at 8px, still rounded, not squared) |
+| Gradients | 5 | **0** |
+| Frosted glass | 1 | **0** |
+| Visible Sparkles | 4 | **0** (one rule; lucide stamps a per-icon class) |
+| Elements invisible until scrolled | 18 | **0** |
+| Inter / Geist | 537 elements | **0** — IBM Plex Sans, already loaded |
+| Blue | `#2563eb` | `#2457c5`, a shade deeper and less electric |
+| Neutrals | Tailwind zinc (cold grey) | the same ramp warmed a few degrees |
+
+Also removed: the fake app-window chrome on the hero illustration (tell #14), the oversized
+icon watermarks, and the green "RULES & MISTAKES" category pill — green means *gain* in this
+product, so green on a category label is colour carrying no meaning (tell #4).
+
+### Variety
+
+The real reason the page read as generated was not on the thirty-item list: every section was
+the same ground, the same centred heading, the same row of bordered boxes, six times over.
+
+- Alternating sections now sit on the card tone with a hairline, full-bleed to the viewport
+  edge, so scrolling moves through bands instead of down one flat sheet.
+- The three-card row (tell #6) became one ruled block: same content, same three-up layout,
+  but no longer three floating boxes.
+- The bento grid (tell #13) is now an even grid.
+- Section headings alternate between centred and ranged-left.
+
+### One trap worth recording
+
+`globals.css` declares fonts inside **`@theme inline`**, and `inline` means Tailwind bakes the
+*value* into each utility — `.font-mono` compiles to `var(--font-geist-mono)` and never reads
+`--font-mono` at all. Overriding Tailwind's `--font-sans`/`--font-mono` looked correct and
+changed nothing; 103 elements kept rendering in Geist. The fix is to repoint the **next/font**
+variables (`--font-inter`, `--font-geist-mono`) instead.
+
+### Verified
+
+| Check | Result |
+|---|---|
+| Tells on `/` and `/sign-in` under the flag, both themes | shadow, radius>12, gradient, backdrop, banned font, sparkles, invisible — **all 0** |
+| Flag off, 8 routes × 2 themes | 904 + 944 nodes, **0 differences** run to run |
+| `/trades` under the flag | 779 + 787 nodes, still Terminal Pro amber, **untouched** |
+| `npx vitest run` | 65 files, **935 passed** |
+| `npm run check:design-v2` | 107 + 39 rules, all gated |
+
+Not yet applied to the other 24 routes — waiting on a look at these two first.

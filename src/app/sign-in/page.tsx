@@ -114,16 +114,7 @@ function SignInForm() {
 
   return (
     <div
-      // Editorial preview scaffolding, mirroring the landing page so a variant
-      // survives the click through from there. searchParams is already read in
-      // this component for the post-auth redirect, so this costs no new
-      // plumbing and stays inside the existing Suspense boundary.
-      data-v2-variant={["a", "b", "c"].includes(searchParams.get("variant") ?? "")
-        ? (searchParams.get("variant") as string)
-        : "a"}
-      data-v2-accent={["green", "oxblood", "navy"].includes(searchParams.get("accent") ?? "")
-        ? (searchParams.get("accent") as string)
-        : undefined}
+      data-v2-refined
       className="flex flex-1 flex-col items-center justify-center px-6 py-16"
     >
       <form
