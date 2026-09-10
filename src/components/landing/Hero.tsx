@@ -29,9 +29,9 @@ export function Hero() {
             See the <span className="text-primary">pattern</span> behind every&nbsp;trade.
           </h1>
           <p className="max-w-lg text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Log a trade in seconds. Then write down the rules you actually trade by.
-            Every trade gets checked against them, so what works and what costs you
-            stops being guesswork.
+            Record a trade in about a minute, then write down the rules you trade by.
+            Every entry is checked against them, so you can see which setups earn their
+            place and what your habits actually cost you.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link

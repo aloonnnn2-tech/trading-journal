@@ -21,10 +21,10 @@ export function ClosingCTA() {
         </svg>
         <div className="relative flex flex-col items-center gap-4 px-6 py-16 text-center sm:px-10">
           <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
-            Your next trade deserves a record.
+            Start with your next trade.
           </h2>
           <p className="max-w-md text-zinc-600 dark:text-zinc-400">
-            Create an account in seconds. Free forever, and no card needed.
+            An account takes a minute to open. Free to use, with no card required.
           </p>
           <Link
             href="/sign-up"

@@ -22,7 +22,7 @@ const PILLARS = [
     word: "Record",
     icon: NotebookPen,
     headline: "Every trade, exactly as it happened",
-    body: "Price, size, stop, screenshots, plus any field you want to add. Every edit is saved, so the record can't quietly change on you later.",
+    body: "Price, size, stop, screenshots and any field you define. Every edit is saved, so the record still says what it said when you wrote it.",
   },
   {
     number: "02",
@@ -37,7 +37,7 @@ const PILLARS = [
     word: "Improve",
     icon: TrendingUp,
     headline: "Find what actually makes money",
-    body: "Which setups carry you, and which habits cost you. Nothing gets claimed off the back of three trades.",
+    body: "Which setups carry the account, and which habits work against it. Every figure shows the number of trades behind it, so nothing rests on a sample of three.",
   },
 ];
 

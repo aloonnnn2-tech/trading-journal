@@ -2,8 +2,8 @@
 
 import { motion } from "framer-motion";
 
-// The selling section: what this does that a spreadsheet, or a journal that
-// is really a spreadsheet with a logo, will not do for you.
+// The selling section: the work this does once a trade is closed, which is
+// the part a plain record cannot do for you.
 //
 // Every claim here maps to a feature that actually ships -- rule grading,
 // automatic mistake detection, MAE/MFE capture, screenshot OCR. Nothing is
@@ -20,27 +20,27 @@ import { motion } from "framer-motion";
 const PROOFS = [
   {
     n: "01",
-    title: "Your rules, graded without you",
+    title: "Your rules, checked automatically",
     body:
-      "Write the plan once. Every trade is checked against it, and the ones that broke it are " +
-      "flagged on their own. You are not tagging anything by hand, which is the reason most " +
-      "rule-tracking dies in week three.",
+      "Write your plan once. Every trade is measured against it, and the ones that broke it are " +
+      "flagged for you. There is nothing to tag by hand, which is usually what decides whether " +
+      "rule tracking survives past the first few weeks.",
   },
   {
     n: "02",
-    title: "Mistakes you never logged",
+    title: "Mistakes counted, not remembered",
     body:
-      "A stop you moved, a position you sized up, an exit you took early. Counted from the trade " +
-      "data itself, so the number you see is the number that happened rather than the number you " +
-      "felt like recording.",
+      "A stop that moved, a position sized above plan, an exit taken early. Each one is read from " +
+      "the trade data itself, so the count reflects what happened rather than what you thought to " +
+      "write down at the time.",
   },
   {
     n: "03",
     title: "How far it went against you",
     body:
-      "MAE and MFE on every trade: the heat you sat through, and how much of the move you actually " +
-      "captured. That is the difference between a stop that was too tight and a thesis that was " +
-      "wrong, and it is invisible in a P/L column.",
+      "MAE and MFE on every trade: how far price moved against you before the trade worked, and how " +
+      "much of the move you kept. That is what separates a stop set too tight from a thesis that was " +
+      "wrong, and a profit and loss column cannot tell you which one you are looking at.",
   },
 ];
 
@@ -56,14 +56,14 @@ export function WhatsDifferent() {
             section and read as text sliding over the one below it. */}
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">
-            Three things a spreadsheet won&rsquo;t do
+            Beyond the record
           </p>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
-            A spreadsheet records. This one answers back.
+            The work that starts after the trade closes.
           </h2>
           <p className="mt-4 max-w-md text-zinc-600 dark:text-zinc-400">
-            Logging trades is the easy half, and it is the half every journal does. The work that
-            actually changes a P/L curve is the part that happens after the trade closes.
+            Recording trades is the straightforward part, and most tools stop there. What comes
+            after is where a journal starts to pay for itself.
           </p>
         </div>
 
@@ -109,11 +109,11 @@ export function WhatsDifferent() {
       >
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Getting your trades in takes a sitting, not a weekend
+            Getting your history in takes one sitting
           </h3>
           <p className="mt-1.5 max-w-xl text-[15px] text-zinc-600 dark:text-zinc-400">
-            Drop in a screenshot and the form fills itself. Bring a CSV or Excel file from your
-            broker and the whole history comes with it. Everything autosaves as you type.
+            Drop in a screenshot and the form fills itself. Bring a CSV or Excel export from your
+            broker and the rest of your history comes with it. Everything saves as you type.
           </p>
         </div>
         <dl className="flex shrink-0 gap-8">

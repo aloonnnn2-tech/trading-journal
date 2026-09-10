@@ -81,10 +81,11 @@ export function PricingTeaser() {
 
             {/* The headline is the reader's problem, not our product. */}
             <h3 className="relative mx-auto mt-4 max-w-lg text-center text-2xl font-semibold leading-[1.15] tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-[34px]">
-              Your journal already knows why you lose money.
+              A second read on your own history.
             </h3>
             <p className="relative mx-auto mt-3 max-w-md text-center text-base text-zinc-500 sm:text-lg">
-              The free plan keeps the record. This is the part that reads it back to you.
+              The free plan keeps the record. The paid plan reviews it: each trade scored on
+              execution, your strongest setups ranked, and the month written up as a report.
             </p>
 
             <ul className="relative mx-auto mt-7 max-w-lg space-y-2.5 text-sm text-zinc-600 dark:text-zinc-400 sm:text-base">
