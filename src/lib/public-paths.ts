@@ -11,4 +11,5 @@ export const PUBLIC_PATHS = [
   "/terms",
   "/cookies",
   "/contact",
+  "/paid-plan",
 ];

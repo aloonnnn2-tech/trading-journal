@@ -110,6 +110,18 @@ export function PricingTeaser() {
             <p className="relative mt-3 text-center text-xs text-zinc-500">
               Two minutes. It&rsquo;s not on sale yet, but this is what&rsquo;s coming.
             </p>
+
+            {/* The walkthrough above is a two-minute skim. Some readers want
+                the whole thing before deciding, and sending them to a page
+                rather than a longer modal means they can read at their own
+                pace, come back to it, and link it to someone else. */}
+            <Link
+              href="/paid-plan"
+              className="relative mx-auto mt-5 flex items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Read how every feature works
+              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+            </Link>
           </div>
 
           {/* ---- The free plan: beside it, smaller, and complete ---------- */}

@@ -14,6 +14,16 @@ import type { EdgeRow } from "@/lib/edge/queries";
  *  is a conclusion rather than a data dump. */
 const SHOWN_PER_SIDE = 3;
 
+/** Dimensions computed over winners only, where a win rate is definitionally
+ *  100% and therefore tells the reader nothing.
+ *
+ *  "Closed short of target · 166 trades · 100% win rate" is not a finding, it
+ *  is a restatement of how the dimension is built -- exiting short of target
+ *  on a loser is a stop being hit, so losers are excluded by design. Printed
+ *  next to real win rates on neighbouring rows it reads as either a miracle
+ *  or a bug, and it is neither. See the `exit` dimension in lib/edge/queries. */
+const WINNERS_ONLY_DIMENSIONS = new Set(["exit"]);
+
 function formatR(value: number | null): string {
   if (value === null) return "—";
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}R`;
@@ -49,9 +59,21 @@ function SegmentRow({
 
       {/* Every figure the conclusion rests on, so it can be checked. */}
       <p className="mt-1 font-mono text-xs text-zinc-500">
-        {stats.trades} trades · {stats.winRate === null ? "—" : `${(stats.winRate * 100).toFixed(0)}%`} win
-        rate · {formatR(stats.totalR)} total · expectancy over {stats.withR}
+        {stats.trades} trades
+        {!WINNERS_ONLY_DIMENSIONS.has(segment.dimensionId) && (
+          <>
+            {" · "}
+            {stats.winRate === null ? "—" : `${(stats.winRate * 100).toFixed(0)}%`} win rate
+          </>
+        )}
+        {" · "}
+        {formatR(stats.totalR)} total · expectancy over {stats.withR}
       </p>
+      {WINNERS_ONLY_DIMENSIONS.has(segment.dimensionId) && (
+        <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-600">
+          Winners only, so there is no win rate to compare.
+        </p>
+      )}
 
       {segment.drillDownUrl ? (
         <Link href={segment.drillDownUrl} className="mt-1 inline-block text-xs text-primary hover:underline">

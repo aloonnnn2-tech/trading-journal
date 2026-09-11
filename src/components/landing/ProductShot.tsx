@@ -27,9 +27,9 @@ export function ProductShot() {
       >
         <ProductShotFrame
           src="/screenshots/edge.png"
-          alt="The Find My Edge panel: strongest edges on the left ranked by expectancy in R, biggest leaks on the right. Each row shows the trade count, win rate and total R behind the figure."
+          alt="The Find My Edge panel: strongest edges on the left ranked by expectancy in R, biggest leaks on the right. Each row shows the trade count and total R behind the figure."
           width={3732}
-          height={1386}
+          height={1494}
           sizes="(max-width: 1152px) 100vw, 1152px"
           priority
           caption="Find My Edge, captured from the app. Figures come from the demo account, so they are seeded rather than anyone’s real trading history."

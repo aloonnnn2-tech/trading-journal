@@ -2,6 +2,12 @@
 // demo account.
 //
 // Run:  node scripts/capture-marketing-shots.mjs   (dev server on :3000)
+//       PORT=3001 node scripts/capture-marketing-shots.mjs
+//
+// AFTERWARDS: delete .next/dev/cache/images and restart the dev server.
+// next/image keys its optimised copies on the request URL, and recapturing
+// does not change the URL -- so the old picture keeps being served and it
+// looks like the capture silently failed. This cost two rounds of confusion.
 //
 // These are pictures of a UI that keeps changing, which the hand-drawn panels
 // in landing/illustrations.tsx never were. Committing the capture script means
@@ -21,6 +27,8 @@ import { mkdirSync } from "node:fs";
 // Story columns render at ~560 CSS px. Capturing at roughly that width means
 // the screenshot is displayed near 1:1 and the app's own 13px text stays
 // readable, instead of being scaled down to 5px.
+const PORT = process.env.PORT ?? 3000;
+const BASE = `http://localhost:${PORT}`;
 const WIDE = 1500;
 const NARROW = 700;
 process.loadEnvFile(".env.local");
@@ -50,7 +58,7 @@ async function newPage(vw = NARROW) {
     localStorage.removeItem("tl-design"); localStorage.setItem("theme","light"); localStorage.setItem("tl-tour-seen","1");
   } catch {} });
   const p = await ctx.newPage();
-  await p.goto(`http://localhost:3000/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/dashboard`,
+  await p.goto(`${BASE}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/dashboard`,
     { waitUntil: "domcontentloaded", timeout: 60000 });
   return { ctx, p };
 }
@@ -58,7 +66,7 @@ async function newPage(vw = NARROW) {
 let tradeHref = null;
 {
   const { ctx, p } = await newPage(WIDE);
-  await p.goto("http://localhost:3000/trades", { waitUntil: "domcontentloaded", timeout: 60000 });
+  await p.goto(BASE + "/trades", { waitUntil: "domcontentloaded", timeout: 60000 });
   await p.waitForTimeout(2500);
   const candidates = await p.evaluate(() => [...document.querySelectorAll("tbody tr")]
     .filter(r => /closed/i.test(r.children[1]?.textContent ?? "")
@@ -66,7 +74,7 @@ let tradeHref = null;
     .map(r => r.querySelector("a[href^='/trades/']")?.getAttribute("href"))
     .filter(Boolean).slice(0, 14));
   for (const href of candidates) {
-    await p.goto("http://localhost:3000" + href, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await p.goto(BASE + href, { waitUntil: "domcontentloaded", timeout: 60000 });
     await p.waitForTimeout(1500);
     const info = await p.evaluate(() => {
       const el = document.querySelector('[data-shot="plan-adherence"]');
@@ -86,7 +94,7 @@ for (const s of SHOTS) {
   const route = s.route === "TRADE" ? tradeHref : s.route;
   if (!route) { console.log(s.file, "SKIPPED (no trade found)"); continue; }
   const { ctx, p } = await newPage(s.vw ?? NARROW);
-  await p.goto("http://localhost:3000" + route, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await p.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 60000 });
   await p.waitForLoadState("load").catch(()=>{});
   await p.waitForTimeout(3000);
   // Hide interactive controls for the capture only. A "Recalculate" button is
