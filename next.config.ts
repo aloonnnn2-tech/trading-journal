@@ -53,6 +53,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "uskkuyfnpoowcxuwfsdw.supabase.co", pathname: "/storage/v1/**" },
     ],
+    // Next 16 requires every quality value a component asks for to be listed
+    // here; anything else is silently coerced to the nearest allowed entry.
+    // 75 is the default and fine for photographs. The marketing screenshots
+    // ask for 95 because they are pictures of 12px UI text and one-pixel
+    // rules, where 75's artifacts show as visible fringing around glyphs --
+    // and where a soft screenshot reads as a soft product.
+    qualities: [75, 95],
   },
   // The OCR pipeline uses native Node modules (PaddleOCR ONNX runtime, sharp,
   // Tesseract). Keep them external so Next doesn't try to bundle their native

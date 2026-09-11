@@ -33,7 +33,7 @@ export function MonthlyCalendar({
   ];
 
   return (
-    <div>
+    <div data-shot="calendar">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{monthLabel}</p>
         <div className="flex items-center gap-3 text-[10px] uppercase tracking-wide text-zinc-500">

@@ -248,7 +248,7 @@ export default async function AnalyticsPage() {
       {/* The five deep panels, always expanded. These used to collapse behind
           a one-line summary in "Focused" mode, switchable from a toggle in the
           nav bar; that mode and its toggle have been removed. */}
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-shot="excursion">
         {excursionReport ? <ExcursionPanel report={excursionReport} /> : <ExcursionUpsell />}
       </section>
 

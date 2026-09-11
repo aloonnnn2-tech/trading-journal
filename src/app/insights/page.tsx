@@ -79,7 +79,7 @@ export default async function InsightsPage() {
 
       {/* The deviation list above is the reason to open this page; these two
           deeper reads follow it. */}
-      <section className="flex flex-col gap-2" data-tour-id="tour-mistakes">
+      <section className="flex flex-col gap-2" data-tour-id="tour-mistakes" data-shot="mistakes">
         <MistakeTracker
           summaries={mistakes.summaries}
           tradesAnalysed={mistakes.tradesAnalysed}
@@ -87,7 +87,7 @@ export default async function InsightsPage() {
         />
       </section>
 
-      <section className="flex flex-col gap-2" data-tour-id="tour-edge">
+      <section className="flex flex-col gap-2" data-tour-id="tour-edge" data-shot="edge">
         {edge ? (
           <EdgePanel
             edges={edge.edges}

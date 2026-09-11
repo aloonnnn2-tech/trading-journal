@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "check:bundle": "tsx --env-file=.env.local scripts/check-bundle-secrets.ts",
-    "check:design-v2": "tsx scripts/check-design-v2-scope.ts"
+    "check:design-v2": "tsx scripts/check-design-v2-scope.ts",
+    "shots:marketing": "node scripts/capture-marketing-shots.mjs"
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",

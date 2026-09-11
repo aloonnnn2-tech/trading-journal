@@ -492,6 +492,17 @@ html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="
   align-items: start;
 }
 
+/* The feature stories carry real screenshots now, and a screenshot only reads
+   if it is shown near the size it was captured at. An even 1:1 split left the
+   visual column at 502px for panels captured at ~640, which is 78% scale and
+   turns the app's 13px text into 10px. Tilting the split gives the screenshot
+   the room it needs without starving the copy. */
+@media (min-width: 1024px) {
+  html[data-design="v2"]:has([data-v2-refined]) [data-v2-page="landing"] [class*="lg:grid-cols-2"] {
+    grid-template-columns: 0.85fr 1.15fr;
+  }
+}
+
 /* Category labels came in two tones, blue and green. Green means "gain"
    everywhere else in this product, so a green "RULES & MISTAKES" pill is
    colour that carries no meaning -- tell #4. One accent, used consistently. */

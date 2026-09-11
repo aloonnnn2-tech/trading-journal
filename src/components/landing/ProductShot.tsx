@@ -1,20 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
+import { ProductShotFrame } from "@/components/landing/ProductShotFrame";
 
-// A real screenshot of the running app, immediately after the hero.
+// The first real screenshot on the page, immediately after the hero.
 //
-// Every competitor homepage leads with an actual screenshot of the product;
-// this one led with a hand-drawn illustration of it. The illustration is a
-// good drawing, but a drawing is a claim about the app rather than evidence
-// of it, and a visitor deciding whether to sign up is looking for evidence.
-//
-// **Not framed in fake browser chrome.** The competitors all mount their
-// screenshots in a drawn window with traffic-light dots, and that is the
-// decorative fake-window pattern this redesign already removed once. A real
-// screenshot needs no costume: a hairline, a shadowless plate, and a caption
-// saying what it is and where the numbers came from.
+// It used to be the dashboard, and that was the wrong choice: every product in
+// this category has a dashboard, so a picture of one proves the app exists
+// without saying why it is worth switching to. "Find My Edge" ranks every way
+// of cutting a trading history by expectancy and shows the trade count behind
+// each figure. None of the competitors in the research pass show anything like
+// it, which is the whole reason it earns the largest slot on the page.
 //
 // The caption naming the demo account is deliberate. The figures are seeded
 // rather than a real person's P/L, and saying so costs nothing next to being
@@ -23,29 +19,22 @@ import { motion } from "framer-motion";
 export function ProductShot() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-10">
-      <motion.figure
+      <motion.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="m-0"
       >
-        <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-subtle">
-          <Image
-            src="/screenshots/dashboard-home.png"
-            alt="The Trading Lens dashboard: account cash, today's profit and loss, open and closed trade counts, win rate, and an equity curve running up and to the right across the period."
-            width={2800}
-            height={1460}
-            sizes="(max-width: 1152px) 100vw, 1152px"
-            priority
-            className="block w-full"
-          />
-        </div>
-        <figcaption className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-          The dashboard, captured from the app. Figures come from the demo account, so they are
-          seeded rather than anyone&rsquo;s real trading history.
-        </figcaption>
-      </motion.figure>
+        <ProductShotFrame
+          src="/screenshots/edge.png"
+          alt="The Find My Edge panel: strongest edges on the left ranked by expectancy in R, biggest leaks on the right. Each row shows the trade count, win rate and total R behind the figure."
+          width={3732}
+          height={1386}
+          sizes="(max-width: 1152px) 100vw, 1152px"
+          priority
+          caption="Find My Edge, captured from the app. Figures come from the demo account, so they are seeded rather than anyone’s real trading history."
+        />
+      </motion.div>
     </section>
   );
 }
