@@ -21,7 +21,6 @@ import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { DesignFlagScript } from "@/components/design/design-flag";
-import { DesignToggle } from "@/components/design/design-toggle";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -137,9 +136,6 @@ export default async function RootLayout({
           >
             <PageTransition>{children}</PageTransition>
           </main>
-          {/* Renders nothing outside development unless a session has opted in
-              by hand; see src/components/design/design-toggle.tsx. */}
-          <DesignToggle />
         </ThemeProvider>
       </body>
     </html>

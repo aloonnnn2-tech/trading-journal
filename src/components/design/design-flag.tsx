@@ -12,9 +12,6 @@
 /** localStorage key holding the chosen mode. */
 export const DESIGN_KEY = "tl-design";
 
-/** localStorage key that opts a production session into the toggle pill. */
-export const DESIGN_TOGGLE_KEY = "tl-design-toggle";
-
 export type DesignMode = "v1" | "v2";
 
 // Runs before first paint, so a V2 session never flashes V1 chrome first.

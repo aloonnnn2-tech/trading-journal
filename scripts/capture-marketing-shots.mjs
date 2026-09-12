@@ -50,13 +50,13 @@ const b = await chromium.launch();
 
 // Find a closed trade that is tagged with a strategy, so the plan-adherence
 // panel has rules to show rather than its empty state.
-async function newPage(vw = NARROW) {
+async function newPage(vw = NARROW, theme = "light") {
   const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: "demo@tradinglens.app" });
   if (error) throw new Error(error.message);
   const ctx = await b.newContext({ viewport: { width: vw, height: 1100 }, deviceScaleFactor: 3 });
-  await ctx.addInitScript(() => { try {
-    localStorage.removeItem("tl-design"); localStorage.setItem("theme","light"); localStorage.setItem("tl-tour-seen","1");
-  } catch {} });
+  await ctx.addInitScript((t) => { try {
+    localStorage.removeItem("tl-design"); localStorage.setItem("theme", t); localStorage.setItem("tl-tour-seen","1");
+  } catch {} }, theme);
   const p = await ctx.newPage();
   await p.goto(`${BASE}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/dashboard`,
     { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -90,10 +90,11 @@ let tradeHref = null;
   await ctx.close();
 }
 
-for (const s of SHOTS) {
+for (const s of SHOTS) for (const theme of ["light", "dark"]) {
   const route = s.route === "TRADE" ? tradeHref : s.route;
   if (!route) { console.log(s.file, "SKIPPED (no trade found)"); continue; }
-  const { ctx, p } = await newPage(s.vw ?? NARROW);
+  const file = theme === "dark" ? `${s.file}-dark` : s.file;
+  const { ctx, p } = await newPage(s.vw ?? NARROW, theme);
   await p.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 60000 });
   await p.waitForLoadState("load").catch(()=>{});
   await p.waitForTimeout(3000);
@@ -127,10 +128,10 @@ for (const s of SHOTS) {
     }, { sel: s.shot, rows: s.rows });
     if (cut) h = cut - (box.y - s.pad) + s.pad;
   }
-  await p.screenshot({ path: `public/screenshots/${s.file}.png`, clip: {
+  await p.screenshot({ path: `public/screenshots/${file}.png`, clip: {
     x: Math.max(0, box.x - s.pad), y: Math.max(0, box.y - s.pad),
     width: box.width + s.pad * 2, height: h } });
-  console.log(s.file.padEnd(10), `${Math.round(box.width)}x${Math.round(box.height)} css  ->  ${Math.round((box.width+s.pad*2)*3)}px wide @3x`);
+  console.log(file.padEnd(16), `${Math.round(box.width)}x${Math.round(box.height)} css  ->  ${Math.round((box.width+s.pad*2)*3)}px wide @3x`);
   await ctx.close();
 }
 await b.close();
