@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EditableCoreField } from "@/lib/trades/types";
 import { DEFAULT_DASHBOARD_LAYOUT, type DashboardLayout } from "@/lib/dashboard/layout";
@@ -9,6 +10,11 @@ export interface UserSettings {
   timezone: string | null;
   has_completed_tour: boolean;
   plan: UserPlan;
+  /** Read here alongside everything else so the root layout, which needs it
+   *  for the Admin nav link, does not pay a second round-trip to the same
+   *  row. Admin *routes* still guard themselves with isAdmin(); this is only
+   *  what decides whether the link is drawn. */
+  is_admin: boolean;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -17,25 +23,34 @@ const DEFAULT_SETTINGS: UserSettings = {
   timezone: null,
   has_completed_tour: false,
   plan: DEFAULT_PLAN,
+  is_admin: false,
 };
 
-export async function getUserSettings(
+// cache() dedupes this within one request, keyed on (client, userId). Every
+// page reads settings, and the root layout now does too, so without this the
+// same row was fetched twice per navigation -- ~110ms of pure waiting each
+// time, measured against this project's Supabase region. With the server
+// client itself cache()d, both calls hit the same key and one fetch serves
+// the whole render.
+export const getUserSettings = cache(async function getUserSettings(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<UserSettings> {
   const { data, error } = await supabase
     .from("user_settings")
-    .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour, plan")
+    .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour, plan, is_admin")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
-  // A missing row falls back to defaults -- which means free, not paid. That
-  // is the safe direction: the only way to be paid is for the database to say
-  // so explicitly. isPaidUser() then re-checks with a strict equality, so an
-  // unexpected column value can't grant access either.
-  return data ?? DEFAULT_SETTINGS;
-}
+  // A missing row falls back to defaults -- which means free, not paid, and
+  // not admin. That is the safe direction: the only way to be paid or admin
+  // is for the database to say so explicitly. isPaidUser() then re-checks
+  // with a strict equality, so an unexpected column value can't grant access
+  // either.
+  if (!data) return DEFAULT_SETTINGS;
+  return { ...data, is_admin: data.is_admin === true };
+});
 
 // These write with update(), not upsert(). 0024_user_settings_column_grants
 // granted `user_id` INSERT but deliberately not UPDATE, and PostgREST's

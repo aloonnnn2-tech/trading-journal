@@ -69,7 +69,12 @@ export interface MistakeReport {
  * and the mistake tracker must never disagree about what a moved stop is.
  */
 export async function buildMistakeTrades(supabase: SupabaseClient): Promise<MistakeTrade[]> {
-  const rows = await fetchAllRows<TradeRow>((from, to) =>
+  // Trades and edit history are independent reads of two tables, so they go
+  // out together. They used to run one after the other, which at ~110ms a
+  // round-trip was a tenth of a second spent waiting for nothing on every
+  // load of /insights and /goals. Only the rules lookup genuinely has to wait,
+  // because it needs the strategy ids the trades carry.
+  const rowsPromise = fetchAllRows<TradeRow>((from, to) =>
     supabase
       .from("trades")
       .select(
@@ -83,8 +88,6 @@ export async function buildMistakeTrades(supabase: SupabaseClient): Promise<Mist
       .range(from, to),
   );
 
-  if (rows.length === 0) return [];
-
   // ---- Edit history, in ONE query -----------------------------------------
   //
   // The naive version calls listTradeHistory per trade, which is one round
@@ -92,7 +95,7 @@ export async function buildMistakeTrades(supabase: SupabaseClient): Promise<Mist
   // whole journal. The two jsonb keys are projected server-side rather than
   // shipping every full-row snapshot, which is the same fix getEmotionBreakdown
   // uses for custom_fields.
-  const historyRows = await fetchAllRows<HistoryRow>(
+  const historyPromise = fetchAllRows<HistoryRow>(
     (from, to) =>
       // Cast because a jsonb projection is typed as `Json`; at runtime these
       // are the numbers (or nulls) the snapshot held.
@@ -108,6 +111,9 @@ export async function buildMistakeTrades(supabase: SupabaseClient): Promise<Mist
     // History is an enrichment, not the feature: a journal predating the
     // snapshot trigger simply has none, and that must not take the page down.
   ).catch(() => [] as HistoryRow[]);
+
+  const [rows, historyRows] = await Promise.all([rowsPromise, historyPromise]);
+  if (rows.length === 0) return [];
 
   //
   // Cost note: this is O(snapshots across the whole journal), paged 1,000 at a

@@ -11,9 +11,13 @@ export default async function FieldsPage() {
   const userId = await requireUserId();
   const supabase = await createClient();
 
-  const tradeFields = await listFieldDefinitions(supabase, "trade");
-  const settings = await getUserSettings(supabase, userId);
-  const folders = await listFolders(supabase);
+  // Three independent reads. Awaited one after another they cost three
+  // round-trips in a row; together they cost one.
+  const [tradeFields, settings, folders] = await Promise.all([
+    listFieldDefinitions(supabase, "trade"),
+    getUserSettings(supabase, userId),
+    listFolders(supabase),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col gap-10 p-8">

@@ -32,18 +32,26 @@ export default async function AnalyticsPage() {
   const supabase = await createClient();
 
   const settings = await getUserSettings(supabase, userId);
-  const summary = await getAnalyticsSummary(supabase, settings.timezone);
 
   // MAE/MFE is the paid layer on this page; everything above stays free.
   // Only fetched for paid users -- no reason to read the journal twice to
   // render an upsell card.
   const paid = isPaidUser(settings);
 
-  // One benchmark fetch, already cached by the market-data client and shared
-  // across every user -- unlike excursions, this is the same request whoever
-  // asks. Falls back to an unavailable report rather than breaking the page.
-  const [regimeReport, riskReport, equityCurve] = paid
-    ? await Promise.all([
+  // Everything below needs only the settings row, and nothing below needs
+  // anything else below. These used to run as four phases in a row --
+  // summary, then the three paid reports, then excursions -- which at ~110ms
+  // per round-trip to this project's Supabase region was most of a second of
+  // waiting on a page that renders in one. One batch now.
+  //
+  // The regime report includes one benchmark fetch, already cached by the
+  // market-data client and shared across every user -- unlike excursions, it
+  // is the same request whoever asks. Each report falls back to an
+  // unavailable state rather than breaking the page.
+  const [summary, [regimeReport, riskReport, equityCurve], excursionReport] = await Promise.all([
+    getAnalyticsSummary(supabase, settings.timezone),
+    paid
+    ? Promise.all([
         getRegimeReport(supabase).catch(() => null),
         getRiskReport(supabase).catch(() => null),
         // Trades and cash movements merged into one series, so account growth
@@ -80,10 +88,9 @@ export default async function AnalyticsPage() {
           return buildEquityCurve(events);
         })().catch(() => null),
       ])
-    : [null, null, null];
-
-  const excursionReport = paid
-    ? await (async () => {
+    : Promise.resolve([null, null, null] as const),
+    paid
+    ? (async () => {
         const [trades, rows] = await Promise.all([
           fetchAllRows<{
             id: string;
@@ -123,7 +130,8 @@ export default async function AnalyticsPage() {
         }));
         return buildExcursionReport(mapped, rows);
       })()
-    : null;
+    : Promise.resolve(null),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">

@@ -15,7 +15,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { NavBar } from "@/components/nav-bar";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
-import { isAdmin } from "@/lib/tracking/admin-queries";
+import { getUserSettings } from "@/lib/settings/queries";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -76,8 +76,8 @@ export default async function RootLayout({
   //
   // getUserIdFromHeader rather than requireUserId: this runs for logged-out
   // visitors on the marketing pages too, and must not redirect them. The
-  // lookup is a single indexed column read, skipped entirely when there's no
-  // session, and isAdmin() fails closed on any error.
+  // lookup is skipped entirely when there's no session, and shares the page's
+  // own settings read when there is one (see getUserSettings).
   const userId = await getUserIdFromHeader();
   // Set per-request by src/proxy.ts alongside the CSP that names it.
   // next-themes writes an inline <script> into the document to apply the
@@ -86,7 +86,14 @@ export default async function RootLayout({
   // it would be blocked outright, bringing back the white flash on every
   // load for anyone using dark mode.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
-  const admin = userId ? await isAdmin(await createClient(), userId) : false;
+  // Read from the same cached settings row every page fetches anyway, so
+  // this costs nothing on top of the page's own load. Fails closed: any
+  // error means no Admin link, which is the same posture isAdmin() takes.
+  const admin = userId
+    ? await getUserSettings(await createClient(), userId)
+        .then((s) => s.is_admin)
+        .catch(() => false)
+    : false;
 
   return (
     <html

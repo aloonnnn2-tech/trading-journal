@@ -8,12 +8,15 @@ import { GoalManager } from "./goal-manager";
 export default async function GoalsPage() {
   const userId = await requireUserId();
   const supabase = await createClient();
-  const settings = await getUserSettings(supabase, userId);
-
-  // Both degrade to empty rather than breaking the page: goals reads a
-  // hand-applied migration (0036), and the mistake labels read 0033/0034.
+  // Goal progress needs the timezone from settings; the mistake report does
+  // not. So the mistake report starts immediately, and goal progress starts
+  // the moment settings land, rather than everything queueing behind the
+  // settings read. Both degrade to empty rather than breaking the page:
+  // goals reads a hand-applied migration (0036), and the mistake labels read
+  // 0033/0034.
+  const settingsPromise = getUserSettings(supabase, userId);
   const [progress, mistakes] = await Promise.all([
-    getGoalProgress(supabase, settings.timezone).catch(() => []),
+    settingsPromise.then((s) => getGoalProgress(supabase, s.timezone)).catch(() => []),
     getMistakeReport(supabase).catch(() => ({
       summaries: [],
       tradesAnalysed: 0,

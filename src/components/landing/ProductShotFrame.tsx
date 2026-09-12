@@ -11,9 +11,9 @@ import Image from "next/image";
 // next-themes puts on <html>, not the OS preference, so a <picture> with a
 // prefers-color-scheme source would disagree with the toggle in the header.
 // Both images are rendered and the wrong one is hidden by that same class.
-// They are lazy-loaded, and a display:none image never intersects the
-// viewport, so the hidden theme's file is never fetched -- the cost of the
-// pair is one request, not two.
+// They are lazy-loaded by default, and a display:none image never intersects
+// the viewport, so the hidden theme's file is never fetched -- the cost of
+// the pair is one request, not two. The `eager` plate is the one exception.
 //
 // `quality={95}` rather than the default 75. That default is tuned for
 // photographs, where its artifacts hide in noise. These are screenshots of
@@ -33,6 +33,7 @@ export function ProductShotFrame({
   height,
   sizes,
   caption,
+  eager = false,
 }: {
   /** Light-theme capture. */
   src: string;
@@ -44,6 +45,12 @@ export function ProductShotFrame({
   /** The real rendered width of this slot, so the browser picks sensibly. */
   sizes: string;
   caption?: string;
+  /** Load both theme images immediately instead of lazily. For the one plate
+   *  that sits just under the hero and is the page's Largest Contentful
+   *  Paint: lazy-loading it made first paint look late, and the cost of
+   *  eager here is one extra ~150KB request for the theme not in use. Every
+   *  other plate stays lazy so its hidden twin is never fetched. */
+  eager?: boolean;
 }) {
   const dark = srcDark ?? src.replace(/\.png$/, "-dark.png");
 
@@ -57,7 +64,7 @@ export function ProductShotFrame({
           height={height}
           sizes={sizes}
           quality={95}
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
           className="block w-full dark:hidden"
         />
         <Image
@@ -67,7 +74,7 @@ export function ProductShotFrame({
           height={height}
           sizes={sizes}
           quality={95}
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
           className="hidden w-full dark:block"
         />
       </div>

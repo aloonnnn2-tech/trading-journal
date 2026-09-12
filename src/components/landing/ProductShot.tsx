@@ -31,6 +31,7 @@ export function ProductShot() {
           width={3732}
           height={1494}
           sizes="(max-width: 1152px) 100vw, 1152px"
+          eager
           caption="Find My Edge, captured from the app. Figures come from the demo account, so they are seeded rather than anyone’s real trading history."
         />
       </motion.div>

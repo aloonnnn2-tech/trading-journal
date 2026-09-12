@@ -25,24 +25,26 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   const now = new Date();
-  // Two waves rather than one: the stats RPC buckets "today" and "this
-  // month" in the user's own timezone, which is only known once settings
-  // load. Everything else (row lists for the recent-activity widgets, plus
-  // settings itself) goes out in parallel in wave 1; the single stats RPC
-  // call is wave 2, right after settings resolves.
-  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions, streakTrades] =
+  // The stats RPC buckets "today" and "this month" in the user's own timezone,
+  // which is only known once settings load -- so it cannot go out with the
+  // first batch blind. But it does not need to wait for the *rest* of the
+  // batch either: it is chained onto the settings read alone, so it starts
+  // the instant settings resolve while the six row lists are still in
+  // flight. Previously it queued behind all of them.
+  const settingsPromise = getUserSettings(supabase, userId);
+  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions, streakTrades, stats] =
     await Promise.all([
-      getUserSettings(supabase, userId),
+      settingsPromise,
       getRecentTrades(supabase, 5),
       getPerformanceSeries(supabase, 200),
       getRecentNotes(supabase, 5),
       getEmotionHistory(supabase, 5),
       listAccountTransactions(supabase),
       listTradesForStreak(supabase),
+      settingsPromise.then((s) => getDashboardStats(supabase, s.timezone)),
     ]);
 
   const { year: localYear, month: localMonth } = localDateParts(now, settings.timezone);
-  const stats = await getDashboardStats(supabase, settings.timezone);
   const { counts, winRate, todayPL, monthlyPL, bestWorstSetup, accountBalance } = stats;
   const attentionStreak = computeAttentionStreak(streakTrades, settings.hidden_core_fields, settings.timezone, now);
 
