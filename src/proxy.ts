@@ -190,6 +190,14 @@ const ANON_API_RATE_LIMIT = 60;
 const CSP_REPORT_PATH = "/api/csp-report";
 const CSP_REPORT_RATE_LIMIT = 120;
 
+// The CSP is ENFORCED by default. Set CSP_REPORT_ONLY=true to fall back to the
+// report-only header instead -- an env-level kill switch, so if a missed origin
+// ever surfaces in production the policy can be softened from the Netlify
+// dashboard in seconds, with no code change and no redeploy, rather than
+// shipping a revert. Every directive and nonce is identical between the two
+// modes; only whether a violation blocks or merely reports changes.
+const CSP_REPORT_ONLY = process.env.CSP_REPORT_ONLY === "true";
+
 export async function proxy(request: NextRequest) {
   // getUser() can trigger a token refresh mid-call, which needs new cookies
   // written to both the outgoing request (so this same request sees them)
@@ -228,7 +236,7 @@ export async function proxy(request: NextRequest) {
   // rather than by IP -- otherwise everyone behind one office NAT or mobile
   // carrier gateway shares a single bucket and throttles each other.
   if (request.nextUrl.pathname === CSP_REPORT_PATH) {
-    const limited = enforceRateLimit(
+    const limited = await enforceRateLimit(
       `csp:${clientIpKey(request.headers)}`,
       CSP_REPORT_RATE_LIMIT,
       API_RATE_WINDOW_MS,
@@ -236,8 +244,8 @@ export async function proxy(request: NextRequest) {
     if (limited) return limited;
   } else if (request.nextUrl.pathname.startsWith("/api/")) {
     const limited = data.user
-      ? enforceRateLimit(`api:${data.user.id}`, API_RATE_LIMIT, API_RATE_WINDOW_MS)
-      : enforceRateLimit(
+      ? await enforceRateLimit(`api:${data.user.id}`, API_RATE_LIMIT, API_RATE_WINDOW_MS)
+      : await enforceRateLimit(
           `api-anon:${clientIpKey(request.headers)}`,
           ANON_API_RATE_LIMIT,
           API_RATE_WINDOW_MS,
@@ -266,13 +274,16 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   pendingCookies.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
 
-  // **Report-Only on the way out, deliberately.** Every nonce is real and
-  // every directive is the one we intend to enforce, but a violation is
-  // reported to the console instead of blocking. That makes this deployable
-  // with no risk of a missed origin taking out sign-in or the price charts in
-  // production. Watch the browser console for a few days of real use, then
-  // rename this single header to `Content-Security-Policy` to turn it on.
-  response.headers.set("Content-Security-Policy-Report-Only", csp);
+  // **Enforced by default**, reversible via the CSP_REPORT_ONLY env flag (see
+  // its definition above). Enforcing is what makes the policy a control rather
+  // than a monitor: script-src with a nonce + strict-dynamic actually blocks an
+  // injected script instead of merely filing a report about it. The reporting
+  // directives stay in the policy either way, so violations keep flowing to
+  // /api/csp-report for monitoring even while enforcing.
+  response.headers.set(
+    CSP_REPORT_ONLY ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy",
+    csp,
+  );
 
   // Defines the `csp-endpoint` group that `report-to` above refers to.
   // Without this header that directive names a group the browser has never
@@ -300,6 +311,14 @@ export const config = {
     // prefix match that would also swallow any future cookie-authenticated
     // route merely starting with those characters (e.g. /api/cron-report),
     // silently denying it x-user-id and 401ing every request forever.
-    "/((?!_next/static|_next/image|favicon.ico|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    //
+    // The image-extension skip carries a (?!api/) guard: a real static
+    // image (/logo.png, /screenshots/x.png) still bypasses the proxy for
+    // speed, but an API path that merely ENDS in an image extension --
+    // /api/folders/x.png, a dynamic [id] catching "x.png" -- is proxied
+    // like any other API route. Without the guard such a path skipped the
+    // proxy, so a client-supplied x-user-id was never stripped and an
+    // unauthenticated caller reached handler code (500) instead of 401.
+    "/((?!_next/static|_next/image|favicon.ico|api/cron/|(?!api/).*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

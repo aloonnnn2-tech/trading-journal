@@ -79,3 +79,10 @@ next-env.d.ts
 
 # Playwright MCP browser artifacts (snapshots, console logs)
 .playwright-mcp/
+
+# Claude Code tooling artifacts (vendored skills + their lockfile)
+.claude/skills/
+skills-lock.json
+
+# Stray scratch screenshot
+notes-page.png

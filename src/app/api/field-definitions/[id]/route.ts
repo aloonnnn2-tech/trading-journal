@@ -22,6 +22,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.field_type !== undefined && !FIELD_TYPES.includes(body.field_type)) {
     return NextResponse.json({ error: "Invalid field_type" }, { status: 400 });
   }
+  if (body.label !== undefined && (typeof body.label !== "string" || body.label.trim().length === 0)) {
+    return NextResponse.json({ error: "Invalid label" }, { status: 400 });
+  }
+  if (
+    body.options !== undefined &&
+    body.options !== null &&
+    !(Array.isArray(body.options) && body.options.every((o: unknown) => typeof o === "string"))
+  ) {
+    return NextResponse.json({ error: "Invalid options" }, { status: 400 });
+  }
+  if (body.sort_order !== undefined && !Number.isFinite(body.sort_order)) {
+    return NextResponse.json({ error: "Invalid sort_order" }, { status: 400 });
+  }
 
   const updated = await updateFieldDefinition(supabase, id, {
     label: body.label,
@@ -29,6 +42,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     options: body.options,
     sort_order: body.sort_order,
   });
+  if (!updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   return NextResponse.json(updated);
 }
 

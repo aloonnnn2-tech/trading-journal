@@ -1,59 +1,82 @@
-// Minimal in-memory sliding-window rate limiter, keyed by user id.
-//
-// **Known limitation, deliberate:** serverless instances don't share memory,
-// so this bounds abuse *per warm instance* rather than globally -- a client
-// whose requests land on several cold instances gets a proportionally higher
-// effective limit. That's an acceptable trade here: the goal is to stop one
-// looping client from running up Netlify compute on the OCR route, which this
-// does, without taking on Redis or a Postgres round-trip per request. If this
-// ever needs to be a real global limit, that's the upgrade path.
-//
-// No dependency, no infrastructure, and it fails open on anything unexpected
-// -- a rate limiter that breaks the app it protects is worse than none.
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-interface Window {
-  hits: number[];
+// Global rate limiter, backed by a shared Postgres counter (see
+// supabase/migrations/0042_rate_limit_counters.sql). It replaced an in-memory
+// map whose counters lived per serverless instance -- so a client spread across
+// warm instances got a proportionally higher effective limit, and every cold
+// start reset the window. One shared table makes the ceiling real across the
+// whole deployment.
+//
+// **Fails open on anything unexpected.** Migration not yet applied, DB briefly
+// unreachable, service-role env absent -- all of these allow the request rather
+// than blocking it. A rate limiter that breaks the app it protects is worse
+// than none, and this keeps a database blip from 429ing every user at once. It
+// also means deploying this code before the migration is applied is harmless:
+// the limiter simply allows until the function exists.
+
+let cachedClient: SupabaseClient | null = null;
+
+// Lazily built, memoized, service-role, no session.
+//
+// **Service-role, deliberately.** `rate_limit_hit` is granted to `service_role`
+// only. The anon key ships in the browser bundle, so granting the function to
+// anon would let anyone call it with `bucket = 'api:<victimUserId>'` and
+// pre-exhaust another user's limit -- a free denial of service. The counter is
+// therefore only ever touched by this server-side key. This module is imported
+// only by server code (the proxy and API routes); `npm run check:bundle` is the
+// standing guard that the service-role key can never reach a client bundle.
+function rpcClient(): SupabaseClient {
+  if (cachedClient) return cachedClient;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("rate-limit: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set");
+  }
+  cachedClient = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return cachedClient;
 }
-
-const windows = new Map<string, Window>();
-
-// Bound the map itself: without this, a long-lived instance accumulates one
-// entry per user id forever, which is its own slow leak.
-const MAX_TRACKED_KEYS = 10_000;
 
 export interface RateLimitResult {
   ok: boolean;
-  /** Seconds until the oldest hit falls out of the window. */
+  /** Seconds until the current window resets. */
   retryAfterSeconds: number;
 }
 
 /**
- * @param key      Caller-scoped identity, e.g. `ocr:<userId>`.
+ * Records one hit against `key` and reports whether it is within `limit` per
+ * `windowMs`. Always resolves -- never rejects -- so callers never need a
+ * try/catch; an internal failure resolves to `{ ok: true }` (fail open).
+ *
+ * @param key      Caller-scoped identity/bucket, e.g. `ocr:<userId>`.
  * @param limit    Max requests allowed inside the window.
  * @param windowMs Window length in milliseconds.
  */
-export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
-  const now = Date.now();
-  const cutoff = now - windowMs;
-
-  if (windows.size > MAX_TRACKED_KEYS) windows.clear();
-
-  const existing = windows.get(key);
-  // Drop hits that have aged out, so the window actually slides.
-  const hits = (existing?.hits ?? []).filter((t) => t > cutoff);
-
-  if (hits.length >= limit) {
-    const oldest = hits[0];
-    windows.set(key, { hits });
+export async function rateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<RateLimitResult> {
+  try {
+    const { data, error } = await rpcClient().rpc("rate_limit_hit", {
+      p_bucket: key,
+      p_max: limit,
+      p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
+    });
+    if (error || !data || typeof data !== "object") {
+      return { ok: true, retryAfterSeconds: 0 };
+    }
+    const allowed = (data as { allowed?: unknown }).allowed;
+    const retry = (data as { retry_after_seconds?: unknown }).retry_after_seconds;
     return {
-      ok: false,
-      retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - now) / 1000)),
+      // Only an explicit `false` blocks; any unexpected shape fails open.
+      ok: allowed !== false,
+      retryAfterSeconds: typeof retry === "number" && retry > 0 ? retry : 0,
     };
+  } catch {
+    return { ok: true, retryAfterSeconds: 0 };
   }
-
-  hits.push(now);
-  windows.set(key, { hits });
-  return { ok: true, retryAfterSeconds: 0 };
 }
 
 /**
@@ -64,8 +87,11 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
  * Returns a ready-to-send response when the caller is over the limit, or
  * `null` when they are not -- so a route reads:
  *
- *     const limited = enforceRateLimit(`trades:${userId}`, 60, 60_000);
+ *     const limited = await enforceRateLimit(`trades:${userId}`, 60, 60_000);
  *     if (limited) return limited;
+ *
+ * **Note the `await`.** This is async now (it does a database round-trip); a
+ * caller that forgets the await gets a truthy Promise and 429s every request.
  *
  * The message is deliberately written for a person rather than a log: a 429
  * with `{"error":"Too Many Requests"}` tells someone who just lost an import
@@ -73,13 +99,13 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
  * every one of these because it is the header a browser, a proxy and a
  * well-behaved script all already know how to honour.
  */
-export function enforceRateLimit(
+export async function enforceRateLimit(
   key: string,
   limit: number,
   windowMs: number,
   message = "You're doing that a bit too quickly. Wait a moment and try again.",
-): Response | null {
-  const result = rateLimit(key, limit, windowMs);
+): Promise<Response | null> {
+  const result = await rateLimit(key, limit, windowMs);
   if (result.ok) return null;
 
   return Response.json(

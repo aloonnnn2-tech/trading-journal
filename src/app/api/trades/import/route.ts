@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   // so this is among the heaviest database operations in the app. Importing a
   // broker export is something a person does a handful of times, not ten
   // times a minute.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `import:${userId}`,
     10,
     60_000,

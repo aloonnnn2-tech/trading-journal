@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   // Same budget and the same reasoning as the mapped-CSV import: this is the
   // other half of the same feature and writes to the same tables.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `import:${userId}`,
     10,
     60_000,

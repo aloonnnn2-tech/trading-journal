@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
   // The client heartbeats on a fixed interval, so anything approaching this
   // is not the real UI.
-  const limit = rateLimit(`heartbeat:${userId}`, 60, 60_000);
+  const limit = await rateLimit(`heartbeat:${userId}`, 60, 60_000);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many heartbeats" },

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
   // Admin-gated below, but a limit here means a leaked admin session can't be
   // used to churn plan changes across every account at machine speed.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `admin-plan:${userId}`,
     60,
     60_000,

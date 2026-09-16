@@ -23,6 +23,13 @@ jobs:
 
       - run: npm ci
 
+      # Fail on a known high/critical advisory in a PRODUCTION dependency.
+      # Dependabot already opens upgrade PRs; this makes an unpatched serious
+      # vuln block the build rather than sit unnoticed. Scoped to prod deps
+      # (--omit=dev) so a dev-only tooling advisory doesn't red-CI a feature
+      # branch, and pinned to high+ so low/moderate noise stays a Dependabot PR.
+      - run: npm audit --audit-level=high --omit=dev
+
       - run: npx vitest run
 
       - run: npm run lint

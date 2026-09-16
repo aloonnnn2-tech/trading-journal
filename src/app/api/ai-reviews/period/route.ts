@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   const gate = await requirePaidUser();
   if (!gate.ok) return gate.response;
 
-  const limit = rateLimit(`ai-review:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`ai-review:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many reviews in a row — give it a moment and try again." },

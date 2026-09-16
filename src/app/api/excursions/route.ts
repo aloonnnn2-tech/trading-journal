@@ -23,7 +23,7 @@ export async function POST() {
   const gate = await requirePaidUser();
   if (!gate.ok) return gate.response;
 
-  const limit = rateLimit(`excursions:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`excursions:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Excursions were just recalculated — give it a few minutes before running again." },

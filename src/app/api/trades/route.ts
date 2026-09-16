@@ -14,7 +14,7 @@ export async function POST() {
 
   // Creating a trade is a button press, so 60/min is far above any real use
   // while stopping a loop from filling an account with blank rows.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `trades-create:${userId}`,
     60,
     60_000,

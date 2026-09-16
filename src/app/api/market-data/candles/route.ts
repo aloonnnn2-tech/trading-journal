@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const limit = rateLimit(`candles:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`candles:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many price lookups — give it a moment and try again." },

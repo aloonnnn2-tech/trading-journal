@@ -20,6 +20,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored Claude Code skills: third-party example and template files that
+    // live on disk but are gitignored, so they are never part of this repo.
+    // Without this, `npm run lint` fails locally on code nobody here wrote
+    // while CI -- which checks out without them -- passes, and the two
+    // disagreeing is worse than either being wrong.
+    ".claude/**",
   ]),
 ]);
 

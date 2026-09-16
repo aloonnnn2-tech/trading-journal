@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   // sheet in memory (see the bomb caps above), so it needs a limit of its own
   // even though it writes nothing. Slightly looser than the import itself,
   // since previewing a file before importing it is a normal thing to redo.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `parse-xlsx:${userId}`,
     20,
     60_000,
@@ -59,8 +59,15 @@ export async function POST(request: Request) {
   );
   if (limited) return limited;
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
+  // formData() throws on a malformed / non-multipart body; without this it
+  // was a 500 instead of a 400.
+  let file: File | null;
+  try {
+    const formData = await request.formData();
+    file = formData.get("file") as File | null;
+  } catch {
+    return NextResponse.json({ error: "Expected a multipart form upload" }, { status: 400 });
+  }
   if (!file) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }

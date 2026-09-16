@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const limit = rateLimit(`ocr:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`ocr:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many scans in a row — give it a moment and try again." },

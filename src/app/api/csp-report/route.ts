@@ -23,7 +23,6 @@
  * to be erroring in the metrics while changing nothing about what arrives.
  */
 import * as Sentry from "@sentry/nextjs";
-import { rateLimit } from "@/lib/rate-limit";
 
 // Sentry's Node SDK, and the report bodies can outgrow the edge runtime's
 // limits when a policy string is long.
@@ -46,6 +45,35 @@ const MAX_BODY_BYTES = 64 * 1024;
  */
 const REPORT_CAP = 5;
 const REPORT_WINDOW_MS = 10 * 60_000;
+
+/**
+ * Per-signature Sentry-flood cap, kept in-process ON PURPOSE.
+ *
+ * This is not request rate limiting (that's the global Postgres limiter in
+ * src/lib/rate-limit.ts, and the `csp:<ip>` bucket in the proxy already bounds
+ * this endpoint per IP). This is a dedup on how many identical violations reach
+ * Sentry, and it wants the opposite trade from the request limiter: no DB
+ * round-trip per report, and it must keep *capping* even when the database is
+ * down -- exactly when a flood is most likely. Per warm instance is fine; the
+ * goal is dampening identical spam, not a precise global count.
+ */
+const reportHits = new Map<string, number[]>();
+const MAX_TRACKED_SIGNATURES = 5_000;
+
+function underReportCap(signature: string): boolean {
+  const now = Date.now();
+  const cutoff = now - REPORT_WINDOW_MS;
+  // Bound the map so a stream of distinct signatures can't leak memory.
+  if (reportHits.size > MAX_TRACKED_SIGNATURES) reportHits.clear();
+  const hits = (reportHits.get(signature) ?? []).filter((t) => t > cutoff);
+  if (hits.length >= REPORT_CAP) {
+    reportHits.set(signature, hits);
+    return false;
+  }
+  hits.push(now);
+  reportHits.set(signature, hits);
+  return true;
+}
 
 /**
  * A violation, whichever wire format it arrived in.
@@ -199,7 +227,7 @@ export async function POST(request: Request) {
     // Cap per signature, not per request: the same violation arriving from a
     // thousand browsers is still one thing to fix.
     const signature = `csp:${violation.directive}:${origin}`;
-    if (!rateLimit(signature, REPORT_CAP, REPORT_WINDOW_MS).ok) continue;
+    if (!underReportCap(signature)) continue;
 
     Sentry.captureMessage(`CSP ${violation.disposition}: ${violation.directive} blocked ${origin}`, {
       level: violation.disposition === "enforce" ? "error" : "warning",

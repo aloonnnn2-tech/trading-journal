@@ -26,11 +26,17 @@ const MAX_PIXELS = 50_000_000;
  * whole fix; the rotate() first bakes in EXIF orientation so discarding the
  * tag doesn't leave the image sideways.
  *
- * GIF is passed through untouched: the format has no EXIF container to leak,
- * and re-encoding would flatten an animation for no benefit.
+ * GIF keeps its original bytes -- the format has no EXIF container to leak,
+ * and re-encoding would flatten an animation for no benefit -- but it is
+ * still decoded first, so a non-image payload wearing an image/gif MIME is
+ * rejected rather than stored. animated:true so a multi-frame GIF validates
+ * as a whole instead of only its first page.
  */
 async function stripMetadata(buffer: Buffer, mime: string): Promise<Buffer> {
-  if (mime === "image/gif") return buffer;
+  if (mime === "image/gif") {
+    await sharp(buffer, { limitInputPixels: MAX_PIXELS, animated: true }).metadata();
+    return buffer;
+  }
 
   const img = sharp(buffer, { limitInputPixels: MAX_PIXELS }).rotate();
   if (mime === "image/png") return await img.png().toBuffer();
@@ -65,7 +71,7 @@ export async function POST(
   // Each upload is 5 MB of decode-and-re-encode through sharp, which is CPU
   // the deploy is billed for. 30/min is far more than anyone attaches to a
   // trade by hand.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `image-upload:${userId}`,
     30,
     60_000,

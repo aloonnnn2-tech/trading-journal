@@ -107,29 +107,41 @@ authenticated, owner-scoped by RLS, and cheap — a single small row write. The
 blanket proxy limit covers them. This is the documented reason the brief asks
 for, not an oversight.
 
-### Known limitation: per-instance, not global
+### Global, via a Postgres counter
 
-`src/lib/rate-limit.ts` keeps its counters in module memory. Serverless
-instances do not share memory, so a client whose requests land on several warm
-instances gets a proportionally higher effective limit. This bounds runaway
-clients and cost; it is **not** a defence against a distributed attacker.
+`src/lib/rate-limit.ts` records each hit through a shared Postgres counter
+(`rate_limit_hit`, migration `0042_rate_limit_counters.sql`), so the ceiling
+holds across every serverless instance rather than per warm instance — a
+distributed client no longer gets a multiplied limit, and a cold start no
+longer resets the window. The counter is written only by a `security definer`
+function granted to `service_role`, called with the service-role key; it is
+**never** granted to `anon`/`authenticated`, because the anon key is public and
+a caller could otherwise exhaust another user's bucket by naming it.
 
-Upgrading to a real global limit means Redis (Upstash) or a Postgres counter,
-and a round-trip per request. Worth doing if abuse is ever observed; not worth
-the latency and the dependency before then.
+**It fails open.** If the function is missing (migration not applied) or the
+database is briefly unreachable, requests are allowed rather than blocked — a
+limiter that 429s everyone during a DB blip is worse than none. The cost is one
+DB round-trip per `/api/` request, on top of the auth check the proxy already
+does; accepted deliberately. If that latency ever bites, the global check can
+be narrowed to the expensive/destructive routes and the blanket floor left
+in-memory.
 
 ---
 
-## 3. Content Security Policy — still Report-Only
+## 3. Content Security Policy — enforced
 
 `src/proxy.ts` builds a full CSP with a per-request nonce and `strict-dynamic`,
-and sends it as `Content-Security-Policy-Report-Only`. Every directive is the
-one intended for enforcement; violations are reported, not blocked.
+and sends it as `Content-Security-Policy` (enforcing). An injected script with
+no valid nonce is blocked, not merely reported. The `report-uri`/`report-to`
+directives remain in the policy, so violations still flow to `/api/csp-report`
+for monitoring even while enforcing.
 
-**To enforce:** rename that single response header to
-`Content-Security-Policy`. Do it as its own deploy, after watching real browser
-consoles for a few days, so a missed origin shows up as a report rather than as
-sign-in breaking in production.
+**Reversible without a deploy.** Set the env var `CSP_REPORT_ONLY=true` (e.g.
+in the Netlify dashboard) to fall back to `Content-Security-Policy-Report-Only`.
+Every directive and nonce is identical between the two modes — only whether a
+violation blocks or reports changes — so if a missed origin ever surfaces in
+production the policy can be softened in seconds and re-enforced once fixed,
+with no code change.
 
 Known deliberate weakness: `style-src` carries `'unsafe-inline'`, because React
 renders the `style` prop as an inline style attribute and a nonce cannot cover
@@ -297,11 +309,10 @@ one for a server that calls providers on the user's behalf.
 
 ## 7. Things deliberately not done in this pass
 
-- **CSP not flipped to enforcing** — separate deploy, see §3.
 - **Auth not proxied through our own routes.** It would allow app-level auth
   rate limiting, but it is a significant architecture change and the Supabase
   dashboard controls in §1 address the same risk.
-- **Rate limiter not moved to Redis** — see §2.
-- **`public/screenshots/*.png` not deleted.** Three files referenced nowhere in
-  `src/`. They may be for a README or a store listing, so they await owner
-  confirmation rather than being removed on a guess.
+
+_(Previously listed here and now done: CSP flipped to enforcing — §3; rate
+limiter moved to a global Postgres counter — §2. The operator steps that pair
+with these code changes are in `SECURITY-RUNBOOK.md`.)_

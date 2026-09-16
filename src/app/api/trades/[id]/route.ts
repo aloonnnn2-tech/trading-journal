@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // ordinary use -- silently, since a dropped autosave looks like data loss.
   // 240/min leaves roughly a 4x margin over the fastest realistic typing and
   // still caps a runaway client.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `trade-update:${userId}`,
     240,
     60_000,
@@ -122,7 +122,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   // Deletes are confirm-dialog-gated in the UI, so a burst of them is not a
   // person. Tighter than the autosave limit above for that reason.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `trade-delete:${userId}`,
     60,
     60_000,

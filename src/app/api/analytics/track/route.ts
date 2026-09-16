@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   // Generous: real usage is a handful of events per page view. This only
   // bites a client looping the endpoint to grow the table (see the props cap
   // above for the other half of that).
-  const limit = rateLimit(`track:${userId}`, 120, 60_000);
+  const limit = await rateLimit(`track:${userId}`, 120, 60_000);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many events" },

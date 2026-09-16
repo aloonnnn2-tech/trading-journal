@@ -16,7 +16,7 @@ export async function DELETE() {
   // objects are removed before the auth user is. Retrying in a loop after a
   // partial failure is exactly what should not happen, so this is the
   // tightest limit in the app.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `account-delete:${userId}`,
     5,
     60 * 60_000,

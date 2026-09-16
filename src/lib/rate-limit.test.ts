@@ -1,86 +1,110 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The limiter now does a Postgres RPC (migration 0042) through a service-role
+// client it builds internally. We mock @supabase/supabase-js so `.rpc()` is a
+// spy we script per test -- no database, and the same round-trip shape the real
+// code sees. The client is memoized in the module, so the spy is created once
+// and its behaviour is reset each test.
+const rpc = vi.fn();
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({ rpc }),
+}));
+
 import { clientIpKey, enforceRateLimit, rateLimit } from "./rate-limit";
 
+const allow = { data: { allowed: true, retry_after_seconds: 0 }, error: null };
+const block = (retry: number) => ({ data: { allowed: false, retry_after_seconds: retry }, error: null });
+
+beforeEach(() => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
+  rpc.mockReset();
+});
+
 afterEach(() => {
-  vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("rateLimit", () => {
-  it("allows up to the limit, then blocks", () => {
-    const key = `test-${Math.random()}`;
-    expect(rateLimit(key, 3, 60_000).ok).toBe(true);
-    expect(rateLimit(key, 3, 60_000).ok).toBe(true);
-    expect(rateLimit(key, 3, 60_000).ok).toBe(true);
-    expect(rateLimit(key, 3, 60_000).ok).toBe(false);
+  it("allows when the counter says it's under the limit", async () => {
+    rpc.mockResolvedValue(allow);
+    const r = await rateLimit("k", 3, 60_000);
+    expect(r.ok).toBe(true);
+    // Window is passed to the RPC in whole seconds.
+    expect(rpc).toHaveBeenCalledWith("rate_limit_hit", {
+      p_bucket: "k",
+      p_max: 3,
+      p_window_seconds: 60,
+    });
   });
 
-  it("reports a positive retry-after when blocked", () => {
-    const key = `test-${Math.random()}`;
-    rateLimit(key, 1, 60_000);
-    const blocked = rateLimit(key, 1, 60_000);
-    expect(blocked.ok).toBe(false);
-    expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+  it("blocks and reports retry-after when the counter says it's over", async () => {
+    rpc.mockResolvedValue(block(12));
+    const r = await rateLimit("k", 3, 60_000);
+    expect(r.ok).toBe(false);
+    expect(r.retryAfterSeconds).toBe(12);
   });
 
-  it("keys are independent -- one user can't exhaust another's budget", () => {
-    const a = `a-${Math.random()}`;
-    const b = `b-${Math.random()}`;
-    expect(rateLimit(a, 1, 60_000).ok).toBe(true);
-    expect(rateLimit(a, 1, 60_000).ok).toBe(false);
-    expect(rateLimit(b, 1, 60_000).ok).toBe(true);
+  it("rounds a sub-second window up to at least one second", async () => {
+    rpc.mockResolvedValue(allow);
+    await rateLimit("k", 1, 1500);
+    expect(rpc).toHaveBeenCalledWith("rate_limit_hit", {
+      p_bucket: "k",
+      p_max: 1,
+      p_window_seconds: 2,
+    });
   });
 
-  // The window has to actually slide, not just reset on a fixed schedule --
-  // otherwise a client learns to burst on the boundary.
-  it("frees capacity once old hits age out of the window", () => {
-    vi.useFakeTimers();
-    const key = `test-${Math.random()}`;
+  // Fail open is the load-bearing property: a limiter that 429s everyone when
+  // the database blips is worse than no limiter at all.
+  it("fails open when the RPC returns an error", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "function does not exist" } });
+    expect((await rateLimit("k", 1, 60_000)).ok).toBe(true);
+  });
 
-    expect(rateLimit(key, 2, 1000).ok).toBe(true);
-    expect(rateLimit(key, 2, 1000).ok).toBe(true);
-    expect(rateLimit(key, 2, 1000).ok).toBe(false);
+  it("fails open when the RPC throws", async () => {
+    rpc.mockRejectedValue(new Error("network down"));
+    expect((await rateLimit("k", 1, 60_000)).ok).toBe(true);
+  });
 
-    vi.advanceTimersByTime(1001);
-    expect(rateLimit(key, 2, 1000).ok).toBe(true);
+  it("fails open on an unexpected response shape rather than blocking", async () => {
+    rpc.mockResolvedValue({ data: "not an object", error: null });
+    expect((await rateLimit("k", 1, 60_000)).ok).toBe(true);
   });
 });
 
 describe("enforceRateLimit", () => {
-  it("returns null while under the limit, so the route proceeds", () => {
-    const key = `enforce-${Math.random()}`;
-    expect(enforceRateLimit(key, 2, 60_000)).toBeNull();
-    expect(enforceRateLimit(key, 2, 60_000)).toBeNull();
+  it("returns null while under the limit, so the route proceeds", async () => {
+    rpc.mockResolvedValue(allow);
+    expect(await enforceRateLimit("k", 2, 60_000)).toBeNull();
   });
 
   it("answers with a 429 carrying Retry-After once over", async () => {
-    const key = `enforce-${Math.random()}`;
-    enforceRateLimit(key, 1, 60_000);
-    const response = enforceRateLimit(key, 1, 60_000);
+    rpc.mockResolvedValue(block(7));
+    const response = await enforceRateLimit("k", 1, 60_000);
 
     expect(response).not.toBeNull();
     expect(response!.status).toBe(429);
-
-    const retryAfter = Number(response!.headers.get("Retry-After"));
-    expect(retryAfter).toBeGreaterThan(0);
+    expect(response!.headers.get("Retry-After")).toBe("7");
 
     const body = (await response!.json()) as { error: string; retryAfterSeconds: number };
-    expect(body.retryAfterSeconds).toBe(retryAfter);
+    expect(body.retryAfterSeconds).toBe(7);
   });
 
-  // The whole point of the helper: a 429 a person can read. A bare status code
-  // is what the UI used to have nothing to show for.
+  // The whole point of the helper: a 429 a person can read.
   it("carries a human-readable message, default or supplied", async () => {
-    const key = `enforce-${Math.random()}`;
-    enforceRateLimit(key, 1, 60_000);
-    const body = (await enforceRateLimit(key, 1, 60_000)!.json()) as { error: string };
-    expect(body.error).toMatch(/wait a moment and try again/i);
+    rpc.mockResolvedValue(block(5));
 
-    const custom = `enforce-${Math.random()}`;
-    enforceRateLimit(custom, 1, 60_000, "Too many imports in a row. Give it a minute.");
-    const customBody = (await enforceRateLimit(custom, 1, 60_000, "Too many imports in a row. Give it a minute.")!.json()) as {
-      error: string;
-    };
-    expect(customBody.error).toBe("Too many imports in a row. Give it a minute.");
+    const dflt = (await (await enforceRateLimit("k", 1, 60_000))!.json()) as { error: string };
+    expect(dflt.error).toMatch(/wait a moment and try again/i);
+
+    const custom = (await (await enforceRateLimit(
+      "k",
+      1,
+      60_000,
+      "Too many imports in a row. Give it a minute.",
+    ))!.json()) as { error: string };
+    expect(custom.error).toBe("Too many imports in a row. Give it a minute.");
   });
 });
 

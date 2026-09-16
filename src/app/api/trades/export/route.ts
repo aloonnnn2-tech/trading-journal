@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   // Serialises the account's entire trade history in one response. Cheap for
   // a user with fifty trades, not cheap for one with twenty thousand, and
   // looping it is an easy way to burn both database time and bandwidth.
-  const limited = enforceRateLimit(
+  const limited = await enforceRateLimit(
     `export:${userId}`,
     20,
     60_000,

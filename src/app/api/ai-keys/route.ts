@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const limit = rateLimit(`ai-keys:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`ai-keys:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many attempts in a row — give it a moment and try again." },
