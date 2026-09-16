@@ -326,6 +326,7 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
     <>
       <button
         onClick={() => setOpen(true)}
+        data-tour-id="trades-screenshot"
         className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500"
       >
         From screenshot

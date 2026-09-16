@@ -10,9 +10,11 @@ import { useDialog } from "@/lib/a11y/use-dialog";
 // everything else in the stacking order -- the point is nothing is
 // touchable until the user answers.
 export function WelcomeModal({
+  stepCount,
   onAccept,
   onDecline,
 }: {
+  stepCount: number;
   onAccept: () => void;
   onDecline: () => void;
 }) {
@@ -61,6 +63,9 @@ export function WelcomeModal({
           <p className="mt-2 text-sm text-zinc-500">
             Thanks for joining. Want a quick tour of the app before you dive in?
           </p>
+          <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-500">
+            {stepCount} steps · about two minutes
+          </p>
         </div>
         <div className="mt-2 flex w-full flex-col gap-2">
           <button
@@ -68,7 +73,7 @@ export function WelcomeModal({
             onClick={onAccept}
             className="w-full rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
           >
-            Show me around (1 minute)
+            Show me around
           </button>
           <button
             onClick={onDecline}

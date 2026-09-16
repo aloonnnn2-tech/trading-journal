@@ -10,9 +10,45 @@ import {
   providerFetch,
   type AIProvider,
   type AskOptions,
+  type ChatMessage,
+  type ChatOnceInput,
+  type ChatResult,
+  type ToolCall,
 } from "./types";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+interface GeminiPart {
+  text?: string;
+  functionCall?: { name: string; args?: Record<string, unknown> };
+}
+
+/** Neutral messages -> Gemini `contents`. The assistant role is "model"; a
+ *  tool result is a `functionResponse` part paired by NAME (Gemini has no
+ *  call ids), which is why the neutral tool message carries `toolName`. */
+function toGeminiContents(messages: ChatMessage[]): unknown[] {
+  return messages.map((m) => {
+    if (m.role === "tool") {
+      let response: unknown;
+      try {
+        response = JSON.parse(m.content);
+      } catch {
+        response = { result: m.content };
+      }
+      if (response === null || typeof response !== "object" || Array.isArray(response)) {
+        response = { result: response };
+      }
+      return { role: "user", parts: [{ functionResponse: { name: m.toolName ?? "tool", response } }] };
+    }
+    if (m.role === "assistant" && m.toolCalls?.length) {
+      const parts: unknown[] = [];
+      if (m.content) parts.push({ text: m.content });
+      for (const c of m.toolCalls) parts.push({ functionCall: { name: c.name, args: c.args } });
+      return { role: "model", parts };
+    }
+    return { role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] };
+  });
+}
 
 // Cost-optimized default, on the user's own key and bill. Shared with the
 // setup UI via PROVIDER_MODELS so both name the same model.
@@ -116,5 +152,79 @@ export const googleProvider: AIProvider = {
       throw new ProviderError("failed", `empty candidate: ${JSON.stringify(json).slice(0, 300)}`);
     }
     return text;
+  },
+
+  async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
+    const body: Record<string, unknown> = {
+      system_instruction: { parts: [{ text: input.system }] },
+      contents: toGeminiContents(input.messages),
+      generationConfig: { maxOutputTokens: input.maxTokens ?? MAX_ANSWER_TOKENS },
+    };
+    if (input.tools.length > 0) {
+      body.tools = [
+        {
+          function_declarations: input.tools.map((t) => {
+            const props = (t.parameters as { properties?: Record<string, unknown> }).properties ?? {};
+            // Gemini rejects an object schema with no properties, so a
+            // no-argument tool declares no parameters at all.
+            return Object.keys(props).length > 0
+              ? { name: t.name, description: t.description, parameters: t.parameters }
+              : { name: t.name, description: t.description };
+          }),
+        },
+      ];
+    }
+
+    const res = await providerFetch(
+      `${BASE}/models/${MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      input.timeoutMs ?? ASK_TIMEOUT_MS,
+    );
+
+    if (!res.ok) {
+      const detail = await errorDetail(res);
+      const failure =
+        res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)
+          ? "invalid_key"
+          : failureFromStatus(res.status);
+      throw new ProviderError(failure, detail);
+    }
+
+    const json = await res.json();
+    const blockReason = json?.promptFeedback?.blockReason;
+    if (blockReason) throw new ProviderError("failed", `blocked: ${blockReason}`);
+
+    const parts: GeminiPart[] = json?.candidates?.[0]?.content?.parts ?? [];
+    const fcs = parts.filter((p) => p && typeof p === "object" && p.functionCall?.name);
+    const textOut = parts
+      .filter((p) => typeof p.text === "string")
+      .map((p) => p.text as string)
+      .join("")
+      .trim();
+
+    if (fcs.length > 0) {
+      const calls: ToolCall[] = fcs.map((p, i) => ({
+        id: `${p.functionCall!.name}-${i}`,
+        name: p.functionCall!.name,
+        args:
+          p.functionCall!.args && typeof p.functionCall!.args === "object"
+            ? p.functionCall!.args
+            : {},
+      }));
+      return {
+        kind: "tool_calls",
+        calls,
+        assistant: { role: "assistant", content: textOut, toolCalls: calls },
+      };
+    }
+
+    if (textOut === "") {
+      throw new ProviderError("failed", `empty candidate: ${JSON.stringify(json).slice(0, 300)}`);
+    }
+    return { kind: "text", text: textOut };
   },
 };

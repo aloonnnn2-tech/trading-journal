@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Trash2 } from "lucide-react";
+import { Database, Sparkles, Trash2 } from "lucide-react";
 import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/ai-keys/types";
 import { Card } from "@/components/ui/Card";
 import { ProviderConsentCard } from "@/components/ai/provider-consent-card";
@@ -11,6 +11,30 @@ import type { ChatTurn } from "@/lib/ai-keys/providers/types";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
+
+// Turns each tool the model called into a plain phrase, so the answer can show
+// "checked your trades · computed your stats" instead of raw tool names. The
+// model may call the same tool several times (e.g. compute_stats per group);
+// duplicates collapse to one phrase, keeping first-seen order.
+const STEP_LABELS: Record<string, string> = {
+  query_trades: "checked your trades",
+  compute_stats: "computed your stats",
+  get_trade: "opened a trade",
+  get_account: "checked your account",
+};
+
+function describeSteps(steps: string[]): string {
+  const seen = new Set<string>();
+  const phrases: string[] = [];
+  for (const step of steps) {
+    const label = STEP_LABELS[step] ?? step;
+    if (!seen.has(label)) {
+      seen.add(label);
+      phrases.push(label);
+    }
+  }
+  return phrases.join(" · ");
+}
 
 // Consent is recorded per provider on the account (0031), not per browser.
 // Agreeing to send your journal to Groq is not agreement to send it to
@@ -37,6 +61,11 @@ export function AskManager({
   // no memory of it, so "why?" or "break that down" were unanswerable -- the
   // model had never seen what it had just said.
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  // Which tools ran for a given assistant turn, keyed by that turn's index.
+  // Kept out of ChatTurn on purpose: ChatTurn is re-sent to the provider on
+  // every follow-up, and the steps are a local display detail the model never
+  // needs to see again.
+  const [stepsByTurn, setStepsByTurn] = useState<Record<number, string[]>>({});
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [managingKeys, setManagingKeys] = useState(false);
@@ -110,8 +139,15 @@ export function AskManager({
       setError(body?.error ?? "Couldn't get an answer.");
       return;
     }
-    const body = (await res.json()) as { answer: string };
+    const body = (await res.json()) as { answer: string; steps?: string[] };
+    // The user turn was appended at index history.length, so the assistant
+    // turn lands at history.length + 1. Requests are single-flight (the button
+    // is disabled while asking), so nothing else appends in between.
+    const assistantIndex = history.length + 1;
     setTurns((prev) => [...prev, { role: "assistant", content: body.answer }]);
+    if (body.steps?.length) {
+      setStepsByTurn((prev) => ({ ...prev, [assistantIndex]: body.steps! }));
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -186,11 +222,13 @@ export function AskManager({
       {pendingDisclosure && (
         <ProviderConsentCard
           provider={selected!.provider}
-          description="To answer, your whole trading journal goes with the question: your performance
-            statistics and every position you hold. Tickers, prices, sizes, dates, your
-            strategies, and everything you wrote in your own fields and notes. Follow-up
-            questions send the earlier messages in the conversation too, so the answers
-            can build on each other."
+          description="To answer, this provider can read your trade data. For most providers that
+            means live lookups scoped to your question — the specific trades, dates, prices
+            and notes it actually needs, computed exactly rather than guessed. For a provider
+            that doesn't support that, or if a lookup can't complete, your whole journal goes
+            instead: every position, price, note, custom field and strategy tag. Follow-up
+            questions send the earlier messages in the conversation too, so the answers can
+            build on each other."
           saving={savingConsent}
           onAccept={acceptDisclosure}
           onCancel={() => setPendingDisclosure(false)}
@@ -208,9 +246,19 @@ export function AskManager({
               </div>
             ) : (
               <Card key={i} hoverable={false} className="flex flex-col gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-                  {selected && PROVIDER_LABELS[selected.provider]} answered
-                </p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+                    {selected && PROVIDER_LABELS[selected.provider]} answered
+                  </p>
+                  {/* When the model reached for the data tools, name what it
+                      touched so the number has a visible provenance. */}
+                  {stepsByTurn[i]?.length ? (
+                    <span className="flex items-center gap-1 text-[11px] text-zinc-500">
+                      <Database className="h-3 w-3" strokeWidth={2} />
+                      {describeSteps(stepsByTurn[i])}
+                    </span>
+                  ) : null}
+                </div>
                 {/* AnswerText builds React elements from the string -- it never
                     touches dangerouslySetInnerHTML, so provider output
                     (untrusted text, just round-tripped through a third party)
@@ -220,18 +268,45 @@ export function AskManager({
             ),
           )}
           {asking && (
-            <p role="status" className="text-sm text-zinc-500">
-              Thinking...
+            <p role="status" className="flex items-center gap-1.5 text-sm text-zinc-500">
+              <Database className="h-3.5 w-3.5 animate-pulse" strokeWidth={2} />
+              Reading your trades and running the numbers…
             </p>
           )}
           <button
             type="button"
-            onClick={() => setTurns([])}
+            onClick={() => {
+              setTurns([]);
+              setStepsByTurn({});
+            }}
             className="self-start text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
           >
             Start a new conversation
           </button>
         </div>
+      )}
+
+      {/* Every key is switched off -- which is the exact state that disables
+          the Ask button below. Without this the button just sits there greyed
+          out with no reason given, which reads as "the feature is broken".
+          A key is turned off automatically the moment a provider rejects it. */}
+      {usableKeys.length === 0 && (
+        <Card hoverable={false} className="flex flex-col items-start gap-2 border-amber-500/40">
+          <p className="text-sm text-zinc-700 dark:text-zinc-200">
+            {keys.length === 1
+              ? `Your ${PROVIDER_LABELS[keys[0].provider]} key is switched off, so questions can't be sent.`
+              : "All your API keys are switched off, so questions can't be sent."}{" "}
+            A key is turned off automatically when the provider rejects it — usually because it was
+            revoked, rotated, or hit its quota.
+          </p>
+          <button
+            type="button"
+            onClick={() => setManagingKeys(true)}
+            className="rounded-full bg-primary px-3.5 py-1.5 text-xs font-medium text-white dark:text-zinc-950 hover:brightness-110"
+          >
+            Turn a key back on, or add a new one
+          </button>
+        </Card>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">

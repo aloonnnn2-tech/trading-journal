@@ -16,6 +16,7 @@ import { NavBar } from "@/components/nav-bar";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
+import { isPaidUser } from "@/lib/settings/plan";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -89,11 +90,11 @@ export default async function RootLayout({
   // Read from the same cached settings row every page fetches anyway, so
   // this costs nothing on top of the page's own load. Fails closed: any
   // error means no Admin link, which is the same posture isAdmin() takes.
-  const admin = userId
-    ? await getUserSettings(await createClient(), userId)
-        .then((s) => s.is_admin)
-        .catch(() => false)
-    : false;
+  const settings = userId
+    ? await getUserSettings(await createClient(), userId).catch(() => null)
+    : null;
+  const admin = settings?.is_admin ?? false;
+  const paid = settings ? isPaidUser(settings) : false;
 
   return (
     <html
@@ -121,7 +122,7 @@ export default async function RootLayout({
           >
             Skip to main content
           </a>
-          <NavBar isAdmin={admin} />
+          <NavBar isAdmin={admin} isPaid={paid} />
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />

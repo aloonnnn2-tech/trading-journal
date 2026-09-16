@@ -108,7 +108,7 @@ export function PlanAdherencePanel({
   hasStrategies: boolean;
 }) {
   return (
-    <Card standalone={false} data-shot="plan-adherence" className="flex flex-col gap-4">
+    <Card standalone={false} data-shot="plan-adherence" data-tour-id="trade-plan-adherence" className="flex flex-col gap-4">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">
         Plan Adherence
       </h2>

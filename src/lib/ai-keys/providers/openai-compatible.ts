@@ -10,7 +10,48 @@ import {
   providerFetch,
   type AIProvider,
   type AskOptions,
+  type ChatMessage,
+  type ChatOnceInput,
+  type ChatResult,
+  type ToolCall,
 } from "./types";
+
+/** Neutral messages -> OpenAI `messages`. Assistant tool-call turns and tool
+ *  results carry the extra fields OpenAI needs to pair a call to its answer. */
+function toOpenAIMessages(system: string, messages: ChatMessage[]): unknown[] {
+  const out: unknown[] = [{ role: "system", content: system }];
+  for (const m of messages) {
+    if (m.role === "tool") {
+      out.push({ role: "tool", tool_call_id: m.toolCallId, content: m.content });
+    } else if (m.role === "assistant" && m.toolCalls?.length) {
+      out.push({
+        role: "assistant",
+        content: m.content || null,
+        tool_calls: m.toolCalls.map((c) => ({
+          id: c.id,
+          type: "function",
+          function: { name: c.name, arguments: JSON.stringify(c.args) },
+        })),
+      });
+    } else {
+      out.push({ role: m.role, content: m.content });
+    }
+  }
+  return out;
+}
+
+/** Tolerant JSON parse for tool arguments -- a model that emits invalid JSON
+ *  should get an empty-args tool run (which the executor validates and can
+ *  reject) rather than crash the whole request. */
+function parseArgs(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "string" || raw.trim() === "") return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
 
 // One adapter for every provider that speaks OpenAI's REST shape: a Bearer
 // token, `POST /chat/completions` taking a `messages` array, and `GET /models`
@@ -30,10 +71,19 @@ export interface OpenAICompatibleConfig {
   model: string;
   /** Extra headers some providers want (e.g. OpenRouter's attribution). */
   headers?: Record<string, string>;
+  /**
+   * Where the zero-token liveness check lists models. Defaults to
+   * `${baseUrl}/models`, which is where every OpenAI-shaped provider puts it.
+   * GitHub Models is the exception: its model catalog lives on a different
+   * host and path, so it passes this explicitly. `assertModelAvailable` reads
+   * the shape per provider name, so a non-standard body is handled there.
+   */
+  modelsUrl?: string;
 }
 
 export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): AIProvider {
   const { name, baseUrl, model, headers = {} } = config;
+  const modelsUrl = config.modelsUrl ?? `${baseUrl}/models`;
 
   function auth(apiKey: string): Record<string, string> {
     return { Authorization: `Bearer ${apiKey}`, ...headers };
@@ -47,7 +97,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
       // Listing models costs no tokens, which matters because this runs on
       // every save attempt including the mistyped ones.
       const res = await providerFetch(
-        `${baseUrl}/models`,
+        modelsUrl,
         { headers: auth(apiKey) },
         VALIDATE_TIMEOUT_MS,
       );
@@ -159,6 +209,76 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         );
       }
       return text.trim();
+    },
+
+    async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: input.maxTokens ?? MAX_ANSWER_TOKENS,
+        messages: toOpenAIMessages(input.system, input.messages),
+      };
+      // Only send tools when there are some: several gateways reject an empty
+      // `tools: []`, and an empty array is also how the orchestrator signals
+      // "answer now, no more calls".
+      if (input.tools.length > 0) {
+        body.tools = input.tools.map((t) => ({
+          type: "function",
+          function: { name: t.name, description: t.description, parameters: t.parameters },
+        }));
+        body.tool_choice = "auto";
+      }
+
+      const res = await providerFetch(
+        `${baseUrl}/chat/completions`,
+        {
+          method: "POST",
+          headers: { ...auth(apiKey), "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        input.timeoutMs ?? ASK_TIMEOUT_MS,
+      );
+
+      if (!res.ok) {
+        const detail = await errorDetail(res);
+        const missing =
+          /model_not_found|does not exist|no such model|unknown model|model.*not found/i.test(detail);
+        throw new ProviderError(missing ? "model_missing" : failureFromStatus(res.status), detail);
+      }
+
+      const json = await res.json();
+      if (json?.error) {
+        const message = String(json.error?.message ?? json.error);
+        const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
+          ? "unavailable"
+          : "failed";
+        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`);
+      }
+
+      const choice = json?.choices?.[0];
+      const rawCalls = choice?.message?.tool_calls;
+      if (Array.isArray(rawCalls) && rawCalls.length > 0) {
+        const calls: ToolCall[] = rawCalls
+          .filter((c: unknown) => (c as { function?: { name?: string } })?.function?.name)
+          .map((c: { id?: string; function: { name: string; arguments?: string } }) => ({
+            id: c.id ?? c.function.name,
+            name: c.function.name,
+            args: parseArgs(c.function.arguments),
+          }));
+        return {
+          kind: "tool_calls",
+          calls,
+          assistant: { role: "assistant", content: choice.message.content ?? "", toolCalls: calls },
+        };
+      }
+
+      const text = choice?.message?.content;
+      if (typeof text !== "string" || text.trim() === "") {
+        if (choice?.finish_reason === "length") {
+          throw new ProviderError("truncated", "hit the token ceiling before writing an answer");
+        }
+        throw new ProviderError("failed", `empty completion: ${JSON.stringify(json).slice(0, 300)}`);
+      }
+      return { kind: "text", text: text.trim() };
     },
   };
 }

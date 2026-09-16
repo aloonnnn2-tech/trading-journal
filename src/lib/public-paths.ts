@@ -3,6 +3,7 @@
 // visitors.
 export const PUBLIC_PATHS = [
   "/",
+  "/home-v2",
   "/sign-in",
   "/sign-up",
   "/forgot-password",

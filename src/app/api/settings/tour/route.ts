@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getUserSettings, setTourCompleted } from "@/lib/settings/queries";
+import { isPaidUser } from "@/lib/settings/plan";
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -12,7 +13,7 @@ export async function GET() {
   const supabase = await createClient();
 
   const settings = await getUserSettings(supabase, userId);
-  return NextResponse.json({ hasCompletedTour: settings.has_completed_tour });
+  return NextResponse.json({ hasCompletedTour: settings.has_completed_tour, isPaid: isPaidUser(settings) });
 }
 
 export async function PATCH() {

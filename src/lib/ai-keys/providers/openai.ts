@@ -1,9 +1,9 @@
 import { PROVIDER_MODELS } from "../types";
 import { createOpenAICompatibleProvider } from "./openai-compatible";
 
-// The four providers that speak OpenAI's REST shape. Each is base URL +
-// model, not a separate integration -- see openai-compatible.ts. Models come
-// from PROVIDER_MODELS so the setup UI names the same one that gets asked.
+// The providers that speak OpenAI's REST shape. Each is base URL + model, not
+// a separate integration -- see openai-compatible.ts. Models come from
+// PROVIDER_MODELS so the setup UI names the same one that gets asked.
 
 export const openaiProvider = createOpenAICompatibleProvider({
   name: "openai",
@@ -37,4 +37,29 @@ export const cerebrasProvider = createOpenAICompatibleProvider({
   name: "cerebras",
   baseUrl: "https://api.cerebras.ai/v1",
   model: PROVIDER_MODELS.cerebras,
+});
+
+// Free tier (rate-limited), OpenAI-compatible, supports tool calling.
+export const mistralProvider = createOpenAICompatibleProvider({
+  name: "mistral",
+  baseUrl: "https://api.mistral.ai/v1",
+  model: PROVIDER_MODELS.mistral,
+});
+
+// Free tier, Llama models on their own accelerators. OpenAI-compatible.
+export const sambanovaProvider = createOpenAICompatibleProvider({
+  name: "sambanova",
+  baseUrl: "https://api.sambanova.ai/v1",
+  model: PROVIDER_MODELS.sambanova,
+});
+
+// Free with a GitHub token (PAT with `models: read`). The inference endpoint
+// is OpenAI-compatible, but the model catalog lives on a different host and
+// path -- and is a bare array, which model-check.ts reads by provider name --
+// so validation points there explicitly rather than at `${baseUrl}/models`.
+export const githubProvider = createOpenAICompatibleProvider({
+  name: "github",
+  baseUrl: "https://models.github.ai/inference",
+  model: PROVIDER_MODELS.github,
+  modelsUrl: "https://models.github.ai/catalog/models",
 });

@@ -87,7 +87,7 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
   );
 }
 
-export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
+export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean; isPaid?: boolean }) {
   const pathname = usePathname();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -282,6 +282,7 @@ export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
             <button
               onClick={() => setHelpOpen((open) => !open)}
               title="Guided tours"
+              data-tour-id="nav-help"
               aria-expanded={helpOpen}
               aria-haspopup="true"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
@@ -301,7 +302,7 @@ export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
                     Getting started
                   </span>
                   <span className="block text-[11px] text-zinc-500">
-                    Log a trade and find your way around. About a minute
+                    Log a trade and meet the core of the app. Nine steps, about two minutes
                   </span>
                 </button>
                 <button
@@ -315,10 +316,26 @@ export function NavBar({ isAdmin = false }: { isAdmin?: boolean }) {
                     The full toolkit
                   </span>
                   <span className="block text-[11px] text-zinc-500">
-                    Rules, mistakes, edges, goals, reports and AI reviews. Best once you have
-                    closed a few trades
+                    The free features the core tour walked past: import, export, cash, goals,
+                    emotions, fields, fees. Seven steps
                   </span>
                 </button>
+                {isPaid && (
+                  <button
+                    onClick={() => {
+                      setHelpOpen(false);
+                      startTour("paid");
+                    }}
+                    className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  >
+                    <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+                      Paid features
+                    </span>
+                    <span className="block text-[11px] text-zinc-500">
+                      Only what the paid plan unlocks. Ten steps
+                    </span>
+                  </button>
+                )}
               </div>
             )}
           </div>

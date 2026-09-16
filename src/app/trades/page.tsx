@@ -136,6 +136,7 @@ export default async function TradesPage({
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/trades/import"
+            data-tour-id="trades-import"
             className="rounded-full border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:border-zinc-500"
           >
             Import
@@ -350,7 +351,7 @@ function SortSelect({
 function ExportMenu({ folderId }: { folderId?: string }) {
   const query = folderId ? `&folder=${folderId}` : "";
   return (
-    <details className="relative">
+    <details className="relative" data-tour-id="trades-export">
       <summary className="cursor-pointer list-none rounded-full border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:border-zinc-500">
         Export
       </summary>

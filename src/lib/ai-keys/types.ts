@@ -6,6 +6,9 @@ export const AI_PROVIDERS = [
   "groq",
   "openrouter",
   "cerebras",
+  "mistral",
+  "sambanova",
+  "github",
 ] as const;
 
 export type AIProviderName = (typeof AI_PROVIDERS)[number];
@@ -17,6 +20,9 @@ export const PROVIDER_LABELS: Record<AIProviderName, string> = {
   groq: "Groq",
   openrouter: "OpenRouter",
   cerebras: "Cerebras",
+  mistral: "Mistral AI",
+  sambanova: "SambaNova",
+  github: "GitHub Models",
 };
 
 /**
@@ -50,6 +56,16 @@ export const PROVIDER_MODELS: Record<AIProviderName, string> = {
   // /models list; the previous Llama 3.3 default had been retired.
   openrouter: "google/gemma-4-31b-it:free",
   cerebras: "llama-3.3-70b",
+  // Mistral's free tier covers the small model; it supports tool calling, so
+  // the agentic Ask path engages rather than falling back to the text dump.
+  mistral: "mistral-small-latest",
+  // SambaNova serves Llama on their own hardware, very fast, free tier. The
+  // model id is capitalised exactly as their /models list returns it -- the
+  // save-time model check is case-sensitive.
+  sambanova: "Meta-Llama-3.3-70B-Instruct",
+  // GitHub Models namespaces every model `publisher/model`, and the same
+  // namespaced id is what the catalog lists and what /chat/completions wants.
+  github: "openai/gpt-4o-mini",
 };
 
 /**
@@ -58,14 +74,19 @@ export const PROVIDER_MODELS: Record<AIProviderName, string> = {
  * billed account knows where to start.
  *
  * "Free tier" here means a standing allowance, not trial credits that expire
- * -- which is why Mistral and Together aren't on this list, and why OpenAI
- * and Anthropic (pay-as-you-go from the first token) aren't either.
+ * -- which is why OpenAI and Anthropic (pay-as-you-go from the first token)
+ * aren't on this list. Mistral is now included: it launched a genuine free
+ * tier (rate-limited, phone-verified), no longer just trial credits. GitHub
+ * Models is free with a GitHub token, and SambaNova has a standing free tier.
  */
 export const FREE_TIER_PROVIDERS: ReadonlySet<AIProviderName> = new Set([
   "groq",
   "openrouter",
   "cerebras",
   "google",
+  "mistral",
+  "sambanova",
+  "github",
 ]);
 
 /**

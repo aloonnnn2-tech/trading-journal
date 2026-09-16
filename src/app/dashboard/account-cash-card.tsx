@@ -113,7 +113,7 @@ export function AccountCashCard({
   const isOverCommitted = account.hasTransactions && account.availableCash < 0;
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour-id="dashboard-cash">
       <Card className="p-4" standalone={false} hoverable={false}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">

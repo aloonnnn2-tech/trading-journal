@@ -1,7 +1,15 @@
 import type { AIProviderName } from "../types";
 import { anthropicProvider } from "./anthropic";
 import { googleProvider } from "./google";
-import { cerebrasProvider, groqProvider, openaiProvider, openrouterProvider } from "./openai";
+import {
+  cerebrasProvider,
+  githubProvider,
+  groqProvider,
+  mistralProvider,
+  openaiProvider,
+  openrouterProvider,
+  sambanovaProvider,
+} from "./openai";
 import type { AIProvider } from "./types";
 
 // Keyed by the same strings as 0030's provider check constraint and the zod
@@ -15,6 +23,9 @@ const PROVIDERS: Record<AIProviderName, AIProvider> = {
   groq: groqProvider,
   openrouter: openrouterProvider,
   cerebras: cerebrasProvider,
+  mistral: mistralProvider,
+  sambanova: sambanovaProvider,
+  github: githubProvider,
 };
 
 export function getProvider(name: AIProviderName): AIProvider {

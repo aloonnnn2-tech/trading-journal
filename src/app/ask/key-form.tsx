@@ -26,6 +26,9 @@ const CONSOLE_URLS: Record<AIProviderName, string> = {
   groq: "https://console.groq.com/keys",
   openrouter: "https://openrouter.ai/keys",
   cerebras: "https://cloud.cerebras.ai/platform/apikeys",
+  mistral: "https://console.mistral.ai/api-keys/",
+  sambanova: "https://cloud.sambanova.ai/apis",
+  github: "https://github.com/settings/personal-access-tokens",
 };
 
 // Free-tier providers first, so someone who doesn't want a billed account

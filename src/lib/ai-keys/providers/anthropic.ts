@@ -9,7 +9,49 @@ import {
   providerFetch,
   type AIProvider,
   type AskOptions,
+  type ChatMessage,
+  type ChatOnceInput,
+  type ChatResult,
+  type ToolCall,
 } from "./types";
+
+interface AnthropicBlock {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+}
+
+/** Neutral messages -> Anthropic messages. Tool results are not their own
+ *  role here: they are `tool_result` blocks inside a user turn, and several
+ *  in a row collapse into one user turn. */
+function toAnthropicMessages(messages: ChatMessage[]): unknown[] {
+  const out: unknown[] = [];
+  let i = 0;
+  while (i < messages.length) {
+    const m = messages[i];
+    if (m.role === "tool") {
+      const blocks: unknown[] = [];
+      while (i < messages.length && messages[i].role === "tool") {
+        blocks.push({ type: "tool_result", tool_use_id: messages[i].toolCallId, content: messages[i].content });
+        i++;
+      }
+      out.push({ role: "user", content: blocks });
+      continue;
+    }
+    if (m.role === "assistant" && m.toolCalls?.length) {
+      const content: unknown[] = [];
+      if (m.content) content.push({ type: "text", text: m.content });
+      for (const c of m.toolCalls) content.push({ type: "tool_use", id: c.id, name: c.name, input: c.args });
+      out.push({ role: "assistant", content });
+    } else {
+      out.push({ role: m.role, content: m.content });
+    }
+    i++;
+  }
+  return out;
+}
 
 const BASE = "https://api.anthropic.com/v1";
 
@@ -131,5 +173,68 @@ export const anthropicProvider: AIProvider = {
       throw new ProviderError("failed", `empty message: ${JSON.stringify(json).slice(0, 300)}`);
     }
     return text;
+  },
+
+  async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
+    const body: Record<string, unknown> = {
+      model: MODEL,
+      max_tokens: (input.maxTokens ?? MAX_TOKENS) + THINKING_HEADROOM,
+      output_config: { effort: "low" },
+      system: input.system,
+      messages: toAnthropicMessages(input.messages),
+    };
+    if (input.tools.length > 0) {
+      body.tools = input.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.parameters,
+      }));
+      body.tool_choice = { type: "auto" };
+    }
+
+    const res = await providerFetch(
+      `${BASE}/messages`,
+      {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      input.timeoutMs ?? ASK_TIMEOUT_MS,
+    );
+
+    if (!res.ok) {
+      throw new ProviderError(failureFromStatus(res.status), await errorDetail(res));
+    }
+
+    const json = await res.json();
+    if (json?.stop_reason === "refusal") {
+      throw new ProviderError("failed", `refusal: ${JSON.stringify(json?.stop_details ?? null).slice(0, 200)}`);
+    }
+
+    const blocks: AnthropicBlock[] = Array.isArray(json?.content) ? json.content : [];
+    const toolUses = blocks.filter((b) => b.type === "tool_use" && typeof b.name === "string");
+    const textOut = blocks
+      .filter((b) => b.type === "text" && typeof b.text === "string")
+      .map((b) => b.text as string)
+      .join("")
+      .trim();
+
+    if (toolUses.length > 0) {
+      const calls: ToolCall[] = toolUses.map((b) => ({
+        id: b.id ?? (b.name as string),
+        name: b.name as string,
+        args: b.input && typeof b.input === "object" ? (b.input as Record<string, unknown>) : {},
+      }));
+      return {
+        kind: "tool_calls",
+        calls,
+        assistant: { role: "assistant", content: textOut, toolCalls: calls },
+      };
+    }
+
+    if (textOut === "") {
+      throw new ProviderError("failed", `empty message: ${JSON.stringify(json).slice(0, 300)}`);
+    }
+    return { kind: "text", text: textOut };
   },
 };

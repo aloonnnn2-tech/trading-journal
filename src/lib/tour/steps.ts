@@ -1,166 +1,254 @@
 export interface TourStep {
-  /** Exact route this step lives on. The tour navigates here itself. */
+  /** Exact route this step lives on. Advancing into it navigates there. */
   path?: string;
   /**
-   * Prefix match instead of an exact path, for dynamic routes (a trade
-   * detail page is /trades/<uuid>). The tour can't navigate to these on its
-   * own -- they're only reached by the user completing the previous step's
-   * action -- so a prefix step is skipped if we never land on it.
+   * Prefix match for dynamic routes (a trade page is /trades/<uuid>). The tour
+   * cannot navigate to one of these itself; it is reached by the user doing
+   * something, and skipped over when it never is.
    */
   pathPrefix?: string;
   /** Element carrying the matching data-tour-id. */
   targetId: string;
+  /** Short place name for the card's eyebrow. */
+  where: string;
   title: string;
+  /** One sentence. The card has no scrollbar and never will. */
   body: string;
   /**
-   * This target only exists after the user does something (opens the Quick
-   * Trade modal, creates a trade). The tour waits for it instead of timing
-   * out, and the previous step auto-advances the moment it appears.
+   * A task step: what the user is being asked to do, shown as "Your turn".
+   * The step advances on its own the moment `done` is true, however the user
+   * got there; the primary button offers to skip it instead.
    */
-  awaitAction?: boolean;
+  action?: string;
+  /** When a task counts as done: a route the user lands on, or an element that appears. */
+  done?: { route: string } | { target: string };
+  /**
+   * If this step's target disappears and no navigation follows, go back a
+   * step rather than wait on a form that has been closed.
+   */
+  retreat?: boolean;
 }
 
-// Deliberately short. An onboarding tour is competing with the user's
-// patience, so this walks them through logging one trade properly and then
-// name-checks the rest in passing rather than stopping on every tab -- the
-// app should come across as smaller than it is. Each step mentions its
-// neighbours ("Insights, Ask and Emotions sit next door") so nothing is
-// hidden, it just isn't a separate stop.
-//
-// Every target that isn't `awaitAction` must render with zero data: this
-// runs for accounts with no trades at all, so Analytics anchors to its page
-// header rather than to cards that don't exist yet.
+// The core tour. Nine stops, one sentence each, in the order a new account
+// meets them: log a trade, see where it lives, meet the rules that grade it,
+// then the three places the journal pays off. Every target renders on a
+// fresh account with zero trades except the two task steps, which wait.
 export const TOUR_STEPS: TourStep[] = [
   {
     path: "/dashboard",
     targetId: "dashboard-quick-trade",
+    where: "Dashboard",
     title: "Log your first trade",
-    body: "Everything starts here. Click Quick trade and we'll fill one in together — it takes about ten seconds.",
+    body: "Ticker, direction and price are enough. Everything else can wait.",
+    action: "Click Quick trade.",
+    done: { target: "quick-ticker" },
   },
   {
     targetId: "quick-ticker",
-    title: "What you traded",
-    body: "Type a symbol like AAPL. Just below, say whether you went long or short and whether the trade is pending, open, or already closed.",
-    awaitAction: true,
-  },
-  {
-    targetId: "quick-entry",
-    title: "Your numbers",
-    body: "Enter what you paid per share, then either the share count or the dollar amount — the app works out the rest. Stop loss and take profit underneath are what power the risk stats later.",
-  },
-  {
-    targetId: "quick-create",
-    title: "That's the whole form",
-    body: "Every field here is optional, so you never have to have all the answers up front. Create it and we'll look at where the detail goes.",
+    where: "Quick trade",
+    title: "Just the essentials",
+    body: "Every other field is optional and lives on the trade page.",
+    action: "Type a symbol, pick long or short, then Create trade.",
+    done: { route: "/trades/" },
+    retreat: true,
   },
   {
     pathPrefix: "/trades/",
     targetId: "trade-detail-hero",
-    title: "The rest of the story",
-    body: "This is your trade. Everything else lives on this page — exit price, notes, screenshots, strategy tags, and how you felt before, during, and after it.",
-    awaitAction: true,
+    where: "Trade",
+    title: "Everything about it lives here",
+    body: "Exit, notes, screenshots, strategy, how you felt. It saves as you type.",
+  },
+  {
+    pathPrefix: "/trades/",
+    targetId: "trade-plan-adherence",
+    where: "Trade",
+    title: "Your rules grade every trade",
+    body: "Tag a strategy and each of its rules is checked for you; the misses feed Mistakes and Insights.",
+  },
+  {
+    path: "/strategies",
+    targetId: "strategies-add",
+    where: "Strategies",
+    title: "Name the setups you trade",
+    body: "Add one, then write the rules you trade it by.",
   },
   {
     path: "/trades",
-    targetId: "trades-search",
-    title: "Finding trades later",
-    body: "Every trade lands in this list. Search by ticker or filter by status, folder, and strategy to pull up exactly the ones you want to review.",
-  },
-  {
-    path: "/strategies",
-    targetId: "strategies-add",
-    title: "Strategies",
-    body: "Name the setups you trade, tag your trades with them, and the app shows you which ones actually make money. Commissions works the same way — tell it your broker's fees once and P/L is always net.",
-  },
-  {
-    path: "/analytics",
-    targetId: "analytics-header",
-    title: "Where it pays off",
-    body: "Equity curve, drawdown, win rate, profit factor and streaks build up here as you close trades. Insights, Ask and Emotions sit next door and go further — patterns you didn't ask about, plain-English answers, and how your mood tracks your results.",
-  },
-  {
-    path: "/fields",
-    targetId: "fields-add",
-    title: "Make it yours",
-    body: "Add a field to track anything the app doesn't already, or remove any default you don't want — old data is kept, just hidden. That's the tour; log a few trades and the rest fills itself in.",
-  },
-];
-
-// ---------------------------------------------------------------------------
-// The second tour.
-//
-// Everything above walks a brand-new account through logging one trade. This
-// one covers what the app grew afterwards -- rules, mistakes, edges, goals,
-// reports, reviews -- and is deliberately NOT bolted onto the end of signup:
-// every screen it visits is empty until there are closed trades in the
-// journal, so on day one it would be a tour of empty boxes. It is offered
-// from the "?" menu instead, where someone can take it when they have data.
-//
-// The anchors are the collapsible sections rather than the panels inside
-// them, so a step lands in the same place whether the panel is collapsed,
-// expanded, or showing an upgrade card -- which also means no step has to be
-// hidden from free users. Meeting the upgrade card mid-tour, in context, is a
-// better explanation of the paid plan than a pricing page anyway.
-export const FEATURE_TOUR_STEPS: TourStep[] = [
-  {
-    path: "/strategies",
-    targetId: "strategies-add",
-    title: "Name the setups you trade",
-    body: "A strategy is just a name for how you took the trade. Attach rules to it — 'stop must be set', 'risk under 1%' — and every trade tagged with it gets graded against them automatically.",
-  },
-  {
-    path: "/strategies",
-    targetId: "tour-scorecards",
-    title: "Which setups actually work",
-    body: "Each strategy scored on expectancy, consistency, and how closely you follow its own rules. A strategy needs a handful of trades before it appears — five trades is a coincidence, not a track record.",
+    targetId: "trades-screenshot",
+    where: "Trades",
+    title: "Or skip the typing",
+    body: "Drop in a broker screenshot and the app reads ticker, price and size itself. Import takes CSV and Excel.",
   },
   {
     path: "/insights",
     targetId: "tour-mistakes",
-    title: "What keeps costing you",
-    body: "Mistakes come from three places: ones the app spots on its own, rules you broke, and tags you added yourself. It shows how often each happens and what those trades returned — with both sample sizes, so you can judge whether the difference means anything.",
-  },
-  {
-    path: "/insights",
-    targetId: "tour-edge",
-    title: "Where your edge actually is",
-    body: "Every way of slicing your journal — setup, ticker, direction, day, hold time, mood — ranked by expectancy rather than win rate. Winning often for very little is worse than winning rarely for a lot.",
+    where: "Insights",
+    title: "Mistakes, counted from the data",
+    body: "Moved stops, oversized positions, early exits, read from your trades. Find My Edge below ranks what pays.",
   },
   {
     path: "/analytics",
-    targetId: "tour-risk",
-    title: "How you size, and when that slips",
-    body: "Whether you risk the same amount every time, and whether it creeps up after a loss or during a drawdown. Measured against your own median — there is no correct risk percentage, only yours and how consistent it is.",
+    targetId: "analytics-header",
+    where: "Analytics",
+    title: "Where it pays off",
+    body: "Equity, drawdown, win rate, expectancy, all from closed trades. It fills in as you log.",
   },
   {
-    path: "/analytics",
-    targetId: "tour-drawdown",
-    title: "Every drawdown, not just the worst",
-    body: "How deep each one went, how long it lasted, and how many trades it took to climb back — so you can tell whether the one you are in now is normal for you or genuinely unusual.",
+    targetId: "nav-help",
+    where: "Anywhere",
+    title: "That's the core",
+    body: "Replay this any time from here. Goals, reports and the AI tools are one menu away.",
+  },
+];
+
+// The second tour: the free features the core tour walked past, and only
+// the free ones -- everything the paid plan unlocks has its own tour below.
+// It deliberately shares no stop with the core tour, so the two never look
+// alike: it opens on importing history, not on the Strategies button.
+export const FEATURE_TOUR_STEPS: TourStep[] = [
+  {
+    path: "/trades",
+    targetId: "trades-import",
+    where: "Trades",
+    title: "Bring your history in",
+    body: "A CSV, Excel or JSON export from your broker loads in one sitting.",
+  },
+  {
+    path: "/trades",
+    targetId: "trades-export",
+    where: "Trades",
+    title: "And take it out again",
+    body: "Every trade exports to CSV, Excel or JSON whenever you want it; nothing is locked in.",
+  },
+  {
+    path: "/dashboard",
+    targetId: "dashboard-cash",
+    where: "Dashboard",
+    title: "Tell it your starting cash",
+    body: "Deposits and withdrawals go here, so every return is a real percentage of your account.",
   },
   {
     path: "/goals",
     targetId: "tour-goals",
+    where: "Goals",
     title: "Commit to something measurable",
-    body: "Goals are scored from your actual trades — nothing is ticked off by hand. 'Risk under 1% on every trade' or 'no more than two revenge trades this month' fill in as you go.",
+    body: "Goals are scored from your trades; nothing is ticked off by hand.",
+  },
+  {
+    path: "/emotions",
+    targetId: "emotions-header",
+    where: "Emotions",
+    title: "How your mood tracks your results",
+    body: "Win rate by the emotion you logged before each trade.",
+  },
+  {
+    path: "/fields",
+    targetId: "fields-add",
+    where: "Fields",
+    title: "Track anything the app doesn't",
+    body: "Add a field, hide a default, or group trades into folders.",
+  },
+  {
+    path: "/commissions",
+    targetId: "commissions-add",
+    where: "Commissions",
+    title: "Fees, so P/L is always net",
+    body: "Tell it your broker's rules once and every trade is charged automatically.",
+  },
+];
+
+// The paid tour: only what the paid plan unlocks, offered once when an
+// account becomes paid and always available from the "?" menu after that.
+// Every stop is a panel that switched from an upgrade card to the real thing.
+export const PAID_TOUR_STEPS: TourStep[] = [
+  {
+    path: "/strategies",
+    targetId: "tour-scorecards",
+    where: "Strategies",
+    title: "Scorecards, unlocked",
+    body: "Each strategy scored on expectancy, consistency and how closely you follow its own rules.",
+  },
+  {
+    path: "/insights",
+    targetId: "tour-edge",
+    where: "Insights",
+    title: "Find My Edge",
+    body: "Your strongest edges and biggest leaks, ranked by expectancy with the trade count behind each.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-excursion",
+    where: "Analytics",
+    title: "MAE / MFE",
+    body: "Press Calculate once and every trade gets its excursion measured.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-performance",
+    where: "Analytics",
+    title: "Performance against account growth",
+    body: "Whether the account grew because you traded well or because you deposited.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-risk",
+    where: "Analytics",
+    title: "Risk management",
+    body: "Position sizing measured against your own median, and when it drifts.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-drawdown",
+    where: "Analytics",
+    title: "Drawdown and recovery",
+    body: "Every drawdown episode, its depth, length and the climb back.",
+  },
+  {
+    path: "/analytics",
+    targetId: "tour-regime",
+    where: "Analytics",
+    title: "Market conditions",
+    body: "How you do in trending, ranging and volatile markets.",
   },
   {
     path: "/reports",
     targetId: "tour-reports",
-    title: "Your month as a document",
-    body: "Best and worst strategy, biggest mistake, best and worst trade, drawdown and risk — assembled from the numbers you have already seen, and printable to PDF.",
+    where: "Reports",
+    title: "Weekly and monthly reports",
+    body: "Pick a period and the report writes itself, printable to PDF.",
   },
   {
     path: "/reviews",
     targetId: "tour-reviews",
-    title: "Have your process critiqued",
-    body: "Bring your own AI key — free options work — and get your week or month reviewed on execution rather than on whether it made money. Every number is computed by the app; the model only explains it. That is the end of the tour.",
+    where: "AI Reviews",
+    title: "AI reviews of your process",
+    body: "Bring your own key, and single trades get a review on their page too.",
+  },
+  {
+    path: "/ask",
+    targetId: "ask-header",
+    where: "Ask",
+    title: "Ask your journal",
+    body: "Questions answered from your own trades. Add your AI key here first.",
   },
 ];
 
-export type TourName = "basics" | "features";
+export type TourName = "basics" | "features" | "paid";
 
 export const TOURS: Record<TourName, TourStep[]> = {
   basics: TOUR_STEPS,
   features: FEATURE_TOUR_STEPS,
+  paid: PAID_TOUR_STEPS,
 };
+
+export function isTourName(value: unknown): value is TourName {
+  return value === "basics" || value === "features" || value === "paid";
+}
+
+/** Whether a step belongs on this route. Route-less steps belong anywhere. */
+export function stepMatchesPath(step: TourStep, pathname: string): boolean {
+  if (step.pathPrefix) return pathname.startsWith(step.pathPrefix);
+  if (step.path) return pathname === step.path;
+  return true;
+}

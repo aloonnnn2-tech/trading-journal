@@ -101,6 +101,34 @@ describe("validateKey", () => {
       failure: "unavailable",
     });
   });
+
+  it("validates GitHub Models against its catalog endpoint, not /models", async () => {
+    // GitHub's model list lives on a different host and path, and comes back
+    // as a bare array rather than OpenAI's `{ data: [...] }`.
+    const seen: string[] = [];
+    globalThis.fetch = vi.fn(async (url: unknown) => {
+      seen.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{ id: "openai/gpt-4o-mini" }, { id: "openai/gpt-4o" }],
+        text: async () => "",
+      };
+    }) as unknown as typeof fetch;
+
+    await expect(getProvider("github").validateKey("ghp_token")).resolves.toBe(true);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain("models.github.ai/catalog/models");
+  });
+
+  it("flags a GitHub model missing from the catalog as model_missing", async () => {
+    // The configured id isn't in the bare-array catalog -- the same stale-model
+    // guard the other providers get, reading GitHub's shape.
+    stubFetch({ status: 200, body: [{ id: "meta/llama-3.1-8b" }] });
+    await expect(getProvider("github").validateKey("ghp_token")).rejects.toMatchObject({
+      failure: "model_missing",
+    });
+  });
 });
 
 describe("askQuestion", () => {
@@ -229,7 +257,15 @@ describe("provider list integrity", () => {
 });
 
 describe("OpenAI-compatible gateways", () => {
-  const gateways = ["openai", "groq", "openrouter", "cerebras"] as const;
+  const gateways = [
+    "openai",
+    "groq",
+    "openrouter",
+    "cerebras",
+    "mistral",
+    "sambanova",
+    "github",
+  ] as const;
 
   it("handles a 200 response carrying an error body", async () => {
     // OpenRouter and friends return HTTP 200 with an `error` object when an
@@ -282,11 +318,22 @@ describe("OpenAI-compatible gateways", () => {
     expect(seen[1].url).toContain("api.groq.com");
     expect(seen[2].url).toContain("openrouter.ai");
     expect(seen[3].url).toContain("api.cerebras.ai");
+    expect(seen[4].url).toContain("api.mistral.ai");
+    expect(seen[5].url).toContain("api.sambanova.ai");
+    expect(seen[6].url).toContain("models.github.ai");
   });
 });
 
 describe("stale model ids and reasoning-token exhaustion", () => {
-  const gateways = ["openai", "groq", "openrouter", "cerebras"] as const;
+  const gateways = [
+    "openai",
+    "groq",
+    "openrouter",
+    "cerebras",
+    "mistral",
+    "sambanova",
+    "github",
+  ] as const;
 
   it("classifies a retired model id as model_missing, not a key problem", async () => {
     // This is how this feature is most likely to break over time: providers

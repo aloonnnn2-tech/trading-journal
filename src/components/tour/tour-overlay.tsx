@@ -5,17 +5,35 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
-import { TOURS, type TourName, type TourStep } from "@/lib/tour/steps";
+import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
 import { WelcomeModal } from "./welcome-modal";
 
-const REPLAY_EVENT = "trading-lens:replay-tour";
-
-// Replaying (nav-bar HelpCircle icon) skips straight to the spotlight walk --
-// the welcome screen is only for a user's genuine first login, gated by
-// has_completed_tour below.
+// The guided tour.
 //
-// The tour to run travels on the event rather than in a module variable, so
-// there is no order dependency between dispatching and the overlay reading it.
+// **Nothing the user does ends it.** The previous version treated any page
+// change it had not requested as the user bailing out, and called finish() --
+// which also marked the tour complete for good. Creating the trade from the
+// wrong step of the modal, pressing `n`, using the screenshot importer,
+// clicking anything that navigated: all of them killed the tour. Now a route
+// change is a signal: if the step we are on lives here, stay; if a later step
+// lives here, jump to it; otherwise fold into a "paused" pill with a Resume
+// button. finish() runs only from Skip tour, Finish, or declining the welcome.
+//
+// **Task steps stay visible.** A step with `done` waits for the user to do
+// something -- open Quick Trade, create the trade -- and says so on the card,
+// instead of rendering nothing until the target appears.
+//
+// **Progress is saved.** A reload resumes the step you were on.
+
+const REPLAY_EVENT = "trading-lens:replay-tour";
+const STORAGE_KEY = "tl-tour";
+// Set once the paid tour has been offered, so an upgrade prompts exactly once
+// per browser rather than on every load.
+const PAID_OFFERED_KEY = "tl-paid-tour-offered";
+
+// Replaying (nav-bar "?" menu) skips the welcome screen -- that is only for a
+// genuine first login. The tour name travels on the event so there is no
+// ordering dependency between dispatching it and the overlay reading it.
 export function startTour(tour: TourName = "basics") {
   window.dispatchEvent(new CustomEvent(REPLAY_EVENT, { detail: tour }));
 }
@@ -34,529 +52,621 @@ function measure(targetId: string): Rect | null {
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
-type Phase = "idle" | "welcome" | "touring";
-
-// Whether a step belongs on the route we're currently looking at. Steps with
-// neither field (the ones inside the Quick Trade modal) belong wherever the
-// modal happens to be open.
-function matchesPath(step: TourStep, pathname: string): boolean {
-  if (step.pathPrefix) return pathname.startsWith(step.pathPrefix);
-  if (step.path) return pathname === step.path;
-  return true;
+function sameRect(a: Rect | null, b: Rect | null): boolean {
+  if (!a || !b) return a === b;
+  return (
+    Math.abs(a.top - b.top) < 0.5 &&
+    Math.abs(a.left - b.left) < 0.5 &&
+    Math.abs(a.width - b.width) < 0.5 &&
+    Math.abs(a.height - b.height) < 0.5
+  );
 }
 
-// Declining to open the Quick Trade modal has to skip every step that only
-// exists inside it, not just the next one -- landing on a step whose target
-// can never appear would leave the tour waiting forever on nothing.
-function indexAfterSkipping(steps: TourStep[], from: number): number {
-  let i = from + 1;
-  while (i < steps.length && (steps[i].awaitAction || !steps[i].path)) i++;
-  return i;
+// The app's own dialogs (Quick Trade, screenshot import). While one is open
+// it owns Escape and the backdrop, and the card has to sit above it.
+function dialogIsOpen(): boolean {
+  return !!document.querySelector('[role="dialog"][aria-modal="true"]');
 }
 
-// Going back has the mirror problem. From the Trades step, the step before
-// it is the trade-detail one, which can only be reached by creating a trade
-// -- landing there just bounced straight forward again, so Back looked
-// broken. A step is a valid destination if the tour can navigate to it, or
-// if its target happens to be on screen already (stepping back through the
-// Quick Trade dialog while it's still open).
-function previousReachableIndex(steps: TourStep[], from: number): number {
-  for (let i = from - 1; i > 0; i--) {
-    const candidate = steps[i];
-    if (candidate.path) return i;
-    if (document.querySelector(`[data-tour-id="${candidate.targetId}"]`)) return i;
+function isTyping(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
+
+type Phase = "idle" | "welcome" | "paid-offer" | "touring";
+
+interface Saved {
+  tour: TourName;
+  step: number;
+}
+
+function readSaved(): Saved | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Saved>;
+    if (!isTourName(parsed.tour) || typeof parsed.step !== "number") return null;
+    return { tour: parsed.tour, step: parsed.step };
+  } catch {
+    return null;
   }
-  return 0;
 }
 
-const POLL_MS = 50;
-const TARGET_TIMEOUT_MS = 2000;
-// Same idea as GONE_BEFORE_NAV_MS below, for the step that's about to poll
-// rather than the one that just lost its target: a step reached via the
-// tour's own router.push (e.g. "Replay guided tour" clicked from anywhere
-// other than the dashboard) is landing on a page that hasn't rendered yet,
-// not a page whose target genuinely doesn't exist. This app's dashboard
-// alone makes ~14 queries plus two auth round trips per load (documented
-// elsewhere in this codebase), comfortably past the standard budget on a
-// slow connection or a cold start -- the standard timeout previously ran
-// out mid-load and silently skipped the entire guided walkthrough with
-// nothing but a console warning.
-const POST_NAV_TARGET_TIMEOUT_MS = 6000;
-// How long a live step's target must stay gone before the tour gives up on
-// it and moves on.
-const GONE_FOR_GOOD_MS = 600;
-// ...except when the next step lives on another route, which means the
-// user's action is expected to navigate. Creating a trade unmounts the
-// dialog immediately but the trade page behind it takes a moment to arrive
-// (ten parallel queries and signed image URLs), and on the short timer that
-// gap read as "they closed the dialog" -- the tour would give up and push
-// them off the trade they had just created. Only ever costs the extra wait
-// on the one step that can navigate.
-const GONE_BEFORE_NAV_MS = 4000;
-// Roughly the tallest a step tooltip gets; used only to decide which side of
-// the target to place it on.
-const TOOLTIP_SPACE_NEEDED = 240;
-// Never let the tooltip be pushed so far that less than this much of it is
-// on screen -- it's position:fixed, so off-screen means unreachable.
-const MIN_TOOLTIP_VISIBLE = 160;
+// How long a task step's target may be gone before we decide the form was
+// closed rather than submitted. Creating a trade closes the modal first and
+// lands on the trade page a moment later; if that moment runs past this, the
+// route change still carries the tour forward to the trade-page step, so the
+// only cost of guessing wrong is a brief flash of the previous card.
+const RETREAT_MS = 1500;
+// How long an ordinary step's target may be missing before the card says so.
+const MISSING_MS = 2000;
+// A navigation the tour started that has not landed yet. Cleared on arrival
+// or after this long, so a failed push cannot leave the tour waiting forever.
+const PENDING_NAV_MS = 8000;
+
+const CARD_W = 340;
+const CARD_H = 230; // an estimate, used only to pick a side
+const GAP = 16;
+const PAD = 8; // spotlight padding around the target
+
+const spring = { type: "spring", stiffness: 320, damping: 32 } as const;
 
 export function TourOverlay() {
   const pathname = usePathname();
   const router = useRouter();
-  // Which of the two tours is running. "basics" walks a first-ever user
-  // through logging a trade; "features" is the tour of everything the app
-  // grew afterwards, and is only worth taking once there are trades to look
-  // at -- which is why it is offered separately rather than bolted onto the
-  // end of signup.
+
   const [tour, setTour] = useState<TourName>("basics");
   const steps = TOURS[tour];
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [stepIndex, setStepIndex] = useState(0);
+  const step: TourStep | undefined = steps[stepIndex];
 
-  const [phase, setPhaseState] = useState<Phase>("idle");
-  const [stepIndex, setStepIndexState] = useState(0);
-  // Tagged with the target it was measured from so a stale rect from the
-  // previous step is never drawn under the current step's tooltip.
-  const [spotlight, setSpotlight] = useState<{ targetId: string; rect: Rect } | null>(null);
+  const [rect, setRect] = useState<Rect | null>(null);
+  const [offRoute, setOffRoute] = useState(false);
+  const [missing, setMissing] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
 
-  // One check per session; has_completed_tour itself is what makes it "once
-  // per user" across sessions.
-  const autoCheckedRef = useRef(false);
-  // Set right before the tour calls router.push for its own step navigation,
-  // so the "user navigated away" effect below doesn't mistake the tour's own
-  // page change for the user bailing out.
-  const expectingNavRef = useRef(false);
-  // Set alongside expectingNavRef, but consumed separately (by the poll
-  // effect, once it starts searching for the destination step's target)
-  // rather than by the route-change effect -- the two need to survive
-  // independently since the route-change effect's reset of expectingNavRef
-  // happens in the same commit the poll effect still needs this flag in.
-  const justNavigatedRef = useRef(false);
-  // Mirrors `phase` so effects can read it without a render in between.
-  // Effects in the same commit all see the pre-update `phase` value, and the
-  // route-change effect below has to be able to stop the step effect from
-  // acting on a tour it just closed -- otherwise clicking a nav link mid-tour
-  // closed the tour but the step effect still fired its router.push and
-  // yanked the user straight back to the step's page.
-  const phaseRef = useRef<Phase>("idle");
-  // Same reason as phaseRef: the route-change effect needs the current step
-  // without waiting for a render.
-  const stepIndexRef = useRef(0);
-  const setPhase = useCallback((next: Phase) => {
-    phaseRef.current = next;
-    setPhaseState(next);
-  }, []);
-  const setStepIndex = useCallback((next: number) => {
-    stepIndexRef.current = next;
-    setStepIndexState(next);
-  }, []);
+  const checkedRef = useRef(false);
+  const pathnameRef = useRef(pathname);
+  const pendingPathRef = useRef<string | null>(null);
+  const rectRef = useRef<Rect | null>(null);
 
   useEffect(() => {
-    if (PUBLIC_PATHS.includes(pathname)) return;
-    if (autoCheckedRef.current) return;
-    autoCheckedRef.current = true;
-    fetch("/api/settings/tour")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && !data.hasCompletedTour) setPhase("welcome");
-      })
-      .catch(() => {
-        // No connectivity / not signed in yet -- just don't auto-launch.
-      });
-  }, [pathname, setPhase]);
+    const read = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
 
-  useEffect(() => {
-    function onReplay(event: Event) {
-      const requested = (event as CustomEvent<TourName>).detail;
-      // Defaults to the basics rather than throwing: an event from an older
-      // cached bundle carries no detail at all.
-      setTour(requested === "features" ? "features" : "basics");
-      setStepIndex(0);
-      setPhase("touring");
-    }
-    window.addEventListener(REPLAY_EVENT, onReplay);
-    return () => window.removeEventListener(REPLAY_EVENT, onReplay);
-  }, [setPhase, setStepIndex]);
+  const navigateTo = useCallback(
+    (path: string) => {
+      if (path === pathnameRef.current) return;
+      pendingPathRef.current = path;
+      router.push(path);
+      setTimeout(() => {
+        if (pendingPathRef.current === path) pendingPathRef.current = null;
+      }, PENDING_NAV_MS);
+    },
+    [router],
+  );
 
   const finish = useCallback(() => {
     setPhase("idle");
-    fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {
-      // Best-effort -- worst case the tour auto-launches again next visit.
-    });
-  }, [setPhase]);
+    setOffRoute(false);
+    setMissing(false);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {});
+  }, []);
 
-  const startTouring = useCallback(() => {
-    setStepIndex(0);
-    setPhase("touring");
-  }, [setPhase, setStepIndex]);
-
-  // A pathname change the tour didn't request is usually the user navigating
-  // away on purpose -- close rather than point at a stale element. The
-  // exception is the user completing the step's own action: creating a trade
-  // pushes to /trades/<id>, which is exactly where the next step lives, so
-  // that advances the tour instead of ending it.
-  useEffect(() => {
-    if (expectingNavRef.current) {
-      expectingNavRef.current = false;
-      return;
-    }
-    if (phaseRef.current !== "touring") return;
-
-    // Only a step that names this route counts as "the action landed us
-    // here". Checking matchesPath alone was wrong: it answers true for the
-    // path-less steps inside the Quick Trade dialog, so navigating away
-    // during step one promoted the tour into a modal step whose target can
-    // never appear on the new page, leaving it polling forever with nothing
-    // drawn.
-    const next = steps[stepIndexRef.current + 1];
-    if (next?.awaitAction && next.pathPrefix != null && matchesPath(next, pathname)) {
-      setStepIndex(stepIndexRef.current + 1);
-      return;
-    }
-    // Leaving mid-tour is a decision, same as pressing Escape or the X --
-    // record it. Merely going idle left has_completed_tour false, so the
-    // full-screen welcome modal, which blocks the whole app until it's
-    // answered, came back at every single login.
-    finish();
-  }, [pathname, setPhase, setStepIndex, finish, steps]);
-
-  const step = phase === "touring" ? steps[stepIndex] : undefined;
-  const nextStep = phase === "touring" ? steps[stepIndex + 1] : undefined;
-
-  // Drives the current step: navigates to its page if we're not already
-  // there, then polls for its target element (the page may still be
-  // client-rendering right after navigation) before spotlighting it.
-  useEffect(() => {
-    // phaseRef, not phase: the route-change effect above may have just closed
-    // the tour in this same commit, and this effect would still see the old
-    // `phase` value.
-    if (phaseRef.current !== "touring" || phase !== "touring" || !step) return;
-
-    if (!matchesPath(step, pathname)) {
-      // A prefix step is only ever reached by the user completing the
-      // previous action; there's no concrete URL to navigate to, so if we're
-      // not already on it (they hit Skip instead) just move past it.
-      if (!step.path) {
-        const skip = setTimeout(() => {
-          if (stepIndex < steps.length - 1) setStepIndex(stepIndex + 1);
-          else finish();
-        }, 0);
-        return () => clearTimeout(skip);
-      }
-      expectingNavRef.current = true;
-      justNavigatedRef.current = true;
-      router.push(step.path);
-      return;
-    }
-
-    const targetId = step.targetId;
-    let cancelled = false;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
-    let elapsed = 0;
-    // Consumed once, here, rather than left set: only the very next poll
-    // cycle (the one for the step we just navigated to) gets the longer
-    // budget, not every subsequent step reached without navigating.
-    const targetTimeoutMs = justNavigatedRef.current ? POST_NAV_TARGET_TIMEOUT_MS : TARGET_TIMEOUT_MS;
-    justNavigatedRef.current = false;
-    let detachLiveTracking: (() => void) | null = null;
-
-    // Where to go when this step's target isn't there. Stepping forward one
-    // at a time meant closing the Quick Trade dialog left the tour invisible
-    // for seconds, timing out through each of the remaining form steps in
-    // turn; this lands on the next step that can actually be shown.
-    function recover() {
-      const next = indexAfterSkipping(steps, stepIndex);
-      if (next < steps.length) setStepIndex(next);
-      else finish();
-    }
-
-    function track(measured: Rect) {
-      setSpotlight({ targetId, rect: measured });
-      document
-        .querySelector(`[data-tour-id="${targetId}"]`)
-        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-
-      // Keeping the highlight on its target turned out to need belt and
-      // braces. Scroll/resize events alone are what the first version used,
-      // and they can silently never fire -- the highlight then sat where the
-      // target used to be and slid further off the more the page scrolled,
-      // which is the drift this is fixing. A rAF loop alone isn't enough
-      // either: it's throttled to a crawl whenever the page isn't painting.
-      // So all three drive the same measurement, and since a render only
-      // happens when the rect actually moved, the redundancy is free.
-      let previous = measured;
-      let missingSince = 0;
-      function sync() {
-        const next = measure(targetId);
-        if (!next) {
-          // The target went away mid-step -- the user closed the dialog it
-          // lived in. Measured in time rather than in ticks: three sources
-          // drive this, so a tick count would trip after a couple of frames
-          // and abandon a step over a momentary re-render.
-          const now = Date.now();
-          const grace = steps[stepIndex + 1]?.pathPrefix != null
-            ? GONE_BEFORE_NAV_MS
-            : GONE_FOR_GOOD_MS;
-          if (!missingSince) missingSince = now;
-          else if (now - missingSince > grace) recover();
+  // The next step that can actually be shown from here: one the tour can
+  // navigate to, one that lives on this route, or a route-less one whose
+  // target is on screen. Steps that only exist inside a closed modal, or on a
+  // trade page we are not on, are passed over.
+  const goForward = useCallback(
+    (from: number) => {
+      const here = pathnameRef.current;
+      for (let j = from + 1; j < steps.length; j++) {
+        const s = steps[j];
+        if (s.path) {
+          setStepIndex(j);
+          navigateTo(s.path);
           return;
         }
-        missingSince = 0;
-        if (
-          next.top !== previous.top ||
-          next.left !== previous.left ||
-          next.width !== previous.width ||
-          next.height !== previous.height
-        ) {
-          previous = next;
-          setSpotlight({ targetId, rect: next });
+        if (s.pathPrefix) {
+          if (here.startsWith(s.pathPrefix)) {
+            setStepIndex(j);
+            return;
+          }
+          continue;
+        }
+        if (measure(s.targetId)) {
+          setStepIndex(j);
+          return;
         }
       }
+      finish();
+    },
+    [steps, navigateTo, finish],
+  );
 
-      let frame = requestAnimationFrame(function loop() {
-        sync();
-        frame = requestAnimationFrame(loop);
-      });
-      const ticker = setInterval(sync, 50);
-      window.addEventListener("resize", sync);
-      window.addEventListener("scroll", sync, true);
-      detachLiveTracking = () => {
-        cancelAnimationFrame(frame);
-        clearInterval(ticker);
-        window.removeEventListener("resize", sync);
-        window.removeEventListener("scroll", sync, true);
-      };
-    }
+  const goBack = useCallback(
+    (from: number) => {
+      const here = pathnameRef.current;
+      for (let j = from - 1; j >= 0; j--) {
+        const s = steps[j];
+        if (s.path) {
+          setStepIndex(j);
+          navigateTo(s.path);
+          return;
+        }
+        if (s.pathPrefix) {
+          if (here.startsWith(s.pathPrefix)) {
+            setStepIndex(j);
+            return;
+          }
+          continue;
+        }
+        if (measure(s.targetId)) {
+          setStepIndex(j);
+          return;
+        }
+      }
+    },
+    [steps, navigateTo],
+  );
 
-    function poll() {
-      if (cancelled || !step) return;
-      const measured = measure(targetId);
-      if (measured) {
-        track(measured);
+  const begin = useCallback(
+    (which: TourName) => {
+      const first = TOURS[which][0];
+      setTour(which);
+      setStepIndex(0);
+      setOffRoute(false);
+      setMissing(false);
+      setPhase("touring");
+      if (first.path) navigateTo(first.path);
+    },
+    [navigateTo],
+  );
+
+  // Resume from the paused pill: the current step if the tour can navigate
+  // to it, otherwise the next one it can.
+  const resume = useCallback(() => {
+    for (let j = stepIndex; j < steps.length; j++) {
+      if (steps[j].path) {
+        setStepIndex(j);
+        setOffRoute(false);
+        navigateTo(steps[j].path!);
         return;
       }
+    }
+    finish();
+  }, [stepIndex, steps, navigateTo, finish]);
 
-      // An awaitAction target doesn't exist until the user acts (opens the
-      // Quick Trade modal). Waiting forever is the point -- timing out would
-      // skip the very step we're asking them to perform.
-      if (!step.awaitAction) {
-        elapsed += POLL_MS;
-        if (elapsed >= targetTimeoutMs) {
-          console.warn(`[tour] target "${targetId}" not found on ${pathname} -- skipping.`);
-          recover();
+  // Replay requests from the "?" menu.
+  useEffect(() => {
+    const onReplay = (e: Event) => {
+      const requested = (e as CustomEvent<unknown>).detail;
+      begin(isTourName(requested) ? requested : "basics");
+    };
+    window.addEventListener(REPLAY_EVENT, onReplay);
+    return () => window.removeEventListener(REPLAY_EVENT, onReplay);
+  }, [begin]);
+
+  // First login: offer the welcome screen once, unless a tour is mid-way and
+  // should simply pick up where it left off.
+  useEffect(() => {
+    if (PUBLIC_PATHS.includes(pathname) || checkedRef.current) return;
+    checkedRef.current = true;
+    const saved = readSaved();
+    if (saved && saved.step < TOURS[saved.tour].length) {
+      // Deferred: the resume is a state change from stored data, not from a
+      // React event, and the compiler's lint wants it out of the effect body.
+      // Deliberately not cleared on cleanup: this effect is guarded to run
+      // once, and Strict Mode's mount-unmount-mount would cancel the timer
+      // and then skip the re-run, leaving the tour never resumed.
+      setTimeout(() => {
+        setTour(saved.tour);
+        setStepIndex(saved.step);
+        setPhase("touring");
+      }, 0);
+      return;
+    }
+    fetch("/api/settings/tour")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { hasCompletedTour: boolean; isPaid: boolean } | null) => {
+        if (!data) return;
+        if (!data.hasCompletedTour) {
+          setPhase("welcome");
+          return;
+        }
+        // An account that has become paid gets the paid tour offered once.
+        let offered = false;
+        try {
+          offered = localStorage.getItem(PAID_OFFERED_KEY) === "1";
+        } catch {}
+        if (data.isPaid && !offered) setPhase("paid-offer");
+      })
+      .catch(() => {});
+  }, [pathname]);
+
+  // Save progress on every change.
+  useEffect(() => {
+    if (phase !== "touring") return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ tour, step: stepIndex } satisfies Saved));
+    } catch {}
+  }, [phase, tour, stepIndex]);
+
+  // Route changes: a signal, never an exit. Decided on the next tick so the
+  // state changes are not made synchronously inside the effect.
+  useEffect(() => {
+    pathnameRef.current = pathname;
+    if (pendingPathRef.current) {
+      if (pathname !== pendingPathRef.current) return; // still in flight
+      pendingPathRef.current = null;
+    }
+    if (phase !== "touring" || !step) return;
+
+    const id = setTimeout(() => {
+      if (step.done && "route" in step.done && pathname.startsWith(step.done.route)) {
+        goForward(stepIndex);
+        return;
+      }
+      if (stepMatchesPath(step, pathname)) {
+        setOffRoute(false);
+        return;
+      }
+      for (let j = stepIndex + 1; j < steps.length; j++) {
+        const c = steps[j];
+        if ((c.path && c.path === pathname) || (c.pathPrefix && pathname.startsWith(c.pathPrefix))) {
+          setStepIndex(j);
+          setOffRoute(false);
           return;
         }
       }
-      pollTimer = setTimeout(poll, POLL_MS);
-    }
-    poll();
+      setOffRoute(true);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [pathname, phase, step, stepIndex, steps, goForward]);
 
+  // Track the target every frame: position, presence, the app's dialogs, and
+  // the two conditions that move a step on its own (a task completing, a
+  // closed form retreating).
+  useEffect(() => {
+    if (phase !== "touring" || !step || offRoute) {
+      rectRef.current = null;
+      const clear = requestAnimationFrame(() => {
+        setRect(null);
+        setMissing(false);
+      });
+      return () => cancelAnimationFrame(clear);
+    }
+    let raf = 0;
+    let cancelled = false;
+    let missingSince: number | null = null;
+    let scrolled = false;
+
+    const tick = () => {
+      if (cancelled) return;
+      const dlg = dialogIsOpen();
+      setDialogOpen((prev) => (prev === dlg ? prev : dlg));
+
+      const m = measure(step.targetId);
+      if (m) {
+        missingSince = null;
+        setMissing(false);
+        if (!scrolled) {
+          scrolled = true;
+          const el = document.querySelector(`[data-tour-id="${step.targetId}"]`);
+          const out = m.top < 80 || m.top + m.height > window.innerHeight - 80;
+          if (el && out) el.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        if (!sameRect(rectRef.current, m)) {
+          rectRef.current = m;
+          setRect(m);
+        }
+        if (step.done && "target" in step.done && measure(step.done.target)) {
+          goForward(stepIndex);
+          return;
+        }
+      } else {
+        missingSince ??= performance.now();
+        const gone = performance.now() - missingSince;
+        if (rectRef.current) {
+          rectRef.current = null;
+          setRect(null);
+        }
+        if (step.retreat && gone > RETREAT_MS && !pendingPathRef.current) {
+          goBack(stepIndex);
+          return;
+        }
+        if (!step.retreat && !step.action && gone > MISSING_MS) setMissing(true);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
     return () => {
       cancelled = true;
-      if (pollTimer) clearTimeout(pollTimer);
-      detachLiveTracking?.();
+      cancelAnimationFrame(raf);
     };
-  }, [phase, step, stepIndex, pathname, router, finish, setStepIndex, steps]);
+  }, [phase, step, stepIndex, offRoute, goForward, goBack]);
 
-  // When the *next* step is one the user has to unlock (the Quick Trade modal
-  // opening, say), watch for its target and move on the instant it appears --
-  // so clicking the highlighted button carries the tour into the thing it
-  // just opened instead of leaving the spotlight stranded behind it.
-  useEffect(() => {
-    if (phase !== "touring" || !nextStep?.awaitAction) return;
-    if (!matchesPath(nextStep, pathname)) return;
-
-    const targetId = nextStep.targetId;
-    // Edge-triggered: advance when the target *appears*, not merely because
-    // it's there. Stepping Back into the Quick Trade dialog while it's still
-    // open would otherwise satisfy this instantly and throw the user forward
-    // again, making Back impossible inside the form.
-    let seenAbsent = !measure(targetId);
-    const timer = setInterval(() => {
-      const present = !!measure(targetId);
-      if (!present) seenAbsent = true;
-      else if (seenAbsent) setStepIndex(stepIndex + 1);
-    }, POLL_MS);
-    return () => clearInterval(timer);
-  }, [phase, nextStep, stepIndex, pathname, setStepIndex]);
-
+  // Keys: Escape ends the tour only when no dialog is open (the dialog's own
+  // Escape closes it); arrows step, from anywhere -- including inside a focus
+  // trap that keeps the card's buttons out of reach.
   useEffect(() => {
     if (phase !== "touring") return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") finish();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [phase, finish]);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (dialogIsOpen()) return;
+        finish();
+        return;
+      }
+      if (isTyping(e.target)) return;
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (stepIndex >= steps.length - 1) finish();
+        else goForward(stepIndex);
+      } else if (e.key === "ArrowLeft" && stepIndex > 0) {
+        e.preventDefault();
+        goBack(stepIndex);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, stepIndex, steps.length, finish, goForward, goBack]);
 
   if (phase === "welcome") {
-    return <WelcomeModal onAccept={startTouring} onDecline={finish} />;
+    return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={finish} />;
+  }
+  if (phase === "paid-offer") {
+    const dismiss = () => {
+      try {
+        localStorage.setItem(PAID_OFFERED_KEY, "1");
+      } catch {}
+      setPhase("idle");
+    };
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        role="region"
+        aria-label="Paid plan tour offer"
+        className="fixed bottom-5 left-1/2 z-[102] flex w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md dark:bg-card/95"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Paid plan</p>
+          <p className="mt-0.5 text-sm font-semibold text-zinc-900 dark:text-zinc-50">Everything just unlocked</p>
+          <p className="text-xs text-zinc-500">
+            A {TOURS.paid.length}-step tour of the paid features, about two minutes.
+          </p>
+        </div>
+        <button
+          onClick={dismiss}
+          className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Later
+        </button>
+        <button
+          onClick={() => {
+            dismiss();
+            begin("paid");
+          }}
+          className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+        >
+          Show me
+        </button>
+      </motion.div>
+    );
+  }
+  if (phase !== "touring" || !step) return null;
+
+  const isLast = stepIndex >= steps.length - 1;
+  const phone = viewport.w > 0 && viewport.w < 640;
+
+  // ---- Paused: the user is somewhere the tour has nothing to show ----------
+  if (offRoute) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed bottom-5 left-1/2 z-[102] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-md dark:border-subtle dark:bg-card/95"
+      >
+        <span className="text-xs text-zinc-500">
+          Tour paused · step {stepIndex + 1} of {steps.length}
+        </span>
+        <button
+          onClick={resume}
+          className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+        >
+          Resume
+        </button>
+        <button
+          onClick={finish}
+          aria-label="End tour"
+          className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </motion.div>
+    );
   }
 
-  const rect = spotlight && step && spotlight.targetId === step.targetId ? spotlight.rect : null;
-  if (phase !== "touring" || !step || !rect) return null;
+  // ---- Card placement ------------------------------------------------------
+  let placement: "right" | "below" | "above" | "float" = "float";
+  let cardTop = 0;
+  let cardLeft = 0;
+  if (rect && !phone) {
+    const spaceRight = viewport.w - (rect.left + rect.width);
+    const spaceBelow = viewport.h - (rect.top + rect.height);
+    const spaceAbove = rect.top;
+    if (spaceRight >= CARD_W + GAP * 2) {
+      placement = "right";
+      cardLeft = rect.left + rect.width + GAP;
+      cardTop = Math.min(Math.max(GAP, rect.top - 12), viewport.h - CARD_H - GAP);
+    } else if (spaceBelow >= CARD_H + GAP || spaceBelow >= spaceAbove) {
+      placement = "below";
+      cardTop = rect.top + rect.height + GAP;
+      cardLeft = Math.min(Math.max(GAP, rect.left), viewport.w - CARD_W - GAP);
+    } else {
+      placement = "above";
+      cardTop = Math.max(GAP, rect.top - GAP - CARD_H);
+      cardLeft = Math.min(Math.max(GAP, rect.left), viewport.w - CARD_W - GAP);
+    }
+  }
 
-  const padding = 6;
-  // A plain ring on the target over a dim sheet that never moves. The old
-  // version cut a hole in the dim with a 9999px box-shadow spread, so the
-  // whole darkened screen was one element pinned to the target -- every
-  // scroll re-laid-out and repainted it, which is where the banding and the
-  // drift came from. Nothing here is bigger than the target itself.
-  const ringStyle: React.CSSProperties = {
-    position: "fixed",
-    top: rect.top - padding,
-    left: rect.left - padding,
-    width: rect.width + padding * 2,
-    height: rect.height + padding * 2,
-    borderRadius: 10,
-    pointerEvents: "none",
-    zIndex: 101,
-  };
+  const cardStyle: React.CSSProperties = phone
+    ? { position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 102 }
+    : placement === "float"
+      ? { position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", width: CARD_W, zIndex: 102 }
+      : { position: "fixed", width: CARD_W, zIndex: 102 };
 
-  // Flip above the target when there isn't room below it. Anchoring by
-  // `bottom` rather than `top` means this needs no knowledge of the
-  // tooltip's rendered height. Without this a target low on the page (the
-  // add-strategy / add-field buttons sit at the bottom of their forms) put
-  // the Next button below the fold, where it couldn't be scrolled to --
-  // fixed positioning doesn't scroll -- stranding the user mid-tour.
-  const gap = padding + 10;
-  const viewportH = window.innerHeight;
-  const viewportW = window.innerWidth;
-  // Below Tailwind's `sm`. On a phone there is no useful free space beside
-  // or below a target -- the old floating card ended up squeezed against an
-  // edge or overlapping the very control it was pointing at -- so the step
-  // becomes a sheet across the bottom of the screen instead.
-  const isPhone = viewportW < 640;
-  // Clamped to the viewport: a target taller than the screen (or scrolled
-  // partly off it) yields an anchor outside the viewport, and since the
-  // tooltip is position:fixed it could not be scrolled back into view.
-  const targetTop = Math.max(rect.top, 0);
-  const targetBottom = Math.min(rect.top + rect.height, viewportH);
-  const spaceBelow = viewportH - targetBottom;
-  const spaceAbove = targetTop;
-  const placeAbove = spaceBelow < TOOLTIP_SPACE_NEEDED && spaceAbove > spaceBelow;
-  // Prefer sitting beside the target when there's room. Below is the obvious
-  // default but it lands on top of whatever follows the target -- for a
-  // field inside the Quick Trade dialog that's the next fields down, which
-  // are exactly what the step is telling the user to fill in.
-  const spaceRight = viewportW - (rect.left + rect.width);
-  const placeBeside = !isPhone && spaceRight >= 320 + gap + 16;
-  const besideAnchorsBottom = rect.top + rect.height / 2 > viewportH / 2;
-  const tooltipPosition: React.CSSProperties = isPhone
-    ? { left: 12, right: 12, bottom: 12 }
-    : placeBeside
-    ? {
-        left: rect.left + rect.width + gap,
-        width: 320,
-        // Grows downward from a high target and upward from a low one.
-        // Always anchoring the top meant a target near the bottom of the
-        // screen (the add-field button sits under its form) pushed the
-        // card's lower half off the viewport.
-        ...(besideAnchorsBottom
-          ? { bottom: Math.max(viewportH - (rect.top + rect.height) - padding, 16) }
-          : { top: Math.max(rect.top - padding, 16) }),
-      }
-    : {
-        left: Math.min(Math.max(rect.left - padding, 16), viewportW - 320 - 16),
-        width: 320,
-        ...(placeAbove
-          ? { bottom: Math.min(Math.max(viewportH - targetTop + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) }
-          : { top: Math.min(Math.max(targetBottom + gap, 16), viewportH - MIN_TOOLTIP_VISIBLE) }),
-      };
-  // Whatever room is left on the chosen side; the tooltip scrolls internally
-  // rather than overflowing when a short viewport can't fit it.
-  const tooltipMaxHeight = isPhone
-    ? Math.round(viewportH * 0.45)
-    : placeBeside
-    ? viewportH -
-      (besideAnchorsBottom
-        ? Math.max(viewportH - (rect.top + rect.height) - padding, 16)
-        : Math.max(rect.top - padding, 16)) -
-      16
-    : Math.max((placeAbove ? spaceAbove : spaceBelow) - gap - 16, MIN_TOOLTIP_VISIBLE);
+  const primaryLabel = isLast ? "Finish" : step.action ? "I'll do this later" : "Next";
 
   return (
-    <AnimatePresence>
-      <motion.div
-        key="dim"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        // Below the app's modals (z-50) on purpose: when the tour is
-        // highlighting a field inside the Quick Trade dialog, that dialog
-        // should stay bright and readable -- it already dims the page behind
-        // itself. On an ordinary page nothing outranks this, so the dim
-        // covers everything including the nav bar.
-        style={{ position: "fixed", inset: 0, zIndex: 45, pointerEvents: "none" }}
-        className="bg-black/45"
-      />
-      <motion.div
-        key="ring"
-        style={ringStyle}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="border-2 border-primary bg-white/5 shadow-[0_0_0_3px_rgba(10,155,255,0.25)]"
-      />
-      <motion.div
-        key={`tooltip-${stepIndex}`}
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -6 }}
-        transition={{ duration: 0.2 }}
-        style={{
-          position: "fixed",
-          ...tooltipPosition,
-          zIndex: 102,
-          maxHeight: tooltipMaxHeight,
-          overflowY: "auto",
-        }}
-        className="rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-subtle dark:bg-card"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{step.title}</h3>
-          <button
-            onClick={finish}
-            aria-label="Skip tour"
-            className="shrink-0 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+    <>
+      {/* Dim with a cutout, so the target is the brightest thing on screen.
+          Hidden while one of the app's dialogs is open: it brings its own
+          backdrop, and two dims read as a bug. */}
+      <AnimatePresence>
+        {rect && !dialogOpen && (
+          <motion.svg
+            key="dim"
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none fixed inset-0 z-[45] h-full w-full"
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">{step.body}</p>
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-zinc-400">
-            {stepIndex + 1} of {steps.length}
-          </span>
-          <div className="flex gap-2">
+            <defs>
+              <mask id="tl-tour-mask">
+                <rect width="100%" height="100%" fill="#fff" />
+                <motion.rect
+                  rx="12"
+                  fill="#000"
+                  animate={{ x: rect.left - PAD, y: rect.top - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }}
+                  transition={spring}
+                />
+              </mask>
+            </defs>
+            <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#tl-tour-mask)" />
+          </motion.svg>
+        )}
+      </AnimatePresence>
+
+      {/* The ring, gliding between targets. */}
+      <AnimatePresence>
+        {rect && (
+          <motion.div
+            key="ring"
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }}
+            exit={{ opacity: 0 }}
+            transition={{ ...spring, opacity: { duration: 0.2 } }}
+            style={{ position: "fixed", zIndex: 101, pointerEvents: "none" }}
+            className="rounded-xl border-2 border-primary"
+          >
+            <div className="absolute inset-0 animate-pulse rounded-xl shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary)_22%,transparent)]" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* The card. */}
+      <motion.div
+        role="region"
+        aria-label="Guided tour"
+        style={cardStyle}
+        animate={placement === "float" || phone ? undefined : { top: cardTop, left: cardLeft }}
+        transition={spring}
+        className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] dark:border-subtle dark:bg-card"
+      >
+        {placement !== "float" && !phone && (
+          <span
+            aria-hidden
+            className={`absolute h-3 w-3 rotate-45 border-zinc-200 bg-white dark:border-subtle dark:bg-card ${
+              placement === "right"
+                ? "-left-[7px] top-6 border-b border-l"
+                : placement === "below"
+                  ? "-top-[7px] left-6 border-l border-t"
+                  : "-bottom-[7px] left-6 border-b border-r"
+            }`}
+          />
+        )}
+
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={`${tour}-${stepIndex}`}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
+                Step {stepIndex + 1} of {steps.length} · {step.where}
+              </p>
+              <button
+                onClick={finish}
+                aria-label="Skip tour"
+                className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">{step.title}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{step.body}</p>
+
+            {step.action && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{step.action}</span>
+              </div>
+            )}
+            {missing && (
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Can&rsquo;t find this on the page right now.</p>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1" aria-hidden>
+            {steps.map((s, i) => (
+              <span
+                key={s.targetId + i}
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  i === stepIndex ? "w-4 bg-primary" : i < stepIndex ? "w-1.5 bg-primary/40" : "w-1.5 bg-zinc-300 dark:bg-zinc-700"
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
             {stepIndex > 0 && (
               <button
-                onClick={() => setStepIndex(previousReachableIndex(steps, stepIndex))}
-                className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-200"
+                onClick={() => goBack(stepIndex)}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               >
                 Back
               </button>
             )}
-            {/* When the next step needs the user to act, advancing happens on
-                its own the moment they do -- so this is an escape hatch for
-                anyone who'd rather not, not the main way forward. */}
             <button
-              onClick={() => {
-                const target = nextStep?.awaitAction ? indexAfterSkipping(steps, stepIndex) : stepIndex + 1;
-                if (target < steps.length) setStepIndex(target);
-                else finish();
-              }}
-              className={
-                nextStep?.awaitAction
-                  ? "rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
-                  : "rounded-full bg-primary px-3 py-1 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
-              }
+              onClick={() => (isLast ? finish() : goForward(stepIndex))}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-medium ${
+                step.action && !isLast
+                  ? "border border-zinc-300 text-zinc-600 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
+                  : "bg-primary text-white hover:brightness-110 dark:text-zinc-950"
+              }`}
             >
-              {stepIndex >= steps.length - 1 ? "Finish" : nextStep?.awaitAction ? "Skip" : "Next"}
+              {primaryLabel}
             </button>
           </div>
         </div>
       </motion.div>
-    </AnimatePresence>
+    </>
   );
 }

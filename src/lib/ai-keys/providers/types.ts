@@ -37,6 +37,64 @@ export class ProviderError extends Error {
   }
 }
 
+// ---- Tool calling (the agentic Ask path) ---------------------------------
+//
+// A provider-neutral shape for tools, messages and one model round-trip. The
+// route builds `ToolDef`s and an executor (src/lib/ai-keys/tools.ts); each
+// provider's `chatOnce` translates this neutral shape to and from its own
+// wire format; the orchestrator (src/lib/ai-keys/providers/orchestrator.ts)
+// runs the loop. Keeping the shared vocabulary here means the loop and the
+// tools never depend on any one provider's format.
+
+/** A tool the model may call. `parameters` is a JSON Schema object. */
+export interface ToolDef {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+/** A single tool invocation the model asked for. */
+export interface ToolCall {
+  /** Provider-assigned id, echoed back with the result so they pair up. */
+  id: string;
+  name: string;
+  /** Parsed arguments. `{}` if the model sent none or sent unparseable JSON. */
+  args: Record<string, unknown>;
+}
+
+/**
+ * One message in a tool conversation. `assistant` messages may carry
+ * `toolCalls`; a `tool` message carries one tool's result and the
+ * `toolCallId` it answers.
+ */
+export interface ChatMessage {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  toolCalls?: ToolCall[];
+  /** On a `tool` message: the id it answers (OpenAI/Anthropic pair by id). */
+  toolCallId?: string;
+  /** On a `tool` message: the tool's name (Google pairs by name, not id). */
+  toolName?: string;
+}
+
+export interface ChatOnceInput {
+  system: string;
+  messages: ChatMessage[];
+  tools: ToolDef[];
+  maxTokens?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * The outcome of one model round-trip: either the model produced its final
+ * text, or it wants to call one or more tools first. `assistant` carries the
+ * assistant turn to append verbatim before the tool results, so a provider
+ * that needs its own tool-call bookkeeping echoed back (all three do) gets it.
+ */
+export type ChatResult =
+  | { kind: "text"; text: string }
+  | { kind: "tool_calls"; calls: ToolCall[]; assistant: ChatMessage };
+
 export interface AIProvider {
   name: AIProviderName;
 
@@ -64,6 +122,14 @@ export interface AIProvider {
     question: string,
     options?: AskOptions,
   ): Promise<string>;
+
+  /**
+   * One tool-aware model round-trip. Present only on providers that support
+   * function calling; the route checks for it and otherwise falls back to the
+   * single-shot `askQuestion` + full text context, so a provider without it
+   * loses nothing it had before.
+   */
+  chatOnce?(apiKey: string, input: ChatOnceInput): Promise<ChatResult>;
 }
 
 /**

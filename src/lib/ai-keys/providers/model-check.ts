@@ -28,6 +28,16 @@ function extractModelIds(body: unknown, provider: AIProviderName): string[] {
       .map((n) => n.replace(/^models\//, ""));
   }
 
+  // GitHub Models' catalog is a bare top-level array of `{ id, name, ... }`,
+  // not wrapped in `data`. The id is already namespaced (`openai/gpt-4o-mini`),
+  // matching what PROVIDER_MODELS stores and what /chat/completions wants.
+  if (provider === "github") {
+    const models = Array.isArray(body) ? body : [];
+    return models
+      .map((m) => (m as { id?: unknown }).id)
+      .filter((id): id is string => typeof id === "string");
+  }
+
   const data = Array.isArray(json?.data) ? json.data : [];
   return data
     .map((m) => (m as { id?: unknown }).id)

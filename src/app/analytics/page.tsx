@@ -256,11 +256,11 @@ export default async function AnalyticsPage() {
       {/* The five deep panels, always expanded. These used to collapse behind
           a one-line summary in "Focused" mode, switchable from a toggle in the
           nav bar; that mode and its toggle have been removed. */}
-      <section className="flex flex-col gap-2" data-shot="excursion">
+      <section className="flex flex-col gap-2" data-shot="excursion" data-tour-id="tour-excursion">
         {excursionReport ? <ExcursionPanel report={excursionReport} /> : <ExcursionUpsell />}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour-id="tour-performance">
         {paid ? equityCurve && <PerformancePanel curve={equityCurve} /> : <PerformanceUpsell />}
       </section>
 
@@ -277,7 +277,7 @@ export default async function AnalyticsPage() {
         {paid ? riskReport && <RiskPanel report={riskReport} /> : <RiskUpsell />}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour-id="tour-regime">
         {paid ? regimeReport && <RegimePanel report={regimeReport} /> : <RegimeUpsell />}
       </section>
     </div>

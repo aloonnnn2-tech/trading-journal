@@ -106,16 +106,20 @@ export async function updateFieldDefinition(
   supabase: SupabaseClient,
   id: string,
   changes: Partial<Pick<FieldDefinition, "label" | "field_type" | "options" | "sort_order">>,
-): Promise<FieldDefinition> {
+): Promise<FieldDefinition | null> {
+  // maybeSingle, not single: an id that doesn't exist or belongs to another
+  // user is filtered out by RLS and comes back as zero rows. single() turns
+  // that into a thrown PostgREST error that the route never caught, so a
+  // foreign id 500'd instead of 404ing. null lets the route answer 404.
   const { data, error } = await supabase
     .from("field_definitions")
     .update(changes)
     .eq("id", id)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
-  return data as FieldDefinition;
+  return (data as FieldDefinition | null) ?? null;
 }
 
 // Deletes the field definition only. Existing trades keep the value
