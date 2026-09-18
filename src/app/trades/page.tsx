@@ -411,6 +411,9 @@ function FolderTab({ href, label, active }: { href: string; label: string; activ
   return (
     <Link
       href={href}
+      // The visible text is the folder's name -- user content -- so click
+      // analytics gets this fixed label instead. See click-capture.ts.
+      data-track="folder tab"
       className={`rounded-full border px-3 py-1 text-sm ${
         active
           ? "border-primary bg-primary/10 text-primary"

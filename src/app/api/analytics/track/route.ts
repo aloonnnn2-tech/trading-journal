@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
-import { logEvent } from "@/lib/tracking/log";
+import { logEvent, logEvents } from "@/lib/tracking/log";
 import { rateLimit } from "@/lib/rate-limit";
 
 // Keep props small and structured -- per the analytics brief, this table
@@ -12,17 +12,35 @@ import { rateLimit } from "@/lib/rate-limit";
 // sessionId were bounded but `props` was a wide-open jsonb sink, so any
 // signed-in client could push arbitrarily large payloads into the table.
 const MAX_PROPS_BYTES = 2048;
+// Click autocapture sends batches. 25 is above what a 5-second window of
+// human clicking produces, and low enough that one request stays small.
+const MAX_BATCH = 25;
 
-const bodySchema = z.object({
+const propsSchema = z
+  .record(z.string(), z.unknown())
+  .refine((p) => JSON.stringify(p).length <= MAX_PROPS_BYTES, {
+    message: `props must serialize to under ${MAX_PROPS_BYTES} bytes`,
+  })
+  .optional();
+
+const eventSchema = z.object({
   eventName: z.string().min(1).max(64),
-  sessionId: z.string().min(1).max(128),
-  props: z
-    .record(z.string(), z.unknown())
-    .refine((p) => JSON.stringify(p).length <= MAX_PROPS_BYTES, {
-      message: `props must serialize to under ${MAX_PROPS_BYTES} bytes`,
-    })
-    .optional(),
+  props: propsSchema,
 });
+
+// Two accepted shapes: the original single event, and a batch. The original
+// stays so every existing track() call site is untouched.
+const bodySchema = z.union([
+  z.object({
+    eventName: z.string().min(1).max(64),
+    sessionId: z.string().min(1).max(128),
+    props: propsSchema,
+  }),
+  z.object({
+    sessionId: z.string().min(1).max(128),
+    events: z.array(eventSchema).min(1).max(MAX_BATCH),
+  }),
+]);
 
 export async function POST(request: Request) {
   const userId = await getUserIdFromHeader();
@@ -55,8 +73,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { eventName, sessionId, props } = parsed.data;
-  await logEvent(supabase, userId, sessionId, eventName, props);
+  const body = parsed.data;
+  if ("events" in body) {
+    await logEvents(
+      supabase,
+      userId,
+      body.sessionId,
+      body.events.map((e) => ({ eventName: e.eventName, props: e.props })),
+    );
+  } else {
+    await logEvent(supabase, userId, body.sessionId, body.eventName, body.props);
+  }
 
   return NextResponse.json({ ok: true });
 }

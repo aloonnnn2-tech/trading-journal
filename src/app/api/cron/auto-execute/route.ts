@@ -316,12 +316,28 @@ export async function POST(request: Request) {
     );
   }
 
+  // Housekeeping that rides the nightly run because it already holds the
+  // service-role client: drop per-click analytics rows older than 90 days
+  // (migration 0043). Every click is a row, so without this the table grows
+  // without bound; the meaningful-action events are untouched. Best-effort
+  // and never on a dry run -- a prune failure must not fail the sweep.
+  let clicksPruned: number | null = null;
+  if (!dryRun) {
+    try {
+      const { data, error } = await supabase.rpc("prune_click_events", { p_days: 90 });
+      if (!error && typeof data === "number") clicksPruned = data;
+    } catch {
+      // Reported as null below rather than thrown.
+    }
+  }
+
   return NextResponse.json({
     dryRun,
     scanned: watched.length,
     tickers: symbols.length,
     executed: executed.length,
     details: executed,
+    clicksPruned,
     // Reported separately from `executed` because an expiry is not a fill:
     // nothing was touched and no price was involved. Counted on a dry run too,
     // so the sweep can be inspected before it is trusted to write.

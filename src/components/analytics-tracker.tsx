@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { useAnalytics, getSessionId } from "@/lib/tracking/useAnalytics";
+import { startClickCapture } from "@/lib/tracking/click-capture";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const SESSION_STARTED_KEY = "tj-analytics-session-started";
@@ -17,8 +18,18 @@ const SESSION_STARTED_KEY = "tj-analytics-session-started";
 // attribute events to there, and only registered-user activity is tracked.
 export function AnalyticsTracker() {
   const pathname = usePathname();
-  const { track, heartbeat } = useAnalytics();
+  const { track, trackBatch, heartbeat } = useAnalytics();
   const isPublicPage = PUBLIC_PATHS.includes(pathname);
+
+  // Click autocapture rides the same gate as everything else here: it is
+  // never installed on a public page, so a logged-out visitor's clicks on the
+  // homepage are not recorded -- that would be the anonymous tracking the
+  // privacy policy rules out. See src/lib/tracking/click-capture.ts for how
+  // labels are kept free of user content.
+  useEffect(() => {
+    if (isPublicPage) return;
+    return startClickCapture(trackBatch);
+  }, [isPublicPage, trackBatch]);
 
   useEffect(() => {
     if (isPublicPage) return;

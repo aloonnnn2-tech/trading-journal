@@ -42,5 +42,20 @@ export function useAnalytics() {
     }).catch(() => {});
   }, []);
 
-  return { track, heartbeat };
+  // Several events in one request -- what click autocapture sends. keepalive
+  // so a flush fired on pagehide survives the navigation that triggered it.
+  const trackBatch = useCallback(
+    (events: { eventName: string; props?: Record<string, unknown> }[]) => {
+      if (events.length === 0) return;
+      fetch("/api/analytics/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({ sessionId: getSessionId(), events }),
+      }).catch(() => {});
+    },
+    [],
+  );
+
+  return { track, trackBatch, heartbeat };
 }
