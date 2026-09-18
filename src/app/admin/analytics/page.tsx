@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Users, UserPlus, Activity, CalendarDays, TrendingUp, Clock, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -76,12 +77,26 @@ export default async function AdminAnalyticsPage() {
           Analytics
         </h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          Usage across all users, computed live from Supabase. Not linked from the app nav.
+          Usage across all users, computed live from Supabase. Test-domain and manually flagged
+          accounts are excluded from every number here — manage exclusions from{" "}
+          <Link href="/admin/users" className="text-primary hover:underline">
+            Users
+          </Link>
+          . Not linked from the app nav.
         </p>
       </div>
 
       <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <StatCard label="Total users" value={String(overview.totalUsers)} icon={Users} />
+        <StatCard
+          label="Total users"
+          value={String(overview.totalUsers)}
+          hint={
+            overview.excludedCount > 0
+              ? `${overview.excludedCount} test/demo account${overview.excludedCount === 1 ? "" : "s"} hidden`
+              : undefined
+          }
+          icon={Users}
+        />
         <StatCard label="Signups today" value={String(overview.signupsToday)} icon={UserPlus} />
         <StatCard label="DAU" value={String(overview.dau)} icon={Activity} />
         <StatCard label="WAU" value={String(overview.wau)} icon={CalendarDays} />

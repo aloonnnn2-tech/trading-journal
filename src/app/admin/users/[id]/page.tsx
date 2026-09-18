@@ -100,12 +100,20 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             {user.admin && (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">admin</span>
             )}
+            {user.excluded && (
+              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                excluded from analytics
+              </span>
+            )}
             <span>Joined {formatDate(user.signedUpAt)}</span>
             <span aria-hidden>·</span>
             <span>Last seen {formatRelative(user.lastActiveAt)}</span>
           </p>
         </div>
-        <p className="text-xs text-zinc-500">Breakdowns cover the last 90 days · counts and timestamps only</p>
+        <p className="text-xs text-zinc-500">
+          Breakdowns cover the last 90 days · counts and timestamps only
+          {user.excluded && " · excluded from every aggregate on the Analytics tab, still shown here for review"}
+        </p>
       </div>
 
       <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

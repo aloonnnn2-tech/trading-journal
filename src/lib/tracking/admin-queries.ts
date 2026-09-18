@@ -8,6 +8,8 @@ export interface OverviewStats {
   mau: number;
   avgSessionSecondsToday: number | null;
   medianSessionSecondsToday: number | null;
+  /** Accounts hidden from every count here — test-domain or manually flagged. */
+  excludedCount: number;
 }
 
 export interface UsagePoint {
@@ -36,6 +38,7 @@ interface OverviewStatsRow {
   mau: number;
   avg_session_seconds_today: number | null;
   median_session_seconds_today: number | null;
+  excluded_count: number;
 }
 
 export async function getOverviewStats(supabase: SupabaseClient): Promise<OverviewStats> {
@@ -50,6 +53,7 @@ export async function getOverviewStats(supabase: SupabaseClient): Promise<Overvi
     mau: row.mau,
     avgSessionSecondsToday: row.avg_session_seconds_today,
     medianSessionSecondsToday: row.median_session_seconds_today,
+    excludedCount: Number(row.excluded_count ?? 0),
   };
 }
 
@@ -93,6 +97,9 @@ export interface UserDirectoryRow {
   signedUpAt: string;
   plan: "free" | "paid";
   admin: boolean;
+  /** Test-domain email or manually flagged (0044) — hidden from every
+   *  aggregate but still listed here, so it can be reviewed and toggled. */
+  excluded: boolean;
   tradeCount: number;
   openTrades: number;
   closedTrades: number;
@@ -116,6 +123,7 @@ interface UserDirectoryRaw {
   signed_up_at: string;
   plan: string;
   admin: boolean;
+  excluded: boolean;
   trade_count: number;
   open_trades: number;
   closed_trades: number;
@@ -142,6 +150,7 @@ export async function getUserDirectory(supabase: SupabaseClient): Promise<UserDi
     signedUpAt: r.signed_up_at,
     plan: r.plan === "paid" ? "paid" : "free",
     admin: r.admin,
+    excluded: r.excluded,
     tradeCount: Number(r.trade_count),
     openTrades: Number(r.open_trades),
     closedTrades: Number(r.closed_trades),
@@ -210,6 +219,21 @@ export async function getPublicViews(supabase: SupabaseClient, days = 30): Promi
     views: Number(row.views),
     signups: Number(row.signups),
   }));
+}
+
+// Flips whether one account's activity counts toward every admin aggregate
+// (0044). The RPC itself rechecks is_admin, so this is safe to call with the
+// RLS-scoped client -- no service-role client needed, unlike setUserPlan.
+export async function setUserExcluded(
+  supabase: SupabaseClient,
+  userId: string,
+  excluded: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_set_user_excluded", {
+    p_user_id: userId,
+    p_excluded: excluded,
+  });
+  if (error) throw error;
 }
 
 // Fails closed: any error (including the is_admin column not existing yet,
