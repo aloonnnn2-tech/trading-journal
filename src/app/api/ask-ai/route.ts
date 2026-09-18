@@ -18,6 +18,7 @@ import { runToolConversation } from "@/lib/ai-keys/providers/orchestrator";
 import { TOOL_DEFS, makeToolExecutor } from "@/lib/ai-keys/tools";
 import { getUserSettings } from "@/lib/settings/queries";
 import { rateLimit } from "@/lib/rate-limit";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
 // The AI cost sits on the user's own key, but this route still does several
 // DB reads to build the context and then proxies an outbound call, so it
@@ -107,6 +108,10 @@ export async function POST(request: Request) {
         deadline: startedAt + 16_000,
         perCallTimeoutMs: freeTier ? 11_000 : 14_000,
       });
+      void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_question_answered", {
+        provider: ready.provider,
+        mode: "tools",
+      });
       return NextResponse.json({ answer: result.answer, steps: result.steps });
     } catch (err) {
       // Fall through to the single-shot path. Its providerErrorResponse gives
@@ -138,6 +143,10 @@ export async function POST(request: Request) {
       // Never let the fallback push the request past the platform ceiling
       // after the tool path already spent part of the budget.
       timeoutMs: Math.max(6_000, startedAt + 24_000 - Date.now()),
+    });
+    void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_question_answered", {
+      provider: ready.provider,
+      mode: "single-shot",
     });
     return NextResponse.json({ answer });
   } catch (err) {

@@ -131,11 +131,18 @@ export default function CookiesPage() {
         <h2 className={SECTION_HEADING}>About our usage analytics</h2>
         <p className={BODY}>
           Trading Lens counts feature usage using its own database — not Google Analytics, and not
-          any third-party analytics or advertising service. These counts only run when you are
-          signed in; they are switched off entirely on the home page, the sign-in and sign-up
-          pages, and the legal pages. We record which pages of the app were opened and which
-          features were used. We do not put the contents of your trades, notes, or journal
-          entries into analytics.
+          any third-party analytics or advertising service. These per-account counts only run
+          when you are signed in; they are switched off on the home page, the sign-in and
+          sign-up pages, and the legal pages. We record which pages of the app were opened and
+          which features were used, including which buttons were pressed. We do not put the
+          contents of your trades, notes, or journal entries into analytics — a button press is
+          recorded by the button&apos;s own label, never by anything you typed.
+        </p>
+        <p className={BODY}>
+          Separately, the home page and pricing page keep an anonymous tally of how many times
+          they were viewed each day. That tally uses no cookie and no browser storage — it
+          stores nothing on your device and nothing about you — which is why it appears nowhere
+          in the table above.
         </p>
 
         <h2 className={SECTION_HEADING}>Error monitoring</h2>

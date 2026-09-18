@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { PublicViewBeacon } from "@/components/public-view-beacon";
 
 // The long version of the paid plan.
 //
@@ -116,6 +117,7 @@ const GROUPS: { group: string; blurb: string; features: Feature[] }[] = [
 export default function PaidPlanPage() {
   return (
     <div data-v2-page="landing" className="flex flex-1 flex-col">
+      <PublicViewBeacon path="/paid-plan" />
       <LandingHeader />
 
       <section className="mx-auto w-full max-w-4xl px-6 pt-16 pb-10 sm:px-10">

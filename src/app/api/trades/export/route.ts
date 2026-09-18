@@ -5,6 +5,7 @@ import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { listAllTradeFolderLinks } from "@/lib/folders/queries";
 import { listTrades } from "@/lib/trades/queries";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import {
   contentTypeFor,
   rowsToCsv,
@@ -66,6 +67,8 @@ export async function GET(request: Request) {
     const rows = trades.map((trade) => tradeToRow(trade, allFields));
     body = format === "xlsx" ? await rowsToXlsxBuffer(rows) : rowsToCsv(rows);
   }
+
+  void logEvent(supabase, userId, SERVER_SESSION_ID, "export_used", { format });
 
   return new NextResponse(body as BodyInit, {
     headers: {

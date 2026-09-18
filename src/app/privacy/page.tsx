@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 const SECTION_HEADING = "mt-8 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
 const BODY = "mt-3 leading-relaxed text-zinc-600 dark:text-zinc-400";
-const LAST_UPDATED = "July 2026";
+const LAST_UPDATED = "September 2026";
 
 export default function PrivacyPage() {
   return (
@@ -80,11 +80,19 @@ export default function PrivacyPage() {
         <h2 className={SECTION_HEADING}>Usage analytics</h2>
         <p className={BODY}>
           We count how our own features get used — which pages of the app are opened and which
-          actions are taken — and store those counts in our own database. We don&apos;t use
-          Google Analytics or any third-party analytics or advertising service. These counts run
-          only while you&apos;re signed in, and are switched off on the home page, the sign-in
-          and sign-up pages, and these legal pages. The contents of your trades, notes, and
-          journal entries are never recorded in analytics.
+          actions are taken, including which buttons are pressed — and store those counts in our
+          own database. We don&apos;t use Google Analytics or any third-party analytics or
+          advertising service. These per-account counts run only while you&apos;re signed in,
+          and are switched off on the home page, the sign-in and sign-up pages, and these legal
+          pages. The contents of your trades, notes, and journal entries are never recorded in
+          analytics — a button press is recorded by the button&apos;s own label, never by
+          anything you typed.
+        </p>
+        <p className={BODY}>
+          Separately, we keep an anonymous tally of how many times the home page and pricing
+          page are viewed each day. That tally is a single number per day. It stores nothing
+          about you — no cookie, no identifier, no IP address — and cannot be connected to any
+          person or account.
         </p>
 
         <h2 className={SECTION_HEADING}>Error monitoring</h2>

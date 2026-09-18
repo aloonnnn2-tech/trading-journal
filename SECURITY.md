@@ -185,7 +185,20 @@ by a lawyer before being relied upon, particularly for EU/EEA/UK users.
 - Any third-party analytics, advertising, A/B testing or heatmap tool is added.
 - Sentry session replay is switched on (it records the screen).
 - Marketing or conversion pixels are added to the landing page.
-- Analytics starts running for logged-out visitors on public pages.
+- Analytics that *identifies* a logged-out visitor starts running on public
+  pages — a visitor id, a cookie, a fingerprint, anything that lets two visits
+  be tied to one person. **The anonymous homepage-view tally added in
+  September 2026 is deliberately not this**: `record_public_view` (migration
+  0043) increments one integer per day and path, and the beacon that calls it
+  (`src/components/public-view-beacon.tsx`) sets no cookie and touches no
+  browser storage. Nothing is stored on or read from the device, and nothing
+  can be linked to a person, so it stays outside the ePrivacy consent
+  requirement. The moment that counter grows an identifier, this trigger fires.
+- Per-account analytics now also record which buttons a signed-in user
+  presses (click autocapture, `src/lib/tracking/click-capture.ts`). This is
+  still first-party, signed-in-only, and the label rule there keeps trade
+  content out of the recorded label — so it does not change the banner
+  assessment, but the privacy and cookies pages now state it plainly.
 - A Data Processing Agreement with Sentry and Supabase has not been signed —
   that is required regardless of the banner question.
 

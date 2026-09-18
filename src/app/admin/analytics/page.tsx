@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Users, UserPlus, Activity, CalendarDays, TrendingUp, Clock } from "lucide-react";
+import { Users, UserPlus, Activity, CalendarDays, TrendingUp, Clock, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
 import {
@@ -8,7 +8,9 @@ import {
   getUsageSeries,
   getFeatureUsage,
   getRetentionCohorts,
+  getPublicViews,
   isAdmin,
+  type PublicViewPoint,
 } from "@/lib/tracking/admin-queries";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
@@ -16,6 +18,23 @@ import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { AdminTabs } from "../admin-tabs";
 import { UsageLineChart } from "./usage-line-chart";
 import { FeatureUsageChart } from "./feature-usage-chart";
+import { VisitsLineChart } from "./visits-line-chart";
+
+// Views and signups over the trailing N days of the series, and the share of
+// visits that became an account. A refresh counts as a view, so this is a
+// floor on real conversion, not an exact figure -- stated on the card.
+function funnel(points: PublicViewPoint[], days: number) {
+  const slice = points.slice(-days);
+  const views = slice.reduce((n, p) => n + p.views, 0);
+  const signups = slice.reduce((n, p) => n + p.signups, 0);
+  const pct = views > 0 ? Math.round((signups / views) * 1000) / 10 : null;
+  return { views, signups, pct };
+}
+
+function funnelHint(f: { views: number; signups: number; pct: number | null }): string {
+  if (f.views === 0) return "no visits recorded";
+  return `${f.signups} signed up · ${f.pct === null ? "—" : `${f.pct}%`}`;
+}
 
 export const metadata: Metadata = {
   title: "Analytics — Admin",
@@ -36,12 +55,18 @@ export default async function AdminAnalyticsPage() {
   const admin = await isAdmin(supabase, userId);
   if (!admin) redirect("/dashboard");
 
-  const [overview, usageSeries, featureUsage, retention] = await Promise.all([
+  // Public views degrade to empty rather than failing the page: the RPC comes
+  // from migration 0043, and every other panel here predates it.
+  const [overview, usageSeries, featureUsage, retention, publicViews] = await Promise.all([
     getOverviewStats(supabase),
     getUsageSeries(supabase, 30),
     getFeatureUsage(supabase, 30),
     getRetentionCohorts(supabase, 8),
+    getPublicViews(supabase, 30).catch((): PublicViewPoint[] => []),
   ]);
+  const today = funnel(publicViews, 1);
+  const week = funnel(publicViews, 7);
+  const month = funnel(publicViews, 30);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
@@ -69,7 +94,28 @@ export default async function AdminAnalyticsPage() {
         />
       </StaggerGrid>
 
+      <div>
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Homepage visitors</h2>
+        <p className="mt-0.5 text-xs text-zinc-500">
+          Anonymous views of the homepage against accounts created. Nothing is stored about a
+          visitor — no cookie, identifier or IP — so a refresh counts as another view and the
+          conversion figure is a floor, not an exact rate.
+        </p>
+      </div>
+      <StaggerGrid className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Views today" value={String(today.views)} hint={funnelHint(today)} icon={Eye} />
+        <StatCard label="Views, 7 days" value={String(week.views)} hint={funnelHint(week)} icon={Eye} />
+        <StatCard label="Views, 30 days" value={String(month.views)} hint={funnelHint(month)} icon={Eye} />
+      </StaggerGrid>
+
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card hoverable={false}>
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
+            Homepage views &amp; signups, last 30 days
+          </h2>
+          <VisitsLineChart data={publicViews} />
+        </Card>
+
         <Card hoverable={false}>
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
             Signups &amp; active users, last 30 days

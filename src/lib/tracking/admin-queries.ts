@@ -85,6 +85,133 @@ export async function getRetentionCohorts(supabase: SupabaseClient, weeks = 8): 
   );
 }
 
+// ---- Per-user directory (0043) ------------------------------------------
+
+export interface UserDirectoryRow {
+  id: string;
+  email: string;
+  signedUpAt: string;
+  plan: "free" | "paid";
+  admin: boolean;
+  tradeCount: number;
+  openTrades: number;
+  closedTrades: number;
+  sessionCount: number;
+  activeSeconds: number;
+  lastActiveAt: string | null;
+  eventsTotal: number;
+  clicksTotal: number;
+  tradesCreated: number;
+  tradesEdited: number;
+  tradesDeleted: number;
+  imports: number;
+  aiQuestions: number;
+  aiReviews: number;
+  exports: number;
+}
+
+interface UserDirectoryRaw {
+  id: string;
+  email: string;
+  signed_up_at: string;
+  plan: string;
+  admin: boolean;
+  trade_count: number;
+  open_trades: number;
+  closed_trades: number;
+  session_count: number;
+  active_seconds: number;
+  last_active_at: string | null;
+  events_total: number;
+  clicks_total: number;
+  trades_created: number;
+  trades_edited: number;
+  trades_deleted: number;
+  imports: number;
+  ai_questions: number;
+  ai_reviews: number;
+  exports: number;
+}
+
+export async function getUserDirectory(supabase: SupabaseClient): Promise<UserDirectoryRow[]> {
+  const { data, error } = await supabase.rpc("admin_user_directory");
+  if (error) throw error;
+  return ((data ?? []) as UserDirectoryRaw[]).map((r) => ({
+    id: r.id,
+    email: r.email,
+    signedUpAt: r.signed_up_at,
+    plan: r.plan === "paid" ? "paid" : "free",
+    admin: r.admin,
+    tradeCount: Number(r.trade_count),
+    openTrades: Number(r.open_trades),
+    closedTrades: Number(r.closed_trades),
+    sessionCount: Number(r.session_count),
+    activeSeconds: Number(r.active_seconds),
+    lastActiveAt: r.last_active_at,
+    eventsTotal: Number(r.events_total),
+    clicksTotal: Number(r.clicks_total),
+    tradesCreated: Number(r.trades_created),
+    tradesEdited: Number(r.trades_edited),
+    tradesDeleted: Number(r.trades_deleted),
+    imports: Number(r.imports),
+    aiQuestions: Number(r.ai_questions),
+    aiReviews: Number(r.ai_reviews),
+    exports: Number(r.exports),
+  }));
+}
+
+export interface UserDetail {
+  eventCounts: { eventName: string; count: number }[];
+  topClicks: { label: string; count: number }[];
+  topPages: { path: string; count: number }[];
+  recentEvents: { createdAt: string; eventName: string; props: Record<string, unknown> }[];
+}
+
+// The RPC returns one jsonb blob (four shapes in one round-trip); this is the
+// only place its keys are spelled, so a rename there is a rename here.
+export async function getUserDetail(
+  supabase: SupabaseClient,
+  userId: string,
+  days = 90,
+): Promise<UserDetail> {
+  const { data, error } = await supabase.rpc("admin_user_detail", { p_user_id: userId, p_days: days });
+  if (error) throw error;
+  const d = (data ?? {}) as {
+    event_counts?: { event_name: string; count: number }[];
+    top_clicks?: { label: string; count: number }[];
+    top_pages?: { path: string; count: number }[];
+    recent_events?: { created_at: string; event_name: string; props: Record<string, unknown> }[];
+  };
+  return {
+    eventCounts: (d.event_counts ?? []).map((x) => ({ eventName: x.event_name, count: Number(x.count) })),
+    topClicks: (d.top_clicks ?? []).map((x) => ({ label: x.label, count: Number(x.count) })),
+    topPages: (d.top_pages ?? []).map((x) => ({ path: x.path, count: Number(x.count) })),
+    recentEvents: (d.recent_events ?? []).map((x) => ({
+      createdAt: x.created_at,
+      eventName: x.event_name,
+      props: x.props ?? {},
+    })),
+  };
+}
+
+// ---- Anonymous homepage-visit counter (0043) ------------------------------
+
+export interface PublicViewPoint {
+  day: string;
+  views: number;
+  signups: number;
+}
+
+export async function getPublicViews(supabase: SupabaseClient, days = 30): Promise<PublicViewPoint[]> {
+  const { data, error } = await supabase.rpc("admin_public_views", { p_days: days });
+  if (error) throw error;
+  return (data ?? []).map((row: { day: string; views: number; signups: number }) => ({
+    day: row.day,
+    views: Number(row.views),
+    signups: Number(row.signups),
+  }));
+}
+
 // Fails closed: any error (including the is_admin column not existing yet,
 // pre-migration) is treated as "not admin" rather than surfacing a 500 on
 // what should just look like an ordinary access-denied redirect.

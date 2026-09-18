@@ -6,6 +6,7 @@ import Link from "next/link";
 // read from usePathname() so this stays a server component.
 const TABS = [
   { href: "/admin/analytics", label: "Analytics", key: "analytics" },
+  { href: "/admin/users", label: "Users", key: "users" },
   { href: "/admin/plans", label: "Plans", key: "plans" },
 ] as const;
 

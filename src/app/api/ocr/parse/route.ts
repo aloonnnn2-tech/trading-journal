@@ -5,6 +5,8 @@
 
 import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { createClient } from "@/lib/supabase/server";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { runOcrPipeline } from "@/lib/ocr/pipeline";
 import { rateLimit } from "@/lib/rate-limit";
@@ -64,6 +66,9 @@ export async function POST(request: Request) {
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await runOcrPipeline(buffer);
+    // The RLS client exists here only to log this usage event; the route
+    // itself never touches the database.
+    void logEvent(await createClient(), userId, SERVER_SESSION_ID, "screenshot_parsed", {});
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "OCR failed";

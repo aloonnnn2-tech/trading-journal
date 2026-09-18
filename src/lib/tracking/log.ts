@@ -32,6 +32,29 @@ export async function logEvent(
   }
 }
 
+// A batch in one insert -- what click autocapture sends. Same best-effort
+// contract as logEvent: never let analytics fail the request it rode in on.
+export async function logEvents(
+  supabase: SupabaseClient,
+  userId: string,
+  sessionId: string,
+  events: { eventName: string; props?: Record<string, unknown> }[],
+): Promise<void> {
+  if (events.length === 0) return;
+  try {
+    await supabase.from("analytics_events").insert(
+      events.map((e) => ({
+        user_id: userId,
+        session_id: sessionId,
+        event_name: e.eventName,
+        event_props: e.props ?? {},
+      })),
+    );
+  } catch {
+    // Best-effort -- same reasoning as logEvent.
+  }
+}
+
 // Upserts the session's running time-on-site total. Called every ~30s by
 // the client heartbeat while the tab is visible, so duration_seconds
 // reflects actual active time rather than raw session open-to-close span.

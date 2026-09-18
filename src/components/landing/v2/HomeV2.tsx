@@ -15,6 +15,7 @@ import type { BgVariant } from "@/components/landing/v2/bg/variants";
 import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { PricingTeaser } from "@/components/landing/v2/PricingTeaser";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { PublicViewBeacon } from "@/components/public-view-beacon";
 
 // The /home-v2 candidate. / is unchanged.
 //
@@ -69,6 +70,8 @@ export async function HomeV2({ background }: { background: BgVariant }) {
             its section is clipped at the viewport edge, where the cut is
             invisible. Vertical bleed stays free. */}
         <div data-v2-home className="relative flex flex-1 flex-col overflow-x-clip">
+          {/* Anonymous view count only -- see the component. Renders nothing. */}
+          <PublicViewBeacon path="/" />
           <Background />
           <LandingHeader />
           <Hero />

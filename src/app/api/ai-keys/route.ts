@@ -5,6 +5,7 @@ import { apiKeyCreateSchema } from "@/lib/ai-keys/schema";
 import { getProvider, providerModel, ProviderError } from "@/lib/ai-keys/providers";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
 import { rateLimit } from "@/lib/rate-limit";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 
 export async function GET() {
   const gate = await requirePaidUser();
@@ -127,6 +128,7 @@ export async function POST(request: Request) {
   }
 
   const created = await createApiKey(gate.supabase, gate.userId, { provider, key, label });
+  void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_key_added", { provider });
   // createApiKey returns only the masked public columns -- the plaintext key
   // ends here and is never echoed back.
   return NextResponse.json(created, { status: 201 });

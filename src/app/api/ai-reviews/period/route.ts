@@ -4,6 +4,7 @@ import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { providerErrorResponse } from "@/lib/ai-keys/provider-error-response";
 import { getProvider } from "@/lib/ai-keys/providers";
 import { rateLimit } from "@/lib/rate-limit";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { getUserSettings } from "@/lib/settings/queries";
 import { generateStructured, StructuredOutputError } from "@/lib/ai-reviews/parse";
 import { isMissingTableError, savePeriodReview } from "@/lib/ai-reviews/queries";
@@ -169,6 +170,10 @@ export async function POST(request: Request) {
       content,
       tradesAnalyzed: context.tradesAnalyzed,
       sourceUpdatedAt: context.sourceUpdatedAt,
+    });
+    void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
+      kind: "period",
+      tradesAnalyzed: context.tradesAnalyzed,
     });
     return NextResponse.json({ review });
   } catch (err) {

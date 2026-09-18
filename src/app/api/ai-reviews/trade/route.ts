@@ -4,6 +4,7 @@ import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { providerErrorResponse } from "@/lib/ai-keys/provider-error-response";
 import { getProvider } from "@/lib/ai-keys/providers";
 import { rateLimit } from "@/lib/rate-limit";
+import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { getTrade } from "@/lib/trades/queries";
 import { getUserSettings } from "@/lib/settings/queries";
 import { generateStructured, StructuredOutputError } from "@/lib/ai-reviews/parse";
@@ -151,6 +152,10 @@ export async function POST(request: Request) {
       // What the review was generated against. A later edit moves the trade's
       // updated_at past this, which is how the card knows it is out of date.
       sourceUpdatedAt: trade.updated_at,
+    });
+    void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
+      kind: "trade",
+      tradeId: trade.id,
     });
     return NextResponse.json({ review });
   } catch (err) {
