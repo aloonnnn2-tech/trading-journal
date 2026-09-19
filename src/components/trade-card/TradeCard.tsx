@@ -550,7 +550,13 @@ export function TradeCard({
         </div>
 
         {folders.length > 0 && (
-          <div className={activeExtra === "folders" ? "grid gap-2 sm:grid-cols-2" : "hidden"}>
+          // data-track-private: every <label> below is an interactive element
+          // whose visible text is a user-authored folder name, which click
+          // capture would otherwise store verbatim in analytics.
+          <div
+            data-track-private
+            className={activeExtra === "folders" ? "grid gap-2 sm:grid-cols-2" : "hidden"}
+          >
             {folders.map((folder) => (
               <label key={folder.id} className="flex items-center gap-2 text-sm">
                 <input
@@ -566,7 +572,14 @@ export function TradeCard({
         )}
 
         {strategies.length > 0 && (
-          <div className={activeExtra === "strategies" ? "flex flex-col gap-5" : "hidden"}>
+          // data-track-private: covers both the strategy checkboxes (visible
+          // text = a user-authored strategy name) and the per-strategy custom
+          // field <label>s below (visible text = a user-defined field label,
+          // which people name after setups, moods or specific trades).
+          <div
+            data-track-private
+            className={activeExtra === "strategies" ? "flex flex-col gap-5" : "hidden"}
+          >
             <div className="grid gap-2 sm:grid-cols-2">
               {strategies.map((strategy) => (
                 <label key={strategy.id} className="flex items-center gap-2 text-sm">
@@ -686,7 +699,12 @@ export function TradeCard({
         )}
 
         {fieldDefinitions.length > 0 && (
-          <div className={activeExtra === "notes" ? "grid gap-4" : "hidden"}>
+          // data-track-private: these <label>s are interactive by the capture
+          // rules and their text is a user-defined custom-field name.
+          <div
+            data-track-private
+            className={activeExtra === "notes" ? "grid gap-4" : "hidden"}
+          >
             {fieldDefinitions.map((field) => (
               <div key={field.id}>
                 <label className={labelClass} htmlFor={`${fieldId}-c-${field.key}`}>

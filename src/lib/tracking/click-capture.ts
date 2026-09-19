@@ -58,28 +58,42 @@ export function findInteractive(target: EventTarget | null): Element | null {
  * text from inside a data-track-private subtree.
  */
 export function deriveLabel(el: Element): string | null {
+  // Developer-authored and never derived from a record, so it is the one
+  // source that outranks the privacy check rather than being gated by it.
   const explicit = el.getAttribute("data-track");
   if (explicit) return clip(explicit);
 
-  const aria = el.getAttribute("aria-label");
-  if (aria) return clip(aria);
+  // Computed once, because it gates two different groups below.
+  const isPrivate = !!el.closest("[data-track-private]");
 
+  // `aria-label` normally makes the best label for an icon-only control, so
+  // it keeps its place ahead of `id` -- but it is gated, because it can echo
+  // a value. That is not hypothetical: the delete button on a cash
+  // adjustment carried `Delete the $12,400.00 adjustment`, putting a real
+  // balance figure into analytics. Gating it here, rather than demoting it
+  // below `id`, keeps "Close dialog" as the label everywhere it is safe.
+  if (!isPrivate) {
+    const aria = el.getAttribute("aria-label");
+    if (aria) return clip(aria);
+  }
+
+  // Both are written by us, never by the user, so they stay available even
+  // inside a private subtree -- that is what keeps a marked-up row countable
+  // with a meaningful name instead of collapsing to null.
   if (el.id) return clip(`#${el.id}`);
 
   const tour = el.getAttribute("data-tour-id");
   if (tour) return clip(tour);
 
-  // Visible text is the fallback, and the one source that can carry user
-  // content -- so it is refused anywhere marked private, and refused for a
-  // link into an individual trade, whose text is record content by nature.
-  // The click still counts, under a fixed label.
-  if (el.closest("[data-track-private]")) return null;
+  // Everything past here can carry user content, so a private subtree stops
+  // at this line. The click still counts, under a null label.
+  if (isPrivate) return null;
+
+  // A link into one specific trade: its text is record content by nature.
   if (el.tagName === "A" && TRADE_LINK.test(el.getAttribute("href") ?? "")) return "trade link";
 
-  // `title` names icon-only buttons (theme toggle, remove-key) that have no
-  // text. It sits with text, below the privacy guards, rather than up with
-  // aria-label: a title can in principle echo a value, so it gets the same
-  // protection text does.
+  // `title` names icon-only buttons that have no text, and like aria-label it
+  // can in principle echo a value -- so it sits below the guard with text.
   const title = el.getAttribute("title");
   if (title) return clip(title);
 

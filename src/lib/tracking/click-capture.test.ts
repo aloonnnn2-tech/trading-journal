@@ -188,3 +188,62 @@ describe("createBatcher", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---- Regressions from the real leaks found in production -----------------
+//
+// These reproduce the exact element shapes that were writing user content
+// into analytics_events. The pre-existing privacy tests passed while this was
+// happening because they applied data-track-private synthetically; these
+// start from the markup as it actually shipped.
+
+describe("deriveLabel: leaks found live", () => {
+  it("does not record an aria-label that names a money figure", () => {
+    // The delete button on a cash adjustment. aria-label used to be read
+    // ABOVE the privacy guard, so marking the row private did not help.
+    const row = el("li", { attrs: { "data-track-private": "" } });
+    const button = el("button", {
+      attrs: { "aria-label": "Delete the $12,400.00 adjustment", title: "Delete adjustment" },
+      parent: row,
+    });
+
+    expect(deriveLabel(button as unknown as Element)).toBeNull();
+  });
+
+  it("still uses aria-label for an ordinary control outside a private subtree", () => {
+    // Moving aria-label below the guard must not blind analytics to the
+    // icon-only buttons it is there to name.
+    const button = el("button", { attrs: { "aria-label": "Close dialog" } });
+
+    expect(deriveLabel(button as unknown as Element)).toBe("Close dialog");
+  });
+
+  it("does not record another person's email from the admin directory", () => {
+    // The row that was already storing "someone@example.comyoupaidadmin".
+    const cell = el("td", { attrs: { "data-track-private": "" } });
+    const link = el("a", {
+      text: "someone@example.com you paid admin",
+      attrs: { href: "/admin/users/abc" },
+      parent: cell,
+    });
+
+    expect(deriveLabel(link as unknown as Element)).toBeNull();
+  });
+
+  it("does not record a user-authored folder or strategy name", () => {
+    const wrapper = el("div", { attrs: { "data-track-private": "" } });
+    const folder = el("label", { text: "Swing setups Q4", parent: wrapper });
+    const strategy = el("label", { text: "Revenge trade after NVDA", parent: wrapper });
+
+    expect(deriveLabel(folder as unknown as Element)).toBeNull();
+    expect(deriveLabel(strategy as unknown as Element)).toBeNull();
+  });
+
+  it("keeps developer-authored identifiers working inside a private subtree", () => {
+    // data-track and id sit ABOVE the guard on purpose: they are written by
+    // us, never by the user, and they are what makes a private row countable.
+    const wrapper = el("div", { attrs: { "data-track-private": "" } });
+    const tagged = el("button", { attrs: { "data-track": "delete-adjustment" }, parent: wrapper });
+
+    expect(deriveLabel(tagged as unknown as Element)).toBe("delete-adjustment");
+  });
+});

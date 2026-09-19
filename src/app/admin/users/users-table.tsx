@@ -148,7 +148,12 @@ export function UsersTable({
                     u.excluded ? "opacity-60" : ""
                   }`}
                 >
-                  <td className="px-4 py-2.5">
+                  {/* data-track-private: this cell's visible text is another
+                      person's email address plus their plan and role. Click
+                      capture falls back to visible text, so without this the
+                      directory writes real addresses into analytics_events --
+                      it already did, which is how this was found. */}
+                  <td className="px-4 py-2.5" data-track-private>
                     <Link href={`/admin/users/${u.id}`} className="group block min-w-0">
                       <span className="block truncate font-medium text-zinc-900 group-hover:text-primary dark:text-zinc-100">
                         {u.email}

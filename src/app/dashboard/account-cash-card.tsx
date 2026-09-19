@@ -204,6 +204,12 @@ export function AccountCashCard({
               {transactions.map((tx) => (
                 <li
                   key={tx.id}
+                  // data-track-private: the delete button's aria-label names
+                  // the amount, so the screen-reader text stays specific while
+                  // click capture records no label at all for this row. Keeping
+                  // the figure OUT of analytics matters more than labelling the
+                  // click; the count still lands.
+                  data-track-private
                   className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
                 >
                   <span className="text-zinc-500">

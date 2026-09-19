@@ -80,7 +80,9 @@ export function PlanManager({
             key={user.userId}
             className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 dark:border-subtle bg-white dark:bg-card px-4 py-2"
           >
-            <div className="min-w-0">
+            {/* data-track-private: same reason as the admin user directory --
+                the visible text here is someone else's email address. */}
+            <div className="min-w-0" data-track-private>
               <span className="block truncate text-sm text-zinc-900 dark:text-zinc-100">
                 {user.email ?? <span className="text-zinc-500">(no email)</span>}
                 {user.userId === currentUserId && (
