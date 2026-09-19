@@ -103,13 +103,25 @@ export async function getDecryptedKey(
   supabase: SupabaseClient,
   id: string,
   userId: string,
+  /**
+   * Whether a parked (is_active = false) key may be returned.
+   *
+   * Defaults to false, and every path that sends the user's journal to a
+   * provider must keep that default: parking a key is what makes it stop
+   * being usable, so a caller that opts out of the filter is opting out of
+   * that control. The one legitimate exception is the key-test route, whose
+   * entire purpose is to answer "is this parked key actually dead?" -- it
+   * calls the provider's model-list endpoint and sends no journal data.
+   */
+  { includeInactive = false }: { includeInactive?: boolean } = {},
 ): Promise<{ provider: AIProviderName; key: string } | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("user_api_keys")
     .select("provider, encrypted_key")
-    .eq("id", id)
-    .eq("is_active", true)
-    .maybeSingle();
+    .eq("id", id);
+  if (!includeInactive) query = query.eq("is_active", true);
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) throw error;
   if (!data) return null;

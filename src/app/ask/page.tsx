@@ -5,9 +5,22 @@ import { requireUserId } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { listApiKeys } from "@/lib/ai-keys/queries";
+import { FREE_TIER_PROVIDERS, PROVIDER_LABELS, type AIProviderName } from "@/lib/ai-keys/types";
 import { listConsentedProviders } from "@/lib/ai-keys/consent";
 import { Card } from "@/components/ui/Card";
 import { AskManager } from "./ask-manager";
+
+// Derived from the provider registry rather than written out, because the
+// hand-written version of this list went stale: it still said "OpenAI,
+// Anthropic or Google" long after seven free-tier providers were added, hiding
+// the most useful fact on the paywall -- that this costs nothing to try.
+const FREE_TIER_NAMES = (Object.keys(PROVIDER_LABELS) as AIProviderName[])
+  .filter((p) => FREE_TIER_PROVIDERS.has(p))
+  .map((p) => PROVIDER_LABELS[p]);
+
+const PAID_ONLY_NAMES = (Object.keys(PROVIDER_LABELS) as AIProviderName[])
+  .filter((p) => !FREE_TIER_PROVIDERS.has(p))
+  .map((p) => PROVIDER_LABELS[p]);
 
 export default async function AskPage() {
   const userId = await requireUserId();
@@ -57,7 +70,8 @@ export default async function AskPage() {
           <ul className="flex flex-col gap-1.5 text-sm text-zinc-500">
             <li className="flex items-start gap-2">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />
-              Bring your own API key from OpenAI, Anthropic or Google
+              Bring your own API key — {FREE_TIER_NAMES.length} providers have a free tier
+              ({FREE_TIER_NAMES.join(", ")}), and {PAID_ONLY_NAMES.join(" and ")} work too
             </li>
             <li className="flex items-start gap-2">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2} />

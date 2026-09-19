@@ -69,6 +69,10 @@ export function AskManager({
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [managingKeys, setManagingKeys] = useState(false);
+  // Per-key result of an explicit "Test" -- keyed by id so testing one key
+  // never clears the verdict shown against another.
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [pendingDisclosure, setPendingDisclosure] = useState(false);
   const [savingConsent, setSavingConsent] = useState(false);
 
@@ -183,6 +187,52 @@ export function AskManager({
     setConsents((prev) => [...prev, selected.provider]);
     setPendingDisclosure(false);
     void runQuestion();
+  }
+
+  // Re-checks a stored key against its provider without spending a question.
+  // A key revoked at the provider otherwise stays listed as usable until an
+  // answer fails through it.
+  async function handleTestKey(key: StoredApiKey) {
+    setTestingId(key.id);
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[key.id];
+      return next;
+    });
+
+    try {
+      const res = await fetch(`/api/ai-keys/${key.id}/test`, { method: "POST" });
+      const body = (await res.json().catch(() => null)) as
+        | { ok?: boolean; message?: string; error?: string }
+        | null;
+
+      if (!res.ok && !body?.message) {
+        setTestResults((prev) => ({
+          ...prev,
+          [key.id]: { ok: false, message: body?.error ?? "Couldn't check that key." },
+        }));
+        return;
+      }
+
+      const ok = body?.ok === true;
+      setTestResults((prev) => ({
+        ...prev,
+        [key.id]: { ok, message: body?.message ?? (ok ? "Working." : "That key didn't work.") },
+      }));
+
+      // A rejected key is switched off server-side; mirror that here so the
+      // row doesn't keep claiming it is on.
+      if (!ok) {
+        setKeys((prev) => prev.map((k) => (k.id === key.id ? { ...k, is_active: false } : k)));
+      }
+    } catch {
+      setTestResults((prev) => ({
+        ...prev,
+        [key.id]: { ok: false, message: "Couldn't reach the server. Check your connection." },
+      }));
+    } finally {
+      setTestingId(null);
+    }
   }
 
   async function handleToggleActive(key: StoredApiKey) {
@@ -371,37 +421,60 @@ export function AskManager({
             {keys.map((k) => (
               <li
                 key={k.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 dark:border-subtle px-3 py-2"
+                className="flex flex-col gap-1.5 rounded-lg border border-zinc-200 dark:border-subtle px-3 py-2"
               >
-                <div className="min-w-0">
-                  <span className="text-sm text-zinc-900 dark:text-zinc-100">
-                    {PROVIDER_LABELS[k.provider]}
-                    {k.label && <span className="ml-2 text-xs text-zinc-500">{k.label}</span>}
-                  </span>
-                  <span className="ml-2 font-mono text-xs text-zinc-500">•••• {k.last_four}</span>
-                  {!k.is_active && (
-                    // A key the provider rejected is switched off automatically,
-                    // so this label is often the first sign of a revoked key.
-                    <span className="ml-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-500">
-                      off
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-sm text-zinc-900 dark:text-zinc-100">
+                      {PROVIDER_LABELS[k.provider]}
+                      {k.label && <span className="ml-2 text-xs text-zinc-500">{k.label}</span>}
                     </span>
-                  )}
+                    <span className="ml-2 font-mono text-xs text-zinc-500">•••• {k.last_four}</span>
+                    {!k.is_active && (
+                      // A key the provider rejected is switched off automatically,
+                      // so this label is often the first sign of a revoked key --
+                      // but it looks identical to one the user turned off on
+                      // purpose. Say so, and point at Test as the way to tell.
+                      <span
+                        title="Either you turned this off, or the provider rejected it. Test it to find out."
+                        className="ml-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-500"
+                      >
+                        off — test to check
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <button
+                      onClick={() => handleTestKey(k)}
+                      disabled={testingId === k.id}
+                      title="Check this key against the provider without asking a question"
+                      className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-50"
+                    >
+                      {testingId === k.id ? "Testing…" : "Test"}
+                    </button>
+                    <button
+                      onClick={() => handleToggleActive(k)}
+                      className="text-xs text-zinc-500 hover:text-zinc-300"
+                    >
+                      {k.is_active ? "Turn off" : "Turn on"}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(k)}
+                      title="Remove key"
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    onClick={() => handleToggleActive(k)}
-                    className="text-xs text-zinc-500 hover:text-zinc-300"
+                {testResults[k.id] && (
+                  <p
+                    role="status"
+                    className={`text-xs ${testResults[k.id].ok ? "text-profit" : "text-loss"}`}
                   >
-                    {k.is_active ? "Turn off" : "Turn on"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(k)}
-                    title="Remove key"
-                    className="text-red-400 hover:text-red-300"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                    {testResults[k.id].message}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
