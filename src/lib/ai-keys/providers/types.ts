@@ -24,8 +24,14 @@ export class ProviderError extends Error {
   readonly failure: ProviderFailure;
   /** Provider-side detail for server logs. Never sent to the client. */
   readonly detail: string;
+  /**
+   * Seconds the provider asked us to wait, from its Retry-After header.
+   * Only ever set on "unavailable". Safe to show the user: it is a number we
+   * parsed ourselves, not provider-authored text.
+   */
+  readonly retryAfterSeconds?: number;
 
-  constructor(failure: ProviderFailure, detail: string) {
+  constructor(failure: ProviderFailure, detail: string, retryAfterSeconds?: number) {
     // The message is deliberately generic; `detail` carries anything
     // provider-specific so a caller can't accidentally serialize a raw
     // provider error body (which can echo back parts of the request) into an
@@ -34,6 +40,7 @@ export class ProviderError extends Error {
     this.name = "ProviderError";
     this.failure = failure;
     this.detail = detail;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -212,6 +219,26 @@ export const MAX_ANSWER_TOKENS = 2500;
  * classify identically -- otherwise "bad key" on one provider and "unavailable"
  * on another for the same 401 would produce inconsistent advice.
  */
+/**
+ * Retry-After as a whole number of seconds, or undefined when absent or not
+ * a plain number. The HTTP-date form is deliberately not handled: providers
+ * that send it are rare, and a wrong number is worse than none.
+ */
+export function retryAfterSeconds(res: Response): number | undefined {
+  // Runs while building an error, so it must never throw: a failure here
+  // would replace a meaningful ProviderError with a TypeError and lose the
+  // real reason the request failed. Headers are optional-chained because not
+  // every caller passes a complete Response -- the provider tests use
+  // duck-typed fakes, and a partial object must degrade to "no header".
+  const raw = res?.headers?.get?.("retry-after");
+  if (!raw) return undefined;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  // Cap the quoted figure: a provider asking for an hour is real, but telling
+  // the user "try again in 3600 seconds" is not advice, it is noise.
+  return Math.min(Math.ceil(n), 300);
+}
+
 export function failureFromStatus(status: number): ProviderFailure {
   // 401/403: rejected credentials. 400 is deliberately NOT treated as a key
   // problem in general -- it usually means a malformed request, which is our

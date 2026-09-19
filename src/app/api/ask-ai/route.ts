@@ -12,7 +12,7 @@ import {
   historyBudgetFor,
   trimHistory,
 } from "@/lib/ai-keys/context";
-import { getProvider, MAX_ANSWER_TOKENS } from "@/lib/ai-keys/providers";
+import { getProvider, MAX_ANSWER_TOKENS, ProviderError } from "@/lib/ai-keys/providers";
 import { FREE_TIER_PROVIDERS } from "@/lib/ai-keys/types";
 import { runToolConversation } from "@/lib/ai-keys/providers/orchestrator";
 import { TOOL_DEFS, makeToolExecutor } from "@/lib/ai-keys/tools";
@@ -33,6 +33,17 @@ const RATE_WINDOW_MS = 60_000;
 // instead of one of the specific messages below. Staying under that keeps
 // failures inside this app's own error handling, where they can be explained.
 export const maxDuration = 26;
+
+// Shared by both paths, so the tool path and the single-shot fallback can
+// never drift into giving the same failure two different explanations.
+const TRUNCATED_HINT =
+  "The model ran out of room before it finished answering. Try a shorter, more specific question.";
+
+// Every turn re-sends the earlier ones, so a long conversation costs more
+// tokens per question than a fresh one -- on a free tier that is what runs
+// the per-minute budget out first.
+const CONVERSATION_LENGTH_HINT =
+  "This was a follow-up, and each turn re-sends the conversation so far. Starting a new conversation asks for less at once.";
 
 export async function POST(request: Request) {
   const gate = await requirePaidUser();
@@ -70,6 +81,9 @@ export async function POST(request: Request) {
   const settings = await getUserSettings(gate.supabase, gate.userId);
   const provider = getProvider(ready.provider);
   const startedAt = Date.now();
+  // Whether this question carried earlier turns, used only to decide if a
+  // failure is worth blaming on conversation length.
+  const hadHistory = (parsed.data.history ?? []).length > 0;
 
   const noTradesResponse = () =>
     NextResponse.json(
@@ -114,10 +128,40 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ answer: result.answer, steps: result.steps });
     } catch (err) {
-      // Fall through to the single-shot path. Its providerErrorResponse gives
-      // the final user-facing verdict, so a genuinely bad key or dead model is
-      // still reported correctly rather than hidden behind a tool-path retry.
-      console.warn("ask-ai tool path failed, falling back:", err instanceof Error ? err.message : err);
+      // Falling back means immediately sending a LARGER request: the whole
+      // journal instead of a short overview. That is the right move when the
+      // tool path failed for a reason the single-shot path might survive --
+      // a model that stumbles on tool use, a malformed tool call, a timeout.
+      //
+      // It is the wrong move for a rate limit or a rejected key. Neither gets
+      // better by retrying bigger: the second call fails identically, having
+      // spent more of the user's per-minute token budget on the way, which on
+      // a free tier is exactly what deepens the limit that caused this. Report
+      // those directly instead.
+      if (
+        err instanceof ProviderError &&
+        (err.failure === "unavailable" || err.failure === "invalid_key")
+      ) {
+        return providerErrorResponse(err, {
+          supabase: gate.supabase,
+          provider: ready.provider,
+          keyId: parsed.data.keyId,
+          logPrefix: "ask-ai tools",
+          truncatedHint: TRUNCATED_HINT,
+          // A long conversation re-sends every earlier answer on each turn,
+          // so this is the first thing that starts failing once the feature
+          // gets useful. Say so -- the user has a one-click fix for it.
+          hint: hadHistory ? CONVERSATION_LENGTH_HINT : undefined,
+        });
+      }
+      // Log `detail`, not just `message`: ProviderError's message is the
+      // generic "Provider request failed: <failure>", so without this a
+      // tool-path failure is unattributable in production -- which is exactly
+      // the hole that made this class of bug hard to diagnose.
+      console.warn(
+        "ask-ai tool path failed, falling back:",
+        err instanceof ProviderError ? `${err.failure}: ${err.detail}` : err,
+      );
     }
   }
 
@@ -155,8 +199,8 @@ export async function POST(request: Request) {
       provider: ready.provider,
       keyId: parsed.data.keyId,
       logPrefix: "ask-ai",
-      truncatedHint:
-        "The model ran out of room before it finished answering. Try a shorter, more specific question.",
+      truncatedHint: TRUNCATED_HINT,
+      hint: hadHistory ? CONVERSATION_LENGTH_HINT : undefined,
     });
   }
 }

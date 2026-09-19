@@ -39,6 +39,24 @@ export interface RunToolConversationInput {
   perCallTimeoutMs: number;
 }
 
+/**
+ * Appended whenever tools are withheld to force a written answer.
+ *
+ * Removing the tools silently is not enough. A model mid-tool-sequence will
+ * often try to call one anyway, and an OpenAI-compatible provider then
+ * rejects the WHOLE request rather than answering -- Groq returns
+ * `400 tool_use_failed: "Tool choice is none, but model called a tool"`.
+ * That killed the tool path on exactly the questions that needed the most
+ * tool calls, and the full-journal fallback that followed then burned what
+ * was left of a free tier's per-minute tokens and failed too.
+ *
+ * Saying it in words costs a few tokens and makes the turn do what
+ * withholding the tools was only implying.
+ */
+const ANSWER_NOW_INSTRUCTION =
+  "Now write the final answer for the user, using the tool results already provided above. " +
+  "Do not request any more tools -- none are available on this turn.";
+
 export async function runToolConversation(
   provider: AIProvider,
   input: RunToolConversationInput,
@@ -62,7 +80,12 @@ export async function runToolConversation(
 
     const result = await provider.chatOnce(input.apiKey, {
       system: input.system,
-      messages,
+      // The instruction rides along only on a turn where tools are withheld,
+      // and is never added to `messages`, so it cannot accumulate across
+      // iterations or leak into the next request.
+      messages: offerTools
+        ? messages
+        : [...messages, { role: "user", content: ANSWER_NOW_INSTRUCTION }],
       tools: offerTools ? input.tools : [],
       maxTokens: input.maxTokens,
       timeoutMs,
@@ -81,7 +104,7 @@ export async function runToolConversation(
   // Exhausted the iteration budget still wanting tools: one last no-tools call.
   const final = await provider.chatOnce(input.apiKey, {
     system: input.system,
-    messages,
+    messages: [...messages, { role: "user", content: ANSWER_NOW_INSTRUCTION }],
     tools: [],
     maxTokens: input.maxTokens,
     timeoutMs: Math.max(3000, input.deadline - Date.now()),

@@ -39,6 +39,13 @@ export async function providerErrorResponse(
      * user never wrote a question -- so the caller supplies it.
      */
     truncatedHint: string;
+    /**
+     * An extra sentence appended to the "try again later" cases only, naming
+     * something the user can actually change. Kept optional and caller-supplied
+     * because what is worth suggesting differs by route -- "start a new
+     * conversation" means nothing on a route with no conversation.
+     */
+    hint?: string;
   },
 ): Promise<NextResponse> {
   // Distinct outcomes, because they need different actions from the user.
@@ -70,12 +77,25 @@ export async function providerErrorResponse(
     return NextResponse.json({ error: ctx.truncatedHint }, { status: 502 });
   }
   if (failure === "unavailable") {
+    // A provider that tells us how long to wait is worth quoting exactly:
+    // "in a moment" is a guess, and on a free tier the real answer is
+    // sometimes a minute or more.
+    const retry = err instanceof ProviderError ? err.retryAfterSeconds : undefined;
+    const when = retry ? `Try again in about ${retry} second${retry === 1 ? "" : "s"}.` : "Try again in a moment.";
     return NextResponse.json(
       {
-        error:
-          "That provider is unavailable right now, or you've hit its rate limit or quota. Try again in a moment.",
+        error: [
+          "That provider is unavailable right now, or you've hit its rate limit or quota.",
+          when,
+          ctx.hint,
+        ]
+          .filter(Boolean)
+          .join(" "),
       },
-      { status: 503 },
+      {
+        status: 503,
+        ...(retry ? { headers: { "Retry-After": String(retry) } } : {}),
+      },
     );
   }
   return NextResponse.json(

@@ -7,6 +7,7 @@ import {
   VALIDATE_TIMEOUT_MS,
   errorDetail,
   failureFromStatus,
+  retryAfterSeconds,
   providerFetch,
   type AIProvider,
   type AskOptions,
@@ -162,6 +163,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         throw new ProviderError(
           missing ? "model_missing" : failureFromStatus(res.status),
           detail,
+          retryAfterSeconds(res),
         );
       }
 
@@ -242,7 +244,11 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         const detail = await errorDetail(res);
         const missing =
           /model_not_found|does not exist|no such model|unknown model|model.*not found/i.test(detail);
-        throw new ProviderError(missing ? "model_missing" : failureFromStatus(res.status), detail);
+        throw new ProviderError(
+          missing ? "model_missing" : failureFromStatus(res.status),
+          detail,
+          retryAfterSeconds(res),
+        );
       }
 
       const json = await res.json();

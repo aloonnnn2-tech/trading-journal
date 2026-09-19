@@ -196,3 +196,79 @@ describe("runToolConversation", () => {
     ).rejects.toBeInstanceOf(ProviderError);
   });
 });
+
+// ---- Forcing a final answer ----------------------------------------------
+
+describe("withholding tools", () => {
+  function fakeProvider(script: Array<{ kind: "text"; text: string } | { kind: "calls"; calls: { id: string; name: string; arguments: string }[] }>) {
+    const seen: { tools: number; messages: { role: string; content: string }[] }[] = [];
+    let i = 0;
+    return {
+      seen,
+      provider: {
+        chatOnce: async (_key: string, input: { tools: unknown[]; messages: { role: string; content: string }[] }) => {
+          seen.push({ tools: input.tools.length, messages: input.messages });
+          const step = script[Math.min(i++, script.length - 1)];
+          if (step.kind === "text") return { kind: "text" as const, text: step.text };
+          return {
+            kind: "calls" as const,
+            assistant: { role: "assistant" as const, content: "" },
+            calls: step.calls,
+          };
+        },
+      },
+    };
+  }
+
+  const baseInput = {
+    apiKey: "k",
+    system: "sys",
+    question: "q",
+    history: [],
+    tools: [{ name: "compute_stats", description: "d", parameters: {} }],
+    execute: async () => "{}",
+    maxTokens: 100,
+    deadline: Date.now() + 60_000,
+    perCallTimeoutMs: 5_000,
+  };
+
+  it("tells the model to answer on the turn where tools are withheld", async () => {
+    // Removing the tools silently made Groq reject the whole request with
+    // 400 tool_use_failed when the model tried to call one anyway.
+    const { provider, seen } = fakeProvider([
+      { kind: "calls", calls: [{ id: "1", name: "compute_stats", arguments: "{}" }] },
+      { kind: "text", text: "final answer" },
+    ]);
+
+    const result = await runToolConversation(provider as never, { ...baseInput, maxIterations: 2 });
+
+    expect(result.answer).toBe("final answer");
+    const forcing = seen.find((s) => s.tools === 0);
+    expect(forcing).toBeDefined();
+    expect(forcing!.messages.at(-1)!.content).toContain("Do not request any more tools");
+  });
+
+  it("does not send the instruction while tools are still on offer", async () => {
+    const { provider, seen } = fakeProvider([{ kind: "text", text: "answered straight away" }]);
+
+    await runToolConversation(provider as never, { ...baseInput, maxIterations: 3 });
+
+    expect(seen[0].tools).toBe(1);
+    expect(seen[0].messages.at(-1)!.content).not.toContain("Do not request any more tools");
+  });
+
+  it("never lets the instruction accumulate in the conversation", async () => {
+    const { provider, seen } = fakeProvider([
+      { kind: "calls", calls: [{ id: "1", name: "compute_stats", arguments: "{}" }] },
+      { kind: "calls", calls: [{ id: "2", name: "compute_stats", arguments: "{}" }] },
+      { kind: "text", text: "done" },
+    ]);
+
+    await runToolConversation(provider as never, { ...baseInput, maxIterations: 2 });
+
+    for (const call of seen) {
+      const count = call.messages.filter((m) => m.content.includes("Do not request any more tools")).length;
+      expect(count).toBeLessThanOrEqual(1);
+    }
+  });
+});
