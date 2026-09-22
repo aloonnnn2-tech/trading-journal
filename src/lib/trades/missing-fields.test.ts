@@ -35,8 +35,24 @@ describe("standard trades", () => {
     ]);
   });
 
-  it("requires entry date even while pending", () => {
-    expect(keys(trade({ status: "pending", entry_date: null }))).toContain("entry_date");
+  it("does not ask for an entry date while the order is still pending", () => {
+    // It has not entered yet; the fill stamps the date.
+    expect(keys(trade({ status: "pending", entry_date: null }))).not.toContain("entry_date");
+    expect(keys(trade({ status: "open", entry_date: null }))).toContain("entry_date");
+    // An expired day order never entered either.
+    expect(keys(trade({ status: "expired", entry_date: null }))).not.toContain("entry_date");
+  });
+
+  it("names a resting order's price the way the card does", () => {
+    const missing = getMissingFields(trade({ status: "pending", order_type: "stop_limit", entry_price: null } as Partial<Trade>), false, []);
+    expect(missing.find((m) => m.key === "entry_price")?.label).toBe("Stop Price (trigger)");
+    const filled = getMissingFields(trade({ status: "open", order_type: "stop_limit", entry_price: null } as Partial<Trade>), false, []);
+    expect(filled.find((m) => m.key === "entry_price")?.label).toBe("Entry Price");
+  });
+
+  it("asks a pending stop-limit for its limit price", () => {
+    expect(keys(trade({ status: "pending", order_type: "stop_limit", limit_price: null } as Partial<Trade>))).toContain("limit_price");
+    expect(keys(trade({ status: "pending", order_type: "stop", limit_price: null } as Partial<Trade>))).not.toContain("limit_price");
   });
 
   it("asks for exit price and date once closed", () => {

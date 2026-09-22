@@ -30,6 +30,7 @@ import { isWatchable } from "@/lib/trades/auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import { pendingReason } from "@/lib/trades/pending-reason";
+import { entryPriceLabels } from "@/lib/trades/order-labels";
 import { nextNumberFieldState } from "@/lib/trades/number-field-input";
 import {
   matchCommissionRule,
@@ -99,12 +100,6 @@ export function TradeCard({
   const isHidden = (field: EditableCoreField) => hidden.has(field);
   const isInvestment = trade.mode === "investment";
 
-  const { handlePriceUpdate, autoExecutionMessage } = useAutoExecuteTrade(
-    trade,
-    isInvestment,
-    updateCoreField,
-    flushNow,
-  );
   // Only worth polling the live price when there's something for it to
   // trigger. isWatchable is the same function the server cron uses to
   // decide which trades to even fetch a price for -- calling it here
@@ -117,6 +112,8 @@ export function TradeCard({
   const watchForAutoExecution = isWatchable(trade);
 
   const missingFields = getMissingFields(trade, isInvestment, hiddenCoreFields);
+  const isPending = trade.status === "pending";
+  const priceLabels = entryPriceLabels(trade.order_type, isPending);
 
   // Entry-information fields that feed each other: typing a share count
   // fills in the dollar amount, a stop fills in the risk amount, and so on.
@@ -157,6 +154,20 @@ export function TradeCard({
   const updateMoneyField = (key: EditableCoreField, value: unknown) => {
     applyMoneyFieldEdits([[key, value]]);
   };
+
+  // The fill of a stop-limit moves entry_price (to the limit leg), and that
+  // must re-derive dollar amount and risk exactly as typing the price would;
+  // every other change a fill makes is a plain field write.
+  const applyAutoExecutionChange = (key: EditableCoreField, value: unknown) => {
+    if (key === "entry_price") updateMoneyField(key, value);
+    else updateCoreField(key, value);
+  };
+  const { handlePriceUpdate, autoExecutionMessage } = useAutoExecuteTrade(
+    trade,
+    isInvestment,
+    applyAutoExecutionChange,
+    flushNow,
+  );
 
   // Computed client-side (rather than read off the saved row) so the chart's
   // break-even line and the fee readout track what's being typed, instead of
@@ -344,7 +355,16 @@ export function TradeCard({
               <select
                 className={inputClass}
                 value={trade.status}
-                onChange={(e) => updateCoreField("status", e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value as Trade["status"];
+                  updateCoreField("status", next);
+                  // Filling a resting order by hand: the entry date is now,
+                  // the same stamp auto-execution applies. Only when blank,
+                  // so a date the user already chose is never overwritten.
+                  if (trade.status === "pending" && (next === "open" || next === "closed") && !trade.entry_date) {
+                    updateCoreField("entry_date", localToday());
+                  }
+                }}
               >
                 <option value="pending">Pending Order</option>
                 <option value="open">Open</option>
@@ -383,15 +403,6 @@ export function TradeCard({
                 />
               </Field>
             )}
-            {/* Only for a stop-limit, which is the one type with two prices:
-                the stop triggers the order, then it rests here. */}
-            {!isInvestment && trade.order_type === "stop_limit" && !isHidden("limit_price") && (
-              <NumberField
-                label="Limit Price"
-                value={trade.limit_price}
-                onChange={(v) => updateCoreField("limit_price", v)}
-              />
-            )}
             {!isInvestment && !isHidden("time_in_force") && (
               <Field label="Time in force">
                 <select
@@ -405,17 +416,29 @@ export function TradeCard({
               </Field>
             )}
             {!isInvestment && (
-              <Field label="Result">
-                <select
-                  className={inputClass}
-                  value={trade.result}
-                  onChange={(e) => updateCoreField("result", e.target.value)}
-                >
-                  <option value="open">Open</option>
-                  <option value="win">Win</option>
-                  <option value="loss">Loss</option>
-                  <option value="break_even">Break Even</option>
-                </select>
+              <Field
+                label="Result"
+                tooltip={isPending ? "A resting order has no result yet. This unlocks when the order fills." : undefined}
+              >
+                {isPending ? (
+                  // The row keeps the enum's neutral "open" underneath; what
+                  // the user sees follows the status, because "Open" on an
+                  // order that has not filled reads as a live position.
+                  <select className={inputClass} value="pending" disabled aria-label="Result: pending order">
+                    <option value="pending">Pending order</option>
+                  </select>
+                ) : (
+                  <select
+                    className={inputClass}
+                    value={trade.result}
+                    onChange={(e) => updateCoreField("result", e.target.value)}
+                  >
+                    <option value="open">Open</option>
+                    <option value="win">Win</option>
+                    <option value="loss">Loss</option>
+                    <option value="break_even">Break Even</option>
+                  </select>
+                )}
               </Field>
             )}
           </div>
@@ -527,16 +550,24 @@ export function TradeCard({
         </div>
 
         <div className={activeExtra === "dates" ? "grid gap-4 sm:grid-cols-2" : "hidden"}>
-          {!isHidden("entry_date") && (
-            <Field label="Entry Date">
-              <input
-                type="date"
-                className={inputClass}
-                value={trade.entry_date?.slice(0, 10) ?? ""}
-                onChange={(e) => updateCoreField("entry_date", e.target.value || null)}
-              />
-            </Field>
-          )}
+          {!isHidden("entry_date") &&
+            (isPending && !trade.entry_date ? (
+              // Not asked for yet: the order has not entered. The fill stamps
+              // it (auto-execution, or the status change above). A date the
+              // user already set stays editable.
+              <Field label="Entry Date">
+                <p className={`${inputClass} text-zinc-500`}>Set when the order fills</p>
+              </Field>
+            ) : (
+              <Field label="Entry Date">
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={trade.entry_date?.slice(0, 10) ?? ""}
+                  onChange={(e) => updateCoreField("entry_date", e.target.value || null)}
+                />
+              </Field>
+            ))}
           {!isHidden("exit_date") && (
             <Field label="Exit Date">
               <input
@@ -741,9 +772,26 @@ export function TradeCard({
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {!isHidden("entry_price") && (
               <NumberField
-                label="Entry Price"
+                label={priceLabels.entry}
+                tooltip={priceLabels.entryTip}
                 value={trade.entry_price}
                 onChange={(v) => updateMoneyField("entry_price", v)}
+              />
+            )}
+            {/* The stop-limit's second leg, next to the trigger it belongs
+                with. It used to sit alone up in the header beside the
+                dropdowns, with the trigger labelled "Entry Price" three
+                cards lower -- which read as the order having only a limit. */}
+            {trade.order_type === "stop_limit" && !isHidden("limit_price") && (
+              <NumberField
+                label="Limit Price"
+                tooltip={
+                  isPending
+                    ? "Once the stop price is touched, the order rests as a limit here. This is the price it will fill at."
+                    : "The limit leg the order rested at after its stop triggered."
+                }
+                value={trade.limit_price}
+                onChange={(v) => updateCoreField("limit_price", v)}
               />
             )}
             {!isHidden("exit_price") && (
@@ -830,6 +878,12 @@ export function TradeCard({
       )}
     </div>
   );
+}
+
+/** Today as YYYY-MM-DD in the browser's zone -- the shape the date input stores. */
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function Field({

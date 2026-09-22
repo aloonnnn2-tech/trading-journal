@@ -1,3 +1,4 @@
+import { entryPriceLabels } from "./order-labels";
 import type { EditableCoreField, Trade } from "./types";
 
 export interface MissingField {
@@ -15,6 +16,7 @@ const LABELS: Partial<Record<EditableCoreField, string>> = {
   entry_price: "Entry Price",
   stop_loss: "Stop Loss",
   entry_date: "Entry Date",
+  limit_price: "Limit Price",
   exit_price: "Exit Price",
   exit_date: "Exit Date",
   dollar_amount: "Dollar Amount",
@@ -22,10 +24,14 @@ const LABELS: Partial<Record<EditableCoreField, string>> = {
   position_size: "Position Size",
 };
 
-// Entry date is always required, regardless of pending/open/closed status --
-// a trade needs a "when" from the moment it's logged, not just once it's
-// filled.
-const TRADE_REQUIRED: EditableCoreField[] = ["ticker", "direction", "entry_price", "stop_loss", "entry_date"];
+// Entry date is required once the trade EXISTS -- open or closed. A pending
+// order has not entered yet: its entry date is the fill date, which the app
+// stamps automatically when the order executes (auto-execute.ts) or when
+// the user flips the status by hand (TradeCard). Asking for it earlier made
+// people type the day they placed the order, which then read as a hold
+// period that never happened.
+const TRADE_REQUIRED: EditableCoreField[] = ["ticker", "direction", "entry_price", "stop_loss"];
+const FILLED_REQUIRED: EditableCoreField[] = ["entry_date"];
 // Investment mode hides the entire "Entry information" card (entry/exit
 // price, shares, position size, dollar amount, risk fields are all
 // `{!isInvestment && ...}` in TradeCard) -- an investment's cost basis and
@@ -64,14 +70,24 @@ export function getMissingFields(
   };
 
   const required = [...(isInvestment ? INVESTMENT_REQUIRED : TRADE_REQUIRED)];
+  // Only a trade that actually entered has an entry date: not a resting
+  // order, and not a day order that expired without filling.
+  if ((trade.status === "open" || trade.status === "closed") && !isInvestment) required.push(...FILLED_REQUIRED);
+  // A stop-limit is the one order with two prices; without the limit leg the
+  // order cannot fill (auto-execute refuses to guess), so it is as required
+  // as the trigger.
+  if (!isInvestment && trade.status === "pending" && trade.order_type === "stop_limit") required.push("limit_price");
   if (trade.status === "closed") {
     required.push(...(isInvestment ? INVESTMENT_CLOSED_REQUIRED : CLOSED_REQUIRED));
   }
 
   const missing: MissingField[] = [];
+  // The checklist must name the box the way the card does: a pending
+  // stop-limit's entry_price is labelled "Stop Price (trigger)" there.
+  const entryLabel = entryPriceLabels(trade.order_type, trade.status === "pending").entry;
   for (const key of required) {
     if (hidden.has(key)) continue;
-    if (isEmpty(key)) missing.push({ key, label: LABELS[key] ?? key });
+    if (isEmpty(key)) missing.push({ key, label: key === "entry_price" ? entryLabel : (LABELS[key] ?? key) });
   }
 
   // Sizing (shares/position size/dollar amount) isn't an investment-mode

@@ -109,6 +109,9 @@ export interface AutoExecutionDecision {
   /** Field updates to apply. */
   changes: {
     status: "open" | "closed" | "expired";
+    /** Set when the fill price differs from the resting price (a stop-limit
+     *  fills at its limit, not at the stop that triggered it). */
+    entry_price?: number;
     entry_date?: string;
     exit_price?: number;
     exit_date?: string;
@@ -158,6 +161,12 @@ export function decideAutoExecution(
     return {
       changes: {
         status: "open",
+        // The journal's entry price is what the trade actually cost. For
+        // every type but stop-limit that is the resting price already; a
+        // stop-limit fills at its limit leg, and P&L, R and the chart's
+        // entry line must start from there, not from the stop that only
+        // woke the order up.
+        ...(filled !== trade.entry_price ? { entry_price: filled } : {}),
         ...(trade.entry_date ? {} : { entry_date: now.toISOString() }),
       },
       trigger: "entry",

@@ -106,10 +106,18 @@ describe("stop orders", () => {
 describe("stop-limit orders", () => {
   const buy = { order_type: "stop_limit" as const, direction: "long" as const, limit_price: 102 };
 
-  it("fills at the LIMIT price, not at the stop price", () => {
-    // The stop only triggers the order. The fill happens at the limit.
+  it("fills at the LIMIT price, not at the stop price -- and records it as the entry", () => {
+    // The stop only triggers the order. The fill happens at the limit, and
+    // that is the price the journal must carry as the entry: the first
+    // version reported 102 in the banner but left entry_price at the stop.
     const d = decideAutoExecution(resting(buy), { dayLow: 99, dayHigh: 105 }, NOW);
     expect(d?.price).toBe(102);
+    expect(d?.changes.entry_price).toBe(102);
+  });
+
+  it("a plain limit or stop fill leaves entry_price alone -- it already is the fill", () => {
+    const d = decideAutoExecution(resting({ order_type: "limit", direction: "long" }), { dayLow: 98, dayHigh: 103 }, NOW);
+    expect(d?.changes.entry_price).toBeUndefined();
   });
 
   it("does not fill when the stop was never touched", () => {
