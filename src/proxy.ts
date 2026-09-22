@@ -190,6 +190,41 @@ const ANON_API_RATE_LIMIT = 60;
 const CSP_REPORT_PATH = "/api/csp-report";
 const CSP_REPORT_RATE_LIMIT = 120;
 
+// ---- Cross-site request forgery ---------------------------------------
+//
+// Every /api route authenticates by cookie, and route handlers -- unlike
+// Server Actions -- do no Origin check of their own. Until now the only thing
+// stopping evil.example from POSTing `{provider: "openai", scope: "chat_v2"}`
+// to /api/ai-keys/consent with the victim's cookies was the session cookie's
+// SameSite=Lax default (which the Supabase client sets, and nothing here had
+// pinned). One default is a thin wall for "agree to send my journal to a
+// third party", so this is the second: a state-changing API request must
+// come from this site.
+//
+// Browsers send `Sec-Fetch-Site` on every request and `Origin` on every
+// cross-origin one and every non-GET. A request that carries neither is not
+// from a browser page (a cron ping, curl) and is not a CSRF vector, so it is
+// let through -- the check is "if the browser told us where this came from,
+// it had better be here", not "prove you are a browser".
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+export function isCrossSite(request: Pick<NextRequest, "headers">): boolean {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite === "cross-site") return true;
+  if (fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none") return false;
+
+  const origin = request.headers.get("origin");
+  if (!origin || origin === "null") return origin === "null";
+  // Compare hosts rather than nextUrl.origin: behind the platform's proxy the
+  // scheme Next sees can differ from the one the browser used.
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  try {
+    return new URL(origin).host !== host;
+  } catch {
+    return true;
+  }
+}
+
 // The CSP is ENFORCED by default. Set CSP_REPORT_ONLY=true to fall back to the
 // report-only header instead -- an env-level kill switch, so if a missed origin
 // ever surfaces in production the policy can be softened from the Netlify
@@ -211,6 +246,10 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Pinned rather than left to the library default: SameSite=Lax is one
+      // of the two things standing between a cross-site page and this app's
+      // cookie-authenticated API (see isCrossSite).
+      cookieOptions: { sameSite: "lax" },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -243,6 +282,9 @@ export async function proxy(request: NextRequest) {
     );
     if (limited) return limited;
   } else if (request.nextUrl.pathname.startsWith("/api/")) {
+    if (!SAFE_METHODS.has(request.method) && isCrossSite(request)) {
+      return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 });
+    }
     const limited = data.user
       ? await enforceRateLimit(`api:${data.user.id}`, API_RATE_LIMIT, API_RATE_WINDOW_MS)
       : await enforceRateLimit(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiKeyCreateSchema, askAiSchema } from "./schema";
+import { apiKeyCreateSchema } from "./schema";
 
 const VALID_KEY = "sk-proj-abc123DEF456ghi789jkl";
 
@@ -69,36 +69,5 @@ describe("apiKeyCreateSchema", () => {
       label: "l".repeat(61),
     });
     expect(result.success).toBe(false);
-  });
-});
-
-describe("askAiSchema", () => {
-  const keyId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
-
-  it("accepts a normal question", () => {
-    const parsed = askAiSchema.parse({ question: "  What is my best day?  ", keyId });
-    expect(parsed.question).toBe("What is my best day?");
-  });
-
-  it("rejects an empty or near-empty question", () => {
-    for (const question of ["", "   ", "hi"]) {
-      expect(askAiSchema.safeParse({ question, keyId }).success).toBe(false);
-    }
-  });
-
-  it("bounds the question length", () => {
-    // The question is appended after the journal context, so an unbounded
-    // value costs the user tokens on their own key and is the obvious place
-    // to paste a wall of injected instructions.
-    expect(askAiSchema.safeParse({ question: "q".repeat(1001), keyId }).success).toBe(false);
-    expect(askAiSchema.safeParse({ question: "q".repeat(1000), keyId }).success).toBe(true);
-  });
-
-  it("requires a real key id", () => {
-    for (const bad of ["", "not-a-uuid", 123, null]) {
-      expect(askAiSchema.safeParse({ question: "What is my best day?", keyId: bad }).success).toBe(
-        false,
-      );
-    }
   });
 });

@@ -1,5 +1,6 @@
 import { PROVIDER_MODELS } from "../types";
 import { assertModelAvailable } from "./model-check";
+import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
   ProviderError,
@@ -7,6 +8,7 @@ import {
   errorDetail,
   failureFromStatus,
   providerFetch,
+  retryAfterSeconds,
   type AIProvider,
   type AskOptions,
   type ChatMessage,
@@ -81,6 +83,33 @@ const MAX_TOKENS = 4000;
 // this is the provider-specific cost of getting there.
 const THINKING_HEADROOM = 2000;
 
+/** The request body shared by chatOnce and chatStream, so the two never drift. */
+function chatBody(input: ChatOnceInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model: MODEL,
+    max_tokens: (input.maxTokens ?? MAX_TOKENS) + THINKING_HEADROOM,
+    output_config: { effort: "low" },
+    // Thinking is OFF on the chat path, deliberately. With it on, a tool-use
+    // turn comes back with thinking blocks that must be echoed verbatim when
+    // the tool results are sent, or the API rejects the request -- and the
+    // neutral transcript stored in ai_messages carries text and calls only.
+    // Storing opaque signed blocks per provider is not worth the small
+    // quality gain on lookups; `effort: low` already keeps spend down.
+    thinking: { type: "disabled" },
+    system: input.system,
+    messages: toAnthropicMessages(input.messages),
+  };
+  if (input.tools.length > 0) {
+    body.tools = input.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters,
+    }));
+    body.tool_choice = { type: "auto" };
+  }
+  return body;
+}
+
 export const anthropicProvider: AIProvider = {
   name: "anthropic",
   model: MODEL,
@@ -128,10 +157,7 @@ export const anthropicProvider: AIProvider = {
           output_config: { effort: "low" },
           // `system` is a top-level parameter here, not a message role.
           system: systemPrompt,
-          // Earlier turns first, then the question being asked now. Anthropic's
-          // roles are already "user"/"assistant", so ChatTurn maps straight
-          // through with no translation.
-          messages: [...(options?.history ?? []), { role: "user", content: question }],
+          messages: [{ role: "user", content: question }],
         }),
       },
       options?.timeoutMs ?? ASK_TIMEOUT_MS,
@@ -169,6 +195,15 @@ export const anthropicProvider: AIProvider = {
       .join("")
       .trim();
 
+    // max_tokens bounds thinking AND reply here, so a budget failure looks
+    // like an empty (or cut-off) message. Without this it was reported as the
+    // generic "try a different key", pointing at a key that is fine.
+    if (json?.stop_reason === "max_tokens") {
+      throw new ProviderError(
+        "truncated",
+        `stopped at the token ceiling after ${text.length} chars`,
+      );
+    }
     if (text === "") {
       throw new ProviderError("failed", `empty message: ${JSON.stringify(json).slice(0, 300)}`);
     }
@@ -176,21 +211,7 @@ export const anthropicProvider: AIProvider = {
   },
 
   async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
-    const body: Record<string, unknown> = {
-      model: MODEL,
-      max_tokens: (input.maxTokens ?? MAX_TOKENS) + THINKING_HEADROOM,
-      output_config: { effort: "low" },
-      system: input.system,
-      messages: toAnthropicMessages(input.messages),
-    };
-    if (input.tools.length > 0) {
-      body.tools = input.tools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.parameters,
-      }));
-      body.tool_choice = { type: "auto" };
-    }
+    const body = chatBody(input);
 
     const res = await providerFetch(
       `${BASE}/messages`,
@@ -236,5 +257,129 @@ export const anthropicProvider: AIProvider = {
       throw new ProviderError("failed", `empty message: ${JSON.stringify(json).slice(0, 300)}`);
     }
     return { kind: "text", text: textOut };
+  },
+
+  async chatStream(
+    apiKey: string,
+    input: ChatOnceInput,
+    onText: (delta: string) => void,
+    signal?: AbortSignal,
+  ): Promise<ChatResult> {
+    const body = { ...chatBody(input), stream: true };
+
+    const timeout = AbortSignal.timeout(input.timeoutMs ?? ASK_TIMEOUT_MS);
+    const combined = signal ? AbortSignal.any([timeout, signal]) : timeout;
+
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/messages`, {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        redirect: "error", // see providerFetch
+        signal: combined,
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      throw new ProviderError("unavailable", `network: ${reason}`);
+    }
+
+    if (!res.ok) {
+      throw new ProviderError(failureFromStatus(res.status), await errorDetail(res), retryAfterSeconds(res));
+    }
+
+    // Anthropic streams content blocks by index. Text blocks arrive as
+    // text_delta; tool_use blocks arrive as a start (id + name) followed by
+    // input_json_delta fragments that are concatenated and parsed at the end.
+    let text = "";
+    let stopReason: string | null = null;
+    const blocks = new Map<number, { kind: "text" | "tool_use"; id?: string; name?: string; json: string }>();
+
+    try {
+      for await (const { event, data } of sseData(res, combined)) {
+        let json: unknown;
+        try {
+          json = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        const j = json as {
+          type?: string;
+          index?: number;
+          content_block?: { type?: string; id?: string; name?: string };
+          delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string };
+          error?: { type?: string; message?: string };
+        };
+        const type = j.type ?? event;
+
+        if (type === "error") {
+          const message = j.error?.message ?? "stream error";
+          const failure = /rate|limit|overloaded|capacity/i.test(message) ? "unavailable" : "failed";
+          throw new ProviderError(failure, `stream error: ${message.slice(0, 300)}`);
+        }
+        if (type === "content_block_start" && typeof j.index === "number") {
+          const cb = j.content_block;
+          blocks.set(j.index, {
+            kind: cb?.type === "tool_use" ? "tool_use" : "text",
+            id: cb?.id,
+            name: cb?.name,
+            json: "",
+          });
+        } else if (type === "content_block_delta" && typeof j.index === "number") {
+          const d = j.delta;
+          if (d?.type === "text_delta" && typeof d.text === "string") {
+            text += d.text;
+            onText(d.text);
+          } else if (d?.type === "input_json_delta" && typeof d.partial_json === "string") {
+            const b = blocks.get(j.index);
+            if (b) b.json += d.partial_json;
+          }
+        } else if (type === "message_delta") {
+          if (j.delta?.stop_reason) stopReason = j.delta.stop_reason;
+        } else if (type === "message_stop") {
+          break;
+        }
+      }
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      throw new ProviderError("unavailable", `stream: ${reason}`);
+    }
+
+    if (stopReason === "refusal") {
+      throw new ProviderError("failed", "refusal");
+    }
+
+    const toolBlocks = [...blocks.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, b]) => b)
+      .filter((b) => b.kind === "tool_use" && b.name);
+    if (toolBlocks.length > 0) {
+      const calls: ToolCall[] = toolBlocks.map((b) => {
+        let args: Record<string, unknown> = {};
+        try {
+          const parsed = b.json.trim() ? JSON.parse(b.json) : {};
+          if (parsed && typeof parsed === "object") args = parsed as Record<string, unknown>;
+        } catch {
+          // Unparseable arguments: surface the call with empty args so the
+          // executor's own validation reports the problem to the model.
+        }
+        return { id: b.id ?? b.name!, name: b.name!, args };
+      });
+      return {
+        kind: "tool_calls",
+        calls,
+        assistant: { role: "assistant", content: text.trim(), toolCalls: calls },
+      };
+    }
+
+    const out = text.trim();
+    if (stopReason === "max_tokens") {
+      throw new ProviderError("truncated", `stopped at the token ceiling after ${out.length} chars`);
+    }
+    if (out === "") {
+      throw new ProviderError("failed", "empty streamed message");
+    }
+    return { kind: "text", text: out };
   },
 };

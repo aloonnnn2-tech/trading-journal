@@ -13,6 +13,23 @@ export const AI_PROVIDERS = [
 
 export type AIProviderName = (typeof AI_PROVIDERS)[number];
 
+/**
+ * Providers that can no longer be used, kept in AI_PROVIDERS so historical
+ * rows still resolve through getProvider() instead of crashing.
+ *
+ * GitHub Models began a retirement brownout: both endpoints this app uses
+ * answer 410 with
+ *   {"error":{"code":"github_models_retirement_brownout", ...}}
+ * so a key can neither be validated nor used. Offering it produced a dead end
+ * -- validateKey sees 410, classifies it "failed", and the save route tells
+ * the user it is "a temporary outage, try again in a moment", which will never
+ * come true. Do not re-add it without checking those endpoints first.
+ */
+export const RETIRED_PROVIDERS: ReadonlySet<AIProviderName> = new Set(["github"]);
+
+/** The providers a user may actually pick. Everything user-facing uses this. */
+export const SELECTABLE_PROVIDERS = AI_PROVIDERS.filter((p) => !RETIRED_PROVIDERS.has(p));
+
 export const PROVIDER_LABELS: Record<AIProviderName, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
@@ -86,7 +103,7 @@ export const FREE_TIER_PROVIDERS: ReadonlySet<AIProviderName> = new Set([
   "google",
   "mistral",
   "sambanova",
-  "github",
+  // "github" was here until its retirement brownout -- see RETIRED_PROVIDERS.
 ]);
 
 /**

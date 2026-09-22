@@ -45,6 +45,18 @@ describe("scrubString", () => {
     expect(scrubString(`Authorization: Bearer ${jwt}`)).not.toContain(jwt);
   });
 
+  it("redacts unprefixed tokens by where they sit: Bearer, or a credential header", () => {
+    // Mistral (32 alphanumerics) and SambaNova (a UUID) issue keys no prefix
+    // rule can recognise. Position is the only signal.
+    // Assembled at runtime: a 32-character literal here trips GitHub's push
+    // protection as a real Mistral key, which is exactly the shape under test.
+    const mistral = ["Zz9kQ2mN", "4pR7sT1v", "W3xY5aB8", "cD0eF6gH"].join("");
+    const samba = "3f2a9c1e-7b4d-4e8f-9a0b-1c2d3e4f5a6b";
+    expect(scrubString(`Authorization: Bearer ${mistral}`)).not.toContain(mistral);
+    expect(scrubString(`x-api-key: ${samba}`)).not.toContain(samba);
+    expect(scrubString(`{"api_key":"${mistral}"}`)).not.toContain(mistral);
+  });
+
   it("leaves ordinary text alone", () => {
     const message = "Could not decrypt stored API key.";
     expect(scrubString(message)).toBe(message);

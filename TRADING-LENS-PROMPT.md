@@ -310,7 +310,7 @@ plan does not do is the one failure mode it cannot have.
 | `/insights` | Find My Edge (the deviation table and mistake tracker stay free) |
 | `/strategies` | scorecards (the win-rate table stays free) |
 | `/trades/[id]` | AI Trade Review, trade excursions |
-| API | `ai-keys/*`, `ai-reviews/*`, `ask-ai`, `excursions` |
+| API | `ai-keys/*`, `ai-reviews/*`, `chat/*`, `excursions` |
 
 **Explicitly free, and must not be advertised as paid:** plan rules, the
 mistake tracker, suggested tags, goals, the trade timeline.
@@ -324,10 +324,11 @@ runs on the user's own key, on their own bill. There is no fallback key, no
 proxy key, and no silent substitution of one provider for another.
 
 ### Keys and consent
-- **Six providers**: OpenAI, Anthropic, Google AI Studio, Groq, OpenRouter,
-  Cerebras. Four have standing free tiers (Groq, Cerebras, OpenRouter `:free`
-  models, Google) and are surfaced as such — the feature is fully usable
-  without paying anyone
+- **Eight selectable providers**: OpenAI, Anthropic, Google AI Studio, Groq,
+  OpenRouter, Cerebras, Mistral, SambaNova. Six have standing free tiers
+  (everything but OpenAI and Anthropic) and are surfaced as such — the feature
+  is fully usable without paying anyone. Groq's `openai/gpt-oss-120b` is the
+  owner's day-to-day model
 - Keys are **AES-256-GCM encrypted at rest** under a server-only
   `AI_KEY_ENCRYPTION_SECRET`. Only the last 4 characters ever reach the client.
   Decryption happens server-side, immediately before the provider call
@@ -338,16 +339,21 @@ proxy key, and no silent substitution of one provider for another.
   a useful message rather than at question time with a confusing one
 - A key the provider later rejects is **parked automatically**, because keys are
   verified once and never re-checked
-- **Consent is recorded per provider** (`ai_provider_consents`), not per user
-  and not per browser. Agreeing to send your journal to Groq is not agreement to
-  send it to OpenAI. Enforced server-side on every request
+- **Consent is recorded per provider and per scope** (`ai_provider_consents`,
+  PK `(user_id, provider, scope)` since 0047), not per user and not per
+  browser. Agreeing to send your journal to Groq is not agreement to send it
+  to OpenAI, and agreeing to the review paths (`journal_v1`: one trade or one
+  period) is not agreement to the chat (`chat_v2`: live lookups over the
+  whole journal, saved conversations). Enforced server-side on every request
+- **GitHub Models is retired** (`RETIRED_PROVIDERS`): kept in `AI_PROVIDERS`
+  so old rows still resolve, refused by the key and consent endpoints
 
 ### Shared plumbing
 - `requirePaidUser()` — auth then plan, 401 before 403 so an anonymous caller is
   never told anything about plans
-- `preflightProviderCall(supabase, keyId, userId)` — encryption configured, key
-  resolvable and owner-bound, provider consented. Nothing leaves the server
-  before this passes
+- `preflightProviderCall(supabase, keyId, userId, scope)` — encryption
+  configured, key resolvable and owner-bound, provider consented under that
+  scope. Nothing leaves the server before this passes
 - `providerErrorResponse()` — maps failures to distinct, actionable messages:
   bad key / retired model / out of room / provider down / unknown. **Provider
   error bodies are logged, never returned** — they can echo request content,
@@ -355,32 +361,52 @@ proxy key, and no silent substitution of one provider for another.
 - Sliding-window rate limiting, per user, per warm instance
 
 ### 1. Ask Your Journal — `/ask`
-Free-text questions answered from the user's real history, **as a
-conversation** — follow-ups keep the thread, so "why?" and "break that down"
-work.
+A persistent chat in which the model reaches the user's journal through
+**tools**, not a text dump. Conversations are stored (`ai_conversations`,
+`ai_messages`, 0047) and survive reload; the list on the left is per user,
+capped at 50, oldest pruned on create.
 
-- The journal is rendered into the *system prompt* and **rebuilt fresh every
-  turn**, so a follow-up asked after logging a trade sees that trade. Only the
-  words exchanged accumulate in history
-- **History and journal share one character budget**, because both are re-sent
-  on every turn and both bill the same per-minute allowance. History may take
-  35%; oldest turns drop first, whole turns only; the journal never falls below
-  8,000 chars
-- **The budget is per provider**, sized against tokens-per-*minute* rather than
-  the context window, which is almost never what fails:
-
-| Provider | Budget | Why |
-|---|---|---|
-| Anthropic | 120k chars | Pay-as-you-go, large window, no meaningful TPM ceiling |
-| OpenAI | 100k chars | Same |
-| Google AI Studio | 100k chars | Free tier, but limits are RPM far more than TPM |
-| OpenRouter | 30k chars | `:free` models vary by upstream |
-| Groq | 20k chars | **8,000 tokens/minute free tier — the binding constraint** |
-| Cerebras | 20k chars | Same shape |
-
-- The journal is emitted newest-first in full detail until the budget is spent,
-  then one line each, with the prompt stating honestly how many were
-  abbreviated. Aggregates are computed over every row regardless
+- **The browser drives the loop; the server does one model round per
+  request.** `POST /api/chat/conversations/[id]/turn` takes `{mode: "send",
+  message}` or `{mode: "continue"}`, streams NDJSON events (`text_delta`,
+  `tool_call`, `tool_result`, `message_end`, `done {next}`), and returns
+  within ~22 s. When the model asks for tools the server runs them, persists
+  the results, and answers `done {next: "continue"}`; the client calls again.
+  This is what gets past Netlify's 26-second ceiling: a question that needs
+  eight lookups takes eight short requests instead of one that cannot fit
+- **The transcript is server-owned.** The model's messages are rebuilt from
+  `ai_messages` rows this server wrote; the browser sends only the new
+  message. A client can therefore never forge a tool result. Persisting at
+  unit boundaries (assistant row, then each tool row) means a cut request
+  loses at most one model call, and the next turn **re-enters**: an assistant
+  tool-call row with no results is executed before anything else -- before a
+  new question is appended -- because every provider rejects a transcript
+  with a gap there
+- **Thirteen read tools** (`src/lib/ai-keys/tools/`): query_trades,
+  compute_stats, get_trade, get_trade_history, get_account, list_strategies,
+  list_custom_fields, list_folders, list_commission_rules, get_settings,
+  get_period_report, get_report (ten analytics kinds behind one enum, because
+  every tool definition costs ~200 prompt tokens per turn), get_reviews. All
+  run on the RLS client through one per-request `TradeStore`; outputs are
+  allowlisted (no `user_id`, `dismissed_suggestions`, `commission_manual`)
+  and sized to the tier's ceiling -- an oversized page is cut to fit and says
+  so, an oversized single result becomes an error the model can read
+- **Tiers (`tier.ts`).** Free tiers are limited per *minute* and every turn
+  re-sends the conversation, so the policy bounds history (7k chars on Groq),
+  tool output (6k), automatic tool rounds before "keep going?" (3), and offers
+  a compact tool set with shorter descriptions. Paid keys get 40k / 24k / 6
+  and the full set. Google AI Studio's free tier is RPM-bound, so it gets the
+  full set. The server's hard ceiling is 25 rounds per message
+- **Trimming is by round, never by row** (`chat/trim.ts`): an assistant
+  tool-call and its results travel together; the current question is never
+  trimmed; earlier questions lose tool bodies first, then whole rounds
+- **Streaming** is per provider (`chatStream`) over a shared SSE reader.
+  Tool calls are assembled whole before they are surfaced; a half-received
+  call is never executed. Stop aborts upstream; partial text persists as
+  `interrupted` and is labelled so; a stranded turn offers **Resume**
+- Tool-call ids are unique per conversation (`syntheticToolCallId` where a
+  provider issues none) because `(conversation_id, tool_call_id)` is unique
+  and pairs each result to its call
 - **The prompt is a coach, not a search box.** It may draw on general trading
   knowledge (labelled as such), give direct "this is costing you money" advice,
   and take the length a question deserves. It may **not** fabricate a number,
@@ -450,17 +476,22 @@ both a wall clock and the size of what must be resent, and it sends **only** the
 malformed reply and the schema, never the journal again.
 
 ### The provider interface
-`askQuestion(apiKey, systemPrompt, question, options?)` across three
-implementations — `anthropic.ts`, `google.ts`, `openai-compatible.ts` (which
-backs OpenAI, Groq, OpenRouter and Cerebras).
+Three implementations — `anthropic.ts`, `google.ts`, `openai-compatible.ts`
+(which backs OpenAI, Groq, OpenRouter and Cerebras) — behind one neutral shape
+(`providers/types.ts`):
 
-`options` carries `{ maxTokens, timeoutMs, history }`. **`history` is where
-multi-turn lives**, and each provider maps it differently: Anthropic passes
-`user`/`assistant` straight through, **Google needs `assistant` → `model` and
-text wrapped in `parts[]`**, OpenAI-compatible slots it between the system
-message and the live question. `MAX_ANSWER_TOKENS` is 2,500 — sized with
-headroom because several defaults are *reasoning* models that spend tokens
-thinking out of the same budget.
+- `askQuestion(apiKey, systemPrompt, question, options?)` — single-shot, used
+  by the review routes. `options` is `{ maxTokens, timeoutMs }`
+- `chatOnce(apiKey, input)` / `chatStream(apiKey, input, onText, signal)` —
+  one tool-aware round over a neutral `ChatMessage[]`, used by the chat. Each
+  adapter translates to its own wire format: OpenAI pairs tool results by
+  `tool_call_id`, Anthropic by `tool_use_id` inside a user turn, **Google by
+  function NAME** (it has no ids; the neutral tool message carries `toolName`
+  for that reason). Anthropic runs the chat with thinking disabled so its
+  tool-use turns can be echoed back from the neutral transcript
+
+`MAX_ANSWER_TOKENS` is 2,500 — sized with headroom because several defaults
+are *reasoning* models that spend tokens thinking out of the same budget.
 
 ### Prompt safety
 Every system prompt states that journal text — including notes the trader wrote
@@ -606,7 +637,10 @@ Brought up in the 7 Sep pass; keep it there.
 1. **Migrations are applied by hand.** A file in git is not a live migration —
    check before assuming a newly added table or column exists
 2. **No billing.** `plan` is set manually with the service-role key
-3. **CSP is Report-Only**, not enforcing
+3. **CSP is enforcing** (since 2026-09-14). `CSP_REPORT_ONLY=true` is the
+   kill switch. `connect-src` does not include any AI provider on purpose:
+   every model call goes through `/api/*`, which is also what keeps the key
+   server-side
 4. **Rate limiting is per warm serverless instance**, not global
 5. **26-second request ceiling.** AI routes budget ~22s for provider work
 6. **Provider model IDs go stale silently.** A retired model surfaces as a
@@ -630,8 +664,13 @@ Brought up in the 7 Sep pass; keep it there.
 13. **Writing to `trades` spends edit history.** See the trigger note
 14. **`crypto.ts` imports `server-only`**, so any script importing it needs
     `tsx --conditions=react-server` (this broke `verify:ai-secret` once)
-15. **Ask conversation history costs the same budget as the journal.** Raising
-    one shrinks the other; on Groq's 8k TPM tier there is very little slack
+15. **Every chat turn re-sends the conversation.** On Groq's 8k
+    tokens/minute tier the history budget, tool-output ceiling and round gate
+    in `tier.ts` are what keep a multi-lookup question under the limit;
+    raising one spends the slack of the others
+16. **Any migration that creates a table must be added to
+    `scripts/db-tables.ts`**, or the nightly backup silently omits it. This
+    has happened twice
 
 ---
 

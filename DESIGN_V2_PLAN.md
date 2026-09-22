@@ -285,7 +285,10 @@ There are **no `data-testid` attributes anywhere in `src/`**, so class names are
 | `analytics/regime-panel.tsx` | todo |
 | `analytics/risk-panel.tsx` | todo |
 | `ask/answer-text.tsx` | todo |
-| `ask/ask-manager.tsx` | todo |
+| `ask/chat-shell.tsx` | todo |
+| `ask/conversation-list.tsx` | todo |
+| `ask/message-list.tsx` | todo |
+| `ask/key-manager.tsx` | todo |
 | `ask/key-form.tsx` | todo |
 | `commissions/commission-manager.tsx` | todo |
 | `dashboard/account-cash-card.tsx` | todo |

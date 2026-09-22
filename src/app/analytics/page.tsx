@@ -15,13 +15,11 @@ import { RiskPanel, RiskUpsell } from "./risk-panel";
 import { PerformancePanel, PerformanceUpsell } from "./performance-panel";
 import { DrawdownPanel, DrawdownUpsell } from "./drawdown-panel";
 import { buildDrawdownReport } from "@/lib/drawdown/episodes";
-import { buildEquityCurve, type EquityEvent } from "@/lib/equity/build";
+import { getEquityCurve } from "@/lib/equity/queries";
 import { getRiskReport } from "@/lib/risk/queries";
 import { getRegimeReport } from "@/lib/regime/queries";
 import { isPaidUser } from "@/lib/settings/plan";
-import { fetchAllRows } from "@/lib/supabase/fetch-all";
-import { listExcursions } from "@/lib/excursions/queries";
-import { buildExcursionReport, type ExcursionTrade } from "@/lib/excursions/aggregate";
+import { getExcursionReport } from "@/lib/excursions/report";
 
 function money(n: number): string {
   return `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
@@ -54,82 +52,15 @@ export default async function AnalyticsPage() {
     ? Promise.all([
         getRegimeReport(supabase).catch(() => null),
         getRiskReport(supabase).catch(() => null),
-        // Trades and cash movements merged into one series, so account growth
-        // and trading performance can be told apart.
-        (async () => {
-          const [trades, cash] = await Promise.all([
-            fetchAllRows<{ exit_date: string; dollar_pl: number | null; r_multiple: number | null }>(
-              (from, to) =>
-                supabase
-                  .from("trades")
-                  .select("exit_date, dollar_pl, r_multiple")
-                  .eq("status", "closed")
-                  .not("exit_date", "is", null)
-                  .neq("mode", "investment")
-                  .order("exit_date", { ascending: true })
-                  .order("id", { ascending: true })
-                  .range(from, to),
-            ),
-            // Awaited rather than chained: a PostgREST builder is a thenable,
-            // not a Promise, so it has no .catch of its own.
-            (async () => {
-              const result = await supabase
-                .from("account_transactions")
-                .select("amount, created_at")
-                .order("created_at");
-              return (result.data ?? []) as { amount: number; created_at: string }[];
-            })().catch(() => [] as { amount: number; created_at: string }[]),
-          ]);
-
-          const events: EquityEvent[] = [
-            ...trades.map((t) => ({ at: t.exit_date, pl: t.dollar_pl, r: t.r_multiple })),
-            ...cash.map((c) => ({ at: c.created_at, cash: Number(c.amount) })),
-          ];
-          return buildEquityCurve(events);
-        })().catch(() => null),
+        // Trades and cash movements merged into one series (src/lib/equity/queries.ts,
+        // shared with the AI tools).
+        getEquityCurve(supabase).catch(() => null),
       ])
     : Promise.resolve([null, null, null] as const),
     paid
-    ? (async () => {
-        const [trades, rows] = await Promise.all([
-          fetchAllRows<{
-            id: string;
-            dollar_pl: number | null;
-            entry_price: number | null;
-            exit_price: number | null;
-            stop_loss: number | null;
-            direction: string | null;
-            trade_strategies: { strategies: { name: string }[] }[];
-          }>((from, to) =>
-            supabase
-              .from("trades")
-              .select(
-                "id, dollar_pl, entry_price, exit_price, stop_loss, direction, trade_strategies(strategies(name))",
-              )
-              .eq("status", "closed")
-              .not("exit_date", "is", null)
-              .neq("mode", "investment")
-              .order("id", { ascending: true })
-              .range(from, to),
-          ),
-          // Degrades to "nothing computed" until migration 0035 is applied.
-          listExcursions(supabase).catch(() => []),
-        ]);
-
-        const mapped: ExcursionTrade[] = trades.map((t) => ({
-          id: t.id,
-          dollar_pl: t.dollar_pl,
-          entry_price: t.entry_price,
-          exit_price: t.exit_price,
-          stop_loss: t.stop_loss,
-          direction: t.direction,
-          strategies: t.trade_strategies
-            .flatMap((link) => link.strategies)
-            .map((x) => x?.name)
-            .filter((n): n is string => typeof n === "string"),
-        }));
-        return buildExcursionReport(mapped, rows);
-      })()
+    ? // Shared with the AI tools (src/lib/excursions/report.ts). Degrades to
+      // "nothing computed" until migration 0035 is applied.
+      getExcursionReport(supabase)
     : Promise.resolve(null),
   ]);
 

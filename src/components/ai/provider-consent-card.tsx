@@ -14,12 +14,12 @@ import { PROVIDER_LABELS, type AIProviderName } from "@/lib/ai-keys/types";
  * up describing less than it sends.
  *
  * `description` is a required prop with no default on purpose. Each feature
- * discloses a different amount -- the Ask page sends scoped live lookups for
- * providers that support tool calling, falling back to the whole journal for
- * those that don't; a trade review always sends one trade plus baselines --
- * and a shared default would be wrong for whichever caller forgot to override
- * it. Making it required forces every new call site to state what it
- * actually sends.
+ * discloses a different amount -- the chat gives the model live, scoped
+ * lookups over the whole journal and keeps the conversation; a trade review
+ * always sends one trade plus baselines -- and a shared default would be
+ * wrong for whichever caller forgot to override it. Making it required
+ * forces every new call site to state what it actually sends. The chat's
+ * wider disclosure is also recorded under its own consent scope (0047).
  */
 export function ProviderConsentCard({
   provider,

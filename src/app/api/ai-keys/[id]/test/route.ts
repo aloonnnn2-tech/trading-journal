@@ -3,7 +3,9 @@ import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { getDecryptedKey, markApiKeyInvalid } from "@/lib/ai-keys/queries";
 import { getProvider, providerModel, ProviderError } from "@/lib/ai-keys/providers";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
+import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { rateLimit } from "@/lib/rate-limit";
+import { scrubString } from "@/lib/observability/scrub";
 
 // Re-checks a stored key against its provider, on demand.
 //
@@ -23,7 +25,7 @@ import { rateLimit } from "@/lib/rate-limit";
 
 // Same budget as adding a key: every call here is an outbound request to a
 // third party from this app's IP, and testing is a deliberate, rare action.
-const RATE_LIMIT = 10;
+const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 60_000;
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -37,6 +39,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json(
       { error: "Too many checks in a row — give it a moment and try again." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
+  }
+  // Shares the save route's daily bucket: together they are the only two
+  // places this server will check a key against a provider.
+  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS);
+  if (!daily.ok) {
+    return NextResponse.json(
+      { error: "That's the daily limit for checking keys. Try again tomorrow." },
+      { status: 429, headers: { "Retry-After": String(daily.retryAfterSeconds) } },
     );
   }
 
@@ -67,7 +78,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   } catch (err) {
     const failure = err instanceof ProviderError ? err.failure : "failed";
     const detail = err instanceof ProviderError ? err.detail : String(err);
-    console.error(`[ai-keys/test] ${stored.provider} ${failure}:`, detail);
+    console.error(`[ai-keys/test] ${stored.provider} ${failure}:`, scrubString(detail));
 
     // The key authenticated but the model is gone. Reported as its own state
     // because the key is fine and telling the user to replace it would send

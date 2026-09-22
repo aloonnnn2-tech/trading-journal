@@ -57,11 +57,14 @@ const KEY_BYTES = 32; // AES-256
 // from "different format".
 //
 //   v1 -- no additional authenticated data. Ciphertext was not bound to any
-//         account, so it could be transplanted between rows. Still decrypted,
-//         because real keys are stored in this format in production; every one
-//         read is re-encrypted to v2 in passing (see queries.ts).
+//         account, so it could be transplanted between rows: write access to
+//         the database was enough to USE another user's key. Accepted for a
+//         while so keys stored before v2 kept working while they were
+//         re-encrypted on use; as of 2026-09-21 no v1 row remains in
+//         production, and accepting the format is now only an open door --
+//         so it is REFUSED. Anyone holding a v1 value (none should exist)
+//         re-pastes their key.
 //   v2 -- AAD is the owning user's id.
-const FORMAT_V1 = "v1";
 const FORMAT_V2 = "v2";
 const CURRENT_FORMAT = FORMAT_V2;
 
@@ -189,10 +192,10 @@ export function encrypt(plaintext: string, owner: string): string {
 export interface DecryptResult {
   plaintext: string;
   /**
-   * True when this value should be written back re-encrypted: it is still in
-   * the v1 format, or it decrypted under a retired secret rather than the
-   * current one. Callers that can write use it to migrate opportunistically
-   * (see queries.ts); callers that can't may ignore it.
+   * True when this value should be written back re-encrypted: it decrypted
+   * under a retired secret rather than the current one. Callers that can
+   * write use it to migrate opportunistically (see queries.ts); callers that
+   * can't may ignore it.
    */
   stale: boolean;
 }
@@ -213,7 +216,7 @@ export interface DecryptResult {
 export function decryptWithMeta(ciphertext: string, owner: string): DecryptResult {
   const parts = ciphertext.split(".");
   const version = parts[0];
-  if (parts.length !== 4 || (version !== FORMAT_V1 && version !== FORMAT_V2)) {
+  if (parts.length !== 4 || version !== FORMAT_V2) {
     throw new Error("Could not decrypt stored API key.");
   }
 
@@ -232,10 +235,7 @@ export function decryptWithMeta(ciphertext: string, owner: string): DecryptResul
   for (let i = 0; i < keys.length; i++) {
     try {
       const decipher = createDecipheriv(ALGORITHM, keys[i], iv);
-      // v1 predates owner binding and authenticates no AAD. It is accepted so
-      // that keys already stored in production keep working, and re-encrypted
-      // to v2 on the way past.
-      if (version === FORMAT_V2) decipher.setAAD(Buffer.from(owner, "utf8"));
+      decipher.setAAD(Buffer.from(owner, "utf8"));
       decipher.setAuthTag(authTag);
       const plaintext = Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
       return { plaintext, stale: version !== CURRENT_FORMAT || i !== 0 };

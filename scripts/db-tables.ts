@@ -13,7 +13,8 @@
  * trade_excursions (0035), goals (0036) and user_api_keys (0029) were all
  * missing from it -- six tables of real user data that every backup taken
  * before 2026-09-08 silently does not contain. Nothing failed; the dumps just
- * quietly held less than they claimed.
+ * quietly held less than they claimed. It happened again with 0047's
+ * ai_conversations and ai_messages, caught in review two days later.
  *
  * So: **any migration that creates a table must add it here.** There is no
  * automatic check, because the obvious one (read information_schema) is not
@@ -32,6 +33,8 @@
  *   ai_reviews          -> trades
  *   strategy_rules      -> strategies
  *   analytics_events    -> analytics_sessions
+ *   ai_conversations    -> user_api_keys  (key_id, on delete set null)
+ *   ai_messages         -> ai_conversations
  * Inserting a child before its parent fails the foreign key, so the parents
  * come first and `trades` sits after `strategies`.
  *
@@ -54,6 +57,12 @@ export const TABLES = [
   "user_api_keys",
   "goals",
   "analytics_sessions",
+
+  // --- Depends on user_api_keys (0047) ----------------------------------
+  // Chat transcripts: the model's tool results here are the user's own
+  // journal data re-serialised, so this is as sensitive as `trades`.
+  "ai_conversations",
+  "ai_messages",
 
   // --- Depends on strategies -------------------------------------------
   "strategy_rules",

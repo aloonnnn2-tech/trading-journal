@@ -31,7 +31,7 @@ export async function providerErrorResponse(
     supabase: SupabaseClient;
     provider: AIProviderName;
     keyId: string;
-    /** Route tag for the server log, e.g. "ask-ai" or "ai-review". */
+    /** Route tag for the server log, e.g. "ai-review" or "ai-keys/test". */
     logPrefix: string;
     /**
      * What the user should do when the model ran out of room. Differs by

@@ -5,7 +5,7 @@ import { FormError } from "@/components/form-error";
 // Only the client-safe types module -- importing the provider registry here
 // would pull server-side integration code into the browser bundle.
 import {
-  AI_PROVIDERS,
+  SELECTABLE_PROVIDERS,
   FREE_TIER_PROVIDERS,
   PROVIDER_LABELS,
   PROVIDER_MODELS,
@@ -33,7 +33,7 @@ const CONSOLE_URLS: Record<AIProviderName, string> = {
 
 // Free-tier providers first, so someone who doesn't want a billed account
 // sees a workable option before a paid one.
-const ORDERED_PROVIDERS = [...AI_PROVIDERS].sort((a, b) => {
+const ORDERED_PROVIDERS = [...SELECTABLE_PROVIDERS].sort((a, b) => {
   const freeA = FREE_TIER_PROVIDERS.has(a) ? 0 : 1;
   const freeB = FREE_TIER_PROVIDERS.has(b) ? 0 : 1;
   return freeA - freeB;

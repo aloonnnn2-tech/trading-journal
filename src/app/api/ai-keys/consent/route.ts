@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { recordConsent } from "@/lib/ai-keys/consent";
-import { AI_PROVIDERS } from "@/lib/ai-keys/types";
+import { SELECTABLE_PROVIDERS } from "@/lib/ai-keys/types";
 
-const consentSchema = z.object({ provider: z.enum(AI_PROVIDERS) });
+// `scope` defaults to the original meaning so the review pages, which do not
+// send one, are unchanged. The chat sends "chat_v2" -- see consent.ts.
+// Consent to a retired provider is refused for the same reason a key for one
+// is: nothing could ever be sent to it.
+const consentSchema = z.object({
+  provider: z.enum(SELECTABLE_PROVIDERS),
+  scope: z.enum(["journal_v1", "chat_v2"]).default("journal_v1"),
+});
 
 // Records that the user agreed to send their journal to one named provider.
 // Separate from the ask endpoint on purpose: consent is its own event with its
@@ -26,6 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
   }
 
-  await recordConsent(gate.supabase, gate.userId, parsed.data.provider);
+  await recordConsent(gate.supabase, gate.userId, parsed.data.provider, parsed.data.scope);
   return NextResponse.json({ ok: true });
 }

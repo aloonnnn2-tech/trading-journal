@@ -5,36 +5,63 @@ import { requireUserId } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { listApiKeys } from "@/lib/ai-keys/queries";
-import { FREE_TIER_PROVIDERS, PROVIDER_LABELS, type AIProviderName } from "@/lib/ai-keys/types";
+import { FREE_TIER_PROVIDERS, PROVIDER_LABELS, SELECTABLE_PROVIDERS } from "@/lib/ai-keys/types";
 import { listConsentedProviders } from "@/lib/ai-keys/consent";
 import { Card } from "@/components/ui/Card";
-import { AskManager } from "./ask-manager";
+import { getConversation, listConversations, listMessages, type Conversation } from "@/lib/chat/queries";
+import { foldMessages, type TurnView } from "@/lib/chat/fold";
+import { ChatShell } from "./chat-shell";
 
 // Derived from the provider registry rather than written out, because the
 // hand-written version of this list went stale: it still said "OpenAI,
 // Anthropic or Google" long after seven free-tier providers were added, hiding
 // the most useful fact on the paywall -- that this costs nothing to try.
-const FREE_TIER_NAMES = (Object.keys(PROVIDER_LABELS) as AIProviderName[])
-  .filter((p) => FREE_TIER_PROVIDERS.has(p))
-  .map((p) => PROVIDER_LABELS[p]);
+const FREE_TIER_NAMES = SELECTABLE_PROVIDERS.filter((p) => FREE_TIER_PROVIDERS.has(p)).map(
+  (p) => PROVIDER_LABELS[p],
+);
 
-const PAID_ONLY_NAMES = (Object.keys(PROVIDER_LABELS) as AIProviderName[])
-  .filter((p) => !FREE_TIER_PROVIDERS.has(p))
-  .map((p) => PROVIDER_LABELS[p]);
+// Derived from SELECTABLE_PROVIDERS, not from "everything minus free": a
+// retired provider is in neither list, and filtering the full set would have
+// quietly promoted it into the paid column the moment it left the free one.
+const PAID_ONLY_NAMES = SELECTABLE_PROVIDERS.filter((p) => !FREE_TIER_PROVIDERS.has(p)).map(
+  (p) => PROVIDER_LABELS[p],
+);
 
-export default async function AskPage() {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default async function AskPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ c?: string }>;
+}) {
   const userId = await requireUserId();
   const supabase = await createClient();
+  const { c: requestedId } = await searchParams;
 
   const settings = await getUserSettings(supabase, userId);
   const paid = isPaidUser(settings);
 
-  // Keys and consents are only fetched for a paid user. A free user's request
-  // never touches either table, so the paywall can't leak whether they once
-  // had a key.
-  const [keys, consents] = paid
-    ? await Promise.all([listApiKeys(supabase), listConsentedProviders(supabase)])
-    : [[], []];
+  // Keys, consents and conversations are only fetched for a paid user. A free
+  // user's request never touches those tables, so the paywall can't leak
+  // whether they once had a key. Consent is read under the CHAT scope (0047):
+  // agreement to the older per-question disclosure does not carry over.
+  const [keys, consents, conversations] = paid
+    ? await Promise.all([
+        listApiKeys(supabase),
+        listConsentedProviders(supabase, "chat_v2"),
+        listConversations(supabase),
+      ])
+    : [[], [], []];
+
+  // Server-render the requested conversation so a refresh lands on the same
+  // transcript with no flash. RLS makes another user's id simply not resolve.
+  let conversation: Conversation | null = null;
+  let turns: TurnView[] = [];
+  // A non-UUID id used to reach Postgres and 500 the whole page render.
+  if (paid && requestedId && UUID.test(requestedId)) {
+    conversation = await getConversation(supabase, requestedId);
+    if (conversation) turns = foldMessages(await listMessages(supabase, requestedId, userId));
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-6 sm:p-8">
@@ -49,7 +76,13 @@ export default async function AskPage() {
       </div>
 
       {paid ? (
-        <AskManager initialKeys={keys} initialConsents={consents} />
+        <ChatShell
+          initialKeys={keys}
+          initialConsents={consents}
+          initialConversations={conversations}
+          initialConversation={conversation}
+          initialTurns={turns}
+        />
       ) : (
         <Card hoverable={false} className="flex flex-col gap-4">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">

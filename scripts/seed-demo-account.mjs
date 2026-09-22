@@ -460,7 +460,10 @@ async function ensureUser() {
 /** Removes only this user's journal rows. Trades cascade to trade_strategies,
  *  trade_folders, trade_history, trade_excursions and trade AI reviews. */
 async function wipe(userId) {
-  for (const table of ["ai_reviews", "trades", "strategy_rules", "strategies", "folders", "commission_rules", "account_transactions"]) {
+  // ai_messages cascades from ai_conversations. Chat rows and stored keys are
+  // wiped too: the demo login is shared, so anything anyone left there is
+  // visible to -- and, for a key, spendable by -- the next person in.
+  for (const table of ["ai_conversations", "ai_provider_consents", "user_api_keys", "ai_reviews", "trades", "strategy_rules", "strategies", "folders", "commission_rules", "account_transactions"]) {
     const { error } = await db.from(table).delete().eq("user_id", userId);
     if (error) throw new Error(`wipe ${table}: ${error.message}`);
   }

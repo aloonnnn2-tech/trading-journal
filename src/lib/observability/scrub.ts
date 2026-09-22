@@ -36,6 +36,11 @@ const SECRET_PATTERNS: RegExp[] = [
   /\bgsk_[A-Za-z0-9_-]{16,}/g,
   // Cerebras.
   /\bcsk-[A-Za-z0-9_-]{16,}/g,
+  // Mistral and SambaNova issue unprefixed tokens (32 alphanumerics; a UUID),
+  // which no prefix rule can catch. Anything sitting in a credential header
+  // or after "Bearer" is redacted whatever it looks like.
+  /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{16,}/g,
+  /\b(x-api-key|x-goog-api-key|api[-_]?key|authorization)(["']?\s*[:=]\s*["']?)[^\s"',;]{8,}/gi,
   // Our own stored-key envelope: `v1.<iv>.<tag>.<ciphertext>`, all base64.
   // Ciphertext is not usable without the encryption secret, but it has no
   // business in a third-party error tracker either, and its presence in a

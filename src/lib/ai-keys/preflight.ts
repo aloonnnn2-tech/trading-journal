@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isEncryptionConfigured } from "./crypto";
 import { getDecryptedKey } from "./queries";
-import { hasConsent } from "./consent";
+import { hasConsent, type ConsentScope } from "./consent";
 import type { AIProviderName } from "./types";
 
 type Preflight =
@@ -32,6 +32,13 @@ export async function preflightProviderCall(
    * anything taken from the request body.
    */
   userId: string,
+  /**
+   * Which agreement this call needs. The chat requires "chat_v2" (0047):
+   * it discloses more than the per-request review paths, so consent given
+   * for those does not cover it. Defaults to the original scope so every
+   * existing caller is unchanged.
+   */
+  scope: ConsentScope = "journal_v1",
 ): Promise<Preflight> {
   // Checked before anything reaches the crypto module -- otherwise a
   // deployment missing the secret fails inside decrypt() as an unhandled
@@ -69,7 +76,7 @@ export async function preflightProviderCall(
   // tab from before consent was withdrawn, must not get through.
   let consented: boolean;
   try {
-    consented = await hasConsent(supabase, stored.provider);
+    consented = await hasConsent(supabase, stored.provider, scope);
   } catch (err) {
     // Almost always the ai_provider_consents table not existing yet, i.e.
     // migration 0031 hasn't been applied. Fails CLOSED -- nothing is sent to

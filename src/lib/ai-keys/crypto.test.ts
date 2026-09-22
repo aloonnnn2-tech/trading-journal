@@ -278,8 +278,10 @@ describe("secret rotation", () => {
 });
 
 describe("legacy v1 ciphertext", () => {
-  // Real keys are stored in v1 in production. They must keep working, and
-  // must be reported as needing migration to v2.
+  // v1 bound no owner, so a ciphertext could be moved between rows and used
+  // by whoever it landed on. No v1 row exists any more, and the format is
+  // refused outright rather than kept as a door that only an attacker with
+  // database write access would ever walk through.
   const plaintext = "sk-proj-legacy-stored-value-1";
 
   function makeV1(value: string, secretB64: string): string {
@@ -294,15 +296,10 @@ describe("legacy v1 ciphertext", () => {
     ].join(".");
   }
 
-  it("decrypts v1 ciphertext, which has no owner bound into it", () => {
+  it("refuses v1 ciphertext for every owner, with the same generic error", () => {
     const legacy = makeV1(plaintext, TEST_SECRET);
-    expect(decrypt(legacy, OWNER)).toBe(plaintext);
-    // Any owner works, because v1 authenticated none -- which is precisely
-    // the weakness v2 exists to close.
-    expect(decrypt(legacy, OTHER_OWNER)).toBe(plaintext);
-  });
-
-  it("marks v1 ciphertext stale so it gets rewritten as v2", () => {
-    expect(decryptWithMeta(makeV1(plaintext, TEST_SECRET), OWNER).stale).toBe(true);
+    expect(() => decrypt(legacy, OWNER)).toThrow("Could not decrypt stored API key.");
+    expect(() => decrypt(legacy, OTHER_OWNER)).toThrow("Could not decrypt stored API key.");
+    expect(() => decryptWithMeta(legacy, OWNER)).toThrow("Could not decrypt stored API key.");
   });
 });

@@ -88,8 +88,9 @@ genuinely expensive or destructive:
 | Route | Limit | Reason |
 | --- | --- | --- |
 | `POST /api/ocr/parse` | 20/min | CPU-bound native OCR, 60s budget |
-| `POST /api/ask-ai` | see route | Paid third-party API call |
-| `POST /api/ai-reviews/*` | see route | Same |
+| `POST /api/chat/conversations/[id]/turn` | 60/min turns, 20/min new messages | Third-party API call on the user's key; one model round per request |
+| `POST /api/chat/conversations` | 30/min | Resolves a stored key |
+| `POST /api/ai-reviews/*` | see route | Third-party API call on the user's key |
 | `POST /api/trades` | 60/min | Row creation |
 | `PATCH /api/trades/[id]` | 240/min | **Autosave** — deliberately loose |
 | `DELETE /api/trades/[id]` | 60/min | Destructive |
@@ -260,6 +261,10 @@ not *read* the key, but they could run up the bill on it indefinitely. That
 needed no encryption secret at all. `verify:ai-secret` now asserts the binding
 holds, and `crypto.test.ts` covers it directly.
 
+The unbound `v1` format, kept for a while so keys stored before the binding
+kept working, is **refused** since 2026-09-21: no v1 row remained, and
+accepting the format was only a door for exactly this attack.
+
 ### If the encryption secret itself leaks
 
 Recoverable, provided it is noticed. Rotation is supported:
@@ -320,7 +325,52 @@ That trade has not been made. The current posture — safe against database
 breach, database tampering, and a rotatable secret leak — is the appropriate
 one for a server that calls providers on the user's behalf.
 
-## 7. Things deliberately not done in this pass
+## 7. The AI chat: an offensive review (2026-09-21)
+
+The chat (`/ask`) gives a model tools over the user's journal, on the user's
+own provider key. It was reviewed the way an attacker would approach it --
+OWASP's LLM Top 10 plus classic web -- with one framing that matters for
+every Supabase app: **every signed-in user holds the anon key and their own
+JWT, so they can call PostgREST directly and skip every Next route.** RLS and
+grants are the boundary; the routes are convenience.
+
+What held: no service-role client anywhere on the path; the model's
+transcript is built server-side from rows this server wrote and the request
+body is `{mode, message}` only; every tool is read-only, RLS-scoped and
+allowlisted; the answer is rendered without links or images, so the
+markdown-image exfiltration channel (how Copilot, Gemini and others were
+made to leak) does not exist here; the key never enters the model's context.
+
+What was found and fixed:
+
+- **`ai_messages` could be written into another user's conversation.**
+  0047's policy checked only the row's own `user_id`; a foreign-key check
+  bypasses RLS, so anyone who knew a conversation UUID (it is in the URL)
+  could insert rows that the owner's next turn fed to the model. 0048
+  requires the conversation to be the caller's, and `listMessages` filters by
+  the owner as well.
+- **Two model calls could run at once on one conversation**, and `continue`
+  worked on a finished answer. 0048 adds a per-conversation turn claim;
+  `continue` with nothing pending is refused.
+- **No Origin check on cookie-authenticated API writes.** `src/proxy.ts`
+  now refuses cross-site non-GET `/api/*` requests (Sec-Fetch-Site, else
+  Origin vs Host) and pins `SameSite=Lax` explicitly.
+- **Key checks as an oracle.** Saving and testing a key both call the
+  provider; they now share a 50/day budget on top of 5/min each.
+- **Redirects.** Provider fetches use `redirect: "error"`: fetch strips
+  `Authorization` on a cross-origin redirect but not `x-api-key`.
+- Smaller: non-UUID ids 404 instead of 500; NUL refused in messages;
+  model-chosen tool names are never rendered raw; strategy names and field
+  labels are bounded before entering the system prompt; the create route no
+  longer decrypts a key just to read its provider; the Sentry scrubber
+  covers unprefixed (Mistral, SambaNova) tokens by position.
+
+Known and accepted: a user can forge rows in their **own** conversation via
+PostgREST. That harms only themselves today; the planned Apply feature must
+therefore never treat `ai_messages` content as authoritative -- proposals
+live in their own table and are re-validated against live rows on Apply.
+
+## 8. Things deliberately not done in this pass
 
 - **Auth not proxied through our own routes.** It would allow app-level auth
   rate limiting, but it is a significant architecture change and the Supabase

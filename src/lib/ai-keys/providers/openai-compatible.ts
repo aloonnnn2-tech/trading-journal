@@ -1,5 +1,6 @@
 import type { AIProviderName } from "../types";
 import { assertModelAvailable } from "./model-check";
+import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
   MAX_ANSWER_TOKENS,
@@ -7,8 +8,10 @@ import {
   VALIDATE_TIMEOUT_MS,
   errorDetail,
   failureFromStatus,
+  retryAfterFromMessage,
   retryAfterSeconds,
   providerFetch,
+  syntheticToolCallId,
   type AIProvider,
   type AskOptions,
   type ChatMessage,
@@ -90,6 +93,26 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
     return { Authorization: `Bearer ${apiKey}`, ...headers };
   }
 
+  /** The request body shared by chatOnce and chatStream, so the two never drift. */
+  function chatBody(input: ChatOnceInput): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      model,
+      max_tokens: input.maxTokens ?? MAX_ANSWER_TOKENS,
+      messages: toOpenAIMessages(input.system, input.messages),
+    };
+    // Only send tools when there are some: several gateways reject an empty
+    // `tools: []`, and an empty array is also how runTurn signals "answer
+    // now, no more calls" at the round ceiling.
+    if (input.tools.length > 0) {
+      body.tools = input.tools.map((t) => ({
+        type: "function",
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+      }));
+      body.tool_choice = "auto";
+    }
+    return body;
+  }
+
   return {
     name,
     model,
@@ -135,13 +158,8 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
           body: JSON.stringify({
             model,
             max_tokens: options?.maxTokens ?? MAX_ANSWER_TOKENS,
-            // System prompt first, then earlier turns, then the current
-            // question. Ordering matters: several of these providers weight
-            // the final message most heavily, and burying the live question
-            // mid-array makes follow-ups answer the wrong turn.
             messages: [
               { role: "system", content: systemPrompt },
-              ...(options?.history ?? []),
               { role: "user", content: question },
             ],
           }),
@@ -210,25 +228,25 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
           `empty completion: ${JSON.stringify(json).slice(0, 300)}`,
         );
       }
+
+      // Non-empty AND cut off. This used to fall straight through to the
+      // return below, so an answer that stopped mid-sentence was handed back
+      // as if it were finished -- invisible on Ask, and worse on the review
+      // routes, where the partial JSON fails to parse and the user is told the
+      // model "replied with something this app couldn't read", sending them to
+      // change a provider that was never the problem.
+      if (choice?.finish_reason === "length") {
+        throw new ProviderError(
+          "truncated",
+          `stopped at the token ceiling after ${text.length} chars`,
+        );
+      }
+
       return text.trim();
     },
 
     async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
-      const body: Record<string, unknown> = {
-        model,
-        max_tokens: input.maxTokens ?? MAX_ANSWER_TOKENS,
-        messages: toOpenAIMessages(input.system, input.messages),
-      };
-      // Only send tools when there are some: several gateways reject an empty
-      // `tools: []`, and an empty array is also how the orchestrator signals
-      // "answer now, no more calls".
-      if (input.tools.length > 0) {
-        body.tools = input.tools.map((t) => ({
-          type: "function",
-          function: { name: t.name, description: t.description, parameters: t.parameters },
-        }));
-        body.tool_choice = "auto";
-      }
+      const body = chatBody(input);
 
       const res = await providerFetch(
         `${baseUrl}/chat/completions`,
@@ -257,7 +275,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
           ? "unavailable"
           : "failed";
-        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`);
+        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`, retryAfterFromMessage(message));
       }
 
       const choice = json?.choices?.[0];
@@ -266,7 +284,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         const calls: ToolCall[] = rawCalls
           .filter((c: unknown) => (c as { function?: { name?: string } })?.function?.name)
           .map((c: { id?: string; function: { name: string; arguments?: string } }) => ({
-            id: c.id ?? c.function.name,
+            id: c.id ?? syntheticToolCallId(c.function.name),
             name: c.function.name,
             args: parseArgs(c.function.arguments),
           }));
@@ -284,7 +302,149 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         }
         throw new ProviderError("failed", `empty completion: ${JSON.stringify(json).slice(0, 300)}`);
       }
+      if (choice?.finish_reason === "length") {
+        throw new ProviderError(
+          "truncated",
+          `stopped at the token ceiling after ${text.length} chars`,
+        );
+      }
+      return { kind: "text", text: text.trim() };
+    },
+
+    async chatStream(
+      apiKey: string,
+      input: ChatOnceInput,
+      onText: (delta: string) => void,
+      signal?: AbortSignal,
+    ): Promise<ChatResult> {
+      const body = { ...chatBody(input), stream: true };
+
+      const timeout = AbortSignal.timeout(input.timeoutMs ?? ASK_TIMEOUT_MS);
+      const combined = signal ? AbortSignal.any([timeout, signal]) : timeout;
+
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { ...auth(apiKey), "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          redirect: "error", // see providerFetch
+        signal: combined,
+        });
+      } catch (err) {
+        const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        throw new ProviderError("unavailable", `network: ${reason}`);
+      }
+
+      // Status arrives before the body, so non-2xx is handled exactly as in
+      // chatOnce -- the error body is small and not streamed.
+      if (!res.ok) {
+        const detail = await errorDetail(res);
+        const missing =
+          /model_not_found|does not exist|no such model|unknown model|model.*not found/i.test(detail);
+        throw new ProviderError(
+          missing ? "model_missing" : failureFromStatus(res.status),
+          detail,
+          retryAfterSeconds(res),
+        );
+      }
+
+      // Accumulators. Tool calls arrive as fragments keyed by `index`, with the
+      // arguments JSON split across many deltas; they are assembled here and
+      // only surfaced whole. A gateway that omits `index` gets one slot per
+      // distinct `id`, and a fragment with neither continues the last call.
+      let text = "";
+      let finishReason: string | null = null;
+      const calls = new Map<number, { id?: string; name?: string; args: string }>();
+      const slotById = new Map<string, number>();
+      let lastSlot = -1;
+
+      try {
+        for await (const { data } of sseData(res, combined)) {
+          if (data === "[DONE]") break;
+          let json: unknown;
+          try {
+            json = JSON.parse(data);
+          } catch {
+            continue; // keep-alive or a malformed line; nothing to act on
+          }
+          const j = json as {
+            error?: { message?: string } | string;
+            choices?: {
+              delta?: {
+                content?: string | null;
+                tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
+              };
+              finish_reason?: string | null;
+            }[];
+          };
+
+          // Some gateways send an error as an event body with a 200 status.
+          if (j.error) {
+            const message = String((j.error as { message?: string })?.message ?? j.error);
+            const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
+              ? "unavailable"
+              : "failed";
+            throw new ProviderError(failure, `stream error: ${message.slice(0, 300)}`, retryAfterFromMessage(message));
+          }
+
+          const choice = j.choices?.[0];
+          if (!choice) continue;
+
+          const delta = choice.delta;
+          if (typeof delta?.content === "string" && delta.content.length > 0) {
+            text += delta.content;
+            onText(delta.content);
+          }
+          for (const frag of delta?.tool_calls ?? []) {
+            let idx: number;
+            if (typeof frag.index === "number") {
+              idx = frag.index;
+            } else if (frag.id) {
+              idx = slotById.get(frag.id) ?? calls.size;
+              slotById.set(frag.id, idx);
+            } else {
+              idx = Math.max(lastSlot, 0);
+            }
+            lastSlot = idx;
+            const acc = calls.get(idx) ?? { args: "" };
+            if (frag.id) acc.id = frag.id;
+            if (frag.function?.name) acc.name = frag.function.name;
+            if (frag.function?.arguments) acc.args += frag.function.arguments;
+            calls.set(idx, acc);
+          }
+          if (choice.finish_reason) finishReason = choice.finish_reason;
+        }
+      } catch (err) {
+        if (err instanceof ProviderError) throw err;
+        const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        throw new ProviderError("unavailable", `stream: ${reason}`);
+      }
+
+      if (calls.size > 0) {
+        const assembled: ToolCall[] = [...calls.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, c]) => c)
+          .filter((c) => c.name)
+          .map((c) => ({ id: c.id ?? syntheticToolCallId(c.name!), name: c.name!, args: parseArgs(c.args) }));
+        return {
+          kind: "tool_calls",
+          calls: assembled,
+          assistant: { role: "assistant", content: text, toolCalls: assembled },
+        };
+      }
+
+      if (text.trim() === "") {
+        if (finishReason === "length") {
+          throw new ProviderError("truncated", "hit the token ceiling before writing an answer");
+        }
+        throw new ProviderError("failed", "empty streamed completion");
+      }
+      if (finishReason === "length") {
+        throw new ProviderError("truncated", `stopped at the token ceiling after ${text.length} chars`);
+      }
       return { kind: "text", text: text.trim() };
     },
   };
 }
+

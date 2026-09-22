@@ -16,6 +16,8 @@ export const createClient = cache(async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Same pin as src/proxy.ts; see isCrossSite there.
+      cookieOptions: { sameSite: "lax" },
       cookies: {
         getAll() {
           return cookieStore.getAll();

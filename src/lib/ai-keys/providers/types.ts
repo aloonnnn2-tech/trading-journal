@@ -44,14 +44,14 @@ export class ProviderError extends Error {
   }
 }
 
-// ---- Tool calling (the agentic Ask path) ---------------------------------
+// ---- Tool calling (the chat path) ----------------------------------------
 //
 // A provider-neutral shape for tools, messages and one model round-trip. The
-// route builds `ToolDef`s and an executor (src/lib/ai-keys/tools.ts); each
-// provider's `chatOnce` translates this neutral shape to and from its own
-// wire format; the orchestrator (src/lib/ai-keys/providers/orchestrator.ts)
-// runs the loop. Keeping the shared vocabulary here means the loop and the
-// tools never depend on any one provider's format.
+// turn route builds `ToolDef`s and an executor (src/lib/ai-keys/tools/);
+// each provider's `chatOnce`/`chatStream` translates this neutral shape to
+// and from its own wire format; `runTurn` (src/lib/chat/turn.ts) drives one
+// round per request. Keeping the shared vocabulary here means the loop and
+// the tools never depend on any one provider's format.
 
 /** A tool the model may call. `parameters` is a JSON Schema object. */
 export interface ToolDef {
@@ -118,10 +118,8 @@ export interface AIProvider {
   validateKey(apiKey: string): Promise<boolean>;
 
   /**
-   * Asks a question. Throws ProviderError on any failure.
-   *
-   * `question` is always the *current* turn. Earlier turns, if any, travel in
-   * `options.history` -- see AskOptions.
+   * One single-shot question with no conversation: what the AI review
+   * routes use. Throws ProviderError on any failure.
    */
   askQuestion(
     apiKey: string,
@@ -132,20 +130,39 @@ export interface AIProvider {
 
   /**
    * One tool-aware model round-trip. Present only on providers that support
-   * function calling; the route checks for it and otherwise falls back to the
-   * single-shot `askQuestion` + full text context, so a provider without it
-   * loses nothing it had before.
+   * function calling; the turn route refuses to start a conversation on a
+   * provider that has neither this nor `chatStream`.
    */
   chatOnce?(apiKey: string, input: ChatOnceInput): Promise<ChatResult>;
+
+  /**
+   * The streaming form of `chatOnce`. Text arrives through `onText` as the
+   * model writes it; the resolved `ChatResult` is identical to what
+   * `chatOnce` would have returned, so a caller can use
+   * `provider.chatStream ?? provider.chatOnce` and treat the two alike.
+   *
+   * Tool calls are NOT streamed piecemeal -- the adapter accumulates the
+   * model's partial JSON and delivers complete `ToolCall`s in the result.
+   * That keeps `ChatResult` unchanged and means a half-received call can
+   * never be executed.
+   *
+   * `signal` aborts the upstream request (a user pressing Stop). The adapter
+   * throws ProviderError("unavailable") on abort; whatever text already
+   * reached `onText` is the caller's to keep or discard.
+   */
+  chatStream?(
+    apiKey: string,
+    input: ChatOnceInput,
+    onText: (delta: string) => void,
+    signal?: AbortSignal,
+  ): Promise<ChatResult>;
 }
 
 /**
- * Per-call overrides of the two budgets below.
+ * Per-call overrides of the two budgets below. Both are optional and both
+ * default to the module constants.
  *
- * Both are optional and both default to the module constants, so `/ask` --
- * which passes nothing -- behaves exactly as it did before this existed.
- *
- * The AI review routes do pass them, for one reason: the free tiers this app
+ * The AI review routes pass them, for one reason: the free tiers this app
  * deliberately supports (Groq, Cerebras, OpenRouter's `:free` models, Google
  * AI Studio) limit tokens per MINUTE, not per request. A review that asks for
  * the full default allowance when it needs half of it spends headroom the
@@ -153,36 +170,9 @@ export interface AIProvider {
  * later action rather than on the request that overspent. Sizing each call to
  * what it actually needs is what keeps the feature usable without a paid key.
  */
-/**
- * One earlier turn of a conversation.
- *
- * Deliberately just a role and text: no ids, no timestamps, no provider
- * metadata. Everything here is re-sent to a third party on every follow-up,
- * so the type is the smallest thing that can carry a conversation, and
- * anything the model does not need to answer never enters it.
- */
-export interface ChatTurn {
-  role: "user" | "assistant";
-  content: string;
-}
-
 export interface AskOptions {
   /** Ceiling on the visible answer, in tokens. */
   maxTokens?: number;
-  /**
-   * Earlier turns of this conversation, oldest first, NOT including the
-   * question being asked now.
-   *
-   * Lives here rather than as a positional parameter so the callers that have
-   * no conversation -- both AI review routes -- keep working untouched and
-   * keep reading as the single-shot calls they are.
-   *
-   * **The journal context is not in here.** It stays in the system prompt and
-   * is rebuilt fresh on every turn, so a long conversation never drifts onto
-   * a stale snapshot of the journal, and history stays cheap: only the words
-   * actually exchanged accumulate.
-   */
-  history?: ChatTurn[];
   /**
    * Wall-clock ceiling for this request. A caller running two calls inside one
    * serverless invocation (generate, then repair a malformed reply) passes the
@@ -239,6 +229,32 @@ export function retryAfterSeconds(res: Response): number | undefined {
   return Math.min(Math.ceil(n), 300);
 }
 
+/**
+ * The wait a provider quotes INSIDE an error message ("Please try again in
+ * 7.66s", "retry after 2 minutes"), for the 200-with-error-body and
+ * mid-stream cases where there is no Retry-After header to read.
+ */
+export function retryAfterFromMessage(message: string): number | undefined {
+  const m = /try again in\s+(\d+(?:\.\d+)?)\s*(ms|s|sec|seconds?|m|min|minutes?)\b/i.exec(message);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  const unit = m[2].toLowerCase();
+  const seconds = unit === "ms" ? n / 1000 : unit.startsWith("m") ? n * 60 : n;
+  return Math.min(Math.max(1, Math.ceil(seconds)), 300);
+}
+
+/**
+ * A tool-call id for providers that do not issue one (Google) or omit it.
+ * Must be unique across the WHOLE conversation, not just the response: the
+ * tool rows are paired to calls by id, and `(conversation_id, tool_call_id)`
+ * is unique in the database, so a per-response counter like `name-0` would
+ * make the second round's call look already answered by the first's.
+ */
+export function syntheticToolCallId(name: string): string {
+  return `${name}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function failureFromStatus(status: number): ProviderFailure {
   // 401/403: rejected credentials. 400 is deliberately NOT treated as a key
   // problem in general -- it usually means a malformed request, which is our
@@ -262,7 +278,11 @@ export async function providerFetch(
   timeoutMs: number,
 ): Promise<Response> {
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    // `redirect: "error"`: the key travels in a header, and while fetch
+    // strips `Authorization` on a cross-origin redirect it does NOT strip
+    // `x-api-key` or `x-goog-api-key`. A provider (or anything between us and
+    // it) answering 30x to another host must never receive the credential.
+    return await fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     // A timeout and a DNS/TLS failure are both "couldn't reach them", which is
     // the same advice to the user either way.
