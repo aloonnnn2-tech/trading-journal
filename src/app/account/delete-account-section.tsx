@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FormError } from "@/components/form-error";
 import { createClient } from "@/lib/supabase/client";
+import { endSession } from "@/lib/tracking/useAnalytics";
 
 export function DeleteAccountSection({ email }: { email: string }) {
   const supabase = createClient();
@@ -23,6 +24,9 @@ export function DeleteAccountSection({ email }: { email: string }) {
       return;
     }
 
+    // Same as the nav bar's sign-out: the analytics session id belongs to
+    // the account that just ended, and must not follow whoever signs in next.
+    endSession();
     await supabase.auth.signOut();
     window.location.href = "/";
   }

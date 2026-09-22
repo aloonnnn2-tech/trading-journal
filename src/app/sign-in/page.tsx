@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
-import { useAnalytics } from "@/lib/tracking/useAnalytics";
+import { endSession, useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 
 const INPUT_CLASS =
@@ -86,6 +86,11 @@ function SignInForm() {
       if (isEmailNotConfirmed(error)) setNeedsConfirmation(true);
       return;
     }
+    // A session id left in this tab by a previous account (a sign-out that
+    // never went through the nav bar, an expired session) would attribute
+    // this login -- and the heartbeats after it -- to the wrong user. Start
+    // a fresh one for this account before the first event.
+    endSession();
     track("login");
     window.location.href = "/dashboard";
   }

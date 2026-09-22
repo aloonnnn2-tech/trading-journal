@@ -1,7 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const HEARTBEAT_INCREMENT_SECONDS = 30;
-
 // Sentinel session_id for events logged from API route handlers rather than
 // the browser tracker (trade CRUD, import) -- these fire from several
 // different client call sites that all hit the same route, so logging once
@@ -64,28 +62,24 @@ export async function upsertHeartbeat(
   sessionId: string,
 ): Promise<void> {
   try {
-    const { data: existing } = await supabase
-      .from("analytics_sessions")
-      .select("duration_seconds")
-      .eq("id", sessionId)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from("analytics_sessions")
-        .update({
-          last_seen_at: new Date().toISOString(),
-          duration_seconds: (existing.duration_seconds ?? 0) + HEARTBEAT_INCREMENT_SECONDS,
-        })
-        .eq("id", sessionId);
-    } else {
-      await supabase.from("analytics_sessions").insert({
-        id: sessionId,
-        user_id: userId,
-        duration_seconds: 0,
-      });
+    // One atomic call, no read. The previous read-then-write could not work
+    // for a non-admin: analytics_sessions has no select-own policy (0013, on
+    // purpose), so the SELECT always came back empty, the INSERT branch always
+    // ran, and every beat after the first died on the primary key -- silently,
+    // because supabase-js returns that error rather than throwing.
+    //
+    // `userId` is no longer passed to the database: record_heartbeat (0045)
+    // takes the owner from auth.uid() so a session can only ever be credited
+    // to the caller. It stays in the signature because callers have it and it
+    // keeps the shape consistent with logEvent.
+    const { error } = await supabase.rpc("record_heartbeat", { p_session_id: sessionId });
+    if (error) {
+      // Best-effort, like logEvent -- a lost beat must never fail the request
+      // that carried it. Logged rather than swallowed, because swallowing is
+      // exactly what hid this bug for weeks.
+      console.warn("heartbeat failed:", error.message);
     }
-  } catch {
-    // Best-effort -- same reasoning as logEvent.
+  } catch (err) {
+    console.warn("heartbeat threw:", err instanceof Error ? err.message : err);
   }
 }

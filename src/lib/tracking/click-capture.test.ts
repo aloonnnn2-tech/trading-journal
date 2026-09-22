@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createBatcher, deriveLabel, describeClick, findInteractive } from "./click-capture";
+import {
+  createBatcher,
+  deriveLabel,
+  describeClick,
+  findInteractive,
+  startClickCapture,
+  type ClickEvent,
+} from "./click-capture";
 
 // The label rule is the privacy control for "every click" analytics, so it is
 // pinned down here against fake elements: precedence, the length cap, and the
@@ -245,5 +252,104 @@ describe("deriveLabel: leaks found live", () => {
     const tagged = el("button", { attrs: { "data-track": "delete-adjustment" }, parent: wrapper });
 
     expect(deriveLabel(tagged as unknown as Element)).toBe("delete-adjustment");
+  });
+});
+
+describe("startClickCapture: label double-count", () => {
+  // The shared el() fake only answers the privacy selector, so these build
+  // their own nodes whose closest() also resolves the INTERACTIVE selector --
+  // which is what findInteractive actually calls.
+  const INTERACTIVE_TAGS = new Set(["BUTTON", "A", "LABEL", "SUMMARY"]);
+
+  interface Node {
+    tagName: string;
+    id: string;
+    textContent: string;
+    attrs: Record<string, string>;
+    parent: Node | null;
+    getAttribute: (n: string) => string | null;
+    closest: (sel: string) => Node | null;
+  }
+
+  function node(tagName: string, { text = "", parent = null as Node | null } = {}): Node {
+    const n: Node = {
+      tagName: tagName.toUpperCase(),
+      id: "",
+      textContent: text,
+      attrs: {},
+      parent,
+      getAttribute: (k) => (k in n.attrs ? n.attrs[k] : null),
+      closest: (sel) => {
+        let cur: Node | null = n;
+        while (cur) {
+          if (sel === "[data-track-private]") {
+            if ("data-track-private" in cur.attrs) return cur;
+          } else if (INTERACTIVE_TAGS.has(cur.tagName)) {
+            return cur;
+          }
+          cur = cur.parent;
+        }
+        return null;
+      },
+    };
+    return n;
+  }
+
+  function harness() {
+    const sent: ClickEvent[][] = [];
+    const listeners: Record<string, ((e: unknown) => void)[]> = {};
+    vi.stubGlobal("document", {
+      addEventListener: (t: string, fn: (e: unknown) => void) => {
+        (listeners[t] ??= []).push(fn);
+      },
+      removeEventListener: () => {},
+      visibilityState: "visible",
+    });
+    vi.stubGlobal("window", {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      location: { pathname: "/trades" },
+    });
+    const stop = startClickCapture((evts) => sent.push(evts));
+    return { sent, stop, fire: (target: Node) => listeners.click.forEach((fn) => fn({ target })) };
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("records a label-wrapped checkbox once, not twice", () => {
+    const { sent, stop, fire } = harness();
+    const label = node("label", { text: "Swing setups" });
+    const input = node("input", { parent: label });
+
+    // The real sequence: the user's click on the <label>, then the synthetic
+    // click the label forwards to its <input>, which bubbles back through it
+    // and resolves to the same <label>.
+    fire(label);
+    fire(input);
+    stop();
+
+    expect(sent.flat()).toHaveLength(1);
+  });
+
+  it("still records two genuine clicks on the same control", async () => {
+    const { sent, stop, fire } = harness();
+    const button = node("button", { text: "Add trade" });
+
+    fire(button);
+    await new Promise((r) => setTimeout(r, 40)); // wider than DEDUPE_WINDOW_MS
+    fire(button);
+    stop();
+
+    expect(sent.flat()).toHaveLength(2);
+  });
+
+  it("does not merge clicks on two different controls", () => {
+    const { sent, stop, fire } = harness();
+
+    fire(node("button", { text: "One" }));
+    fire(node("button", { text: "Two" }));
+    stop();
+
+    expect(sent.flat()).toHaveLength(2);
   });
 });

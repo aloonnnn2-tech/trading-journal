@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/form-error";
 import { InfoTip } from "@/components/ui/InfoTip";
 import type { AccountBalance, AccountTransaction } from "@/lib/account/queries";
+import { formatDate } from "@/lib/dates/format";
+import { useMounted } from "@/lib/use-mounted";
 
 // compact drops the cents once the amount reaches four figures -- the card
 // is narrow (six-up grid on desktop) and "$11,234.56" no longer fits.
@@ -40,6 +42,8 @@ export function AccountCashCard({
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Transaction dates are local; see use-mounted.ts.
+  const mounted = useMounted();
 
   function openPanel(mode: PanelMode) {
     setPanel(panel === mode ? null : mode);
@@ -212,12 +216,9 @@ export function AccountCashCard({
                   data-track-private
                   className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
                 >
-                  <span className="text-zinc-500">
-                    {new Date(tx.created_at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
+                  {/* formatDate, not toLocaleDateString: the latter renders
+                      differently under Node's locale and the browser's. */}
+                  <span className="text-zinc-500">{mounted ? formatDate(tx.created_at) : "…"}</span>
                   <span
                     className={`tnum ml-auto font-mono ${
                       tx.amount < 0 ? "text-loss" : "text-profit"

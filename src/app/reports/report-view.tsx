@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Printer } from "lucide-react";
 import { PRESET_LABELS, REPORT_PRESETS, type ReportPreset, type TradingReport } from "@/lib/report/build";
 import { formatDateTime } from "@/lib/dates/format";
+import { useMounted } from "@/lib/use-mounted";
 
 // The report document, and the controls for choosing what it covers.
 //
@@ -86,6 +87,8 @@ export function ReportView({
 }) {
   const router = useRouter();
   const params = useSearchParams();
+  // The generated-at stamp is local time; see use-mounted.ts.
+  const mounted = useMounted();
 
   function choose(next: ReportPreset) {
     const query = new URLSearchParams(params.toString());
@@ -236,7 +239,7 @@ export function ReportView({
           <footer className="border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-subtle print:border-zinc-300">
             {/* Every figure traces to a calculation elsewhere in the app --
                 the point of this report existing separately from the AI one. */}
-            Generated {formatDateTime(report.generatedAt)} from your own closed trades.
+            Generated {mounted ? formatDateTime(report.generatedAt) : "…"} from your own closed trades.
             Every figure is computed by the app from stored data; nothing here is estimated or
             written by a model. Investment-mode positions are excluded, as they are everywhere
             else, because they carry no realised P&amp;L.

@@ -6,6 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import type { UserDirectoryRow } from "@/lib/tracking/admin-queries";
 import { formatDate } from "@/lib/dates/format";
 import { formatActive, formatRelative } from "./format";
+import { useMounted } from "@/lib/use-mounted";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary sm:max-w-sm";
@@ -40,6 +41,8 @@ export function UsersTable({
   const [desc, setDesc] = useState(true);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Date text is timezone- and clock-dependent; see use-mounted.ts.
+  const mounted = useMounted();
 
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -184,10 +187,10 @@ export function UsersTable({
                     </Link>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
-                    {formatRelative(u.lastActiveAt)}
+                    {mounted ? formatRelative(u.lastActiveAt) : " "}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-zinc-500">
-                    {formatDate(u.signedUpAt)}
+                    {mounted ? formatDate(u.signedUpAt) : " "}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
                     {u.tradeCount}

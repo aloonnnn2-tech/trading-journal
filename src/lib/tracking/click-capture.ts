@@ -170,12 +170,37 @@ export function createBatcher<T>(
  * `send` receives batches; the caller decides transport (a keepalive fetch,
  * so the pagehide flush still lands after navigation).
  */
+/**
+ * How close together two clicks on the SAME element must be to count as one.
+ *
+ * `<label><input type="checkbox">…</label>` fires twice: once for the user's
+ * click on the label, then again when the label's default action forwards a
+ * synthetic click to the input, which bubbles back up through the label and
+ * resolves to the same element. That doubled every folder and strategy
+ * assignment in the click totals.
+ *
+ * The forwarded event is dispatched synchronously inside the first one's
+ * default action, so it lands in the same event-loop turn. 25ms is far wider
+ * than that and far narrower than a human clicking the same control twice
+ * (a double-click is ~150-500ms), so genuine repeat clicks still count.
+ */
+const DEDUPE_WINDOW_MS = 25;
+
 export function startClickCapture(send: (events: ClickEvent[]) => void): () => void {
   const batcher = createBatcher<ClickEvent>(send);
+
+  let lastEl: Element | null = null;
+  let lastAt = 0;
 
   const onClick = (event: MouseEvent) => {
     const el = findInteractive(event.target);
     if (!el) return;
+
+    const now = Date.now();
+    if (el === lastEl && now - lastAt < DEDUPE_WINDOW_MS) return;
+    lastEl = el;
+    lastAt = now;
+
     batcher.push(describeClick(el, window.location.pathname));
   };
   const onPageHide = () => batcher.flush();

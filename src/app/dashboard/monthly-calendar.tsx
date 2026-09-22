@@ -3,6 +3,14 @@
 import { motion } from "framer-motion";
 import type { DailyPL } from "@/lib/dashboard/queries";
 import { staggerContainer, fadeInUp } from "@/components/motion/variants";
+import { useMounted } from "@/lib/use-mounted";
+
+// Locale-free month names: `toLocaleDateString` renders under Node's locale
+// on the server and the browser's on the client, and the two need not agree.
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+] as const;
 
 // P/L heatmap calendar: wash opacity scales with the day's |P/L| relative to
 // the month's largest move, so big days read at a glance. The exact figure
@@ -20,12 +28,12 @@ export function MonthlyCalendar({
   const maxAbs = Math.max(1, ...dailyPL.map((d) => Math.abs(d.dollar_pl)));
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
+  // "Today" depends on the clock and the zone, so the highlight is applied
+  // only after hydration; see use-mounted.ts.
+  const mounted = useMounted();
   const today = new Date();
-  const isThisMonth = today.getFullYear() === year && today.getMonth() === month;
-  const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, {
-    month: "long",
-    year: "numeric",
-  });
+  const isThisMonth = mounted && today.getFullYear() === year && today.getMonth() === month;
+  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
 
   const cells: (number | null)[] = [
     ...Array.from({ length: firstWeekday }, () => null),

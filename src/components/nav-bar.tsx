@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sun, Moon, HelpCircle, UserCircle, ShieldCheck, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { endSession } from "@/lib/tracking/useAnalytics";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { startTour } from "@/components/tour/tour-overlay";
@@ -152,6 +153,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
 
   async function handleSignOut() {
     const supabase = createClient();
+    // Before anything else: the analytics session belongs to the account that
+    // is signing out, and sessionStorage would otherwise carry its id into
+    // whoever signs in next in this tab.
+    endSession();
     try {
       await supabase.auth.signOut();
     } catch {

@@ -5,6 +5,7 @@ import { FormError } from "@/components/form-error";
 import type { AdminUserPlan } from "@/lib/settings/admin-queries";
 import type { UserPlan } from "@/lib/settings/plan";
 import { formatDate } from "@/lib/dates/format";
+import { useMounted } from "@/lib/use-mounted";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -20,6 +21,8 @@ export function PlanManager({
   const [filter, setFilter] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Same hydration issue as the user directory; see use-mounted.ts.
+  const mounted = useMounted();
 
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -90,7 +93,7 @@ export function PlanManager({
                 )}
               </span>
               <span className="text-xs text-zinc-500">
-                Joined {formatDate(user.createdAt)}
+                Joined {mounted ? formatDate(user.createdAt) : " "}
               </span>
             </div>
 

@@ -4,6 +4,25 @@ import { useCallback } from "react";
 
 const SESSION_ID_KEY = "tj-analytics-session-id";
 
+/**
+ * Ends the current analytics session so the next visit starts a new one.
+ *
+ * Called on sign-out. The id lives in sessionStorage, which survives an
+ * account switch in the same tab -- and since record_heartbeat (0045) credits
+ * a beat only to the session's own owner, the next user's beats were silently
+ * dropped against the previous user's row, and their events pointed at a
+ * session belonging to someone else. Clearing it here keeps one session id to
+ * one account.
+ */
+export function endSession(): void {
+  try {
+    sessionStorage.removeItem(SESSION_ID_KEY);
+    sessionStorage.removeItem("tj-analytics-session-started");
+  } catch {
+    // Private mode or blocked storage -- nothing to clear, nothing to fix.
+  }
+}
+
 export function getSessionId(): string {
   let id = sessionStorage.getItem(SESSION_ID_KEY);
   if (!id) {

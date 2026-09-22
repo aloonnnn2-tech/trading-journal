@@ -6,6 +6,9 @@ import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { useAnalytics, getSessionId } from "@/lib/tracking/useAnalytics";
 import { startClickCapture } from "@/lib/tracking/click-capture";
 
+// Must match the 30-second increment in record_heartbeat() (migration 0045):
+// the database adds a fixed 30s per beat rather than measuring elapsed time,
+// so beating at any other interval silently skews time-on-site.
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const SESSION_STARTED_KEY = "tj-analytics-session-started";
 
