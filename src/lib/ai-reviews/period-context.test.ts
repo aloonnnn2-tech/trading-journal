@@ -184,7 +184,7 @@ describe("buildPeriodContext — comparison with the previous period", () => {
     // 60% now against 25% before: the delta is arithmetic, and arithmetic is
     // the one thing in this prompt that must not be guessed.
     expect(ctx.text).toContain("Win rate: 60.0% (was 25.0%, change +35.0%)");
-    expect(ctx.text).toContain("Total P&L: $400.00 (was -$120.00, change +$520.00)");
+    expect(ctx.text).toContain("Total P&L: $400.00 (was −$120.00, change +$520.00)");
   });
 
   it("only allows a reason where the data supports one", async () => {

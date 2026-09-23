@@ -39,6 +39,7 @@ import {
 } from "@/lib/commissions/calculate";
 import type { CommissionRule } from "@/lib/commissions/types";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
+import { formatMoney } from "@/lib/format/money";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -456,7 +457,7 @@ export function TradeCard({
                       : "text-loss"
                 }`}
               >
-                {pl === null ? "—" : `${pl < 0 ? "−" : "+"}$${Math.abs(pl).toFixed(2)}`}
+                {formatMoney(pl, { sign: "always" })}
               </p>
               <p className="tnum mt-0.5 font-mono text-xs text-zinc-500">
                 {trade.r_multiple !== null ? `${trade.r_multiple.toFixed(2)}R` : "—"}

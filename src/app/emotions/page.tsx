@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
 import { getEmotionBreakdown, getEmotionHistory } from "@/lib/emotions/queries";
 import { Card } from "@/components/ui/Card";
+import { formatMoney } from "@/lib/format/money";
 
 export default async function EmotionsPage() {
   await requireUserId();
@@ -45,7 +46,7 @@ export default async function EmotionsPage() {
                     {row.winRate === null ? "—" : `${(row.winRate * 100).toFixed(0)}%`}
                   </td>
                   <td className={`tnum py-2 text-right font-mono ${row.totalPL >= 0 ? "text-profit" : "text-loss"}`}>
-                    {row.totalPL < 0 ? "−" : "+"}${Math.abs(row.totalPL).toFixed(2)}
+                    {formatMoney(row.totalPL, { sign: "always" })}
                   </td>
                 </tr>
               ))}

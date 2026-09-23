@@ -2,6 +2,7 @@ import Link from "next/link";
 import { TrendingDown } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { MIN_EPISODES_TO_COMPARE, type DrawdownEpisode, type DrawdownReport } from "@/lib/drawdown/episodes";
+import { formatMoney } from "@/lib/format/money";
 
 // Drawdown as episodes: how often, how deep, how long back.
 //
@@ -9,11 +10,6 @@ import { MIN_EPISODES_TO_COMPARE, type DrawdownEpisode, type DrawdownReport } fr
 // one they are IN is unusual, so that is the first thing on the panel -- and
 // it is only claimed once enough episodes have completed to make "deepest
 // ever" mean something.
-
-function money(value: number | null): string {
-  if (value === null) return "—";
-  return `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-}
 
 function days(value: number | null): string {
   if (value === null) return "—";
@@ -24,7 +20,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div>
       <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
+      <p className="tnum mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
       {sub && <p className="text-[11px] text-zinc-500">{sub}</p>}
     </div>
   );
@@ -41,7 +37,7 @@ function EpisodeRow({ episode }: { episode: DrawdownEpisode }) {
           </span>
         )}
       </td>
-      <td className="py-1.5 text-right font-mono text-loss">{money(episode.depth)}</td>
+      <td className="py-1.5 text-right font-mono text-loss">{formatMoney(episode.depth)}</td>
       <td className="py-1.5 text-right font-mono text-zinc-600 dark:text-zinc-400">
         {episode.depthPercent === null ? "—" : `${(episode.depthPercent * 100).toFixed(1)}%`}
       </td>
@@ -98,7 +94,7 @@ export function DrawdownPanel({ report }: { report: DrawdownReport }) {
           }`}
         >
           <p className="text-sm text-zinc-800 dark:text-zinc-200">
-            You are currently <strong>{money(report.current.depth)}</strong> below your peak
+            You are currently <strong>{formatMoney(report.current.depth)}</strong> below your peak
             {report.current.depthPercent !== null && (
               <> ({(report.current.depthPercent * 100).toFixed(1)}% of the account then)</>
             )}
@@ -112,7 +108,7 @@ export function DrawdownPanel({ report }: { report: DrawdownReport }) {
               </>
             ) : report.comparable ? (
               <>
-                Your completed drawdowns have typically been {money(report.medianDepth)} and taken{" "}
+                Your completed drawdowns have typically been {formatMoney(report.medianDepth)} and taken{" "}
                 {days(report.medianDays)} to recover.
               </>
             ) : (
@@ -130,10 +126,10 @@ export function DrawdownPanel({ report }: { report: DrawdownReport }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat
           label="Deepest"
-          value={money(report.deepest?.depth ?? null)}
+          value={formatMoney(report.deepest?.depth ?? null)}
           sub={report.deepest?.recovered ? "recovered" : "ongoing"}
         />
-        <Stat label="Typical depth" value={money(report.medianDepth)} sub="median, finished only" />
+        <Stat label="Typical depth" value={formatMoney(report.medianDepth)} sub="median, finished only" />
         <Stat label="Typical recovery" value={days(report.medianDays)} sub="median, finished only" />
         <Stat
           label="Trades to recover"

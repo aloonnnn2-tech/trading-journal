@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { DailyPL } from "@/lib/dashboard/queries";
 import { staggerContainer, fadeInUp } from "@/components/motion/variants";
 import { useMounted } from "@/lib/use-mounted";
+import { formatMoney } from "@/lib/format/money";
 
 // Locale-free month names: `toLocaleDateString` renders under Node's locale
 // on the server and the browser's on the client, and the two need not agree.
@@ -87,7 +88,7 @@ export function MonthlyCalendar({
                 isToday ? "ring-1 ring-primary" : ""
               }`}
               style={washColor ? { background: washColor } : undefined}
-              title={pl !== undefined ? `${pl < 0 ? "−" : "+"}$${Math.abs(pl).toFixed(2)}` : undefined}
+              title={pl !== undefined ? formatMoney(pl, { sign: "always" }) : undefined}
             >
               {day}
             </motion.div>

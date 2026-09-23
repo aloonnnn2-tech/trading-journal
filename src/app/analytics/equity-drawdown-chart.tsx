@@ -3,6 +3,7 @@
 import { ComposedChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ResponsiveContainer } from "recharts";
 import type { EquityPoint } from "@/lib/analytics/queries";
 import { CHART, TICK, TOOLTIP_STYLE } from "@/lib/theme/colors";
+import { formatMoney } from "@/lib/format/money";
 
 export function EquityDrawdownChart({ data }: { data: EquityPoint[] }) {
   if (data.length === 0) {
@@ -42,12 +43,12 @@ export function EquityDrawdownChart({ data }: { data: EquityPoint[] }) {
           axisLine={false}
           tickLine={false}
           width={60}
-          tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
+          tickFormatter={(v) => formatMoney(Number(v), { compact: true })}
         />
         <ReferenceLine y={0} stroke={CHART.axis} strokeWidth={1} />
         <Tooltip
           formatter={(value, name) => [
-            `$${Number(value).toFixed(2)}`,
+            formatMoney(Number(value), { sign: "always" }),
             // NOT "Equity": getAnalyticsSummary accumulates dollar_pl from
             // zero and never reads account_transactions, so this series is
             // trading profit, not the account balance. On a journal funded by

@@ -19,6 +19,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { QuickTradeButton } from "@/app/trades/new-trade-button";
 import { TrackPageView } from "@/components/track-page-view";
+import { formatMoney } from "@/lib/format/money";
 
 export default async function DashboardPage() {
   const userId = await requireUserId();
@@ -76,7 +77,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="Today's P/L"
-          value={`${todayPL < 0 ? "−" : ""}$${Math.abs(todayPL).toFixed(2)}`}
+          value={formatMoney(todayPL)}
           tone={todayPL > 0 ? "positive" : todayPL < 0 ? "negative" : "neutral"}
           colorValue
           icon={Wallet}
@@ -162,7 +163,7 @@ function RecentTradesList({ trades }: { trades: Trade[] }) {
               <span
                 className={`tnum font-mono text-[13px] ${trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}`}
               >
-                {trade.dollar_pl < 0 ? "−" : "+"}${Math.abs(trade.dollar_pl).toFixed(2)}
+                {formatMoney(trade.dollar_pl, { sign: "always" })}
               </span>
             )}
           </Link>
@@ -199,7 +200,7 @@ function SetupRow({
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-500">{label}</p>
         <p className={`tnum font-mono text-[13px] ${tone === "positive" ? "text-profit" : "text-loss"}`}>
-          {stats.totalPL < 0 ? "−" : "+"}${Math.abs(stats.totalPL).toFixed(2)}
+          {formatMoney(stats.totalPL, { sign: "always" })}
         </p>
       </div>
       <p className="mt-1 text-sm font-medium capitalize text-zinc-900 dark:text-zinc-100">

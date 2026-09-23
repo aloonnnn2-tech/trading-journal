@@ -1,5 +1,6 @@
 import { HISTORY_RETENTION_LIMIT } from "@/lib/trades/adjustments";
 import type { Trade } from "@/lib/trades/types";
+import { formatMoney } from "@/lib/format/money";
 
 // Turning a trade's edit snapshots into a readable timeline.
 //
@@ -57,11 +58,13 @@ export interface ReplaySnapshot {
   snapshot: Partial<Trade> | null;
 }
 
+// Takes `unknown` because a replay reads whatever a historical snapshot row
+// happens to hold. The parsing stays here; the rendering is the app-wide one.
 function money(value: unknown): string {
   if (value == null || value === "") return "not set";
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
-  return `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
+  return formatMoney(n);
 }
 
 function plain(value: unknown): string {

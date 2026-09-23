@@ -14,6 +14,7 @@ import { getScorecards } from "@/lib/scorecards/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { getUserSettings } from "@/lib/settings/queries";
 import { StrategyScorecards, ScorecardUpsell } from "./scorecards";
+import { formatMoney } from "@/lib/format/money";
 
 export default async function StrategiesPage({
   searchParams,
@@ -94,7 +95,7 @@ export default async function StrategiesPage({
                     {row.winRate === null ? "—" : `${(row.winRate * 100).toFixed(0)}%`}
                   </td>
                   <td className={`tnum py-2 text-right font-mono ${row.totalPL >= 0 ? "text-profit" : "text-loss"}`}>
-                    {row.totalPL < 0 ? "−" : "+"}${Math.abs(row.totalPL).toFixed(2)}
+                    {formatMoney(row.totalPL, { sign: "always" })}
                   </td>
                 </tr>
               ))}
@@ -228,8 +229,10 @@ function StrategyTradeList({ trades }: { trades: Trade[] }) {
               </td>
               <td className="px-4 py-2">
                 {trade.dollar_pl !== null ? (
-                  <span className={trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}>
-                    ${trade.dollar_pl.toFixed(2)}
+                  <span
+                    className={`tnum font-mono ${trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}`}
+                  >
+                    {formatMoney(trade.dollar_pl, { sign: "always" })}
                   </span>
                 ) : (
                   <span className="text-zinc-400 dark:text-zinc-600">—</span>

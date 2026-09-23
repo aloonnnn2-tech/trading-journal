@@ -3,6 +3,7 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ResponsiveContainer } from "recharts";
 import type { PerformancePoint } from "@/lib/dashboard/queries";
 import { CHART, TICK, TOOLTIP_STYLE } from "@/lib/theme/colors";
+import { formatMoney } from "@/lib/format/money";
 
 export function PerformanceChart({ data }: { data: PerformancePoint[] }) {
   if (data.length === 0) {
@@ -38,11 +39,11 @@ export function PerformanceChart({ data }: { data: PerformancePoint[] }) {
           axisLine={false}
           tickLine={false}
           width={56}
-          tickFormatter={(v) => `$${Number(v).toLocaleString()}`}
+          tickFormatter={(v) => formatMoney(Number(v), { compact: true })}
         />
         <ReferenceLine y={0} stroke={CHART.axis} strokeWidth={1} />
         <Tooltip
-          formatter={(value) => [`$${Number(value).toFixed(2)}`, "Cumulative P/L"]}
+          formatter={(value) => [formatMoney(Number(value), { sign: "always" }), "Cumulative P/L"]}
           labelFormatter={(label) => new Date(String(label)).toLocaleDateString()}
           contentStyle={TOOLTIP_STYLE}
           cursor={{ stroke: CHART.axis, strokeWidth: 1 }}

@@ -81,7 +81,7 @@ describe("buildToolOverview", () => {
     expect(o.totalTrades).toBe(12);
     expect(o.closedTrades).toBe(8);
     expect(o.text).toContain("12 total, 8 closed");
-    expect(o.text).toContain("Total P&L: -$32.88 (net of commissions)");
+    expect(o.text).toContain("Total P&L: −$32.88 (net of commissions)");
     expect(o.text).toContain("Strategies defined: Breakout, Pullback");
     expect(o.text).toContain("Emotion Before Trade");
   });
@@ -122,7 +122,9 @@ describe("buildToolSystemPrompt", () => {
 
 describe("formatters", () => {
   it("render money, percentages and any custom-field value consistently", () => {
-    expect(money(-40)).toBe("-$40.00");
+    // U+2212, and separators past a thousand: the same string the UI shows.
+    expect(money(-40)).toBe("−$40.00");
+    expect(money(13621.59)).toBe("$13,621.59");
     expect(money(null)).toBe("n/a");
     expect(pct(0.125)).toBe("12.5%");
     expect(renderValue(["calm", "", null])).toBe("calm");

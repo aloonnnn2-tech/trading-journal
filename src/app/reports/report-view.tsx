@@ -6,6 +6,7 @@ import { Printer } from "lucide-react";
 import { PRESET_LABELS, REPORT_PRESETS, type ReportPreset, type TradingReport } from "@/lib/report/build";
 import { formatDateTime } from "@/lib/dates/format";
 import { useMounted } from "@/lib/use-mounted";
+import { formatMoney } from "@/lib/format/money";
 
 // The report document, and the controls for choosing what it covers.
 //
@@ -14,11 +15,6 @@ import { useMounted } from "@/lib/use-mounted";
 // PDF produces the file. A PDF library would mean a large dependency and a
 // server rendering path to produce something that typically looks worse than
 // well-marked-up HTML printed by the browser.
-
-function money(value: number | null): string {
-  if (value === null) return "—";
-  return `${value < 0 ? "−" : ""}$${Math.abs(value).toFixed(2)}`;
-}
 
 function r(value: number | null): string {
   if (value === null) return "—";
@@ -33,7 +29,7 @@ function Headline({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-0.5 font-mono text-lg text-zinc-900 dark:text-zinc-100 print:text-black">
+      <p className="tnum mt-0.5 font-mono text-lg text-zinc-900 dark:text-zinc-100 print:text-black">
         {value}
       </p>
     </div>
@@ -144,14 +140,14 @@ export function ReportView({
 
           <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <Headline label="Trades" value={String(report.summary.closedCount)} />
-            <Headline label="Net P&L" value={money(report.summary.totalPL)} />
+            <Headline label="Net P&L" value={formatMoney(report.summary.totalPL)} />
             <Headline label="Win rate" value={pct(report.summary.winRate)} />
             <Headline label="Expectancy" value={r(report.summary.expectancy)} />
             <Headline
               label="Profit factor"
               value={report.summary.profitFactor === null ? "—" : report.summary.profitFactor.toFixed(2)}
             />
-            <Headline label="Max drawdown" value={money(report.summary.maxDrawdown)} />
+            <Headline label="Max drawdown" value={formatMoney(report.summary.maxDrawdown)} />
           </section>
 
           <section>
@@ -194,7 +190,7 @@ export function ReportView({
               <Row
                 label="Best trade"
                 value={report.bestTrade.ticker || "—"}
-                detail={`${money(report.bestTrade.dollarPL)} · ${r(report.bestTrade.rMultiple)}`}
+                detail={`${formatMoney(report.bestTrade.dollarPL)} · ${r(report.bestTrade.rMultiple)}`}
                 href={`/trades/${report.bestTrade.id}`}
               />
             )}
@@ -202,13 +198,13 @@ export function ReportView({
               <Row
                 label="Worst trade"
                 value={report.worstTrade.ticker || "—"}
-                detail={`${money(report.worstTrade.dollarPL)} · ${r(report.worstTrade.rMultiple)}`}
+                detail={`${formatMoney(report.worstTrade.dollarPL)} · ${r(report.worstTrade.rMultiple)}`}
                 href={`/trades/${report.worstTrade.id}`}
               />
             )}
             <Row
               label="Average win / loss"
-              value={`${money(report.summary.avgWin)} / ${money(report.summary.avgLoss)}`}
+              value={`${formatMoney(report.summary.avgWin)} / ${formatMoney(report.summary.avgLoss)}`}
             />
             <Row
               label="Longest win / loss streak"
