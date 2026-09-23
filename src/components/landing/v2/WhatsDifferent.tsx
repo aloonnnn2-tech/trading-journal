@@ -44,9 +44,15 @@ const PROOFS = [
   },
 ];
 
+// Both import claims are deliberately narrow, because the honest versions
+// are different shapes. The screenshot path is confirmed against one broker
+// and one asset class and says so. The file path is a format capability --
+// the wizard takes .csv/.xlsx/.json and has you map the columns -- and makes
+// no promise about any particular broker's export, because none has been
+// tested. See "Facts Alon supplies" in docs/design-audit.md.
 const FACTS: { label: string; value: string }[] = [
-  { label: "Screenshot", value: "OCR" },
-  { label: "Bulk import", value: "CSV / XLSX" },
+  { label: "Screenshot import", value: "IBKR · stocks" },
+  { label: "File import", value: "CSV / XLSX / JSON" },
   { label: "Setup cost", value: "Free" },
 ];
 
@@ -113,8 +119,10 @@ export function WhatsDifferent() {
             Getting your history in takes one sitting
           </h3>
           <p className="mt-1.5 max-w-xl text-[15px] text-zinc-600 dark:text-zinc-400">
-            Drop in a screenshot and the form fills itself. Bring a CSV or Excel export from your
-            broker and the rest of your history comes with it. Everything saves as you type.
+            Drop in a screenshot and the form fills itself — confirmed for Interactive Brokers
+            stock trades, and manual entry works for any broker or market. Bring a CSV, Excel or
+            JSON file and you map its columns once to bring the rest of your history in.
+            Everything saves as you type.
           </p>
         </div>
         <dl className="flex shrink-0 gap-8">
