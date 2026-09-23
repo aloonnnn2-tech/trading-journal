@@ -13,6 +13,11 @@ import { Marquee } from "@/components/landing/v2/Marquee";
 // shimmer, the primary button catches a light every few seconds, and the
 // capability strip runs as a ticker.
 //
+// The stagger is deliberately tight. It used to run 80ms to 540ms behind a
+// 500ms blur-in, so the buttons -- the whole point of a hero -- landed a
+// second after the page did. Each piece now moves 8px over 200ms, and the
+// last one starts at 340ms (issue 7 of docs/design-audit.md).
+//
 // Every entrance here is a CSS animation, not framer: it is above the fold,
 // and a CSS animation starts at first paint, where a framer `initial` state
 // ships as opacity 0 and waits for hydration. The text column comes in from
@@ -48,7 +53,7 @@ export function Hero() {
                 {/* The space sits between the spans: inside an inline-block a
                     trailing space collapses and the words run together. */}
                 {i > 0 && " "}
-                <span className="inline-block animate-rise-left" style={rise(80 + i * 60)}>
+                <span className="inline-block animate-rise-left" style={rise(40 + i * 40)}>
                   {word === "pattern" ? (
                     <span
                       className="animate-text-shimmer bg-[length:200%_auto] bg-clip-text text-transparent"
@@ -68,13 +73,13 @@ export function Hero() {
           </h1>
           <p
             className="max-w-lg animate-rise-left text-lg leading-relaxed text-zinc-600 dark:text-zinc-400"
-            style={rise(380)}
+            style={rise(220)}
           >
             Record a trade in about a minute, then write down the rules you trade by.
             Every entry is checked against them, so you can see which setups earn their
             place and what your habits actually cost you.
           </p>
-          <div className="flex animate-rise-left flex-wrap gap-3" style={rise(460)}>
+          <div className="flex animate-rise-left flex-wrap gap-3" style={rise(280)}>
             <Link
               href="/sign-up"
               className="relative overflow-hidden rounded-lg bg-primary px-6 py-3 font-medium text-white dark:text-zinc-950 shadow-lg shadow-primary/25 hover:brightness-110"
@@ -92,7 +97,7 @@ export function Hero() {
               Log in
             </Link>
           </div>
-          <div className="w-full max-w-lg animate-rise-left" style={rise(540)}>
+          <div className="w-full max-w-lg animate-rise-left" style={rise(340)}>
             <Marquee className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
               {CAPABILITIES.map((c) => (
                 <span key={c} className="flex items-center gap-[var(--gap)] whitespace-nowrap">
@@ -103,7 +108,7 @@ export function Hero() {
             </Marquee>
           </div>
         </div>
-        <div className="relative animate-rise-right" style={rise(150)}>
+        <div className="relative animate-rise-right" style={rise(100)}>
           <HeroPanel />
         </div>
       </div>

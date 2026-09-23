@@ -59,22 +59,27 @@
   --animate-text-shimmer: text-shimmer 4s linear infinite;
   /* Entrance for above-the-fold content. A CSS animation starts at first
      paint; a framer `initial` state ships as opacity 0 in the HTML and waits
-     for hydration. `both` holds the start state during a delay. */
-  --animate-rise: rise 0.45s cubic-bezier(0.23, 1, 0.32, 1) both;
-  --animate-rise-left: rise-left 0.5s cubic-bezier(0.23, 1, 0.32, 1) both;
-  --animate-rise-right: rise-right 0.5s cubic-bezier(0.23, 1, 0.32, 1) both;
+     for hydration. `both` holds the start state during a delay.
+
+     200ms and 8px, matching the scroll reveals, and no blur: these run on the
+     hero headline, and a blurred word is a word nobody can read. They used to
+     be 450-500ms over 12-16px with a 6px blur, which put the last word of the
+     H1 nearly a second out (issue 7 of docs/design-audit.md). */
+  --animate-rise: rise 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+  --animate-rise-left: rise-left 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+  --animate-rise-right: rise-right 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
 
   @keyframes rise {
-    from { opacity: 0; transform: translateY(12px); filter: blur(6px); }
-    to { opacity: 1; transform: none; filter: none; }
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
   }
   @keyframes rise-left {
-    from { opacity: 0; transform: translate(-16px, 8px); filter: blur(6px); }
-    to { opacity: 1; transform: none; filter: none; }
+    from { opacity: 0; transform: translate(-8px, 0); }
+    to { opacity: 1; transform: none; }
   }
   @keyframes rise-right {
-    from { opacity: 0; transform: translate(16px, 8px); filter: blur(6px); }
-    to { opacity: 1; transform: none; filter: none; }
+    from { opacity: 0; transform: translate(8px, 0); }
+    to { opacity: 1; transform: none; }
   }
   @keyframes aurora {
     from { transform: translateX(0); }
@@ -158,4 +163,61 @@ summary:active {
 /* Numeric alignment for table columns, tickers, and axis-adjacent figures. */
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Scroll reveals. See src/components/motion/Reveal.tsx for the mechanism.
+ *
+ * The default state is VISIBLE: an element only becomes transparent once the
+ * client has decided it is far enough below the fold to animate safely, by
+ * setting data-reveal-state="hidden". Nothing here can blank the server HTML,
+ * which is the whole point -- the page used to arrive empty and fill in.
+ *
+ * 200ms and 8px, deliberately: at this size the motion registers as the page
+ * settling rather than as something still loading. */
+[data-reveal] {
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+[data-reveal][data-reveal-state="hidden"] {
+  opacity: 0;
+}
+
+[data-reveal="up"][data-reveal-state="hidden"] {
+  transform: translateY(8px);
+}
+
+[data-reveal="left"][data-reveal-state="hidden"] {
+  transform: translateX(-8px);
+}
+
+[data-reveal="right"][data-reveal-state="hidden"] {
+  transform: translateX(8px);
+}
+
+/* Decorative in-place motion: a bar filling, a ring drawing, an underline
+ * being struck. These never hide content, so they keep their own timing --
+ * capped at 600ms. */
+[data-decor] {
+  transition-duration: 600ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Belt and braces with the matchMedia check in Reveal.tsx: if the hidden
+   * state is ever applied anyway -- a preference changed mid-session, a stale
+   * attribute in the HTML -- the content still shows. */
+  [data-reveal],
+  [data-reveal][data-reveal-state="hidden"] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

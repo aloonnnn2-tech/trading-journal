@@ -1,15 +1,21 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CountUp } from "@/components/landing/v2/CountUp";
 import { formatMoney } from "@/lib/format/money";
 
 // The hero panel for /home-v2. A copy of the hero pieces from
 // ../illustrations.tsx (which stay untouched so the current homepage keeps
 // rendering exactly as it does) with additions from the TradeStats teardown:
 // the "live" pip pulses, the equity chart carries a baked-in hover tooltip,
-// and on load the panel behaves like a dashboard coming to life -- the line
-// draws itself, the figures count up, the meter fills.
+// and the line draws itself on load.
+//
+// The figures no longer count up from zero. For a second and a half the hero
+// -- the first thing anyone sees -- advertised a 6% win rate and a 0.15
+// profit factor, which is a losing account, and `curl` on the homepage
+// returned those instead of the real demo figures (issue 8 of
+// docs/design-audit.md). Every number here is now in the server HTML. The
+// line, the wash and the meter still animate: they are decorative, and they
+// do not hide a number while they run.
 
 function PanelFrame({
   label,
@@ -48,8 +54,9 @@ function PanelFrame({
   );
 }
 
-// When the panel has faded in and the figures start moving. Everything in the
-// panel is timed from here so it reads as one sequence, not three effects.
+// When the panel has faded in and its decoration starts moving. The line,
+// the wash and the meter are timed from here so they read as one sequence
+// rather than three effects. No figure waits on it.
 const START = 0.6;
 
 function MiniStat({
@@ -73,7 +80,7 @@ function MiniStat({
         {label}
       </p>
       <p className={`tnum mt-0.5 truncate font-mono text-sm font-semibold ${color}`}>
-        <CountUp to={value} format={format} delay={START} />
+        {format(value)}
       </p>
       {meter !== undefined && (
         <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
@@ -82,7 +89,7 @@ function MiniStat({
             style={{ width: `${meter * 100}%` }}
             initial={{ scaleX: 0 }}
             animate={{ scaleX: 1 }}
-            transition={{ duration: 1.2, delay: START, ease: "easeOut" }}
+            transition={{ duration: 0.6, delay: START, ease: "easeOut" }}
           />
         </div>
       )}
@@ -134,7 +141,7 @@ function EquityChartSvg() {
         fill="var(--chart-pos)"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.1 }}
-        transition={{ duration: 0.6, delay: START + 1.2 }}
+        transition={{ duration: 0.4, delay: START + 0.5 }}
       />
       <motion.polyline
         points={EQUITY_POINTS}
@@ -145,19 +152,15 @@ function EquityChartSvg() {
         strokeLinecap="round"
         initial={{ pathLength: 0 }}
         animate={{ pathLength: 1 }}
-        transition={{ duration: 1.4, delay: START, ease: "easeInOut" }}
+        transition={{ duration: 0.6, delay: START, ease: "easeInOut" }}
       />
-      <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: START + 1.4 }}>
+      <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: START + 0.6 }}>
         <circle cx="504" cy="30" r="5.5" fill="var(--color-card)" />
         <circle cx="504" cy="30" r="3.5" fill="var(--chart-pos)" />
       </motion.g>
 
       {/* Hover tooltip, drawn in the same SVG so it scales with the chart. */}
-      <motion.g
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: START + 1.25, ease: "easeOut" }}
-      >
+      <g>
         <line
           x1={HOVER_X}
           x2={HOVER_X}
@@ -189,7 +192,7 @@ function EquityChartSvg() {
         >
           Jun 4 · 2:15 PM · +$1,240
         </text>
-      </motion.g>
+      </g>
     </svg>
   );
 }
@@ -209,12 +212,9 @@ export function HeroPanel() {
             ["NVDA", "long", "+$612.40", true],
             ["TSLA", "short", "−$248.91", false],
             ["COIN", "long", "+$891.75", true],
-          ].map(([ticker, dir, pl, won], i) => (
-            <motion.div
+          ].map(([ticker, dir, pl, won]) => (
+            <div
               key={ticker as string}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: START + 1.5 + i * 0.12, ease: "easeOut" }}
               className="flex items-center justify-between border-t border-zinc-100 py-1.5 first:border-0 dark:border-subtle"
             >
               <span className="flex items-center gap-2">
@@ -228,7 +228,7 @@ export function HeroPanel() {
               <span className={`tnum font-mono text-[11px] ${won ? "text-profit" : "text-loss"}`}>
                 {pl}
               </span>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

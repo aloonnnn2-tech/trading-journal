@@ -6,8 +6,7 @@ import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
 import { ArrowRight, Check, Construction } from "lucide-react";
 import { PaidPlanModal } from "@/components/landing/PaidPlanModal";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
-import { CountUp } from "@/components/landing/v2/CountUp";
-import { Words } from "@/components/landing/v2/Words";
+import { Reveal } from "@/components/motion/Reveal";
 
 // The pricing section for /home-v2. Same two plans, same copy, same honesty
 // as ../PricingTeaser.tsx (which stays untouched): the paid card is the hero,
@@ -32,14 +31,8 @@ const FREE_FEATURES = [
   "Full version history",
 ];
 
-const reveal = (delay: number) => ({
-  initial: { opacity: 0, y: 10 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: "-60px" },
-  transition: { duration: 0.45, delay, ease: [0.23, 1, 0.32, 1] as const },
-});
-
-// The review card's score, drawn as a dial. Fills on view, number counts up.
+// The review card's score, drawn as a dial. The ring fills on view; the
+// number is simply there, because it is a figure and not decoration.
 function ScoreDial() {
   const r = 20;
   const c = 2 * Math.PI * r;
@@ -48,6 +41,7 @@ function ScoreDial() {
       <svg viewBox="0 0 48 48" className="h-12 w-12 shrink-0 -rotate-90" aria-hidden>
         <circle cx="24" cy="24" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-zinc-200 dark:text-zinc-800" />
         <motion.circle
+          data-decor
           cx="24"
           cy="24"
           r={r}
@@ -59,12 +53,12 @@ function ScoreDial() {
           initial={{ strokeDashoffset: c }}
           whileInView={{ strokeDashoffset: c * (1 - 0.78) }}
           viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 1.2, delay: 0.3, ease: "easeOut" }}
+          transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
         />
       </svg>
       <div>
         <p className="font-mono text-2xl font-semibold leading-none text-zinc-900 dark:text-zinc-50">
-          <CountUp to={78} format={(v) => String(Math.round(v))} delay={0.4} duration={1.2} />
+          78
           <span className="ml-1 text-xs font-normal text-zinc-500">/ 100</span>
         </p>
         <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-zinc-500">execution</p>
@@ -93,7 +87,7 @@ function RankedSetups() {
               initial={{ scaleX: 0 }}
               whileInView={{ scaleX: 1 }}
               viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.7, delay: 0.3 + i * 0.12, ease: "easeOut" }}
+              transition={{ duration: 0.5, delay: 0.1 + i * 0.06, ease: "easeOut" }}
             />
           </div>
           <span className="w-12 shrink-0 text-right font-mono text-profit">{r}</span>
@@ -109,7 +103,7 @@ function CaptureMeter() {
     <div>
       <div className="flex items-baseline justify-between">
         <p className="font-mono text-2xl font-semibold leading-none text-zinc-900 dark:text-zinc-50">
-          <CountUp to={39} format={(v) => `${Math.round(v)}%`} delay={0.4} duration={1.2} />
+          39%
         </p>
         <p className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">captured</p>
       </div>
@@ -119,7 +113,7 @@ function CaptureMeter() {
           initial={{ scaleX: 0 }}
           whileInView={{ scaleX: 1 }}
           viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.9, delay: 0.35, ease: "easeOut" }}
+          transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
         />
       </div>
       <div className="mt-1.5 flex justify-between font-mono text-[10px]">
@@ -150,8 +144,7 @@ export function PricingTeaser() {
           <div aria-hidden className="hidden xl:block xl:w-56 xl:shrink-0" />
 
           {/* ---- The paid plan: the hero, and now the product ------------- */}
-          <motion.div
-            {...reveal(0)}
+          <Reveal
             onPointerMove={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
               px.set(e.clientX - r.left);
@@ -194,35 +187,32 @@ export function PricingTeaser() {
             </div>
 
             <h3 className="relative mx-auto mt-4 max-w-lg text-center text-2xl font-semibold leading-[1.15] tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-[34px]">
-              <Words text="A second read on your own history." delay={0.1} />
+              A second read on your own history.
             </h3>
-            <motion.p
-              {...reveal(0.35)}
-              className="relative mx-auto mt-3 max-w-md text-center text-base text-zinc-500 sm:text-lg"
-            >
+            <p className="relative mx-auto mt-3 max-w-md text-center text-base text-zinc-500 sm:text-lg">
               The free plan keeps the record. The paid plan reviews it: each trade scored on
               execution, your strongest setups ranked, and the month written up as a report.
-            </motion.p>
+            </p>
 
             {/* The three teasers, shown working. */}
             <div className="relative mt-6 grid gap-3 sm:grid-cols-3">
               {PANELS.map((panel, i) => (
-                <motion.div
+                <Reveal
                   key={panel.title}
-                  {...reveal(0.2 + i * 0.1)}
+                  delay={i * 0.05}
                   className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-3.5 dark:border-subtle dark:bg-zinc-950/60"
                 >
                   <panel.visual />
                   <p className="mt-2.5 text-xs leading-snug text-zinc-600 dark:text-zinc-400">{panel.title}</p>
-                </motion.div>
+                </Reveal>
               ))}
             </div>
             <p className="relative mt-2.5 text-center text-xs text-zinc-500">…and eight more.</p>
 
-            <motion.div {...reveal(0.5)} className="relative">
+            <div className="relative">
               <button
                 onClick={() => setOpen(true)}
-                className="group relative mx-auto mt-5 flex items-center justify-center gap-2 overflow-hidden rounded-full bg-primary px-8 py-4 text-base font-medium text-white shadow-lg shadow-primary/30 transition hover:brightness-110 dark:text-zinc-950"
+                className="group relative mx-auto mt-5 flex items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-8 py-4 text-base font-medium text-white shadow-lg shadow-primary/30 transition hover:brightness-110 dark:text-zinc-950"
               >
                 <span
                   aria-hidden
@@ -241,12 +231,12 @@ export function PricingTeaser() {
                 Read how every feature works
                 <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
               </Link>
-            </motion.div>
-          </motion.div>
+            </div>
+          </Reveal>
 
           {/* ---- The free plan: beside it, smaller, complete, quiet -------- */}
-          <motion.div
-            {...reveal(0.25)}
+          <Reveal
+            delay={0.05}
             className="flex w-full max-w-2xl flex-col rounded-2xl border border-zinc-200/80 bg-white/70 p-6 dark:border-subtle/80 dark:bg-card/70 lg:w-56 lg:shrink-0"
           >
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">
@@ -272,7 +262,7 @@ export function PricingTeaser() {
             >
               Start journaling free
             </Link>
-          </motion.div>
+          </Reveal>
         </div>
       </section>
 

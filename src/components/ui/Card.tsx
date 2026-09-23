@@ -1,26 +1,34 @@
 "use client";
 
 import { motion, type HTMLMotionProps } from "framer-motion";
-import { fadeInUp } from "@/components/motion/variants";
+import { useReveal } from "@/components/motion/use-reveal";
 
 type CardProps = HTMLMotionProps<"div"> & { hoverable?: boolean; standalone?: boolean };
 
-// `standalone` (default true) makes the card trigger its own entrance
-// animation on scroll into view. Set it to false when the card is a direct
-// child of <StaggerGrid> so it inherits the parent's staggered timing
-// instead of animating independently.
+// `standalone` (default true) makes the card animate in as it is scrolled to.
+// Set it to false when the card is a direct child of <StaggerGrid>, which
+// handles its children's entrance itself.
+//
+// The entrance used to be a framer `initial: { opacity: 0 }` + `whileInView`,
+// which meant every card on every page -- dashboard, analytics, admin --
+// shipped invisible in the server HTML and waited for hydration plus a
+// scroll-into-view callback before appearing. That is most of why /analytics
+// looked blank for a second or two on arrival (issue 4 of
+// docs/design-audit.md).
+//
+// useReveal rather than a <Reveal> wrapper: this is a motion element already,
+// and wrapping it would either add a box to every grid cell or need
+// `display: contents`, which drops the box a transform needs to apply to.
+// The hover lift stays on framer -- it is not an entrance, and the spring
+// reads better than a CSS transition.
 export function Card({ className = "", hoverable = true, standalone = true, ...props }: CardProps) {
+  const ref = useReveal<HTMLDivElement>();
+
   return (
     <motion.div
-      variants={fadeInUp}
-      {...(standalone
-        ? { initial: "hidden", whileInView: "show", viewport: { once: true, margin: "-40px" } }
-        : {})}
-      whileHover={
-        hoverable
-          ? { y: -1, transition: { duration: 0.15 } }
-          : undefined
-      }
+      ref={standalone ? ref : undefined}
+      data-reveal={standalone ? "up" : undefined}
+      whileHover={hoverable ? { y: -1, transition: { duration: 0.15 } } : undefined}
       // Inert in V1; Design V2 uses it to cancel the entrance animation and
       // the hover lift. See design-v2.css section 5.
       data-v2-flat

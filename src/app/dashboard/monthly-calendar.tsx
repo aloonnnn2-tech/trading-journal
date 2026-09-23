@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import type { DailyPL } from "@/lib/dashboard/queries";
-import { staggerContainer, fadeInUp } from "@/components/motion/variants";
 import { useMounted } from "@/lib/use-mounted";
 import { formatMoney } from "@/lib/format/money";
 
@@ -54,12 +53,11 @@ export function MonthlyCalendar({
           </span>
         </div>
       </div>
-      <motion.div
-        variants={staggerContainer(0.012)}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-7 gap-1 text-center text-xs"
-      >
+      {/* The day cells used to fade in on a 12ms stagger from `opacity: 0`.
+          Across a 31-day month that is the P/L wash arriving a cell at a time
+          on a panel whose whole job is to be read at a glance (issue 7 of
+          docs/design-audit.md). The hover lift stays. */}
+      <div className="grid grid-cols-7 gap-1 text-center text-xs">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <div key={i} className="py-1 text-[10px] font-medium uppercase text-zinc-500 dark:text-zinc-400">
             {d}
@@ -82,7 +80,6 @@ export function MonthlyCalendar({
           return (
             <motion.div
               key={i}
-              variants={fadeInUp}
               whileHover={{ scale: 1.06 }}
               className={`tnum cursor-default rounded-md py-1.5 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 ${
                 isToday ? "ring-1 ring-primary" : ""
@@ -94,7 +91,7 @@ export function MonthlyCalendar({
             </motion.div>
           );
         })}
-      </motion.div>
+      </div>
     </div>
   );
 }
