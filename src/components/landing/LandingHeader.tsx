@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
@@ -16,11 +15,13 @@ export function LandingHeader() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
+  // No entrance animation. This is the nav: a framer `initial` shipped it as
+  // opacity:0 in the server HTML, so the logo, the links and the sign-up
+  // button -- the first things anyone sees -- were invisible until hydration
+  // (issue 7 of docs/design-audit.md). A 400ms slide is not worth paying for
+  // with the header.
   return (
-    <motion.header
-      initial={{ y: -16, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+    <header
       className="sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 dark:border-subtle bg-white/85 dark:bg-background/85 px-6 py-3.5 backdrop-blur-md sm:px-10"
     >
       <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
@@ -62,6 +63,6 @@ export function LandingHeader() {
           Start journaling free
         </Link>
       </div>
-    </motion.header>
+    </header>
   );
 }

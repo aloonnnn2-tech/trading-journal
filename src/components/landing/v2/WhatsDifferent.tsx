@@ -2,17 +2,20 @@
 
 import { motion } from "framer-motion";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
-import { Slide } from "@/components/landing/v2/Slide";
-import { Typewriter } from "@/components/landing/v2/Typewriter";
-import { Words } from "@/components/landing/v2/Words";
+import { Reveal } from "@/components/motion/Reveal";
 
-// The selling section for /home-v2: same claims, same copy and same shape as
-// ../WhatsDifferent.tsx (which stays untouched; every claim there maps to a
-// shipped feature and that has not changed). What moves: the left column
-// slides in from the left and the three proofs from the right, the heading
-// arrives word by word, a rail draws down beside the proofs as they reveal,
-// the three mono values in the strip type themselves in, and the strip
-// carries a light round its border.
+// The selling section for the landing page: same claims, same copy and same
+// shape as ../WhatsDifferent.tsx (which stays untouched; every claim there
+// maps to a shipped feature and that has not changed). The left column
+// arrives from the left and the three proofs from the right, and a rail draws
+// down beside the proofs.
+//
+// The heading used to arrive a word at a time and the three mono values used
+// to type themselves in. Both are gone: a headline that assembles itself over
+// half a second, and a value that takes most of a second to spell "OCR", are
+// text the reader is waiting on. Everything here now renders complete and
+// moves 8px at most (issue 7 of docs/design-audit.md). The rail keeps its own
+// motion -- it draws beside the text rather than holding it back.
 
 const PROOFS = [
   {
@@ -52,38 +55,40 @@ export function WhatsDifferent() {
     <section id="different" className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 pb-24 sm:px-10">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div>
-          <Slide from="left">
+          <Reveal direction="left">
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">After the close</p>
-          </Slide>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
-            <Words text="Three jobs a plain record leaves to you." delay={0.1} />
-          </h2>
-          <Slide from="left" delay={0.45}>
+          </Reveal>
+          <Reveal direction="left" delay={0.05}>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
+              Three jobs a plain record leaves to you.
+            </h2>
+          </Reveal>
+          <Reveal direction="left" delay={0.1}>
             <p className="mt-4 max-w-md text-zinc-600 dark:text-zinc-400">
               Recording trades is the straightforward part, and most tools stop there. What comes
               after is where a journal starts to pay for itself.
             </p>
-          </Slide>
+          </Reveal>
         </div>
 
         {/* The rail sits in the column gap, so it adds no width to the list. */}
         <div className="relative">
           <motion.div
             aria-hidden
+            data-decor
             className="absolute -left-8 top-0 hidden h-full w-px origin-top bg-gradient-to-b from-primary via-primary/50 to-transparent lg:block"
             initial={{ scaleY: 0 }}
             whileInView={{ scaleY: 1 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
+            viewport={{ once: true, margin: "0px 0px 20% 0px" }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
           />
           <ol className="flex flex-col">
             {PROOFS.map((proof, i) => (
-              <motion.li
+              <Reveal
+                as="li"
                 key={proof.n}
-                initial={{ opacity: 0, x: 24 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.12, ease: [0.23, 1, 0.32, 1] }}
+                direction="right"
+                delay={i * 0.05}
                 className="border-t border-zinc-200 py-7 first:border-t-0 first:pt-0 dark:border-subtle"
               >
                 <div className="flex items-baseline gap-3">
@@ -95,19 +100,13 @@ export function WhatsDifferent() {
                 <p className="mt-2.5 text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">
                   {proof.body}
                 </p>
-              </motion.li>
+              </Reveal>
             ))}
           </ol>
         </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-60px" }}
-        transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-        className="relative mt-14 flex flex-col gap-6 rounded-xl border border-zinc-200 px-6 py-6 dark:border-subtle sm:flex-row sm:items-center sm:justify-between sm:px-8"
-      >
+      <Reveal className="relative mt-14 flex flex-col gap-6 rounded-xl border border-zinc-200 px-6 py-6 dark:border-subtle sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <BorderBeam size={70} duration={8} />
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
@@ -119,18 +118,18 @@ export function WhatsDifferent() {
           </p>
         </div>
         <dl className="flex shrink-0 gap-8">
-          {FACTS.map((fact, i) => (
+          {FACTS.map((fact) => (
             <div key={fact.label}>
               <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">
                 {fact.label}
               </dt>
               <dd className="mt-1 font-mono text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                <Typewriter text={fact.value} delay={0.3 + i * 0.5} />
+                {fact.value}
               </dd>
             </div>
           ))}
         </dl>
-      </motion.div>
+      </Reveal>
     </section>
   );
 }

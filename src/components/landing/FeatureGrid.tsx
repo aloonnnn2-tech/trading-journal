@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -16,6 +15,7 @@ import {
   Target,
   type LucideIcon,
 } from "lucide-react";
+import { Reveal } from "@/components/motion/Reveal";
 
 // The full capability list, as a bento rather than a wall of equal cards.
 //
@@ -126,12 +126,9 @@ export function FeatureGrid() {
     <section className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-10">
       <div data-v2-cards className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map((feature, i) => (
-          <motion.div
+          <Reveal
             key={feature.title}
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.35, delay: (i % 4) * 0.06, ease: "easeOut" }}
+            delay={(i % 4) * 0.04}
             className={`flex flex-col gap-3 rounded-2xl border p-5 sm:p-6 ${feature.span ?? ""} ${
               feature.paid
                 ? "border-primary/25 bg-primary/[0.03] dark:bg-primary/[0.04]"
@@ -156,7 +153,7 @@ export function FeatureGrid() {
             <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
               {feature.description}
             </p>
-          </motion.div>
+          </Reveal>
         ))}
       </div>
     </section>

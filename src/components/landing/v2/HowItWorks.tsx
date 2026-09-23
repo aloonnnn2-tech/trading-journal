@@ -8,14 +8,16 @@ import {
   useMotionTemplate,
   useMotionValue,
   useMotionValueEvent,
+  useReducedMotion,
   useTransform,
   type MotionValue,
+  type TargetAndTransition,
 } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
 import { FIELD_LABELS } from "@/lib/ocr/types";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
-import { CountUp } from "@/components/landing/v2/CountUp";
+import { Reveal } from "@/components/motion/Reveal";
 import exampleScreenshot from "../../../../public/example-trade-screenshot.png";
 
 // The process row for /home-v2: screenshot in, trade card out, execution
@@ -68,12 +70,29 @@ const BREAKDOWN: [string, number][] = [
 // The three visuals play their sequence on mount, and each card remounts its
 // visual every time it comes to the front, so the step performs itself on
 // every hand-off rather than sitting there finished.
+//
+// `play` is false on the very first render, which is the one the server
+// produces. Without it every one of these framer `initial` states shipped as
+// opacity:0, so the front card -- visible immediately, above the fold on a
+// laptop -- arrived as an empty box and filled in after hydration (issue 7 of
+// docs/design-audit.md). A hand-off can only happen once the page is running,
+// so nothing is lost: `initial={false}` means "start finished", and every
+// replay after the first animates exactly as before.
 
-function UploadVisual() {
+interface VisualProps {
+  /** False on the server's render and the first client one. */
+  play?: boolean;
+}
+
+/** framer reads `initial={false}` as "begin at the animate state". */
+const from = <T extends TargetAndTransition>(play: boolean | undefined, state: T) =>
+  play ? state : false;
+
+function UploadVisual({ play }: VisualProps) {
   return (
     <div className="flex h-full items-center gap-5 rounded-xl border-2 border-dashed border-zinc-300 px-5 dark:border-zinc-700">
       <motion.div
-        initial={{ opacity: 0, y: -18, scale: 0.96 }}
+        initial={from(play, { opacity: 0, y: -18, scale: 0.96 })}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 320, damping: 22, delay: 0.15 }}
       >
@@ -86,7 +105,7 @@ function UploadVisual() {
       </motion.div>
       <motion.div
         className="flex min-w-0 flex-col gap-2.5"
-        initial={{ opacity: 0 }}
+        initial={from(play, { opacity: 0 })}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.35, delay: 0.55 }}
       >
@@ -98,7 +117,7 @@ function UploadVisual() {
   );
 }
 
-function DetectedVisual() {
+function DetectedVisual({ play }: VisualProps) {
   return (
     <div className="h-full rounded-xl border border-primary/30 bg-primary/5 p-4">
       <p className="mb-2.5 text-sm font-semibold text-primary">Detected from image</p>
@@ -108,7 +127,7 @@ function DetectedVisual() {
             key={f.key}
             className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300"
             // Left column from the left, right column from the right.
-            initial={{ opacity: 0, x: i % 2 === 0 ? -10 : 10 }}
+            initial={from(play, { opacity: 0, x: i % 2 === 0 ? -10 : 10 })}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: 0.15 + i * 0.07, ease: "easeOut" }}
           >
@@ -116,7 +135,7 @@ function DetectedVisual() {
             <span className="font-medium">{f.value}</span>
             <motion.span
               className="inline-flex"
-              initial={{ scale: 0, opacity: 0 }}
+              initial={from(play, { scale: 0, opacity: 0 })}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 400, damping: 18, delay: 0.4 + i * 0.07 }}
             >
@@ -129,7 +148,7 @@ function DetectedVisual() {
   );
 }
 
-function ReviewVisual() {
+function ReviewVisual({ play }: VisualProps) {
   return (
     <div className="flex h-full flex-col gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-subtle dark:bg-zinc-950">
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
@@ -139,7 +158,7 @@ function ReviewVisual() {
       <div className="flex items-start gap-5">
         <div className="shrink-0 text-center">
           <p className="text-4xl font-semibold leading-none tabular-nums text-profit">
-            <CountUp to={78} format={(v) => String(Math.round(v))} delay={0.1} duration={1.1} />
+            78
           </p>
           <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-zinc-500">/ 100</p>
         </div>
@@ -151,9 +170,9 @@ function ReviewVisual() {
                 <motion.div
                   className="h-full origin-left rounded-full bg-primary"
                   style={{ width: `${value}%` }}
-                  initial={{ scaleX: 0 }}
+                  initial={from(play, { scaleX: 0 })}
                   animate={{ scaleX: 1 }}
-                  transition={{ duration: 0.6, delay: 0.2 + i * 0.08, ease: "easeOut" }}
+                  transition={{ duration: 0.45, delay: 0.1 + i * 0.05, ease: "easeOut" }}
                 />
               </div>
               <span className="w-6 shrink-0 text-right text-xs tabular-nums text-zinc-600 dark:text-zinc-400">
@@ -202,7 +221,7 @@ function CardFace({ step, visualKey }: { step: (typeof STEPS)[number]; visualKey
   return (
     <>
       <div className="h-44 overflow-hidden">
-        <step.visual key={visualKey} />
+        <step.visual key={visualKey} play={visualKey > 0} />
       </div>
 
       <div className="mt-5 flex items-baseline gap-2.5">
@@ -305,11 +324,14 @@ export function HowItWorks() {
   const startRef = useRef<number | null>(null);
   const [front, setFront] = useState(0);
 
-  // Deliberately NOT gated on prefers-reduced-motion -- see the note in
-  // HomeV2.tsx. The wheel turns for everyone, because on Windows that setting
-  // is off by default and Battery Saver switches it off too, so honouring it
-  // here meant most visitors never saw this section work at all.
+  // Gated on prefers-reduced-motion. This is a continuous rotation that never
+  // stops, which is the single most uncomfortable thing on the page for a
+  // reader who asked for less movement. With the preference set the wheel
+  // holds at the first card, which still reads as a card with a step in it.
+  const reduced = useReducedMotion();
+
   useAnimationFrame((t) => {
+    if (reduced) return;
     if (startRef.current === null) startRef.current = t;
     const elapsed = t - startRef.current;
     const whole = Math.floor(elapsed / STEP_MS);
@@ -320,17 +342,11 @@ export function HowItWorks() {
 
   return (
     <section className="mx-auto w-full max-w-6xl overflow-hidden px-6 pb-24 sm:px-10">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-60px" }}
-        transition={{ duration: 0.45, ease: "easeOut" }}
-        className="relative mx-auto h-[30rem] w-full max-w-[40rem] sm:h-[24rem]"
-      >
+      <Reveal className="relative mx-auto h-[30rem] w-full max-w-[40rem] sm:h-[24rem]">
         {STEPS.map((step, i) => (
           <StackCard key={step.number} index={i} turns={turns} step={step} />
         ))}
-      </motion.div>
+      </Reveal>
 
       <div aria-hidden className="mt-6 flex justify-center gap-2">
         {STEPS.map((step, i) => (

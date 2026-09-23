@@ -34,27 +34,37 @@ import { PublicViewBeacon } from "@/components/public-view-beacon";
 // attribute belongs to the dormant Design V2 flag and would clamp the
 // headline this page exists to enlarge.
 //
-// MOTION POLICY, AND IT IS DELIBERATE: this page animates for everyone,
-// including visitors whose OS reports prefers-reduced-motion. That is an
-// owner decision taken with the trade-off stated, not an oversight, and it is
-// why reducedMotion is "never" rather than "user".
+// MOTION POLICY: this page honours prefers-reduced-motion, like the rest of
+// the app. That is a reversal, and the reasoning is worth keeping.
 //
-// Why: on Windows the setting behind that query is Settings > Accessibility >
-// Visual effects > "Animation effects", which ships OFF on many machines and
-// is switched off by Battery Saver. It is therefore a far noisier signal than
-// the deliberate Reduce Motion toggle on macOS/iOS. Honouring it here meant
-// the larger share of visitors landed on a page whose hero, process cards and
-// proof strip all sat dead still -- read as broken rather than as considerate.
+// It used to set reducedMotion="never" on purpose. The argument was that on
+// Windows the setting behind that query is Settings > Accessibility > Visual
+// effects > "Animation effects", which ships OFF on many machines and is
+// switched off by Battery Saver -- a far noisier signal than the deliberate
+// Reduce Motion toggle on macOS/iOS. Honouring it left the larger share of
+// visitors on a page whose hero, process cards and proof strip sat dead
+// still, which read as broken rather than as considerate. The stated cost was
+// that someone who set the preference *because* movement makes them unwell
+// got the motion regardless.
 //
-// The cost, stated plainly: a visitor who set that preference *because*
-// movement makes them unwell gets the motion anyway on this page. That is the
-// accepted trade.
+// What changed is why that cost is no longer worth paying. The "dead still"
+// failure was caused by content that STARTED INVISIBLE and waited for an
+// animation to reveal it -- turn the animation off and the page is blank.
+// Since docs/design-audit.md issue 7, nothing here starts invisible: the
+// server HTML is the finished page and motion is a 200ms settle applied
+// afterwards, only to things still off screen. With the preference set the
+// page now renders complete and simply does not slide. There is nothing left
+// for the override to protect.
 //
-// SCOPE: this override stops at /home-v2. The signed-in app, and the live /
-// landing page, still honour prefers-reduced-motion normally -- nothing here
-// reaches them. If that ever needs revisiting, the three places that carry
-// this decision are this MotionConfig, the orbit's rAF loop in HowItWorks.tsx,
-// and CountUp.tsx.
+// Two other places carried the same decision: the orbit's rAF loop in
+// HowItWorks.tsx (now gated on useReducedMotion) and CountUp.tsx (deleted --
+// the figures are in the HTML). The global reduced-motion rules live in
+// globals.css.
+//
+// SCOPE NOTE, because the old comment here was wrong by the time it was read:
+// this file is no longer /home-v2 only. src/app/page.tsx renders HomeV2, so
+// this is the live landing page, and the override was reaching every visitor
+// to it.
 
 export async function HomeV2({ background }: { background: BgVariant }) {
   const userId = await getUserIdFromHeader();
@@ -64,7 +74,7 @@ export async function HomeV2({ background }: { background: BgVariant }) {
   }
 
   return (
-    <MotionConfig reducedMotion="never">
+    <MotionConfig reducedMotion="user">
       <BgProvider initial={background}>
         {/* overflow-x-clip here, not on the sections: anything that bleeds past
             its section is clipped at the viewport edge, where the cut is
