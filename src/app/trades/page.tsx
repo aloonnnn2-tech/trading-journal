@@ -15,6 +15,7 @@ import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
+import { formatMoney } from "@/lib/format/money";
 
 const PAGE_SIZE = 50;
 
@@ -511,8 +512,10 @@ function TradeTable({
               </td>
               <td data-num className="px-4 py-3">
                 {trade.dollar_pl !== null ? (
-                  <span className={trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}>
-                    ${trade.dollar_pl.toFixed(2)}
+                  <span
+                    className={`tnum font-mono ${trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}`}
+                  >
+                    {formatMoney(trade.dollar_pl, { sign: "always" })}
                   </span>
                 ) : (
                   <span className="text-zinc-400 dark:text-zinc-600">—</span>

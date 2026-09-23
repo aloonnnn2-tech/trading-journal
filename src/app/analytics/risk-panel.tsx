@@ -3,6 +3,7 @@ import { ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { MIN_COMPARISON, OUTLIER_MULTIPLE, type Comparison } from "@/lib/risk/analyze";
 import type { FullRiskReport } from "@/lib/risk/queries";
+import { formatMoney } from "@/lib/format/money";
 
 // The risk dashboard -- the paid risk section of /analytics.
 //
@@ -19,15 +20,11 @@ function pct(value: number | null, digits = 2): string {
   return value === null ? "—" : `${value.toFixed(digits)}%`;
 }
 
-function money(value: number | null): string {
-  return value === null ? "—" : `$${value.toFixed(0)}`;
-}
-
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
       <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
+      <p className="tnum mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
       {sub && <p className="text-[11px] text-zinc-500">{sub}</p>}
     </div>
   );
@@ -162,8 +159,8 @@ export function RiskPanel({ report }: { report: FullRiskReport }) {
           Position sizing
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Median size" value={money(report.positionSize.median)} />
-          <Stat label="Range" value={`${money(report.positionSize.min)} – ${money(report.positionSize.max)}`} />
+          <Stat label="Median size" value={formatMoney(report.positionSize.median)} />
+          <Stat label="Range" value={`${formatMoney(report.positionSize.min)} – ${formatMoney(report.positionSize.max)}`} />
           <Stat
             label="Variation"
             value={

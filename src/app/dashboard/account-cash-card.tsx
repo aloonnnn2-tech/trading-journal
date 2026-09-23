@@ -9,17 +9,7 @@ import { InfoTip } from "@/components/ui/InfoTip";
 import type { AccountBalance, AccountTransaction } from "@/lib/account/queries";
 import { formatDate } from "@/lib/dates/format";
 import { useMounted } from "@/lib/use-mounted";
-
-// compact drops the cents once the amount reaches four figures -- the card
-// is narrow (six-up grid on desktop) and "$11,234.56" no longer fits.
-function formatMoney(value: number, compact = false): string {
-  const abs = Math.abs(value);
-  const decimals = compact && abs >= 1000 ? 0 : 2;
-  return `${value < 0 ? "−" : ""}$${abs.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })}`;
-}
+import { formatMoney } from "@/lib/format/money";
 
 type PanelMode = "deposit" | "withdraw";
 
@@ -108,7 +98,7 @@ export function AccountCashCard({
   }
 
   const hint = account.hasTransactions
-    ? `${formatMoney(account.availableCash, true)} available`
+    ? `${formatMoney(account.availableCash)} available`
     : "Set your starting cash";
   // More tied up in open/pending orders than cash on hand -- an
   // over-committed account -- previously looked identical to a normal one;
@@ -126,7 +116,7 @@ export function AccountCashCard({
               <InfoTip text="Total cash: money you've added or removed, plus every closed trade's win or loss. Updated automatically. Available: total cash minus what's tied up in open positions. New trades pre-fill their position size from what's available." />
             </p>
             <p className="tnum mt-1.5 truncate text-[22px] font-semibold leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
-              {account.hasTransactions ? formatMoney(account.balance, true) : "—"}
+              {account.hasTransactions ? formatMoney(account.balance) : "—"}
             </p>
             <p className={`mt-0.5 text-xs ${isOverCommitted ? "text-loss" : "text-zinc-500"}`}>{hint}</p>
           </div>

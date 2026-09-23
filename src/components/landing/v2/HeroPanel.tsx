@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { CountUp } from "@/components/landing/v2/CountUp";
+import { formatMoney } from "@/lib/format/money";
 
 // The hero panel for /home-v2. A copy of the hero pieces from
 // ../illustrations.tsx (which stay untouched so the current homepage keeps
@@ -89,8 +90,9 @@ function MiniStat({
   );
 }
 
-const money = (v: number) =>
-  `+$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// sign: "always" rather than a hardcoded "+", so a demo figure below zero
+// would render as a loss instead of a gain.
+const money = (v: number) => formatMoney(v, { sign: "always" });
 const percent = (v: number) => `${Math.round(v)}%`;
 const ratio = (v: number) => v.toFixed(2);
 

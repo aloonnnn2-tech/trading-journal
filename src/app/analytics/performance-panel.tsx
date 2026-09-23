@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/Card";
 import type { EquityCurve } from "@/lib/equity/build";
+import { formatMoney } from "@/lib/format/money";
 
 // Trading performance against account growth.
 //
@@ -21,17 +22,11 @@ import type { EquityCurve } from "@/lib/equity/build";
 // whether the trading is working. On an account funded by deposits those move
 // almost independently, which is the thing worth seeing.
 
-function money(value: number): string {
-  return `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString(undefined, {
-    maximumFractionDigits: 0,
-  })}`;
-}
-
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
       <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
+      <p className="tnum mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
       {sub && <p className="text-[11px] text-zinc-500">{sub}</p>}
     </div>
   );
@@ -69,11 +64,11 @@ export function PerformancePanel({ curve }: { curve: EquityCurve }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Account balance" value={money(curve.finalEquity)} />
-        <Stat label="Net deposited" value={money(curve.netDeposits)} sub="money you put in" />
+        <Stat label="Account balance" value={formatMoney(curve.finalEquity)} />
+        <Stat label="Net deposited" value={formatMoney(curve.netDeposits)} sub="money you put in" />
         <Stat
           label="From trading"
-          value={money(curve.finalPL)}
+          value={formatMoney(curve.finalPL)}
           sub={fromTrading === null ? undefined : `${(fromTrading * 100).toFixed(0)}% of the balance`}
         />
         <Stat
@@ -97,7 +92,12 @@ export function PerformancePanel({ curve }: { curve: EquityCurve }) {
             {/* Two axes, because dollars and R are not comparable quantities
                 and forcing them onto one scale would make the smaller line
                 look flat regardless of what it did. */}
-            <YAxis yAxisId="money" tick={{ fontSize: 11 }} width={70} />
+            <YAxis
+              yAxisId="money"
+              tick={{ fontSize: 11 }}
+              width={70}
+              tickFormatter={(v) => formatMoney(Number(v), { compact: true })}
+            />
             <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11 }} width={50} />
             <Tooltip
               formatter={(value, name) => {
@@ -106,7 +106,7 @@ export function PerformancePanel({ curve }: { curve: EquityCurve }) {
                   return [`${amount >= 0 ? "+" : ""}${amount.toFixed(1)}R`, "Cumulative R"];
                 }
                 return [
-                  money(amount),
+                  formatMoney(amount),
                   name === "accountEquity" ? "Account balance" : "From trading",
                 ];
               }}
@@ -155,7 +155,7 @@ export function PerformancePanel({ curve }: { curve: EquityCurve }) {
 
       <div className="border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-subtle">
         <p>
-          Deepest trading drawdown {money(curve.maxDrawdown)}
+          Deepest trading drawdown {formatMoney(curve.maxDrawdown)}
           {curve.maxDrawdownPercent !== null && (
             <> · {(curve.maxDrawdownPercent * 100).toFixed(1)}% of the account at that point</>
           )}

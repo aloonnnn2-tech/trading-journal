@@ -49,7 +49,7 @@ export function StatCard({
             {tooltip && <InfoTip text={tooltip} />}
           </p>
           <p
-            className={`mt-1.5 flex items-baseline gap-1.5 text-[22px] font-semibold leading-tight tracking-tight ${valueColor}`}
+            className={`tnum mt-1.5 flex items-baseline gap-1.5 text-[22px] font-semibold leading-tight tracking-tight ${valueColor}`}
           >
             {!colorValue && tone !== "neutral" && (
               <span className={`text-sm ${tone === "positive" ? "text-profit" : "text-loss"}`}>

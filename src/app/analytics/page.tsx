@@ -20,10 +20,7 @@ import { getRiskReport } from "@/lib/risk/queries";
 import { getRegimeReport } from "@/lib/regime/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { getExcursionReport } from "@/lib/excursions/report";
-
-function money(n: number): string {
-  return `${n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`;
-}
+import { formatMoney } from "@/lib/format/money";
 
 export default async function AnalyticsPage() {
   const userId = await requireUserId();
@@ -75,7 +72,7 @@ export default async function AnalyticsPage() {
       <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <StatCard
           label="Total P/L"
-          value={money(summary.totalPL)}
+          value={formatMoney(summary.totalPL)}
           tone={summary.totalPL > 0 ? "positive" : summary.totalPL < 0 ? "negative" : "neutral"}
           colorValue
         />
@@ -95,8 +92,8 @@ export default async function AnalyticsPage() {
           value={summary.expectancy === null ? "—" : `${summary.expectancy.toFixed(2)}R`}
           tone={summary.expectancy === null ? "neutral" : summary.expectancy > 0 ? "positive" : "negative"}
         />
-        <StatCard label="Avg win" value={summary.avgWin === null ? "—" : money(summary.avgWin)} />
-        <StatCard label="Avg loss" value={summary.avgLoss === null ? "—" : money(summary.avgLoss)} />
+        <StatCard label="Avg win" value={summary.avgWin === null ? "—" : formatMoney(summary.avgWin)} />
+        <StatCard label="Avg loss" value={summary.avgLoss === null ? "—" : formatMoney(summary.avgLoss)} />
         <StatCard label="Longest win streak" value={String(summary.longestWinStreak)} />
         <StatCard label="Longest loss streak" value={String(summary.longestLossStreak)} />
         <StatCard
@@ -112,12 +109,12 @@ export default async function AnalyticsPage() {
         <StatCard
           label="Best month"
           value={summary.bestMonth === null ? "—" : summary.bestMonth.month}
-          hint={summary.bestMonth === null ? undefined : money(summary.bestMonth.totalPL)}
+          hint={summary.bestMonth === null ? undefined : formatMoney(summary.bestMonth.totalPL)}
         />
         <StatCard
           label="Worst month"
           value={summary.worstMonth === null ? "—" : summary.worstMonth.month}
-          hint={summary.worstMonth === null ? undefined : money(summary.worstMonth.totalPL)}
+          hint={summary.worstMonth === null ? undefined : formatMoney(summary.worstMonth.totalPL)}
         />
         <StatCard
           label="Avg holding time"
@@ -125,16 +122,16 @@ export default async function AnalyticsPage() {
         />
         <StatCard
           label="Largest winner"
-          value={summary.largestWinner === null ? "—" : money(summary.largestWinner)}
+          value={summary.largestWinner === null ? "—" : formatMoney(summary.largestWinner)}
         />
         <StatCard
           label="Largest loser"
-          value={summary.largestLoser === null ? "—" : money(summary.largestLoser)}
+          value={summary.largestLoser === null ? "—" : formatMoney(summary.largestLoser)}
         />
         <StatCard
           label="Avg position size"
           tooltip="The average dollar amount you put into a single trade."
-          value={summary.avgPositionSize === null ? "—" : money(summary.avgPositionSize)}
+          value={summary.avgPositionSize === null ? "—" : formatMoney(summary.avgPositionSize)}
         />
       </StaggerGrid>
 
@@ -146,7 +143,7 @@ export default async function AnalyticsPage() {
               <InfoTip text="The green line is profit and loss from your trading, added up over time. It starts at zero and does not include deposits or withdrawals, so it is not your account balance. The red line shows drawdown: how far you have fallen from your highest point." />
             </h2>
             <span className="text-xs text-zinc-500">
-              Max drawdown <span className="tnum font-mono text-loss">{money(summary.maxDrawdown)}</span>
+              Max drawdown <span className="tnum font-mono text-loss">{formatMoney(summary.maxDrawdown)}</span>
             </span>
           </div>
           <EquityDrawdownChart data={summary.equityCurve} />
@@ -260,7 +257,7 @@ function BreakdownTable({
                 <td
                   className={`tnum py-2 text-right font-mono ${row.totalPL >= 0 ? "text-profit" : "text-loss"}`}
                 >
-                  {row.totalPL < 0 ? "−" : "+"}${Math.abs(row.totalPL).toFixed(2)}
+                  {formatMoney(row.totalPL, { sign: "always" })}
                 </td>
               </tr>
             ))}

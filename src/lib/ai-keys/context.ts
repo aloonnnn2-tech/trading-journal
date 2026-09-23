@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAnalyticsSummary } from "@/lib/analytics/queries";
+import { formatMoney } from "@/lib/format/money";
 
 // The standing context handed to the AI provider on the chat path, and the
 // number formatters the AI review prompts share with it.
@@ -21,10 +22,15 @@ import { getAnalyticsSummary } from "@/lib/analytics/queries";
 // figures for the same reader. Two sets of formatters would mean a P&L written
 // as "-$40.00" in one prompt and "($40)" in another, which is exactly the kind
 // of inconsistency a model reads as two different quantities.
+//
+// Same reason this now delegates to the app-wide formatter rather than
+// keeping its own: a figure quoted back by the assistant should match the
+// figure on the page the user is looking at, separators and all. Only the
+// missing-value wording differs -- "n/a" reads as a fact to a model, where
+// the UI's em dash reads as a typo.
 
 export function money(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return "n/a";
-  return `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`;
+  return formatMoney(n, { placeholder: "n/a" });
 }
 
 export function pct(n: number | null | undefined): string {

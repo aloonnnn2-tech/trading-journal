@@ -198,7 +198,7 @@ describe("buildTradeReviewContext — missing data is named, never invented", ()
 describe("buildTradeReviewContext — outcome variants", () => {
   it("handles a losing trade", async () => {
     const text = await build(makeTrade({ result: "loss", dollar_pl: -412, r_multiple: -1 }));
-    expect(text).toContain("-$412.00");
+    expect(text).toContain("−$412.00");
     expect(text).toContain("-1.00R");
   });
 
@@ -212,7 +212,7 @@ describe("buildTradeReviewContext — outcome variants", () => {
 
   it("handles a very large and a very small position without losing precision", async () => {
     const big = await build(makeTrade({ position_size: 12_500_000, shares: 100_000 }));
-    expect(big).toContain("$12500000.00");
+    expect(big).toContain("$12,500,000.00");
 
     const small = await build(makeTrade({ position_size: 12.34, shares: 0.05 }));
     expect(small).toContain("$12.34");
@@ -235,8 +235,8 @@ describe("buildTradeReviewContext — baselines", () => {
     const text = await build(makeTrade(), { trades });
 
     expect(text).toContain("from 3 other closed trades");
-    expect(text).toContain("median $2000.00");
-    expect(text).toContain("range $1000.00–$3000.00");
+    expect(text).toContain("median $2,000.00");
+    expect(text).toContain("range $1,000.00–$3,000.00");
     expect(text).toContain("Win rate: 66.7%");
   });
 

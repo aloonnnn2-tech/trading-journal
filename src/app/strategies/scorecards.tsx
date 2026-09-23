@@ -2,16 +2,12 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { MIN_SEGMENT_TRADES, type SegmentStats } from "@/lib/segments/engine";
 import type { ScorecardReport, StrategyScorecard } from "@/lib/scorecards/queries";
+import { formatMoney } from "@/lib/format/money";
 
 // Detailed strategy scorecards -- the paid layer on /strategies.
 //
 // The free win-rate table above stays exactly as it was. This adds the deeper
 // figures beside it rather than replacing anything.
-
-function money(value: number | null): string {
-  if (value === null) return "—";
-  return `${value < 0 ? "−" : ""}$${Math.abs(value).toFixed(2)}`;
-}
 
 function r(value: number | null): string {
   if (value === null) return "—";
@@ -26,7 +22,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div>
       <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
+      <p className="tnum mt-0.5 font-mono text-sm text-zinc-900 dark:text-zinc-100">{value}</p>
       {sub && <p className="text-[11px] text-zinc-500">{sub}</p>}
     </div>
   );
@@ -39,7 +35,7 @@ function TrendRow({ label, stats }: { label: string; stats: SegmentStats }) {
       <td className="py-1.5 text-right font-mono text-zinc-500">{stats.trades}</td>
       <td className="py-1.5 text-right font-mono">{pct(stats.winRate)}</td>
       <td className="py-1.5 text-right font-mono">{r(stats.expectancy)}</td>
-      <td className="py-1.5 text-right font-mono">{money(stats.totalPL)}</td>
+      <td className="py-1.5 text-right font-mono">{formatMoney(stats.totalPL)}</td>
     </tr>
   );
 }
@@ -74,12 +70,12 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
           sub={s.profitFactor === null ? "no losses yet" : undefined}
         />
         <Stat label="Total R" value={r(s.totalR)} />
-        <Stat label="Avg winner" value={money(s.avgWin)} />
-        <Stat label="Avg loser" value={s.avgLoss === null ? "—" : `−$${s.avgLoss.toFixed(2)}`} />
-        <Stat label="Total P&L" value={money(s.totalPL)} />
+        <Stat label="Avg winner" value={formatMoney(s.avgWin)} />
+        <Stat label="Avg loser" value={formatMoney(s.avgLoss === null ? null : -s.avgLoss)} />
+        <Stat label="Total P&L" value={formatMoney(s.totalPL)} />
         {/* Labelled explicitly: this is the strategy's own run of P&L, not
             what the account balance did while other strategies were open. */}
-        <Stat label="Drawdown" value={money(s.maxDrawdown)} sub="this strategy alone" />
+        <Stat label="Drawdown" value={formatMoney(s.maxDrawdown)} sub="this strategy alone" />
       </div>
 
       {card.trend && (

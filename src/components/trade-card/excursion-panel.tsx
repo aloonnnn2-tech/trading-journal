@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { captureRatio } from "@/lib/excursions/calculate";
 import type { ExcursionRow } from "@/lib/excursions/queries";
+import { formatMoney } from "@/lib/format/money";
 
 // MAE / MFE and exit efficiency for one trade.
 //
@@ -15,11 +16,6 @@ const STATUS_EXPLANATIONS: Record<string, string> = {
   no_direction: "Long or short isn't recorded, so there's no way to say which way was in your favour.",
   coarse_data: "The price provider returned bars coarser than daily, which can't measure a hold this short.",
 };
-
-function money(value: number | null): string {
-  if (value === null) return "—";
-  return `${value < 0 ? "-" : ""}$${Math.abs(value).toFixed(2)}`;
-}
 
 function pct(value: number | null): string {
   if (value === null) return "—";
@@ -47,7 +43,7 @@ function Figure({
   return (
     <div>
       <p className="text-[11px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className={`mt-0.5 font-mono text-sm ${colour}`}>{price}</p>
+      <p className={`tnum mt-0.5 font-mono text-sm ${colour}`}>{price}</p>
       <p className="font-mono text-[11px] text-zinc-500">{detail}</p>
     </div>
   );
@@ -122,19 +118,19 @@ export function TradeExcursionPanel({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Figure
           label="Worst against you"
-          price={money(excursion.mae_price)}
+          price={formatMoney(excursion.mae_price)}
           detail={`${pct(excursion.mae_percent)} · ${r(excursion.mae_r)}`}
           tone="bad"
         />
         <Figure
           label="Best in your favour"
-          price={money(excursion.mfe_price)}
+          price={formatMoney(excursion.mfe_price)}
           detail={`${pct(excursion.mfe_percent)} · ${r(excursion.mfe_r)}`}
           tone="good"
         />
         <Figure
           label="You exited at"
-          price={money(trade.exit_price)}
+          price={formatMoney(trade.exit_price)}
           detail={realised === null ? "—" : `${realised >= 0 ? "+" : ""}${realised.toFixed(2)} move`}
         />
         <Figure

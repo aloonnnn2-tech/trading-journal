@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import type { Trade } from "@/lib/trades/types";
 import { formatDateTime } from "@/lib/dates/format";
+import { formatMoney } from "@/lib/format/money";
 
 interface HistoryEntry {
   id: string;
@@ -91,7 +92,7 @@ export function TradeHistoryPanel({ tradeId }: { tradeId: string }) {
                     {" — "}
                     {entry.snapshot.ticker || "Untitled"}, {entry.snapshot.status}
                     {entry.snapshot.dollar_pl !== null && entry.snapshot.dollar_pl !== undefined
-                      ? `, $${entry.snapshot.dollar_pl.toFixed(2)}`
+                      ? `, ${formatMoney(entry.snapshot.dollar_pl, { sign: "always" })}`
                       : ""}
                   </span>
                   <button
