@@ -139,7 +139,7 @@ export function PricingTeaser() {
 
   return (
     <>
-      <section id="pricing" className="mx-auto w-full max-w-7xl scroll-mt-20 px-6 pb-24 sm:px-10">
+      <section id="pricing" className="mx-auto w-full max-w-7xl scroll-mt-20 px-6 sm:px-10">
         <div className="flex flex-col items-center justify-center gap-5 lg:flex-row lg:items-center">
           <div aria-hidden className="hidden xl:block xl:w-56 xl:shrink-0" />
 
@@ -212,7 +212,7 @@ export function PricingTeaser() {
             <div className="relative">
               <button
                 onClick={() => setOpen(true)}
-                className="group relative mx-auto mt-5 flex items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-8 py-4 text-base font-medium text-white shadow-lg shadow-primary/30 transition hover:brightness-110 dark:text-zinc-950"
+                className="group relative mx-auto mt-5 flex items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary px-8 py-4 text-base font-medium text-white shadow-lg shadow-primary/30 transition hover:bg-primary-hover dark:text-zinc-950"
               >
                 <span
                   aria-hidden

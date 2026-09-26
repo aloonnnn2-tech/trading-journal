@@ -58,7 +58,7 @@ export function LandingHeader() {
         </Link>
         <Link
           href="/sign-up"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:bg-primary-hover"
         >
           Start journaling free
         </Link>

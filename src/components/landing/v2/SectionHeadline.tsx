@@ -17,7 +17,7 @@ export function SectionHeadline({ kicker, children }: { kicker?: string; childre
           </Reveal>
         )}
         <Reveal delay={0.05}>
-          <h2 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
+          <h2 className="text-3xl font-bold tracking-heading text-zinc-900 dark:text-zinc-50 sm:text-4xl lg:text-h2">
             {children}
           </h2>
         </Reveal>

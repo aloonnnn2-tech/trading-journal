@@ -341,7 +341,7 @@ export function HowItWorks() {
   });
 
   return (
-    <section className="mx-auto w-full max-w-6xl overflow-hidden px-6 pb-24 sm:px-10">
+    <section className="mx-auto w-full max-w-6xl overflow-hidden px-6 sm:px-10">
       <Reveal className="relative mx-auto h-[30rem] w-full max-w-[40rem] sm:h-[24rem]">
         {STEPS.map((step, i) => (
           <StackCard key={step.number} index={i} turns={turns} step={step} />

@@ -19,7 +19,7 @@ const SIZES = "(max-width: 1152px) 100vw, 1152px";
 
 export function ProductShot() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-10">
+    <section className="mx-auto w-full max-w-6xl px-6 sm:px-10">
       <Reveal as="figure" className="relative m-0">
         <div className="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-subtle">
           <Image
