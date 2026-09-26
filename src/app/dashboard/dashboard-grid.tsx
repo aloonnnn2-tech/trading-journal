@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Columns2, RectangleHorizontal, Square } from "lucide-react";
 import {
   normalizeDashboardLayout,
   type DashboardLayout,
@@ -9,7 +10,17 @@ import {
   type WidgetSize,
 } from "@/lib/dashboard/layout";
 
-const SIZE_LABEL: Record<WidgetSize, string> = { sm: "S", md: "M", lg: "L" };
+// A bare "S" / "M" / "L" in a card header explains nothing -- five widgets
+// each showed a single unexplained capital letter, and the only clue was a
+// title attribute nobody hovers (issue 6 of docs/design-audit.md). An icon
+// whose shape IS the widget's width says it without a legend, and the name
+// goes in the accessible label and the tooltip where it can be read in full.
+const SIZE_ICON: Record<WidgetSize, typeof Square> = {
+  sm: Square,
+  md: Columns2,
+  lg: RectangleHorizontal,
+};
+const SIZE_NAME: Record<WidgetSize, string> = { sm: "Small", md: "Medium", lg: "Large" };
 const NEXT_SIZE: Record<WidgetSize, WidgetSize> = { sm: "md", md: "lg", lg: "sm" };
 const SIZE_SPAN: Record<WidgetSize, string> = {
   sm: "lg:col-span-2",
@@ -118,10 +129,14 @@ export function DashboardGrid({
               </h2>
               <button
                 onClick={() => cycleSize(id)}
-                title="Cycle widget size"
-                className="rounded-md px-2 py-0.5 font-mono text-[11px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                title={`Width: ${SIZE_NAME[size]}. Click for ${SIZE_NAME[NEXT_SIZE[size]]}.`}
+                aria-label={`${WIDGET_TITLES[id]} width: ${SIZE_NAME[size]}. Click for ${SIZE_NAME[NEXT_SIZE[size]]}.`}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
-                {SIZE_LABEL[size]}
+                {(() => {
+                  const Icon = SIZE_ICON[size];
+                  return <Icon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />;
+                })()}
               </button>
             </div>
             {widgets[id]}

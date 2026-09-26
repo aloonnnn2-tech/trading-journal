@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
+import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-offer";
 import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
 import { WelcomeModal } from "./welcome-modal";
 
@@ -27,9 +28,60 @@ import { WelcomeModal } from "./welcome-modal";
 
 const REPLAY_EVENT = "trading-lens:replay-tour";
 const STORAGE_KEY = "tl-tour";
-// Set once the paid tour has been offered, so an upgrade prompts exactly once
-// per browser rather than on every load.
-const PAID_OFFERED_KEY = "tl-paid-tour-offered";
+
+// The paid-offer fallback, used only until migration 0049 is applied -- after
+// that the answer lives on user_settings and follows the account between
+// browsers. Shaped like the database columns so the two paths read the same.
+// Replaces `tl-paid-tour-offered`, which was a single "shown once ever" bit
+// and could not tell "Later" from "no thanks" (issue 2 of
+// docs/design-audit.md).
+const PAID_OFFER_KEY = "tl-paid-tour-offer";
+// Session-scoped, so one page load offers it at most once even when nothing
+// has been answered yet.
+const PAID_OFFER_SESSION_KEY = "tl-paid-tour-offer-seen";
+
+interface TourSettings {
+  hasCompletedTour: boolean;
+  isPaid: boolean;
+  paidTourDismissed: boolean | null;
+  paidTourSnoozedUntil: string | null;
+  /** False when migration 0049 has not been applied, which is the signal to
+   *  trust this browser's copy instead of the two fields above. */
+  paidTourStateStored: boolean;
+}
+
+interface StoredPaidOffer {
+  dismissed: boolean;
+  snoozedUntil: string | null;
+}
+
+// The key this replaced. It was one bit, set by EITHER "Later" or "Show me",
+// so it cannot say which. Read as dismissed: someone who answered the old
+// card has already answered, and missing one offer costs less than showing a
+// card again to a person who said no to it.
+const LEGACY_PAID_OFFERED_KEY = "tl-paid-tour-offered";
+
+function readLocalPaidOffer(): StoredPaidOffer {
+  try {
+    const raw = localStorage.getItem(PAID_OFFER_KEY);
+    if (!raw) {
+      return { dismissed: localStorage.getItem(LEGACY_PAID_OFFERED_KEY) === "1", snoozedUntil: null };
+    }
+    const parsed = JSON.parse(raw) as Partial<StoredPaidOffer>;
+    return {
+      dismissed: parsed.dismissed === true,
+      snoozedUntil: typeof parsed.snoozedUntil === "string" ? parsed.snoozedUntil : null,
+    };
+  } catch {
+    return { dismissed: false, snoozedUntil: null };
+  }
+}
+
+function writeLocalPaidOffer(next: StoredPaidOffer) {
+  try {
+    localStorage.setItem(PAID_OFFER_KEY, JSON.stringify(next));
+  } catch {}
+}
 
 // Replaying (nav-bar "?" menu) skips the welcome screen -- that is only for a
 // genuine first login. The tour name travels on the event so there is no
@@ -45,8 +97,25 @@ interface Rect {
   height: number;
 }
 
+// The first target with a box, not simply the first in the document.
+//
+// The nav renders some items twice -- the help menu sits in the bar above
+// 1000px and inside the account menu below it, both carrying
+// data-tour-id="nav-help" -- and only one of the pair is displayed at a time.
+// A plain querySelector would find whichever came first in the markup, get a
+// 0x0 rect for it when it is the hidden one, and spotlight the top-left
+// corner of the page.
+function findTarget(targetId: string): Element | null {
+  const all = document.querySelectorAll(`[data-tour-id="${targetId}"]`);
+  for (const el of all) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return el;
+  }
+  return all[0] ?? null;
+}
+
 function measure(targetId: string): Rect | null {
-  const el = document.querySelector(`[data-tour-id="${targetId}"]`);
+  const el = findTarget(targetId);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
@@ -277,18 +346,37 @@ export function TourOverlay() {
     }
     fetch("/api/settings/tour")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { hasCompletedTour: boolean; isPaid: boolean } | null) => {
+      .then((data: TourSettings | null) => {
         if (!data) return;
         if (!data.hasCompletedTour) {
           setPhase("welcome");
           return;
         }
-        // An account that has become paid gets the paid tour offered once.
-        let offered = false;
+
+        // Server state when 0049 has been applied, this browser's copy until
+        // then. `paidTourStateStored` is the switch, rather than checking the
+        // fields for null -- a dismissed flag of null would otherwise read as
+        // "not dismissed" and re-offer the tour on every load.
+        const local = readLocalPaidOffer();
+        const stored = data.paidTourStateStored === true;
+        let seenThisSession = false;
         try {
-          offered = localStorage.getItem(PAID_OFFERED_KEY) === "1";
+          seenThisSession = sessionStorage.getItem(PAID_OFFER_SESSION_KEY) === "1";
         } catch {}
-        if (data.isPaid && !offered) setPhase("paid-offer");
+
+        const show = shouldShowPaidOffer({
+          isPaid: data.isPaid,
+          dismissed: stored ? data.paidTourDismissed === true : local.dismissed,
+          snoozedUntil: stored ? (data.paidTourSnoozedUntil ?? null) : local.snoozedUntil,
+          seenThisSession,
+        });
+
+        if (show) {
+          try {
+            sessionStorage.setItem(PAID_OFFER_SESSION_KEY, "1");
+          } catch {}
+          setPhase("paid-offer");
+        }
       })
       .catch(() => {});
   }, [pathname]);
@@ -361,7 +449,7 @@ export function TourOverlay() {
         setMissing(false);
         if (!scrolled) {
           scrolled = true;
-          const el = document.querySelector(`[data-tour-id="${step.targetId}"]`);
+          const el = findTarget(step.targetId);
           const out = m.top < 80 || m.top + m.height > window.innerHeight - 80;
           if (el && out) el.scrollIntoView({ block: "center", behavior: "smooth" });
         }
@@ -424,10 +512,17 @@ export function TourOverlay() {
     return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={finish} />;
   }
   if (phase === "paid-offer") {
-    const dismiss = () => {
-      try {
-        localStorage.setItem(PAID_OFFERED_KEY, "1");
-      } catch {}
+    // Both answers write locally first and tell the server second. The local
+    // write is what makes this work before 0049 is applied, and it also means
+    // a failed request cannot resurrect a card the reader has just declined.
+    const answer = (kind: "dismissed" | "snoozed") => {
+      const until = kind === "snoozed" ? snoozeUntil() : null;
+      writeLocalPaidOffer({ dismissed: kind === "dismissed", snoozedUntil: until });
+      fetch("/api/settings/tour", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paidOffer: kind, until }),
+      }).catch(() => {});
       setPhase("idle");
     };
     return (
@@ -436,7 +531,13 @@ export function TourOverlay() {
         animate={{ opacity: 1, y: 0 }}
         role="region"
         aria-label="Paid plan tour offer"
-        className="fixed bottom-5 left-1/2 z-[102] flex w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md dark:bg-card/95"
+        // Bottom RIGHT, and narrow. Centred, it landed across the middle of
+        // whatever was on the page -- a trade table, the performance chart --
+        // and stayed there until answered (issue 2 of docs/design-audit.md).
+        // A corner is the one place a card this size covers nothing that is
+        // being read. Still full-width on a phone, where there is no corner
+        // to sit in.
+        className="fixed bottom-4 right-4 z-[102] flex w-[calc(100vw-2rem)] max-w-sm items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md sm:w-auto dark:bg-card/95"
       >
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Paid plan</p>
@@ -446,14 +547,15 @@ export function TourOverlay() {
           </p>
         </div>
         <button
-          onClick={dismiss}
+          onClick={() => answer("snoozed")}
+          title={`Hides this for ${SNOOZE_DAYS} days`}
           className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           Later
         </button>
         <button
           onClick={() => {
-            dismiss();
+            answer("dismissed");
             begin("paid");
           }}
           className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
