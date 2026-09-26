@@ -61,6 +61,60 @@ const NAV_GROUPS: { label: string; links: NavLink[] }[] = [
   },
 ];
 
+/** The guided tours, shared by the help menu (>=1000px) and the account menu
+ *  (below it), so the two cannot drift apart. */
+function TourButtons({ isPaid, onPick }: { isPaid: boolean; onPick: () => void }) {
+  return (
+    <>
+      <button
+        onClick={() => {
+          onPick();
+          startTour("basics");
+        }}
+        className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      >
+        <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+          Getting started
+        </span>
+        <span className="block text-[11px] text-zinc-500">
+          Log a trade and meet the core of the app. Nine steps, about two minutes
+        </span>
+      </button>
+      <button
+        onClick={() => {
+          onPick();
+          startTour("features");
+        }}
+        className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      >
+        <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+          The full toolkit
+        </span>
+        <span className="block text-[11px] text-zinc-500">
+          The free features the core tour walked past: import, export, cash, goals, emotions,
+          fields, fees. Seven steps
+        </span>
+      </button>
+      {isPaid && (
+        <button
+          onClick={() => {
+            onPick();
+            startTour("paid");
+          }}
+          className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        >
+          <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+            Paid features
+          </span>
+          <span className="block text-[11px] text-zinc-500">
+            Only what the paid plan unlocks. Ten steps
+          </span>
+        </button>
+      )}
+    </>
+  );
+}
+
 /** A link is active on its own page and on anything nested under it. */
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
@@ -93,6 +147,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
+  const [accountOpen, setAccountOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   // Standard next-themes hydration guard: resolvedTheme is unknown on the
@@ -104,7 +159,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
   // menu is actually open, so the app is not holding document-level handlers
   // for the 99% of the time nothing is expanded.
   useEffect(() => {
-    if (openGroup === null && !helpOpen) return;
+    if (openGroup === null && !helpOpen && !accountOpen) return;
 
     function onPointerDown(event: MouseEvent) {
       const target = event.target as HTMLElement | null;
@@ -114,11 +169,13 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
       if (target?.closest("[data-nav-group]")) return;
       setOpenGroup(null);
       setHelpOpen(false);
+      setAccountOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpenGroup(null);
         setHelpOpen(false);
+        setAccountOpen(false);
       }
     }
 
@@ -128,7 +185,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [openGroup, helpOpen]);
+  }, [openGroup, helpOpen, accountOpen]);
 
   useEffect(() => {
     if (PUBLIC_PATHS.includes(pathname)) return;
@@ -199,7 +256,13 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
             const activeChild = group.links.find((l) => isActive(pathname, l.href));
             const open = openGroup === group.label;
             return (
-              <div key={group.label} data-nav-group className="relative shrink-0">
+              <div
+                key={group.label}
+                data-nav-group
+                // Setup folds into the account menu below 1000px: it is the
+                // least-used of the three groups and the one that collided.
+                className={`relative shrink-0 ${group.label === "Setup" ? "hidden nav:block" : ""}`}
+              >
                 <button
                   type="button"
                   // Click, not hover: a hover menu opens itself when the
@@ -283,7 +346,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
               that, and is only worth taking once there are trades to look at.
               Hiding the second one behind the same icon is what stopped a new
               user ever discovering Goals, Reports or AI Reviews existed. */}
-          <div data-nav-group className="relative">
+          <div data-nav-group className="relative hidden nav:block">
             <button
               onClick={() => setHelpOpen((open) => !open)}
               title="Guided tours"
@@ -296,51 +359,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
             </button>
             {helpOpen && (
               <div className="absolute right-0 top-full z-50 mt-0.5 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-subtle dark:bg-card">
-                <button
-                  onClick={() => {
-                    setHelpOpen(false);
-                    startTour("basics");
-                  }}
-                  className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                >
-                  <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
-                    Getting started
-                  </span>
-                  <span className="block text-[11px] text-zinc-500">
-                    Log a trade and meet the core of the app. Nine steps, about two minutes
-                  </span>
-                </button>
-                <button
-                  onClick={() => {
-                    setHelpOpen(false);
-                    startTour("features");
-                  }}
-                  className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                >
-                  <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
-                    The full toolkit
-                  </span>
-                  <span className="block text-[11px] text-zinc-500">
-                    The free features the core tour walked past: import, export, cash, goals,
-                    emotions, fields, fees. Seven steps
-                  </span>
-                </button>
-                {isPaid && (
-                  <button
-                    onClick={() => {
-                      setHelpOpen(false);
-                      startTour("paid");
-                    }}
-                    className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  >
-                    <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
-                      Paid features
-                    </span>
-                    <span className="block text-[11px] text-zinc-500">
-                      Only what the paid plan unlocks. Ten steps
-                    </span>
-                  </button>
-                )}
+                <TourButtons isPaid={isPaid} onPick={() => setHelpOpen(false)} />
               </div>
             )}
           </div>
@@ -351,16 +370,99 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
           >
             {mounted && (resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />)}
           </button>
-          <Link
-            href="/account"
-            title="Account"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-          >
-            <UserCircle className="h-4 w-4" />
-          </Link>
+          {/* The account icon was a bare link to /account. It is a menu now,
+              because below 1000px it is where Setup, the guided tours and
+              Sign out go -- the bar could not hold eleven items and was
+              running "Setup" through the help icon at 850px (issue 1 of
+              docs/design-audit.md). Above 1000px the menu holds only account
+              settings and sign-out, and everything else stays in the bar. */}
+          <div data-nav-group className="relative">
+            <button
+              type="button"
+              onClick={() => setAccountOpen((open) => !open)}
+              title="Account"
+              aria-label="Account menu"
+              // The basics tour ends on "replay this any time from here",
+              // pointed at nav-help. Below 1000px the help button is hidden
+              // and the tours live in this menu, so this button is "here".
+              // It comes after the help button in the markup, and the tour
+              // takes the first *visible* match (findTarget in
+              // tour-overlay.tsx), so above 1000px the help button still wins.
+              data-tour-id="nav-help"
+              aria-expanded={accountOpen}
+              aria-haspopup="true"
+              className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                isActive(pathname, "/account")
+                  ? "bg-primary/10 text-primary"
+                  : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              }`}
+            >
+              <UserCircle className="h-4 w-4" />
+            </button>
+            {accountOpen && (
+              <div className="absolute right-0 top-full z-50 mt-0.5 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-subtle dark:bg-card">
+                <Link
+                  href="/account"
+                  onClick={() => setAccountOpen(false)}
+                  className="block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+                    Account
+                  </span>
+                  <span className="block text-[11px] text-zinc-500">
+                    Plan, AI keys, data export, deletion
+                  </span>
+                </Link>
+
+                {/* Only below the nav breakpoint, where these are not in the
+                    bar. Hidden with CSS rather than a width check in JS so
+                    the server and the client render the same markup. */}
+                <div className="nav:hidden">
+                  <div className="my-1 border-t border-zinc-200 dark:border-subtle" />
+                  {NAV_GROUPS.filter((g) => g.label === "Setup").flatMap((g) => g.links).map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      data-tour-id={`nav-${link.href.slice(1)}`}
+                      onClick={() => setAccountOpen(false)}
+                      className={`block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                        isActive(pathname, link.href)
+                          ? "text-zinc-900 dark:text-zinc-50"
+                          : "text-zinc-600 dark:text-zinc-400"
+                      }`}
+                    >
+                      <span className="block text-[13px] font-medium">{link.label}</span>
+                      {link.hint && (
+                        <span className="block text-[11px] text-zinc-500">{link.hint}</span>
+                      )}
+                    </Link>
+                  ))}
+
+                  <div className="my-1 border-t border-zinc-200 dark:border-subtle" />
+                  <p
+                    className="px-3 pb-1 pt-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500"
+                  >
+                    Guided tours
+                  </p>
+                  <TourButtons isPaid={isPaid} onPick={() => setAccountOpen(false)} />
+                </div>
+
+                <div className="my-1 border-t border-zinc-200 dark:border-subtle" />
+                <button
+                  onClick={handleSignOut}
+                  className="block w-full px-3 py-2 text-left text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Kept in the bar at full width, where there is room for a
+              one-click sign-out. Below the breakpoint it lives in the menu
+              above. */}
           <button
             onClick={handleSignOut}
-            className="rounded-lg px-3 py-1.5 text-[13px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            className="hidden rounded-lg px-3 py-1.5 text-[13px] text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 nav:block dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >
             Sign out
           </button>

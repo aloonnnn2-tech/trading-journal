@@ -39,6 +39,14 @@
 }
 
 @theme inline {
+  /* The width at which the signed-in nav stops fitting. Below it, Setup, the
+     help menu and Sign out fold into the account menu -- measured at 850px,
+     where "Setup" ran straight through the help icon (issue 1 of
+     docs/design-audit.md). Tailwind's nearest default is lg at 1024px; this
+     is a nav-specific threshold, so it gets its own name rather than
+     borrowing a layout breakpoint. */
+  --breakpoint-nav: 1000px;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--color-primary);

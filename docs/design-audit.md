@@ -22,7 +22,7 @@ Make the public homepage (`tradinglenz.netlify.app`) read as a serious, trustwor
 
 - **Stack:** Next.js 16 (App Router), React 19, TypeScript, Supabase, Netlify. Tests are vitest only. There are no component or E2E tests.
 - **Stats:** every computed statistic comes from one engine (`segments/engine.ts`). Don't add a second place that calculates the same stats.
-- **Migrations:** numbered SQL files (0000–0039 exist). **Nothing runs them automatically.** Alon applies them by hand in the Supabase SQL editor. New migrations take the next number, and the PR description must say "migration NNNN must be applied manually before deploy."
+- **Migrations:** numbered SQL files in `supabase/migrations/`. **Nothing runs them automatically.** Alon applies them by hand in the Supabase SQL editor. **Always check the actual latest number** with `ls supabase/migrations | tail -1` and take the next one — do not trust a number written down anywhere, including here. (This file said "0000–0039" until 23 Sep 2026, by which point the real latest was 0048.) The PR description must say "migration NNNN must be applied manually before deploy."
 - **Rate limiting:** a per-instance limiter already exists. Reuse it. Auth screens have no CAPTCHA, so new public forms need a honeypot field.
 - **Separate redesign:** a terminal-style app redesign lives on its own git branch behind a localStorage flag. **Don't touch that flag or its code.** Everything in this spec goes on normal branches off `main`.
 - **Current homepage order:**
@@ -168,7 +168,7 @@ Priority: **P1** = quick win, **P2** = 1–2 weeks, **P3** = polish.
 16. **Footer** `NEW` 4 columns:
     - **Product:** Features, Pricing, Paid plan (waitlist), Changelog (only if a page exists).
     - **Compare:** anchor links to the compare table for now.
-    - **Resources:** Import help. (No Contact link — no contact method exists yet.)
+    - **Resources:** Import help, Contact (mailto the address in Facts).
     - **Legal:** Privacy, Terms, Cookies.
     - Plus Instagram, TikTok and YouTube icons (URLs are in Facts Alon supplies), and © year.
 
@@ -188,7 +188,7 @@ export_formats: [XLSX]        # CSV not confirmed — do not claim it
 instagram_url: https://www.instagram.com/tradinglenz/
 tiktok_url: https://www.tiktok.com/@trading_lenz
 youtube_url: https://www.youtube.com/@TradingLenz
-contact: null                 # no contact method yet — omit from footer
+contact: TradingLenzSupport@proton.me   # a real, live address — the sign-in page already links it for support and for account deletion. Phase 2C's footer SHOULD carry a Contact link
 founder_note: null            # skipped — no founder note section
 paid_plan_card: EXISTING      # the "Coming soon" paid-plan card UI already exists in the codebase — do not build a new one, find and reuse it (see Phase 2B/3C notes)
 ```

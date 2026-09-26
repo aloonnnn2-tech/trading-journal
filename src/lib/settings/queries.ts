@@ -9,6 +9,13 @@ export interface UserSettings {
   dashboard_layout: DashboardLayout;
   timezone: string | null;
   has_completed_tour: boolean;
+  /** The paid-plan tour offer is finished with. See src/lib/tour/paid-offer.ts.
+   *  Null when migration 0049 has not been applied yet -- see the note on
+   *  PAID_TOUR_COLUMNS below. */
+  paid_tour_dismissed: boolean | null;
+  /** "Later" on that offer: hidden until this passes. Null when never snoozed
+   *  OR when 0049 has not been applied. */
+  paid_tour_snoozed_until: string | null;
   plan: UserPlan;
   /** Read here alongside everything else so the root layout, which needs it
    *  for the Admin nav link, does not pay a second round-trip to the same
@@ -22,6 +29,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   dashboard_layout: DEFAULT_DASHBOARD_LAYOUT,
   timezone: null,
   has_completed_tour: false,
+  paid_tour_dismissed: false,
+  paid_tour_snoozed_until: null,
   plan: DEFAULT_PLAN,
   is_admin: false,
 };
@@ -32,17 +41,61 @@ const DEFAULT_SETTINGS: UserSettings = {
 // time, measured against this project's Supabase region. With the server
 // client itself cache()d, both calls hit the same key and one fetch serves
 // the whole render.
+/**
+ * Is this Supabase error "that column does not exist"?
+ *
+ * Two codes, not one, because PostgREST reports the same condition
+ * differently depending on direction: a SELECT naming a missing column fails
+ * in Postgres itself (42703, undefined_column), while an UPDATE or INSERT
+ * payload is rejected by PostgREST before it reaches Postgres (PGRST204,
+ * "could not find the column in the schema cache"). Checking only the first
+ * made every paid-offer write a 500 until migration 0049 was applied.
+ */
+export function isMissingColumnError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === "42703" || code === "PGRST204";
+}
+
+// The columns 0049 adds. Selected separately so that a database where 0049
+// has not been applied yet still serves every other setting: migrations here
+// are applied by hand, so "the code is deployed and the migration is not" is
+// a real state the app passes through, not a hypothetical. PostgREST answers
+// a select naming a missing column with 42703 and no rows, which without this
+// split would blank the whole settings object -- and `plan` lives in it, so
+// every paid user would silently read as free until the SQL was run.
+const PAID_TOUR_COLUMNS = "paid_tour_dismissed, paid_tour_snoozed_until";
+
 export const getUserSettings = cache(async function getUserSettings(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<UserSettings> {
   const { data, error } = await supabase
     .from("user_settings")
-    .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour, plan, is_admin")
+    .select(`hidden_core_fields, dashboard_layout, timezone, has_completed_tour, plan, is_admin, ${PAID_TOUR_COLUMNS}`)
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    // 42703 = undefined_column: 0049 is not applied. Retry without it, and
+    // report the two fields as null so the caller knows to fall back to
+    // localStorage rather than reading "false" as "the user said no".
+    if (isMissingColumnError(error)) {
+      const { data: base, error: baseError } = await supabase
+        .from("user_settings")
+        .select("hidden_core_fields, dashboard_layout, timezone, has_completed_tour, plan, is_admin")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (baseError) throw baseError;
+      if (!base) return { ...DEFAULT_SETTINGS, paid_tour_dismissed: null };
+      return {
+        ...base,
+        is_admin: base.is_admin === true,
+        paid_tour_dismissed: null,
+        paid_tour_snoozed_until: null,
+      } as UserSettings;
+    }
+    throw error;
+  }
   // A missing row falls back to defaults -- which means free, not paid, and
   // not admin. That is the safe direction: the only way to be paid or admin
   // is for the database to say so explicitly. isPaidUser() then re-checks
@@ -79,6 +132,28 @@ export async function setTourCompleted(supabase: SupabaseClient, userId: string)
       .insert({ user_id: userId, has_completed_tour: true });
     if (insertError) throw insertError;
   }
+}
+
+/** "Show me", or finishing the tour: never offer it again. */
+export async function setPaidTourDismissed(supabase: SupabaseClient, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("user_settings")
+    .update({ paid_tour_dismissed: true, paid_tour_snoozed_until: null })
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+/** "Later": hide it until `until` passes. */
+export async function setPaidTourSnoozed(
+  supabase: SupabaseClient,
+  userId: string,
+  until: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("user_settings")
+    .update({ paid_tour_snoozed_until: until })
+    .eq("user_id", userId);
+  if (error) throw error;
 }
 
 // Sets the user's IANA timezone the first time the client detects it.
