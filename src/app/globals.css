@@ -40,14 +40,14 @@
   /* Phase 2A of docs/design-audit.md. The spec gives only DARK values for
      these three; the site defaults to light (layout.tsx, defaultTheme), so
      the light ones are derived here, inside the locked palette:
-       --band-raised   a 3% ink wash on white, the light twin of the dark one
+       --band-raised   white with a 3% ink wash baked in, the light twin
        --band-cta      a pale tint of the light primary, chosen by Alon on
                        2026-09-26 over carrying the dark navy into light mode
        --color-primary-hover  blue-700: on a light page a hover darkens, where
                        the spec's #6aa2fa lightens a dark one
      No existing token changes. See src/lib/theme/tokens.test.ts, which reads
      this file and holds all of it to AA contrast. */
-  --band-raised: rgb(28 27 24 / 0.03);
+  --band-raised: #f8f8f7;
   --band-cta: #eef3fd;
   --color-primary-hover: #1d4ed8;
 }
@@ -164,13 +164,11 @@
   --chart-axis: #383835;
   --chart-muted: #898781;
 
-  /* The spec's own values (docs/design-audit.md, "Design tokens"), except
-     that the raised band is see-through rather than solid #161615. Solid, it
-     would cover the dot lattice in every raised section, and that ground was
-     chosen on purpose (13 Sep); Alon picked see-through on 2026-09-26. A 2.7%
-     wash of the ink over #101010 composites to #161616, within one step of
-     #161615 -- the token test pins that. */
-  --band-raised: color-mix(in srgb, #eceae4 2.7%, transparent);
+  /* The spec's own values (docs/design-audit.md, "Design tokens"). The
+     raised band is solid and draws its own dot lattice (see Band.tsx): the
+     first, see-through version kept the page's dots but left edges that read
+     as a smudge. */
+  --band-raised: #161615;
   --band-cta: #0e1a2e;
   --color-primary-hover: #6aa2fa;
 }

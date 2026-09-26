@@ -107,12 +107,10 @@ describe("the spec's new tokens (Phase 2A)", () => {
     expect(dark["--color-primary-hover"]).toBe("#6aa2fa");
   });
 
-  it("renders the see-through raised band within one step of #161615", () => {
-    // Translucent so the dot lattice shows through; it still has to land on
-    // the spec's colour once composited over the page.
-    const band = over(parse(dark["--band-raised"]), hex(dark["--background"]));
-    const target = hex("#161615");
-    band.forEach((c, i) => expect(Math.abs(c - target[i])).toBeLessThanOrEqual(1));
+  it("uses the spec's raised band colour exactly", () => {
+    // Solid since the band started drawing its own dots (Band.tsx). The
+    // see-through version composited to #161616; this is the spec's value.
+    expect(dark["--band-raised"]).toBe("#161615");
   });
 
   it("keeps the raised band a real step off the base in both themes", () => {

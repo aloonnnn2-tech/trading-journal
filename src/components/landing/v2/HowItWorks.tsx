@@ -9,7 +9,6 @@ import {
   useMotionTemplate,
   useMotionValue,
   useMotionValueEvent,
-  useReducedMotion,
   useTransform,
   type MotionValue,
   type TargetAndTransition,
@@ -31,8 +30,7 @@ import exampleScreenshot from "../../../../public/example-trade-screenshot.png";
 // so one card comes forward every three seconds -- but the warp never reaches
 // zero speed, so the cards in the background keep turning between hand-offs. Runs from
 // mount and ignores hover and scroll position -- until a visitor picks a step
-// with the dots, which stops it, or never at all under prefers-reduced-motion,
-// where the dots are the only way it moves. The visuals are the app's own UI:
+// with the dots, which stops it. The visuals are the app's own UI:
 // the OCR dialog's dropzone and scanning state, the "Detected from image"
 // panel with the real ConfidenceBadge, and the review card's score block.
 // Sits where Three Pillars sat on /; that row and the old timeline said the
@@ -218,9 +216,8 @@ const STEPS = [
 ];
 
 // The readable face of a card: the demo, then the step's label and copy.
-// Shared by the orbiting card and the reduced-motion one so the copy is
-// written once. `visualKey` remounts the demo so its sequence replays --
-// on every hand-off for the orbit, on every selection for the stepper.
+// `visualKey` remounts the demo so its sequence replays each time the card
+// arrives at the front, whether the clock turned it there or a dot did.
 function CardFace({ step, visualKey }: { step: (typeof STEPS)[number]; visualKey: number }) {
   return (
     <>
@@ -343,18 +340,26 @@ export function HowItWorks() {
   // auto-moving content (WCAG 2.2.2) exists to prevent.
   const [userTookOver, setUserTookOver] = useState(false);
 
-  // The rotation stops for prefers-reduced-motion: a turn that never ends is
-  // the most uncomfortable thing on the page for someone who asked for less
-  // movement. It does NOT take the other two steps with it. Until
-  // 2026-09-26 it did: the timer was the only way to move the stack, so with
-  // the preference set -- the Windows default on some machines, including
-  // the owner's -- steps 2 and 3 could not be seen at all. The dots below are
-  // real buttons now, for everyone, and are how the stack moves when the
-  // clock does not.
-  const reduced = useReducedMotion();
-
+  // The rotation runs whatever prefers-reduced-motion says. This is the one
+  // place on the homepage that does not honour it, by the owner's decision
+  // (2026-09-26), and it is a reversal worth keeping the history of:
+  //
+  //  - until Phase 1B the whole page ignored the preference, because on
+  //    Windows it is the "Animation effects" switch, which is off on many
+  //    machines -- including the owner's -- so honouring it meant most
+  //    visitors never saw the stack turn;
+  //  - 1B honoured it everywhere, and gated this rotation too. The timer was
+  //    then the only thing that moved the stack, so steps 2 and 3 could not
+  //    be seen at all under the preference;
+  //  - the dots below became real buttons, and rotation was kept for
+  //    motion-on only. On the owner's machine that still meant a stack that
+  //    never moved, which he reported as the same bug.
+  //
+  // So: the stack turns for everyone, and the dots stop it the moment anyone
+  // takes over (WCAG 2.2.2's pause). Everything else on the page -- the
+  // entrances, the scroll reveals -- still honours the preference.
   useAnimationFrame((t) => {
-    if (reduced || userTookOver) return;
+    if (userTookOver) return;
     if (startRef.current === null) startRef.current = t;
     const elapsed = t - startRef.current;
     const whole = Math.floor(elapsed / STEP_MS);
@@ -371,11 +376,7 @@ export function HowItWorks() {
     const next = turnsToReach(from, target, STEPS.length);
     wholeRef.current = next;
     setFront(target);
-    if (reduced) {
-      turns.set(next); // no tween: the preference asked for none
-    } else {
-      animate(turns, next, { duration: JUMP_S, ease: [0.23, 1, 0.32, 1] });
-    }
+    animate(turns, next, { duration: JUMP_S, ease: [0.23, 1, 0.32, 1] });
   };
 
   return (
