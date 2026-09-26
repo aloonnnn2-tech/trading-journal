@@ -169,7 +169,30 @@ function readSaved(): Saved | null {
 // only cost of guessing wrong is a brief flash of the previous card.
 const RETREAT_MS = 1500;
 // How long an ordinary step's target may be missing before the card says so.
+// Counted only while the page is actually there -- see pageStillLoading().
 const MISSING_MS = 2000;
+
+/**
+ * Is the page still on its way, as opposed to loaded and missing the target?
+ *
+ * "Can't find this on the page right now" used to flash for a second on
+ * ordinary steps and then clear, because the 2s clock above ran through two
+ * windows where the target cannot exist yet:
+ *
+ *  - a navigation the tour started, still in flight. The previous page is
+ *    still on screen, and the next step's target is on the page being loaded.
+ *    /dashboard took 4s on a cold server, so any slow load tripped it.
+ *  - a route loading skeleton (a loading.tsx). The URL has already switched
+ *    and the tour thinks it has arrived, but the skeleton has no targets; they
+ *    appear when the real page streams in. /analytics gained one in Phase 1B
+ *    of docs/design-audit.md, which made this more likely there.
+ *
+ * Every loading.tsx marks its root with data-route-loading for this. A new
+ * one that forgets will bring the flash back on its route, and nothing else.
+ */
+function pageStillLoading(navInFlight: boolean): boolean {
+  return navInFlight || document.querySelector("[data-route-loading]") !== null;
+}
 // A navigation the tour started that has not landed yet. Cleared on arrival
 // or after this long, so a failed push cannot leave the tour waiting forever.
 const PENDING_NAV_MS = 8000;
@@ -460,6 +483,14 @@ export function TourOverlay() {
         if (step.done && "target" in step.done && measure(step.done.target)) {
           goForward(stepIndex);
           return;
+        }
+      } else if (pageStillLoading(pendingPathRef.current !== null)) {
+        // Not missing, just not here yet: hold the clock at zero so it starts
+        // fresh when the page lands, and do not treat it as a retreat either.
+        missingSince = null;
+        if (rectRef.current) {
+          rectRef.current = null;
+          setRect(null);
         }
       } else {
         missingSince ??= performance.now();
