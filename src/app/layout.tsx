@@ -22,6 +22,7 @@ import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { DesignFlagScript } from "@/components/design/design-flag";
+import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -60,9 +61,19 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+// The defaults every page inherits. The title stays the bare name on
+// purpose: it is what an app tab shows on /dashboard or /trades, so the long
+// search title lives on the homepage alone (src/app/page.tsx).
+//
+// The share image is not named here. src/app/opengraph-image.tsx and
+// twitter-image.tsx, as file conventions, add it to every route below them,
+// and `metadataBase` is what makes its URL absolute.
 export const metadata: Metadata = {
-  title: "Trading Lens",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_NAME,
   description: "Review, analyze, and improve your trading performance.",
+  openGraph: { ...BASE_OPEN_GRAPH },
+  twitter: { card: "summary_large_image" },
 };
 
 export default async function RootLayout({

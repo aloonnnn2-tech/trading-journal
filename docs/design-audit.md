@@ -204,10 +204,12 @@ This is what each site stated on 23 Sep 2026. **Alon re-checks every one before 
 | Free plan | Yes, no expiry, no card | No free plan on /pricing | Free tier (trial terms) | "Free forever" |
 | Entry paid price | Not on sale yet | $26/mo yearly · $35 monthly | $29.95/mo | $19.99/mo |
 | AI trade review | Graded on execution, not outcome (bring your own key) | Paid (from $35/mo) | — | Paid (Wave AI, Pro) |
-| MAE/MFE on free plan | Yes | verify | verify (Gold has "exit analysis") | verify |
+| MAE/MFE on free plan | No — paid plan only (not on sale yet) | verify | verify (Gold has "exit analysis") | verify |
 | Bring your own AI key | Yes (6 providers) | verify | — (no AI) | No (Wave AI is Pro-only) |
 
 Only include rows backed by a link. A dash means "not offered or not found". Say that in a footnote.
+
+**Corrected 26 Sep 2026, from the codebase, not from the audit.** The Trading Lens "MAE/MFE on free plan" cell said "Yes". The code says otherwise: `src/components/landing/FeatureGrid.tsx` marks MAE / MFE `paid: true`, and `/analytics` only fetches the excursion report for paid accounts (`isPaidUser`). The Trading Lens column is ours to state, so it is checked against the code like any other claim on the site — re-check every cell in it before 3D ships, not only the competitors'.
 
 ---
 
