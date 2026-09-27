@@ -23,7 +23,7 @@ Make the public homepage (`tradinglenz.netlify.app`) read as a serious, trustwor
 - **Stack:** Next.js 16 (App Router), React 19, TypeScript, Supabase, Netlify. Tests are vitest only. There are no component or E2E tests.
 - **Stats:** every computed statistic comes from one engine (`segments/engine.ts`). Don't add a second place that calculates the same stats.
 - **Migrations:** numbered SQL files in `supabase/migrations/`. **Nothing runs them automatically.** Alon applies them by hand in the Supabase SQL editor. **Always check the actual latest number** with `ls supabase/migrations | tail -1` and take the next one — do not trust a number written down anywhere, including here. (This file said "0000–0039" until 23 Sep 2026, by which point the real latest was 0048.) The PR description must say "migration NNNN must be applied manually before deploy."
-- **Rate limiting:** a per-instance limiter already exists. Reuse it. Auth screens have no CAPTCHA, so new public forms need a honeypot field.
+- **Rate limiting:** a **global** limiter already exists (`src/lib/rate-limit.ts`: `enforceRateLimit`, `clientIpKey`), backed by a shared Postgres counter since migration 0042. Reuse it. Sign-in, sign-up and forgot-password do have a CAPTCHA (Cloudflare Turnstile), but Supabase verifies its tokens, not this app, so a new public form of ours can't reuse it without a new server secret; use a honeypot field. *(Corrected 27 Sep 2026 from the code: this line said "per-instance" and "auth screens have no CAPTCHA"; both were wrong.)*
 - **Separate redesign:** a terminal-style app redesign lives on its own git branch behind a localStorage flag. **Don't touch that flag or its code.** Everything in this spec goes on normal branches off `main`.
 - **Current homepage order:**
   1. header
@@ -160,7 +160,7 @@ Priority: **P1** = quick win, **P2** = 1–2 weeks, **P3** = polish.
     - "Every edit versioned."
 12. **Pricing:** two cards side by side.
     - **Free, $0:** the existing card.
-    - **Paid, "Coming soon":** this card **already exists in the codebase**. Find it and reuse it as-is (styling only, if it needs to match the new tokens) — do not write new copy or a new feature list for it. Add the waitlist email field to it if it doesn't already have one.
+    - **Paid, "Coming soon":** this card **already exists in the codebase**. Find it and reuse it as-is (styling only, if it needs to match the new tokens) — do not write new copy or a new feature list for it. Add the waitlist email field to it if it doesn't already have one. *(27 Sep 2026: this is the paid card in `v2/PricingTeaser.tsx`, the same card as the old UNDER CONSTRUCTION spot. Since 2B it's labelled "Coming soon" and carries the waitlist form.)*
     - Add the line "Free means free. No broker account required."
 13. **Founder note** `NEW`: a placeholder section that renders only if `FOUNDER_NOTE` text is supplied (see Facts). No testimonials until real ones exist.
 14. **FAQ** `NEW`: 6–8 questions (Phase 2).
@@ -190,7 +190,7 @@ tiktok_url: https://www.tiktok.com/@trading_lenz
 youtube_url: https://www.youtube.com/@TradingLenz
 contact: TradingLenzSupport@proton.me   # a real, live address — the sign-in page already links it for support and for account deletion. Phase 2C's footer SHOULD carry a Contact link
 founder_note: null            # skipped — no founder note section
-paid_plan_card: EXISTING      # the "Coming soon" paid-plan card UI already exists in the codebase — do not build a new one, find and reuse it (see Phase 2B/3C notes)
+paid_plan_card: EXISTING      # it's the paid card in src/components/landing/v2/PricingTeaser.tsx. There was never a separate "Coming soon" card: that card wore the "Under construction" badge, and Phase 2B relabelled it "Coming soon" (issue 9). Corrected 27 Sep 2026 from the code.
 ```
 
 **Important correction on imports:** the spec below originally assumed brokers had CSV/XLSX exports tested. That is NOT true yet — only **screenshot import of Interactive Brokers stock trades** has actually been tested and confirmed working. No broker's CSV/XLSX export has been verified. Any "Imports from" copy must say screenshot import, not CSV/XLSX export, and must name only Interactive Brokers, only for stocks.
@@ -245,7 +245,7 @@ Out of scope: any new homepage sections.
     - inserts with the service role
     - a duplicate email returns the same 200 success, so it doesn't reveal who is on the list
   - **Form UI:** used in the announcement bar link target, the existing paid-plan "Coming soon" card, and the old UNDER CONSTRUCTION spot (issue 9). States: idle, submitting, success ("You're on the list."), error ("Couldn't save that. Try again.").
-  - **Spam protection:** first, search the codebase for an existing Cloudflare Turnstile integration (it's used on at least one signup form already). If found, reuse that same integration for this form. If Turnstile can't be reused here for any reason, fall back to a hidden honeypot field as described below, and say why in the PR.
+  - **Spam protection:** first, search the codebase for an existing Cloudflare Turnstile integration (it's used on at least one signup form already). If found, reuse that same integration for this form. If Turnstile can't be reused here for any reason, fall back to a hidden honeypot field as described below, and say why in the PR. *(Done 27 Sep 2026: Turnstile is on sign-in, sign-up and forgot-password, but its tokens are verified by Supabase with a secret held only in the Supabase dashboard, so this app can't check one without a new `TURNSTILE_SECRET_KEY` kept in sync between local and Netlify. Alon chose the honeypot fallback plus a 5-per-hour-per-IP limit.)*
   - Out of scope: sending emails or an admin view (Alon exports from Supabase). Also out of scope: making the paid plan actually purchasable — that happens later, once a payment method is set up (see backlog).
 - **2C: Homepage sections:**
   - **Announcement bar:** `#1` in the target order.

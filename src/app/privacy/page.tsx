@@ -49,6 +49,23 @@ export default function PrivacyPage() {
           trade details off it (an on-device OCR step, described below) and is then stored as an
           attachment on that trade so you can refer back to it.
         </p>
+        {/* Added with the waitlist (Phase 2B of docs/design-audit.md): the
+            form collects addresses from people with no account, which the
+            three items above do not cover. Wording approved by Alon on
+            2026-09-27. Every clause is a promise -- keep them true. */}
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Paid-plan waitlist:</strong> if you
+          join the waitlist, we store the email address you enter, the page you joined from, and
+          when. We use it only to tell you when the paid plan launches &mdash; it isn&apos;t shared
+          or sold, and it isn&apos;t linked to a Trading Lens account. To be removed, email{" "}
+          <a
+            href="mailto:TradingLenzSupport@proton.me"
+            className="font-medium text-primary hover:underline"
+          >
+            TradingLenzSupport@proton.me
+          </a>
+          .
+        </p>
 
         <h2 className={SECTION_HEADING}>How screenshot processing works</h2>
         <p className={BODY}>
