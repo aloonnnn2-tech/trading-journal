@@ -152,7 +152,7 @@ Priority: **P1** = quick win, **P2** = 1–2 weeks, **P3** = polish.
    - Keyboard accessible (arrow keys, ARIA tab pattern).
 8. **"No made-up numbers" block** `NEW`: "Every number comes from your trades. If we can't compute it, we say so."
    - Show a sample card in its "⚠ Not enough trades" state, using the app's real empty-state wording if one exists.
-9. **What's included:** the existing 12 cards, kept. Add the line "Nothing above is a teaser. It's what free actually includes."
+9. **What's included:** the existing 12 cards, kept. Add the line "Nothing above is a teaser. It's what free actually includes." *(27 Sep 2026: shipped as "Everything marked FREE is in the free plan today. Nothing here is a trial." The spec's line would be false beside the PAID cards in the same grid.)*
 10. **How we compare** `NEW`: a table, see Phase 3.
 11. **Trust trio** `NEW`: three tiles.
     - "Your AI key, never ours": bring your own key, encrypted, billed to your own provider.
@@ -266,7 +266,7 @@ Out of scope: any new homepage sections.
 
 ### Phase 3: homepage restructure (P2)
 
-- **3A:** reorder the page to the target order, replace the carousel with 3 columns, add the floating cards.
+- **3A:** reorder the page to the target order, replace the carousel with 3 columns, add the floating cards. *(Shipped 27 Sep 2026, per the layout sketch Alon approved: How it works straight after the hero -- first built as 3 columns, then put back to the rotating card stack at Alon's request the same day (it keeps the new heading and the #how-it-works anchor); Find My Edge moved down with the feature stories until 3B; the hero's second button is "See how it works"; floating cards on the preview from lg up, overhanging 12px at lg and 28px from xl so they neither clip at the screen edge nor reach the text at 1024–1150px. "Three jobs a plain record leaves to you" isn't in the target order and is kept until 3B decides. The preview caption reads "Sample figures": the preview's numbers are hand-drawn illustration older than the demo account; only the floating cards' figures are the demo account's.)*
 - **3B:** tabbed tour, which replaces the spotlights and Find My Edge.
 - **3C:** "No made-up numbers" block, trust trio, two-card pricing, founder note (hidden if not supplied).
 - **3D:** compare table. It's blocked until Alon confirms the competitor facts.

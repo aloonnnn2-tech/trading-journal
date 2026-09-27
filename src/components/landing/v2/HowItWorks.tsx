@@ -380,7 +380,21 @@ export function HowItWorks() {
   };
 
   return (
-    <section className="mx-auto w-full max-w-6xl overflow-hidden px-6 sm:px-10">
+    // id="how-it-works" is where the hero's "See how it works" lands (3A).
+    // The 3A heading stays above the stack: in 3A the stack was swapped for
+    // three columns, and Alon asked for the rotating stack back on
+    // 2026-09-27 while keeping the rest of 3A.
+    <section id="how-it-works" className="mx-auto w-full max-w-6xl scroll-mt-20 overflow-hidden px-6 sm:px-10">
+      <div className="mx-auto mb-10 flex max-w-3xl flex-col items-center gap-3 text-center">
+        <Reveal as="span" className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">
+          How it works
+        </Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="text-3xl font-bold tracking-heading text-zinc-900 dark:text-zinc-50 sm:text-4xl lg:text-h2">
+            From screenshot to review
+          </h2>
+        </Reveal>
+      </div>
       <Reveal className="relative mx-auto h-[30rem] w-full max-w-[40rem] sm:h-[24rem]">
         {STEPS.map((step, i) => (
           <StackCard key={step.number} index={i} turns={turns} step={step} />
