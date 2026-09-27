@@ -58,14 +58,14 @@ const FACTS: { label: string; value: string }[] = [
 
 export function WhatsDifferent() {
   return (
-    <section id="different" className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 pb-24 sm:px-10">
+    <section id="different" className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 sm:px-10">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div>
           <Reveal direction="left">
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">After the close</p>
           </Reveal>
           <Reveal direction="left" delay={0.05}>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
+            <h2 className="mt-4 text-3xl font-bold tracking-heading text-zinc-900 dark:text-zinc-50 sm:text-4xl lg:text-h2">
               Three jobs a plain record leaves to you.
             </h2>
           </Reveal>

@@ -41,13 +41,13 @@ const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
 
 export function Hero() {
   return (
-    <section className="relative px-6 pt-16 pb-20 sm:px-10 lg:pt-24 lg:pb-28">
+    <section className="relative px-6 pt-16 pb-8 sm:px-10 lg:pt-24 lg:pb-16">
       <div className="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
         <div className="flex flex-col items-start gap-6 text-left">
           <span className="animate-rise-left font-mono text-xs uppercase tracking-[0.2em] text-primary sm:text-sm">
             Free · No credit card
           </span>
-          <h1 className="max-w-2xl text-5xl font-semibold leading-[1.02] tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-6xl lg:text-7xl">
+          <h1 className="max-w-2xl text-5xl font-bold leading-[1.02] tracking-heading text-zinc-900 dark:text-zinc-50 sm:text-6xl lg:text-7xl">
             {HEADLINE.map((word, i) => (
               <Fragment key={word}>
                 {/* The space sits between the spans: inside an inline-block a
@@ -82,7 +82,7 @@ export function Hero() {
           <div className="flex animate-rise-left flex-wrap gap-3" style={rise(280)}>
             <Link
               href="/sign-up"
-              className="relative overflow-hidden rounded-lg bg-primary px-6 py-3 font-medium text-white dark:text-zinc-950 shadow-lg shadow-primary/25 hover:brightness-110"
+              className="relative overflow-hidden rounded-lg bg-primary px-6 py-3 font-medium text-white dark:text-zinc-950 shadow-lg shadow-primary/25 hover:bg-primary-hover"
             >
               <span
                 aria-hidden

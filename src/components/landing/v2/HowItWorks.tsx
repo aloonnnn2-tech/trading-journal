@@ -3,12 +3,12 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import {
+  animate,
   motion,
   useAnimationFrame,
   useMotionTemplate,
   useMotionValue,
   useMotionValueEvent,
-  useReducedMotion,
   useTransform,
   type MotionValue,
   type TargetAndTransition,
@@ -18,6 +18,7 @@ import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
 import { FIELD_LABELS } from "@/lib/ocr/types";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
 import { Reveal } from "@/components/motion/Reveal";
+import { frontCard, turnsToReach } from "@/components/landing/v2/orbit";
 import exampleScreenshot from "../../../../public/example-trade-screenshot.png";
 
 // The process row for /home-v2: screenshot in, trade card out, execution
@@ -28,7 +29,8 @@ import exampleScreenshot from "../../../../public/example-trade-screenshot.png";
 // about a second and a half of movement and a second and a half of holding,
 // so one card comes forward every three seconds -- but the warp never reaches
 // zero speed, so the cards in the background keep turning between hand-offs. Runs from
-// mount, ignores hover and scroll position. The visuals are the app's own UI:
+// mount and ignores hover and scroll position -- until a visitor picks a step
+// with the dots, which stops it. The visuals are the app's own UI:
 // the OCR dialog's dropzone and scanning state, the "Detected from image"
 // panel with the real ConfidenceBadge, and the review card's score block.
 // Sits where Three Pillars sat on /; that row and the old timeline said the
@@ -214,9 +216,8 @@ const STEPS = [
 ];
 
 // The readable face of a card: the demo, then the step's label and copy.
-// Shared by the orbiting card and the reduced-motion one so the copy is
-// written once. `visualKey` remounts the demo so its sequence replays --
-// on every hand-off for the orbit, on every selection for the stepper.
+// `visualKey` remounts the demo so its sequence replays each time the card
+// arrives at the front, whether the clock turned it there or a dot did.
 function CardFace({ step, visualKey }: { step: (typeof STEPS)[number]; visualKey: number }) {
   return (
     <>
@@ -319,43 +320,97 @@ function StackCard({
   );
 }
 
+// How long a click takes to turn the stack to the chosen card. Inside the
+// spec's decorative-motion cap (600ms), and quick enough to feel like a
+// response rather than a wait.
+const JUMP_S = 0.5;
+
 export function HowItWorks() {
   const turns = useMotionValue(0);
   const startRef = useRef<number | null>(null);
   const [front, setFront] = useState(0);
 
-  // Gated on prefers-reduced-motion. This is a continuous rotation that never
-  // stops, which is the single most uncomfortable thing on the page for a
-  // reader who asked for less movement. With the preference set the wheel
-  // holds at the first card, which still reads as a card with a step in it.
-  const reduced = useReducedMotion();
+  // The clock and the dots share `turns`, so exactly one of them may drive it
+  // at a time. `wholeRef` is the last complete hand-off count, which is what
+  // a click turns forward from.
+  const wholeRef = useRef(0);
+  // Once a visitor picks a step, the stack stops turning on its own. Without
+  // that, someone who clicked to read step 3 would have it pulled away from
+  // them three seconds later -- the thing accessibility guidance on
+  // auto-moving content (WCAG 2.2.2) exists to prevent.
+  const [userTookOver, setUserTookOver] = useState(false);
 
+  // The rotation runs whatever prefers-reduced-motion says. This is the one
+  // place on the homepage that does not honour it, by the owner's decision
+  // (2026-09-26), and it is a reversal worth keeping the history of:
+  //
+  //  - until Phase 1B the whole page ignored the preference, because on
+  //    Windows it is the "Animation effects" switch, which is off on many
+  //    machines -- including the owner's -- so honouring it meant most
+  //    visitors never saw the stack turn;
+  //  - 1B honoured it everywhere, and gated this rotation too. The timer was
+  //    then the only thing that moved the stack, so steps 2 and 3 could not
+  //    be seen at all under the preference;
+  //  - the dots below became real buttons, and rotation was kept for
+  //    motion-on only. On the owner's machine that still meant a stack that
+  //    never moved, which he reported as the same bug.
+  //
+  // So: the stack turns for everyone, and the dots stop it the moment anyone
+  // takes over (WCAG 2.2.2's pause). Everything else on the page -- the
+  // entrances, the scroll reveals -- still honours the preference.
   useAnimationFrame((t) => {
-    if (reduced) return;
+    if (userTookOver) return;
     if (startRef.current === null) startRef.current = t;
     const elapsed = t - startRef.current;
     const whole = Math.floor(elapsed / STEP_MS);
+    wholeRef.current = whole;
     turns.set(whole + warp((elapsed % STEP_MS) / STEP_MS));
-    const now = whole % STEPS.length;
+    const now = frontCard(whole, STEPS.length);
     if (now !== front) setFront(now);
   });
 
+  const goTo = (target: number) => {
+    setUserTookOver(true);
+    // Settle on whole numbers from here: a click lands exactly on a card.
+    const from = Math.round(turns.get());
+    const next = turnsToReach(from, target, STEPS.length);
+    wholeRef.current = next;
+    setFront(target);
+    animate(turns, next, { duration: JUMP_S, ease: [0.23, 1, 0.32, 1] });
+  };
+
   return (
-    <section className="mx-auto w-full max-w-6xl overflow-hidden px-6 pb-24 sm:px-10">
+    <section className="mx-auto w-full max-w-6xl overflow-hidden px-6 sm:px-10">
       <Reveal className="relative mx-auto h-[30rem] w-full max-w-[40rem] sm:h-[24rem]">
         {STEPS.map((step, i) => (
           <StackCard key={step.number} index={i} turns={turns} step={step} />
         ))}
       </Reveal>
 
-      <div aria-hidden className="mt-6 flex justify-center gap-2">
+      {/* Real buttons, where these were decorative spans. The visible bar
+          stays 6px tall; the button around it is 24px, the minimum pointer
+          target WCAG 2.5.8 asks for. -my-[9px] gives that extra height back to
+          the layout, so the row still occupies the bar's 6px and the page is
+          no longer -- the no-added-scroll rule -- while the target reaches
+          into the empty margin above and below. */}
+      <div role="group" aria-label="How it works, step by step" className="mt-6 flex justify-center gap-1">
         {STEPS.map((step, i) => (
-          <span
+          <button
             key={step.number}
-            className={`h-1.5 w-6 rounded-full transition-colors duration-300 ${
-              i === front ? "bg-primary" : "bg-zinc-300 dark:bg-zinc-700"
-            }`}
-          />
+            type="button"
+            onClick={() => goTo(i)}
+            aria-label={`Step ${i + 1} of ${STEPS.length}: ${step.word}`}
+            aria-current={i === front ? "step" : undefined}
+            className="group -my-[9px] flex h-6 items-center px-1"
+          >
+            <span
+              className={`h-1.5 w-6 rounded-full transition-colors duration-300 ${
+                i === front
+                  ? "bg-primary"
+                  : "bg-zinc-300 group-hover:bg-zinc-400 dark:bg-zinc-700 dark:group-hover:bg-zinc-500"
+              }`}
+            />
+          </button>
         ))}
       </div>
     </section>

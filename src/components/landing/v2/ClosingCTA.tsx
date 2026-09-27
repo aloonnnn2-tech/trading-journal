@@ -17,8 +17,8 @@ import { Reveal } from "@/components/motion/Reveal";
 // at 600ms.
 export function ClosingCTA() {
   return (
-    <section className="px-6 pb-24 sm:px-10">
-      <Reveal className="relative mx-auto max-w-6xl overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-subtle dark:bg-card">
+    <section className="px-6 pt-12 pb-24 sm:px-10">
+      <Reveal className="relative mx-auto max-w-6xl overflow-hidden rounded-2xl border border-zinc-200 bg-band-cta dark:border-subtle">
         <BorderBeam size={100} duration={9} />
         {/* recessive chart-line motif */}
         <svg
@@ -41,7 +41,7 @@ export function ClosingCTA() {
           />
         </svg>
         <div className="relative flex flex-col items-center gap-4 px-6 py-16 text-center sm:px-10">
-          <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-3xl">
+          <h2 className="text-3xl font-bold tracking-heading text-zinc-900 dark:text-zinc-50 sm:text-4xl lg:text-h2">
             Start with your next trade.
           </h2>
           <p className="max-w-md text-zinc-600 dark:text-zinc-400">
@@ -49,7 +49,7 @@ export function ClosingCTA() {
           </p>
           <Link
             href="/sign-up"
-            className="relative mt-2 inline-block overflow-hidden rounded-lg bg-primary px-6 py-3 font-medium text-white dark:text-zinc-950 shadow-lg shadow-primary/25 hover:brightness-110"
+            className="relative mt-2 inline-block overflow-hidden rounded-lg bg-primary px-6 py-3 font-medium text-white dark:text-zinc-950 shadow-lg shadow-primary/25 hover:bg-primary-hover"
           >
             <span
               aria-hidden

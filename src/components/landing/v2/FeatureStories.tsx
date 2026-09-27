@@ -63,7 +63,7 @@ export function FeatureStories() {
   return (
     <section
       id="features"
-      className="mx-auto flex w-full max-w-6xl scroll-mt-20 flex-col gap-24 px-6 pb-24 sm:px-10"
+      className="mx-auto flex w-full max-w-6xl scroll-mt-20 flex-col gap-24 px-6 sm:px-10"
     >
       {STORIES.map((story) => (
         <FeatureStory key={story.tag.text} {...story} />

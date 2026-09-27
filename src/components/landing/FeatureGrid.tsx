@@ -123,7 +123,7 @@ const FEATURES: Feature[] = [
 
 export function FeatureGrid() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-10">
+    <section className="mx-auto w-full max-w-6xl px-6 sm:px-10">
       <div data-v2-cards className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map((feature, i) => (
           <Reveal

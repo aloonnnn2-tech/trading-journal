@@ -554,7 +554,7 @@ export function PaidPlanModal({ open, onClose }: { open: boolean; onClose: () =>
               {last ? (
                 <Link
                   href="/sign-up"
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-sm font-medium text-white hover:brightness-110 dark:text-zinc-950 sm:text-base"
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-7 py-3.5 text-sm font-medium text-white hover:bg-primary-hover dark:text-zinc-950 sm:text-base"
                 >
                   {step.cta}
                   <ArrowRight className="h-4 w-4" strokeWidth={2} />
@@ -563,7 +563,7 @@ export function PaidPlanModal({ open, onClose }: { open: boolean; onClose: () =>
                 <button
                   ref={ctaRef}
                   onClick={next}
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-sm font-medium text-white hover:brightness-110 dark:text-zinc-950 sm:text-base"
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-7 py-3.5 text-sm font-medium text-white hover:bg-primary-hover dark:text-zinc-950 sm:text-base"
                 >
                   {step.cta}
                   <ArrowRight className="h-4 w-4" strokeWidth={2} />

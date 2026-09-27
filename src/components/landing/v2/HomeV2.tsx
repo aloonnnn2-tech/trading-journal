@@ -16,6 +16,7 @@ import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { PricingTeaser } from "@/components/landing/v2/PricingTeaser";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { PublicViewBeacon } from "@/components/public-view-beacon";
+import { Band } from "@/components/landing/v2/Band";
 
 // The /home-v2 candidate. / is unchanged.
 //
@@ -85,13 +86,27 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           <Background />
           <LandingHeader />
           <Hero />
-          <ProductShot />
-          <HowItWorks />
-          <FeatureStories />
-          <SectionHeadline kicker="Features">What’s included</SectionHeadline>
-          <FeatureGrid />
-          <WhatsDifferent />
-          <PricingTeaser />
+          {/* Alternating bands, Phase 2A. The hero stays on the base ground,
+              and the closing CTA's own card carries the CTA colour. */}
+          <Band tone="raised">
+            <ProductShot />
+          </Band>
+          <Band tone="base">
+            <HowItWorks />
+          </Band>
+          <Band tone="raised">
+            <FeatureStories />
+          </Band>
+          <Band tone="base">
+            <SectionHeadline kicker="Features">What’s included</SectionHeadline>
+            <FeatureGrid />
+          </Band>
+          <Band tone="raised">
+            <WhatsDifferent />
+          </Band>
+          <Band tone="base">
+            <PricingTeaser />
+          </Band>
           <ClosingCTA />
           <LandingFooter />
         </div>
