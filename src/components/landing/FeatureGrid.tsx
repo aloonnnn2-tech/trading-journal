@@ -164,6 +164,12 @@ export function FeatureGrid() {
           </Reveal>
         ))}
       </div>
+          {/* Phase 3A. Not the spec's "Nothing above is a teaser. It's what free
+          actually includes." -- the grid above carries PAID cards, so that
+          line would be false. homepage-copy.test.ts keeps it out. */}
+      <p className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
+        Everything marked FREE is in the free plan today. Nothing here is a trial.
+      </p>
     </section>
   );
 }

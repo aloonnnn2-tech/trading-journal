@@ -12,7 +12,7 @@ import { formatMoney } from "@/lib/format/money";
 // The figures no longer count up from zero. For a second and a half the hero
 // -- the first thing anyone sees -- advertised a 6% win rate and a 0.15
 // profit factor, which is a losing account, and `curl` on the homepage
-// returned those instead of the real demo figures (issue 8 of
+// returned those instead of the illustration's own figures (issue 8 of
 // docs/design-audit.md). Every number here is now in the server HTML. The
 // line, the wash and the meter still animate: they are decorative, and they
 // do not hide a number while they run.
@@ -75,8 +75,12 @@ function MiniStat({
   const color =
     tone === "pos" ? "text-profit" : tone === "neg" ? "text-loss" : "text-zinc-900 dark:text-zinc-50";
   return (
-    <div className="min-w-0 flex-1 rounded-lg border border-zinc-100 px-3 py-2 dark:border-subtle">
-      <p className="truncate text-[9px] font-medium uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
+    // px-2 and tighter label tracking below xl: at lg (1024-1279px) each of
+    // the three boxes is ~100px wide, and with px-3 the figure itself was cut
+    // off -- "+$4,928..." and "PROFIT FACT..." -- which predates 3A and was
+    // spotted while measuring it.
+    <div className="min-w-0 flex-1 rounded-lg border border-zinc-100 px-2 py-2 dark:border-subtle xl:px-3">
+      <p className="truncate text-[9px] font-medium uppercase tracking-[0.03em] text-zinc-400 dark:text-zinc-500 xl:tracking-[0.08em]">
         {label}
       </p>
       <p className={`tnum mt-0.5 truncate font-mono text-sm font-semibold ${color}`}>
@@ -97,7 +101,7 @@ function MiniStat({
   );
 }
 
-// sign: "always" rather than a hardcoded "+", so a demo figure below zero
+// sign: "always" rather than a hardcoded "+", so a figure below zero
 // would render as a loss instead of a gain.
 const money = (v: number) => formatMoney(v, { sign: "always" });
 const percent = (v: number) => `${Math.round(v)}%`;

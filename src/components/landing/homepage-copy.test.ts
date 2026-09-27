@@ -69,6 +69,21 @@ describe("homepage copy", () => {
     expect(offending(/\b(excel|xlsx)\b/i, (line) => /export/i.test(line))).toEqual([]);
   });
 
+  it("never claims 'nothing is a teaser' beside cards marked PAID", () => {
+    // The spec's line for What's included. False next to the PAID cards in the
+    // same grid; 3A ships "Everything marked FREE is in the free plan today".
+    expect(offending(/nothing (above|here) is a teaser/i)).toEqual([]);
+  });
+
+  it("never says the hero preview's figures come from the demo account", () => {
+    // They're hand-drawn illustration, older than the demo account; the
+    // caption says "Sample figures". Scoped to the hero's own files: Find My
+    // Edge's caption says the same words and is TRUE -- that screenshot is
+    // the demo account.
+    const hero = ["Hero.tsx", "HeroPanel.tsx", "FloatingCards.tsx"].map((f) => join(LANDING, "v2", f));
+    for (const path of hero) expect(copyOf(path)).not.toMatch(/demo account/i);
+  });
+
   it("never overstates edit history (each trade keeps its newest 50 versions)", () => {
     expect(offending(/every edit|full version history|history in (?:takes )?one sitting/i)).toEqual([]);
   });

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
+import { Reveal } from "@/components/motion/Reveal";
 
 // The Find My Edge plate for /home-v2. Same image, copy and caption as
 // ../ProductShot.tsx, and the same frame as ../ProductShotFrame.tsx -- the
@@ -16,20 +17,15 @@ const WIDTH = 3732;
 const HEIGHT = 1494;
 const SIZES = "(max-width: 1152px) 100vw, 1152px";
 
-// Its entrance is the hero's CSS rise, not the scroll Reveal the sections
-// below use. This plate sits at or just under the fold on arrival, and the
-// Reveal rule is that anything that close is shown outright and never moves
-// -- which is right for not leaving it blank, and meant the first thing under
-// the hero never animated for anyone. A CSS animation starts at first paint,
-// before any script, so it can move without ever being blank: the same
-// reason the hero uses it. 150ms in, so it lands just after the hero panel.
-// Stilled by the reduced-motion rule in globals.css like every animate-*.
-// The trade-off: where the plate is far below the fold (a phone), it has
-// finished before anyone scrolls to it, so there it simply appears.
+// Enters with the scroll Reveal, like every section below the fold. From
+// Phase 1B until 3A it used the hero's load-time CSS rise instead, because it
+// sat right under the hero where Reveal shows things outright; 3A moved it
+// down with the feature stories, where a load-time animation would finish
+// before anyone scrolled to it.
 export function ProductShot() {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 sm:px-10">
-      <figure className="relative m-0 animate-rise" style={{ animationDelay: "150ms" }}>
+      <Reveal as="figure" className="relative m-0">
         <div className="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-subtle">
           <Image
             src={SRC}
@@ -56,7 +52,7 @@ export function ProductShot() {
         <figcaption className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
           Find My Edge, captured from the app. Figures come from the demo account, so they are seeded rather than anyone’s real trading history.
         </figcaption>
-      </figure>
+      </Reveal>
     </section>
   );
 }

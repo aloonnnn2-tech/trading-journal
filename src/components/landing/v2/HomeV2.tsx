@@ -101,28 +101,32 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           <LandingHeader />
           <Hero />
           <ImportStrip />
-          {/* Alternating bands, Phase 2A. The hero stays on the base ground,
-              and the closing CTA's own card carries the CTA colour. */}
+          {/* Alternating bands (Phase 2A), in the Phase 3A order: How it works
+              straight after the hero, where "See how it works" lands; the
+              feature stories with Find My Edge after them, both standing in
+              for 3B's tabbed tour; "Three jobs" kept until 3B decides it --
+              it isn't in the spec's target order. The closing CTA's own card
+              carries the CTA colour. */}
           <Band tone="raised">
-            <ProductShot />
-          </Band>
-          <Band tone="base">
             <HowItWorks />
           </Band>
-          <Band tone="raised">
-            <FeatureStories />
-          </Band>
           <Band tone="base">
+            <FeatureStories />
+            <div className="mt-24">
+              <ProductShot />
+            </div>
+          </Band>
+          <Band tone="raised">
             <SectionHeadline kicker="Features">What’s included</SectionHeadline>
             <FeatureGrid />
           </Band>
-          <Band tone="raised">
+          <Band tone="base">
             <WhatsDifferent />
           </Band>
-          <Band tone="base">
+          <Band tone="raised">
             <PricingTeaser />
           </Band>
-          <Band tone="raised">
+          <Band tone="base">
             <Faq />
           </Band>
           <ClosingCTA />

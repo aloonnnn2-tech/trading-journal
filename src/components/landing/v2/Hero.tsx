@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { HeroPanel } from "@/components/landing/v2/HeroPanel";
 import { Marquee } from "@/components/landing/v2/Marquee";
+import { FloatingCards } from "@/components/landing/v2/FloatingCards";
 
 // The hero for /home-v2. Same copy and layout as ../Hero.tsx, which stays
 // untouched so the current homepage is unaffected. What changes is scale --
@@ -92,11 +93,13 @@ export function Hero() {
               />
               <span className="relative">Start journaling free</span>
             </Link>
+            {/* Phase 3A: "See how it works" in place of "Log in", which the
+                nav already carries. Scrolls to the three steps. */}
             <Link
-              href="/sign-in"
+              href="#how-it-works"
               className="rounded-lg border border-zinc-300 px-6 py-3 font-medium text-zinc-900 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-100 dark:hover:border-zinc-500"
             >
-              Log in
+              See how it works
             </Link>
           </div>
           {/* The proof line (Phase 2C). Not the spec's wording, and not by
@@ -122,8 +125,18 @@ export function Hero() {
             </Marquee>
           </div>
         </div>
-        <div className="relative animate-rise-right" style={rise(100)}>
-          <HeroPanel />
+        <div className="animate-rise-right" style={rise(100)}>
+          {/* Positioned around the panel alone, so the floating cards
+              overlap its edges rather than the caption's. */}
+          <div className="relative">
+            <HeroPanel />
+            <FloatingCards />
+          </div>
+          {/* "Sample", not "from the demo account": the panel's figures are
+              hand-drawn illustration from the site's first commit, older than
+              the demo account; only the floating cards' figures are the demo
+              account's. "Sample" is true of both. */}
+          <p className="mt-6 text-right text-xs text-zinc-500 dark:text-zinc-400">Sample figures</p>
         </div>
       </div>
     </section>
