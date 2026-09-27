@@ -57,7 +57,7 @@ describe("homepage copy", () => {
   it("covers the files it means to", () => {
     // If this drops, the walk broke and every check below passes vacuously.
     expect(FILES.length).toBeGreaterThan(15);
-    expect(FILES.some((f) => f.endsWith("WhatsDifferent.tsx"))).toBe(true);
+    expect(FILES.some((f) => f.endsWith("FeatureTour.tsx"))).toBe(true);
     expect(FILES.some((f) => f.endsWith("Hero.tsx"))).toBe(true);
   });
 
