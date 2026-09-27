@@ -4,11 +4,9 @@ import { MotionConfig } from "framer-motion";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/v2/Hero";
-import { ProductShot } from "@/components/landing/v2/ProductShot";
 import { HowItWorks } from "@/components/landing/v2/HowItWorks";
-import { FeatureStories } from "@/components/landing/v2/FeatureStories";
+import { FeatureTour } from "@/components/landing/v2/FeatureTour";
 import { SectionHeadline } from "@/components/landing/v2/SectionHeadline";
-import { WhatsDifferent } from "@/components/landing/v2/WhatsDifferent";
 import { ClosingCTA } from "@/components/landing/v2/ClosingCTA";
 import { BgProvider } from "@/components/landing/v2/bg/BgContext";
 import { Background } from "@/components/landing/v2/bg/Background";
@@ -26,11 +24,11 @@ import { Faq } from "@/components/landing/v2/Faq";
 // The /home-v2 candidate. / is unchanged.
 //
 // Differences from /: the hero and first plate, a rotating three-card
-// process stack in place of both Three Pillars and the step timeline, and
-// v2 versions of the feature stories, the "What's included" headline, the
-// proof section, the pricing section and the closing CTA that move as they
-// arrive -- each from its own side of the page. The bento, the header and
-// the footer are the shared components.
+// process stack in place of both Three Pillars and the step timeline, a
+// tabbed feature tour (Phase 3B) in place of the feature stories, the Find My
+// Edge plate and the proof section, and v2 versions of the "What's included"
+// headline, the pricing section and the closing CTA. The bento, the header
+// and the footer are the shared components.
 //
 // The ground is the dot lattice. The other six grounds that were compared
 // (plain, grid, chart, noise, tint, beams) stay reachable with `?bg=` for a
@@ -102,32 +100,26 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           <LandingHeader />
           <Hero />
           <ImportStrip />
-          {/* Alternating bands (Phase 2A), in the Phase 3A order: How it works
-              straight after the hero, where "See how it works" lands; the
-              feature stories with Find My Edge after them, both standing in
-              for 3B's tabbed tour; "Three jobs" kept until 3B decides it --
-              it isn't in the spec's target order. The closing CTA's own card
-              carries the CTA colour. */}
+          {/* Alternating bands (Phase 2A), in the spec's target order: How it
+              works straight after the hero, where "See how it works" lands
+              (3A); then the tabbed tour, which is where the nav's "Features"
+              link lands (3B). "Three jobs a plain record leaves to you" went
+              in 3B: each of its points is a tour tab now, with the right
+              badge. The closing CTA's own card carries the CTA colour. */}
           <Band tone="raised">
             <HowItWorks />
           </Band>
           <Band tone="base">
-            <FeatureStories />
-            <div className="mt-24">
-              <ProductShot />
-            </div>
+            <FeatureTour />
           </Band>
           <Band tone="raised">
             <SectionHeadline kicker="Features">What’s included</SectionHeadline>
             <FeatureGrid />
           </Band>
           <Band tone="base">
-            <WhatsDifferent />
-          </Band>
-          <Band tone="raised">
             <PricingTeaser />
           </Band>
-          <Band tone="base">
+          <Band tone="raised">
             <Faq />
           </Band>
           <ClosingCTA />
