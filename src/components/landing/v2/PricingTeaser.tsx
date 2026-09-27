@@ -21,7 +21,8 @@ import { WaitlistForm } from "@/components/landing/WaitlistForm";
 // the card shows the paid plan doing its job instead of describing it. It
 // carries a light round its border, a spotlight that follows the pointer, and
 // the only filled button on the section. The free card is unchanged apart
-// from sitting a touch quieter next to it.
+// from sitting a touch quieter next to it. (Phase 3C: the two now sit side
+// by side as peers, Free on the left -- see the layout note below.)
 
 const FREE_FEATURES = [
   "Unlimited trades",
@@ -141,8 +142,41 @@ export function PricingTeaser() {
   return (
     <>
       <section id="pricing" className="mx-auto w-full max-w-7xl scroll-mt-20 px-6 sm:px-10">
-        <div className="flex flex-col items-center justify-center gap-5 lg:flex-row lg:items-center">
-          <div aria-hidden className="hidden xl:block xl:w-56 xl:shrink-0" />
+        {/* Two peers, Phase 3C: Free on the left at ~40%, the paid card on the
+            right at ~60% so its three panels keep their room. Both cards'
+            copy is unchanged; only the layout and the free card's sizing
+            moved (it was a 224px sidebar beside the paid card). Stacked below
+            lg, Free first. */}
+        <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          {/* ---- The free plan: a peer on the left (Phase 3C) -------------- */}
+          <Reveal className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-7 lg:self-start dark:border-subtle dark:bg-card sm:p-8">
+            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-zinc-500">
+              Free
+            </p>
+            <p className="mt-2 text-4xl font-semibold text-zinc-900 dark:text-zinc-50">$0</p>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+              A complete journal. Not a trial, and nothing expires.
+            </p>
+
+            <ul className="mt-6 space-y-2.5 text-[15px] text-zinc-600 dark:text-zinc-400">
+              {FREE_FEATURES.map((f) => (
+                <li key={f} className="flex items-start gap-2">
+                  <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2.5} />
+                  {f}
+                </li>
+              ))}
+            </ul>
+
+            {/* Straight under the list. The card keeps its own height (lg:self-
+                start) rather than stretching to the paid card's: stretched,
+                it opened a ~370px gap between the list and this button. */}
+            <Link
+              href="/sign-up"
+              className="mt-8 block rounded-lg border border-zinc-300 px-4 py-3 text-center text-sm font-medium text-zinc-800 transition hover:border-primary/50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-200 dark:hover:text-zinc-50"
+            >
+              Start journaling free
+            </Link>
+          </Reveal>
 
           {/* ---- The paid plan: the hero, and now the product ------------- */}
           <Reveal
@@ -153,7 +187,7 @@ export function PricingTeaser() {
             }}
             onPointerEnter={() => setHovered(true)}
             onPointerLeave={() => setHovered(false)}
-            className="relative w-full max-w-2xl shrink-0 overflow-hidden rounded-2xl border border-primary/50 bg-white p-7 shadow-[0_24px_80px_-32px_color-mix(in_srgb,var(--color-primary)_55%,transparent)] dark:bg-card sm:p-8"
+            className="relative w-full overflow-hidden rounded-2xl border border-primary/50 bg-white p-7 shadow-[0_24px_80px_-32px_color-mix(in_srgb,var(--color-primary)_55%,transparent)] dark:bg-card sm:p-8"
           >
             <BorderBeam size={140} duration={7} />
             <div
@@ -245,36 +279,10 @@ export function PricingTeaser() {
             </div>
           </Reveal>
 
-          {/* ---- The free plan: beside it, smaller, complete, quiet -------- */}
-          <Reveal
-            delay={0.05}
-            className="flex w-full max-w-2xl flex-col rounded-2xl border border-zinc-200/80 bg-white/70 p-6 dark:border-subtle/80 dark:bg-card/70 lg:w-56 lg:shrink-0"
-          >
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">
-              Free
-            </p>
-            <p className="mt-1.5 text-xl font-semibold text-zinc-900 dark:text-zinc-50">$0</p>
-            <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-              A complete journal. Not a trial, and nothing expires.
-            </p>
-
-            <ul className="mt-4 space-y-1.5 text-[13px] text-zinc-600 dark:text-zinc-400">
-              {FREE_FEATURES.map((f) => (
-                <li key={f} className="flex items-start gap-1.5">
-                  <Check className="mt-0.5 h-3 w-3 shrink-0 text-zinc-400" strokeWidth={2.5} />
-                  {f}
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href="/sign-up"
-              className="mt-5 block rounded-lg border border-zinc-300 px-3 py-2 text-center text-[13px] font-medium text-zinc-700 transition hover:border-primary/50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-100"
-            >
-              Start journaling free
-            </Link>
-          </Reveal>
         </div>
+        <p className="mt-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
+          Free means free. No broker account required.
+        </p>
       </section>
 
       <PaidPlanModal open={open} onClose={() => setOpen(false)} />

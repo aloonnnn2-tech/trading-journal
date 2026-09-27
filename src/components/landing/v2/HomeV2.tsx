@@ -6,6 +6,8 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/v2/Hero";
 import { HowItWorks } from "@/components/landing/v2/HowItWorks";
 import { FeatureTour } from "@/components/landing/v2/FeatureTour";
+import { NoMadeUpNumbers } from "@/components/landing/v2/NoMadeUpNumbers";
+import { TrustTrio } from "@/components/landing/v2/TrustTrio";
 import { SectionHeadline } from "@/components/landing/v2/SectionHeadline";
 import { ClosingCTA } from "@/components/landing/v2/ClosingCTA";
 import { BgProvider } from "@/components/landing/v2/bg/BgContext";
@@ -105,7 +107,10 @@ export async function HomeV2({ background }: { background: BgVariant }) {
               (3A); then the tabbed tour, which is where the nav's "Features"
               link lands (3B). "Three jobs a plain record leaves to you" went
               in 3B: each of its points is a tour tab now, with the right
-              badge. The closing CTA's own card carries the CTA colour. */}
+              badge. 3C adds "No made-up numbers" after the tour and the
+              trust trio before pricing; 3D's compare table will sit between
+              What's included and the trio. The closing CTA's own card carries
+              the CTA colour. */}
           <Band tone="raised">
             <HowItWorks />
           </Band>
@@ -113,8 +118,14 @@ export async function HomeV2({ background }: { background: BgVariant }) {
             <FeatureTour />
           </Band>
           <Band tone="raised">
+            <NoMadeUpNumbers />
+          </Band>
+          <Band tone="base">
             <SectionHeadline kicker="Features">What’s included</SectionHeadline>
             <FeatureGrid />
+          </Band>
+          <Band tone="raised">
+            <TrustTrio />
           </Band>
           <Band tone="base">
             <PricingTeaser />

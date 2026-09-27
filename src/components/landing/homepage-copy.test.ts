@@ -66,7 +66,8 @@ describe("homepage copy", () => {
   });
 
   it("names Excel / XLSX only as an export format", () => {
-    expect(offending(/\b(excel|xlsx)\b/i, (line) => /export/i.test(line))).toEqual([]);
+    // "Download your trades to Excel" (the 3C trust trio) is the export too.
+    expect(offending(/\b(excel|xlsx)\b/i, (line) => /export|download your trades/i.test(line))).toEqual([]);
   });
 
   it("never claims 'nothing is a teaser' beside cards marked PAID", () => {
@@ -86,5 +87,19 @@ describe("homepage copy", () => {
 
   it("never overstates edit history (each trade keeps its newest 50 versions)", () => {
     expect(offending(/every edit|full version history|history in (?:takes )?one sitting/i)).toEqual([]);
+  });
+
+  it("never claims to export everything (the export is trades only)", () => {
+    // The spec's trust-trio title; 3C ships "Export every trade".
+    expect(offending(/export (everything|all your data)|whole journal/i)).toEqual([]);
+  });
+
+  it("takes the sample card's minimum from the app, never a typed number", () => {
+    // The "No made-up numbers" card quotes the Mistakes panel's withheld
+    // state. Its minimum must be the app's own constant, so the two can't
+    // drift apart.
+    const card = copyOf(join(LANDING, "v2", "NoMadeUpNumbers.tsx"));
+    expect(card).toMatch(/Needs at least\{" "\}\s*\{MIN_COMPARISON_SAMPLE\}/);
+    expect(card).toMatch(/import \{ MIN_COMPARISON_SAMPLE \} from "@\/lib\/mistakes\/analyze"/);
   });
 });
