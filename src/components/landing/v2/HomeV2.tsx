@@ -63,7 +63,8 @@ import { Faq } from "@/components/landing/v2/Faq";
 // for the override to protect.
 //
 // Two other places carried the same decision: the orbit's rAF loop in
-// HowItWorks.tsx (now gated on useReducedMotion) and CountUp.tsx (deleted --
+// HowItWorks.tsx (which still runs under reduced motion -- see the note there)
+// and CountUp.tsx (deleted --
 // the figures are in the HTML). The global reduced-motion rules live in
 // globals.css.
 //
