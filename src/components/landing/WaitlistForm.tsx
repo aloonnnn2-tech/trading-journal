@@ -9,7 +9,7 @@ import { HONEYPOT_FIELD, MAX_EMAIL_LENGTH, type WaitlistSource } from "@/lib/wai
 //
 // `id="waitlist"` is a link target: 2C's announcement bar points at /#waitlist.
 
-type Status = "idle" | "submitting" | "success" | "error" | "invalid";
+type Status = "idle" | "submitting" | "success" | "error" | "invalid" | "limited";
 
 const MESSAGES: Partial<Record<Status, string>> = {
   success: "You’re on the list.",
@@ -18,6 +18,10 @@ const MESSAGES: Partial<Record<Status, string>> = {
   // a 400 says what is actually wrong. The browser's own type="email" check
   // catches most of these before they are ever sent.
   invalid: "That doesn’t look like an email address.",
+  // Also not in the spec's list. A 429 means "retrying now will fail again",
+  // and the generic "Try again" said the opposite -- found by hitting the
+  // limit during the live check on 2026-09-27.
+  limited: "Too many tries from here. Wait a while, then try again.",
 };
 
 export function WaitlistForm({ source, className = "" }: { source: WaitlistSource; className?: string }) {
@@ -37,7 +41,7 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
           [HONEYPOT_FIELD]: String(data.get(HONEYPOT_FIELD) ?? ""),
         }),
       });
-      setStatus(res.ok ? "success" : res.status === 400 ? "invalid" : "error");
+      setStatus(res.ok ? "success" : res.status === 400 ? "invalid" : res.status === 429 ? "limited" : "error");
     } catch {
       setStatus("error");
     }
