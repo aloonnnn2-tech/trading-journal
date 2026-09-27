@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
-import { ArrowRight, Check, Construction } from "lucide-react";
+import { ArrowRight, Check, Clock } from "lucide-react";
 import { PaidPlanModal } from "@/components/landing/PaidPlanModal";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
 import { Reveal } from "@/components/motion/Reveal";
+import { WaitlistForm } from "@/components/landing/WaitlistForm";
 
 // The pricing section for /home-v2. Same two plans, same copy, same honesty
 // as ../PricingTeaser.tsx (which stays untouched): the paid card is the hero,
@@ -181,8 +182,8 @@ export function PricingTeaser() {
                 Paid
               </p>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                <Construction className="h-3 w-3" strokeWidth={2} />
-                Under construction
+                <Clock className="h-3 w-3" strokeWidth={2} />
+                Coming soon
               </span>
             </div>
 
@@ -231,6 +232,16 @@ export function PricingTeaser() {
                 Read how every feature works
                 <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
               </Link>
+
+              {/* Phase 2B: the waitlist. Issue 9 of docs/design-audit.md
+                  relabels this card "Coming soon" and asks for a way to hear
+                  when it isn't. */}
+              <div className="relative mt-6 border-t border-zinc-200 pt-5 dark:border-subtle">
+                <p className="mb-3 text-center text-sm text-zinc-600 dark:text-zinc-400">
+                  Get one email when it launches.
+                </p>
+                <WaitlistForm source="home-paid-card" />
+              </div>
             </div>
           </Reveal>
 
