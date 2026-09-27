@@ -97,6 +97,18 @@ export function Hero() {
               Log in
             </Link>
           </div>
+          {/* The proof line (Phase 2C). Not the spec's wording, and not by
+              accident: "Every edit versioned" is false -- each trade keeps
+              its newest 50 versions -- and "Your AI key, your data" named a
+              paid-only feature nobody can buy yet. Alon chose this line on
+              2026-09-27. "Free forever" is a promise; /paid-plan already
+              makes it ("nothing in it expires"). */}
+          <p
+            className="animate-rise-left font-mono text-xs text-zinc-500 dark:text-zinc-400"
+            style={rise(310)}
+          >
+            Free forever · No card · Export anytime · Edit history on every trade
+          </p>
           <div className="w-full max-w-lg animate-rise-left" style={rise(340)}>
             <Marquee className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
               {CAPABILITIES.map((c) => (

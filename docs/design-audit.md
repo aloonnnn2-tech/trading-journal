@@ -139,7 +139,7 @@ Priority: **P1** = quick win, **P2** = 1–2 weeks, **P3** = polish.
 1. **Announcement bar** `NEW`: "Paid plan in the works: AI reviews that grade execution, not outcome → Join the waitlist". Closable, and stays closed once dismissed (localStorage, try/catch).
 2. **Nav:** Features · Pricing · Compare · FAQ · Log in · [Start journaling free].
 3. **Hero:** eyebrow "FREE · NO CREDIT CARD", then H1, sub, [Start journaling free] and [See how it works] (a secondary outline button that scrolls to the tour).
-   - Under the buttons, a mono **proof line** `NEW`: `Free forever · No card · Your AI key, your data · Export anytime · Every edit versioned`.
+   - Under the buttons, a mono **proof line** `NEW`: `Free forever · No card · Your AI key, your data · Export anytime · Every edit versioned`. *(27 Sep 2026, checked against the code: shipped as `Free forever · No card · Export anytime · Edit history on every trade`. "Every edit versioned" is false — each trade keeps its newest 50 versions (0023) — and "Your AI key, your data" named a paid-only feature (every AI route is `requirePaidUser`) nobody can buy yet. Alon chose this line.)*
 4. **Framed product preview** (the existing coded dashboard), with 2–3 **floating cards** `NEW` overlapping its edges:
    - "⚠ Rule broken: stop moved after entry"
    - "AI review 78/100 · Exit 61"
@@ -250,7 +250,7 @@ Out of scope: any new homepage sections.
 - **2C: Homepage sections:**
   - **Announcement bar:** `#1` in the target order.
   - **Proof line:** part of the hero.
-  - **"Imports from" strip:** needs `tested_import_sources`, otherwise hide it.
+  - **"Imports from" strip:** needs `tested_import_sources`, otherwise hide it. *(27 Sep 2026: superseded by the "Important correction on imports" and target order #5, which define the strip as Interactive Brokers screenshots, stocks only. Shipped that way.)*
   - **FAQ:** built from `<details>`/`<summary>` elements, plus `FAQPage` JSON-LD. Questions:
     1. Is it really free? What's the catch?
     2. What happens when the paid plan launches?
@@ -262,7 +262,7 @@ Out of scope: any new homepage sections.
     8. Is there a mobile app?
 
     Draft answers only from facts in this file or verifiable in the code. Mark every answer for Alon's review in the PR description.
-  - **Full footer.**
+  - **Full footer.** *(27 Sep 2026: shipped with real links only — Product, Help, Legal. No Compare column until the 3D table exists; no Import help or Changelog, because those pages don't exist.)*
 
 ### Phase 3: homepage restructure (P2)
 

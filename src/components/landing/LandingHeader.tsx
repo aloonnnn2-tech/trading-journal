@@ -41,6 +41,12 @@ export function LandingHeader() {
         >
           Pricing
         </Link>
+        <Link
+          href="/#faq"
+          className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+        >
+          FAQ
+        </Link>
       </nav>
       <div className="flex items-center gap-3">
         <button

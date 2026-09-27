@@ -77,7 +77,10 @@ const FEATURES: Feature[] = [
   {
     icon: History,
     title: "History & timeline",
-    description: "Every edit snapshotted, replayed in order, and restorable.",
+    // Not "every edit": each trade keeps its newest 50 versions
+    // (0023_trade_history_retention.sql), and autosave writes one every
+    // ~600ms while editing. Reworded in Phase 2C.
+    description: "Edit history on every trade: replay the changes in order and restore an earlier version.",
   },
 
   {
