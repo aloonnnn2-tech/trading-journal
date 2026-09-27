@@ -34,7 +34,9 @@ const CAPABILITIES = [
   "mistake tracking",
   "goals",
   "pattern detection",
-  "csv / xlsx import",
+  // Was "csv / xlsx import": file import isn't a confirmed path, so the
+  // homepage doesn't claim it (see homepage-copy.test.ts).
+  "screenshot import",
 ];
 
 const rise = (ms: number) => ({ animationDelay: `${ms}ms` });

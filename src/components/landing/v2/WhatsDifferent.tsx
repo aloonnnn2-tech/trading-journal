@@ -44,15 +44,15 @@ const PROOFS = [
   },
 ];
 
-// Both import claims are deliberately narrow, because the honest versions
-// are different shapes. The screenshot path is confirmed against one broker
-// and one asset class and says so. The file path is a format capability --
-// the wizard takes .csv/.xlsx/.json and has you map the columns -- and makes
-// no promise about any particular broker's export, because none has been
-// tested. See "Facts Alon supplies" in docs/design-audit.md.
+// The same two ways in as the import strip and the FAQ, and nothing else:
+// screenshot import, confirmed for one broker and one asset class, and
+// manual entry for everything. The wizard does accept CSV, XLSX and JSON
+// files, but the spec's facts don't count file import as confirmed, so the
+// homepage doesn't claim it (Alon, 2026-09-27 -- closing what 1B flagged).
+// See "Facts Alon supplies" in docs/design-audit.md.
 const FACTS: { label: string; value: string }[] = [
   { label: "Screenshot import", value: "IBKR · stocks" },
-  { label: "File import", value: "CSV / XLSX / JSON" },
+  { label: "Manual entry", value: "Any broker" },
   { label: "Setup cost", value: "Free" },
 ];
 
@@ -115,14 +115,16 @@ export function WhatsDifferent() {
       <Reveal className="relative mt-14 flex flex-col gap-6 rounded-xl border border-zinc-200 px-6 py-6 dark:border-subtle sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <BorderBeam size={70} duration={8} />
         <div>
+          {/* Not "your history in one sitting": that rested on bulk file
+              import, which the homepage no longer claims. "About a minute" is
+              the hero's own promise for a single trade. */}
           <h3 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Getting your history in takes one sitting
+            Getting a trade in takes about a minute
           </h3>
           <p className="mt-1.5 max-w-xl text-[15px] text-zinc-600 dark:text-zinc-400">
             Drop in a screenshot and the form fills itself — confirmed for Interactive Brokers
-            stock trades, and manual entry works for any broker or market. Bring a CSV, Excel or
-            JSON file and you map its columns once to bring the rest of your history in.
-            Everything saves as you type.
+            stock trades. For any other broker or market, you enter the trade by hand. Everything
+            saves as you type.
           </p>
         </div>
         <dl className="flex shrink-0 gap-8">

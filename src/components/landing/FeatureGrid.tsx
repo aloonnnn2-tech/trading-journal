@@ -108,7 +108,12 @@ const FEATURES: Feature[] = [
   {
     icon: ArrowLeftRight,
     title: "Import & export",
-    description: "CSV, Excel, JSON, plus screenshot OCR that fills the form for you.",
+    // Only the confirmed paths (spec "Facts Alon supplies"): screenshot
+    // import for IBKR stocks, manual entry, and XLSX export. The wizard also
+    // takes CSV/JSON files, but those aren't claimed until tested -- see
+    // homepage-copy.test.ts, which fails if they come back.
+    description:
+      "Screenshot import, confirmed for Interactive Brokers stock trades; manual entry for any broker; export to Excel (XLSX).",
   },
   {
     icon: CalendarRange,
