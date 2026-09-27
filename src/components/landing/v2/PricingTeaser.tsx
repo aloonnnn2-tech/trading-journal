@@ -29,7 +29,7 @@ const FREE_FEATURES = [
   "Win rate, profit factor, expectancy",
   "Trading rules & mistake tracking",
   "Goals, imports, exports",
-  "Full version history",
+  "Edit history on every trade",
 ];
 
 // The review card's score, drawn as a dial. The ring fills on view; the

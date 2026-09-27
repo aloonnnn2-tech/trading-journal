@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { MotionConfig } from "framer-motion";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
@@ -17,6 +18,10 @@ import { PricingTeaser } from "@/components/landing/v2/PricingTeaser";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { PublicViewBeacon } from "@/components/public-view-beacon";
 import { Band } from "@/components/landing/v2/Band";
+import { AnnouncementBar } from "@/components/landing/v2/AnnouncementBar";
+import { ANNOUNCEMENT_SCRIPT } from "@/components/landing/v2/announcement";
+import { ImportStrip } from "@/components/landing/v2/ImportStrip";
+import { Faq } from "@/components/landing/v2/Faq";
 
 // The /home-v2 candidate. / is unchanged.
 //
@@ -74,6 +79,11 @@ export async function HomeV2({ background }: { background: BgVariant }) {
     redirect("/dashboard");
   }
 
+  // For the announcement bar's pre-paint script: src/proxy.ts sends a CSP
+  // with a per-request nonce and no 'unsafe-inline', so an inline script
+  // without it is blocked. Same source as layout.tsx's.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <MotionConfig reducedMotion="user">
       <BgProvider initial={background}>
@@ -84,8 +94,13 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           {/* Anonymous view count only -- see the component. Renders nothing. */}
           <PublicViewBeacon path="/" />
           <Background />
+          {/* Phase 2C. The script runs before the bar is parsed, so a visitor
+              who closed it never sees it drawn -- see announcement.ts. */}
+          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: ANNOUNCEMENT_SCRIPT }} />
+          <AnnouncementBar />
           <LandingHeader />
           <Hero />
+          <ImportStrip />
           {/* Alternating bands, Phase 2A. The hero stays on the base ground,
               and the closing CTA's own card carries the CTA colour. */}
           <Band tone="raised">
@@ -106,6 +121,9 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           </Band>
           <Band tone="base">
             <PricingTeaser />
+          </Band>
+          <Band tone="raised">
+            <Faq />
           </Band>
           <ClosingCTA />
           <LandingFooter />

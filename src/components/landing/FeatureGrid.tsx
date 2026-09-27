@@ -77,7 +77,10 @@ const FEATURES: Feature[] = [
   {
     icon: History,
     title: "History & timeline",
-    description: "Every edit snapshotted, replayed in order, and restorable.",
+    // Not "every edit": each trade keeps its newest 50 versions
+    // (0023_trade_history_retention.sql), and autosave writes one every
+    // ~600ms while editing. Reworded in Phase 2C.
+    description: "Edit history on every trade: replay the changes in order and restore an earlier version.",
   },
 
   {
@@ -105,7 +108,12 @@ const FEATURES: Feature[] = [
   {
     icon: ArrowLeftRight,
     title: "Import & export",
-    description: "CSV, Excel, JSON, plus screenshot OCR that fills the form for you.",
+    // Only the confirmed paths (spec "Facts Alon supplies"): screenshot
+    // import for IBKR stocks, manual entry, and XLSX export. The wizard also
+    // takes CSV/JSON files, but those aren't claimed until tested -- see
+    // homepage-copy.test.ts, which fails if they come back.
+    description:
+      "Screenshot import, confirmed for Interactive Brokers stock trades; manual entry for any broker; export to Excel (XLSX).",
   },
   {
     icon: CalendarRange,

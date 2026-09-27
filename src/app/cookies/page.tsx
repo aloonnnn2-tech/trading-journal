@@ -104,6 +104,40 @@ export default function CookiesPage() {
                 type="Local storage (preference)"
                 purpose="Remembers whether you chose light or dark mode, so the right one is applied before the page paints."
               />
+              {/* Six rows added in Phase 2C: the page promises to list every
+                  item by name, and these were missing -- two of them since
+                  Phase 1C. Keep this in step with every localStorage /
+                  sessionStorage key the app writes. */}
+              <Row
+                name="tl-announcement-dismissed"
+                type="Local storage (preference)"
+                purpose="Remembers that you closed the announcement bar on the homepage, so it stays closed. A new announcement shows again."
+              />
+              <Row
+                name="tl-tour"
+                type="Local storage (functional)"
+                purpose="Saves your place in a guided tour, so reloading the page picks up where you left off. Removed when the tour ends."
+              />
+              <Row
+                name="tl-paid-tour-offer"
+                type="Local storage (preference)"
+                purpose="Remembers your answer to the paid-features tour offer (later, or no thanks) on this browser. Your account keeps the same answer once saved."
+              />
+              <Row
+                name="tl-paid-tour-offer-seen"
+                type="Session storage (functional)"
+                purpose="Records that the paid-features tour offer was already shown in this visit, so it appears at most once. Cleared when you close the tab."
+              />
+              <Row
+                name="tl-paid-tour-offered"
+                type="Local storage (preference)"
+                purpose="An older version of the tour-offer answer. Read only, so an answer given before the change is still respected; nothing new is written to it."
+              />
+              <Row
+                name="tl-design"
+                type="Local storage (preference)"
+                purpose="A preview switch for a design experiment. Only ever set if you open a link that turns it on; otherwise it is never written."
+              />
               <Row
                 name="tz-synced"
                 type="Local storage (functional)"

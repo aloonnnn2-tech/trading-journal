@@ -238,6 +238,14 @@ summary:active {
   transform: translateX(8px);
 }
 
+/* The homepage announcement bar, once closed. The attribute is set by an
+ * inline script before first paint (src/components/landing/v2/announcement.ts),
+ * so a dismissed bar is never drawn and the page never jumps up by its
+ * height. */
+html[data-announcement-dismissed] [data-announcement] {
+  display: none;
+}
+
 /* Decorative in-place motion: a bar filling, a ring drawing, an underline
  * being struck. These never hide content, so they keep their own timing --
  * capped at 600ms. */

@@ -199,7 +199,7 @@ export default function PaidPlanPage() {
           <p className="mt-2 max-w-2xl text-zinc-600 dark:text-zinc-400">
             Unlimited trades, the equity curve and drawdown, win rate, profit factor and
             expectancy, trading rules with automatic mistake tracking, goals, imports and exports,
-            and full version history. It is a complete journal rather than a trial, and nothing in
+            and edit history on every trade. It is a complete journal rather than a trial, and nothing in
             it expires.
           </p>
           <Link
