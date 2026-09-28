@@ -57,6 +57,7 @@ const NAV_GROUPS: { label: string; links: NavLink[] }[] = [
     links: [
       { href: "/fields", label: "Fields", hint: "Track anything the app doesn't already" },
       { href: "/commissions", label: "Commissions", hint: "Broker fees, so P/L is always net" },
+      { href: "/settings", label: "Settings", hint: "Choose what the app shows you" },
     ],
   },
 ];

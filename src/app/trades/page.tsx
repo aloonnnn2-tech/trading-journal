@@ -13,6 +13,7 @@ import {
   type TradeListFilters,
 } from "@/lib/trades/queries";
 import { buildSummaryFigures } from "@/lib/trades/summary-strip";
+import { getShowTradeSummary } from "@/lib/settings/trade-summary";
 import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
 import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
@@ -49,8 +50,12 @@ export default async function TradesPage({
   searchParams: Promise<TradesSearchParams>;
 }) {
   const params = await searchParams;
-  await requireUserId();
+  const userId = await requireUserId();
   const supabase = await createClient();
+  // Setup -> Settings can turn the summary strip off (0052). Unknown (0052
+  // unapplied, or a failed read) shows it, as before. Off also skips its
+  // query, not just its markup.
+  const showSummary = (await getShowTradeSummary(supabase, userId).catch(() => null)) !== false;
 
   // Validated rather than cast. `status` goes straight into .eq("status", …)
   // against a Postgres enum, so ?status=anything-else came back as a 22P02
@@ -90,7 +95,7 @@ export default async function TradesPage({
     await Promise.all([
       listTradesPage(supabase, { ...filters, sortBy, sortDir, page, pageSize: PAGE_SIZE }),
       // Every closed trade matching the filters, across all pages (4B).
-      listFilteredClosedTrades(supabase, filters),
+      showSummary ? listFilteredClosedTrades(supabase, filters) : Promise.resolve(null),
       getStatusCounts(supabase),
       listFolders(supabase),
       listStrategies(supabase),
@@ -296,7 +301,7 @@ export default async function TradesPage({
       </div>
 
       {/* Phase 4B: the filtered closed trades at a glance, across all pages. */}
-      <SummaryStrip figures={buildSummaryFigures(summaryTrades)} />
+      {summaryTrades && <SummaryStrip figures={buildSummaryFigures(summaryTrades)} />}
 
       {/* Rows open the trade side panel (Phase 4A) -- see trade-list.tsx. */}
       <TradeList trades={trades} stratNamesByTradeId={stratNamesByTradeId} />
