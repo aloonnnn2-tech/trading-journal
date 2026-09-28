@@ -15,7 +15,7 @@ import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
-import { formatMoney } from "@/lib/format/money";
+import { TradeList } from "./trade-list";
 
 const PAGE_SIZE = 50;
 
@@ -285,7 +285,8 @@ export default async function TradesPage({
         <SortSelect buildHref={buildHref} sortBy={sortBy} sortDir={sortDir} />
       </div>
 
-      <TradeTable trades={trades} stratNamesByTradeId={stratNamesByTradeId} />
+      {/* Rows open the trade side panel (Phase 4A) -- see trade-list.tsx. */}
+      <TradeList trades={trades} stratNamesByTradeId={stratNamesByTradeId} />
 
       <div className="flex items-center justify-between text-sm text-zinc-500">
         <span>
@@ -443,118 +444,4 @@ function PageLink({
       {children}
     </Link>
   );
-}
-
-function TradeTable({
-  trades,
-  stratNamesByTradeId,
-}: {
-  trades: Trade[];
-  stratNamesByTradeId: Record<string, string[]>;
-}) {
-  if (trades.length === 0) {
-    return (
-      <p data-v2-empty className="py-8 text-center text-sm text-zinc-500">
-        No trades match your filters.
-      </p>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card">
-      <table className="min-w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 dark:border-subtle text-xs uppercase text-zinc-500">
-          <tr>
-            <th className="px-4 py-3">Ticker</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Result</th>
-            <th className="px-4 py-3">Tags</th>
-            {/* data-num is inert in V1. In V2 it right-aligns the column and
-                gives it the mono, tabular figures a numeric column needs. */}
-            <th data-num className="px-4 py-3">Entry Date</th>
-            <th data-num className="px-4 py-3">R:R</th>
-            <th data-num className="px-4 py-3">Dollar P/L</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((trade) => (
-            <tr key={trade.id} className="border-b border-zinc-100 dark:border-zinc-800/60 last:border-0">
-              <td className="px-4 py-3">
-                <Link
-                  href={`/trades/${trade.id}`}
-                  className="font-mono font-semibold uppercase text-zinc-900 dark:text-zinc-100 hover:text-primary"
-                >
-                  {trade.ticker || "Untitled"}
-                </Link>
-                {trade.mode === "investment" && (
-                  <span className="ml-2 text-xs text-zinc-500">(Investment)</span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400 capitalize">{trade.status}</td>
-              <td className="px-4 py-3">
-                <ResultBadge result={trade.result} status={trade.status} />
-              </td>
-              <td className="px-4 py-3">
-                <TagChips tags={stratNamesByTradeId[trade.id] ?? []} />
-              </td>
-              <td data-num className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                {trade.entry_date ? new Date(trade.entry_date).toLocaleDateString() : "—"}
-              </td>
-              {/* Planned reward against planned risk. Unlike P/L it's known
-                  before the trade is over, so it's the one number here that
-                  says something about a position still open. */}
-              <td data-num className="tnum px-4 py-3 font-mono text-zinc-600 dark:text-zinc-400">
-                {trade.risk_reward_ratio != null ? (
-                  `${trade.risk_reward_ratio.toFixed(2)}`
-                ) : (
-                  <span className="font-sans text-zinc-400 dark:text-zinc-600">—</span>
-                )}
-              </td>
-              <td data-num className="px-4 py-3">
-                {trade.dollar_pl !== null ? (
-                  <span
-                    className={`tnum font-mono ${trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}`}
-                  >
-                    {formatMoney(trade.dollar_pl, { sign: "always" })}
-                  </span>
-                ) : (
-                  <span className="text-zinc-400 dark:text-zinc-600">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function TagChips({ tags }: { tags: string[] }) {
-  if (tags.length === 0) return <span className="text-zinc-400 dark:text-zinc-600">—</span>;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {tags.map((tag) => (
-        <span
-          key={tag}
-          className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300"
-        >
-          {tag}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function ResultBadge({ result, status }: { result: Trade["result"]; status: Trade["status"] }) {
-  const colors: Record<Trade["result"], string> = {
-    open: "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200",
-    win: "bg-profit/15 text-profit dark:bg-profit/15",
-    loss: "bg-loss/15 text-loss dark:bg-loss/15",
-    break_even: "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300",
-  };
-  // A resting order has no result yet. Its row stores "open" (the enum's
-  // neutral value) but showing that reads as a live position; the badge
-  // follows the status instead.
-  const label = status === "pending" ? "pending" : result;
-  return <span className={`rounded-full px-2 py-0.5 text-xs ${colors[result]}`}>{label}</span>;
 }

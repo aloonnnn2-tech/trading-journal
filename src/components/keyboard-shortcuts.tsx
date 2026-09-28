@@ -18,7 +18,7 @@ const GO_ROUTES: Record<string, string> = {
   f: "/fields",
 };
 
-function isTypingTarget(target: EventTarget | null): boolean {
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
@@ -115,6 +115,8 @@ export function KeyboardShortcuts() {
         <dl className="flex flex-col gap-2 text-sm">
           <Row keys="n" label="New trade" />
           <Row keys="/" label="Focus search" />
+          <Row keys="← →" label="Previous / next trade (trade panel)" />
+          <Row keys="Esc" label="Close the trade panel" />
           <Row keys="g d" label="Go to Dashboard" />
           <Row keys="g t" label="Go to Trades" />
           <Row keys="g a" label="Go to Analytics" />
