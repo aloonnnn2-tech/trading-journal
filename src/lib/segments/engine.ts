@@ -15,6 +15,8 @@
 //   - EXPECTANCY is rSum / rCount over trades carrying an R multiple, which is
 //     exactly getAnalyticsSummary's `expectancy`, and is in R, not dollars
 
+import { holdingDays } from "@/lib/trades/behaviour";
+
 /** The minimum a segment needs before it is allowed to be a finding.
  *  Matches lib/insights' MIN_SAMPLE_SIZE so the two agree on "too small". */
 export const MIN_SEGMENT_TRADES = 5;
@@ -29,6 +31,10 @@ export interface SegmentableTrade {
   id: string;
   dollar_pl: number | null;
   r_multiple: number | null;
+  /** Optional: only needed for the average hold. A caller that doesn't
+   *  select the dates simply gets `avgHoldingDays: null`. */
+  entry_date?: string | null;
+  exit_date?: string | null;
 }
 
 export interface SegmentStats {
@@ -65,6 +71,14 @@ export interface SegmentStats {
    * other strategies were running. Label it accordingly.
    */
   maxDrawdown: number;
+  /**
+   * Average entry-to-exit time in days, over trades with both dates and a
+   * non-negative hold -- the same rule as getAnalyticsSummary's
+   * avgHoldingDays. Null when no trade qualifies.
+   */
+  avgHoldingDays: number | null;
+  /** How many trades the average hold was computed from. */
+  withHold: number;
 }
 
 /**
@@ -103,6 +117,7 @@ export interface Segment<T extends SegmentableTrade = SegmentableTrade> {
 
 export function summariseSegment(trades: SegmentableTrade[]): SegmentStats {
   const withR = trades.filter((t) => t.r_multiple != null);
+  const holds = trades.map(holdingDays).filter((d): d is number => d != null && d >= 0);
   const totalR = withR.reduce((sum, t) => sum + (t.r_multiple ?? 0), 0);
 
   // Every definition below is getAnalyticsSummary's, so a strategy's profit
@@ -144,6 +159,8 @@ export function summariseSegment(trades: SegmentableTrade[]): SegmentStats {
     avgLoss: losses > 0 ? grossLoss / losses : null,
     profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
     maxDrawdown,
+    avgHoldingDays: holds.length > 0 ? holds.reduce((a, b) => a + b, 0) / holds.length : null,
+    withHold: holds.length,
   };
 }
 

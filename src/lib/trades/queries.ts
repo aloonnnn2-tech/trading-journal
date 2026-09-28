@@ -300,27 +300,27 @@ function quoteOrValue(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-// Server-side filtered/sorted/paginated trade list -- the query that
-// scales to 100k+ trades. Ticker/company search relies on the pg_trgm
-// GIN indexes (migration 0005); status filtering relies on the
-// (user_id, status) btree index from migration 0001; folder/strategy
-// filtering uses an inner join against the respective link table rather
-// than fetching every trade and filtering in JS.
-export async function listTradesPage(
+// The list's filters, applied to a trades query. Shared by the list itself
+// (listTradesPage) and the summary strip above it (listFilteredClosedTrades),
+// so the strip can never describe a different set of trades from the table
+// under it (Phase 4B of docs/design-audit.md).
+//
+// Ticker/company search relies on the pg_trgm GIN indexes (migration 0005);
+// status filtering relies on the (user_id, status) btree index from migration
+// 0001; folder/strategy filtering uses an inner join against the respective
+// link table rather than fetching every trade and filtering in JS.
+function filteredTradesQuery(
   supabase: SupabaseClient,
   filters: TradeListFilters,
-): Promise<{ trades: Trade[]; total: number }> {
-  const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? 50;
-  const sortBy = filters.sortBy ?? "created_at";
-  const sortDir = filters.sortDir ?? "desc";
-
+  columns: string,
+  options?: { count: "exact" },
+) {
   const embeds: string[] = [];
   if (filters.folderId) embeds.push("trade_folders!inner(folder_id)");
   if (filters.strategyId) embeds.push("trade_strategies!inner(strategy_id)");
   let query = supabase
     .from("trades")
-    .select(embeds.length > 0 ? `*, ${embeds.join(", ")}` : "*", { count: "exact" });
+    .select(embeds.length > 0 ? `${columns}, ${embeds.join(", ")}` : columns, options);
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.direction) query = query.eq("direction", filters.direction);
@@ -361,14 +361,74 @@ export async function listTradesPage(
   if (filters.customField) {
     query = query.contains("custom_fields", { [filters.customField.key]: filters.customField.value });
   }
+  return query;
+}
 
-  query = query
+// Server-side filtered/sorted/paginated trade list -- the query that
+// scales to 100k+ trades.
+export async function listTradesPage(
+  supabase: SupabaseClient,
+  filters: TradeListFilters,
+): Promise<{ trades: Trade[]; total: number }> {
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 50;
+  const sortBy = filters.sortBy ?? "created_at";
+  const sortDir = filters.sortDir ?? "desc";
+
+  const query = filteredTradesQuery(supabase, filters, "*", { count: "exact" })
     .order(sortBy, { ascending: sortDir === "asc", nullsFirst: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
 
   const { data, error, count } = await query;
   if (error) throw error;
   return { trades: data as unknown as Trade[], total: count ?? 0 };
+}
+
+/** The columns the summary strip's stats read. */
+export interface SummaryTrade {
+  id: string;
+  dollar_pl: number | null;
+  r_multiple: number | null;
+  entry_date: string | null;
+  exit_date: string | null;
+}
+
+/**
+ * Every closed trade matching the list's filters, across all pages -- what
+ * the summary strip above the trade table summarises. "Closed" is
+ * getAnalyticsSummary's definition exactly (status closed, an exit date, not
+ * investment mode), so with no filters the strip and /analytics agree.
+ * Page and sort are ignored: the strip describes the filtered set, not the
+ * 50 rows on screen. Paged past PostgREST's silent 1,000-row cap.
+ */
+export async function listFilteredClosedTrades(
+  supabase: SupabaseClient,
+  filters: TradeListFilters,
+): Promise<SummaryTrade[]> {
+  // The cast: supabase-js can't parse a select list passed through a
+  // function parameter, so it types the rows as a parse error. The columns
+  // are fixed here and mapped field by field below.
+  const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    (filteredTradesQuery(supabase, filters, "id, dollar_pl, r_multiple, entry_date, exit_date")
+      .eq("status", "closed")
+      .not("exit_date", "is", null)
+      .neq("mode", "investment")
+      // Chronological, with an id tiebreaker so pages can't repeat or skip
+      // rows -- and so any order-dependent figure walks the trades in order.
+      .order("exit_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)) as unknown as PromiseLike<{
+      data: Record<string, unknown>[] | null;
+      error: { message?: string; code?: string } | null;
+    }>,
+  );
+  return data.map((row) => ({
+    id: row.id as string,
+    dollar_pl: row.dollar_pl as number | null,
+    r_multiple: row.r_multiple as number | null,
+    entry_date: row.entry_date as string | null,
+    exit_date: row.exit_date as string | null,
+  }));
 }
 
 export async function getStatusCounts(

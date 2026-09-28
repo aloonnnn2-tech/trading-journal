@@ -62,6 +62,12 @@ export function holdTime(entry: string | null, exit: string | null): string | nu
   if (!entry || !exit) return null;
   const ms = Date.parse(exit) - Date.parse(entry);
   if (!Number.isFinite(ms) || ms < 0) return null;
+  return formatDuration(ms);
+}
+
+/** A duration as "25m", "3h 20m", "2h", "4d 2h" or "2d". Shared by the
+ *  trade panel's hold time and the summary strip's average hold. */
+export function formatDuration(ms: number): string {
   const minutes = Math.round(ms / 60_000);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);

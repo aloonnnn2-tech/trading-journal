@@ -277,13 +277,21 @@ Out of scope: any new homepage sections.
   - **Keys:** ← → move to the previous or next trade in the current filtered and sorted order. Esc closes the panel.
   - **Full page:** "Open full page" goes to the existing detail route. Direct links and refresh must still open the full page.
   - **Approach:** the suggested one is App Router parallel + intercepting routes (`@panel` slot with `(.)` interception). Final approach is your call.
-- **4B: Summary strip** above the trade table: Net P/L, win rate, profit factor, average hold, trade count, expectancy.
+- **4B: Summary strip** above the trade table: Net P/L, win rate, profit factor, average hold, trade count, expectancy. *(Shipped 28 Sep 2026: closed trades only, investment mode excluded -- getAnalyticsSummary's definition, so unfiltered the strip matches /analytics (checked on the demo account). The engine's own minimums, 5 closed trades, and 5 with an R multiple for expectancy (Alon's choice). Average hold was added to the stats engine (summariseSegment) so every figure comes from it. The list and the strip share one filter function.)*
   - It updates with the active filters and is computed with the existing stats engine.
   - When the filtered set is too small for a metric, show "—" with a tooltip. Never 0.
 - **4C: Chart fix:** issue 5.
 - **4D: Demo workspace:** do this last and plan it separately.
   - New accounts with zero trades see clearly labeled, read-only seeded demo data and a banner: "Import your first trade → From screenshot / CSV / Manual".
   - Demo data must never mix into real stats and must disappear once the first real trade exists.
+
+### Follow-ups: noticed along the way, not yet scheduled
+
+Found while doing a phase and deliberately left out of its scope. Each needs Alon's go-ahead before it's picked up.
+
+- **Unify the two average-hold calculations** *(from 4B, 28 Sep 2026; Alon asked for this to be tracked).* The stats engine (`summariseSegment` in `src/lib/segments/engine.ts`) now computes `avgHoldingDays`, and `getAnalyticsSummary` in `src/lib/analytics/queries.ts` still computes its own inline. They use the same rule today (both dates present, hold of zero or more), but nothing keeps them in step. Fix: have `getAnalyticsSummary` take the figure from the engine, or both from one helper.
+- **The paid-tour offer card covers the bottom of the trade side panel** *(from 4A).* It is dismissible and shows at most once a session, but it sits over the panel's notes until then.
+- **DashboardPage logs a React "missing key" warning** in dev *(noticed during 4A)*, from a child passed into a `motion.div`. Pre-existing.
 
 ### Backlog: P3, don't start without being asked
 
