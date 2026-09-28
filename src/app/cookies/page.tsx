@@ -114,6 +114,11 @@ export default function CookiesPage() {
                 purpose="Remembers that you closed the announcement bar on the homepage, so it stays closed. A new announcement shows again."
               />
               <Row
+                name="tl-waitlist-joined"
+                type="Local storage (preference)"
+                purpose="Remembers that you joined the paid-plan waitlist from this browser, so the page keeps saying so after a refresh. It holds no email address."
+              />
+              <Row
                 name="tl-tour"
                 type="Local storage (functional)"
                 purpose="Saves your place in a guided tour, so reloading the page picks up where you left off. Removed when the tour ends."

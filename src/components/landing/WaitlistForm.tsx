@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { HONEYPOT_FIELD, MAX_EMAIL_LENGTH, type WaitlistSource } from "@/lib/waitlist/constants";
 
 // The paid-plan waitlist form (Phase 2B of docs/design-audit.md). Posts to
@@ -8,6 +8,13 @@ import { HONEYPOT_FIELD, MAX_EMAIL_LENGTH, type WaitlistSource } from "@/lib/wai
 // already listed, so this can only ever say "you're on the list".
 //
 // `id="waitlist"` is a link target: 2C's announcement bar points at /#waitlist.
+//
+// Remembers, on this browser, that you joined: a refresh used to bring the
+// empty form back, which read as having been taken off the list (Alon,
+// 2026-09-29). A flag only -- no email is kept in the browser -- listed on
+// the cookies page. "Add another email" reopens the form for a second
+// address.
+const JOINED_KEY = "tl-waitlist-joined";
 
 type Status = "idle" | "submitting" | "success" | "error" | "invalid" | "limited";
 
@@ -27,6 +34,15 @@ const MESSAGES: Partial<Record<Status, string>> = {
 export function WaitlistForm({ source, className = "" }: { source: WaitlistSource; className?: string }) {
   const [status, setStatus] = useState<Status>("idle");
 
+  // After mount, so the server's HTML (always the form) matches the first
+  // client render.
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring a stored answer, not mirroring a prop
+      if (localStorage.getItem(JOINED_KEY) === "1") setStatus("success");
+    } catch {}
+  }, []);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -41,6 +57,11 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
           [HONEYPOT_FIELD]: String(data.get(HONEYPOT_FIELD) ?? ""),
         }),
       });
+      if (res.ok) {
+        try {
+          localStorage.setItem(JOINED_KEY, "1");
+        } catch {}
+      }
       setStatus(res.ok ? "success" : res.status === 400 ? "invalid" : res.status === 429 ? "limited" : "error");
     } catch {
       setStatus("error");
@@ -53,6 +74,13 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
         <p role="status" className="text-center text-sm font-medium text-profit">
           {MESSAGES.success}
         </p>
+        <button
+          type="button"
+          onClick={() => setStatus("idle")}
+          className="mx-auto mt-1.5 block text-xs text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline dark:hover:text-zinc-200"
+        >
+          Add another email
+        </button>
       </div>
     );
   }
