@@ -30,7 +30,7 @@ const OUTCOME_MARK = {
   unevaluable: { symbol: "–", className: "text-zinc-400 dark:text-zinc-600" },
 } as const;
 
-function AdherenceBlock({ adherence }: { adherence: StrategyAdherence }) {
+export function AdherenceBlock({ adherence }: { adherence: StrategyAdherence }) {
   const checked = adherence.passed + adherence.failed;
 
   return (

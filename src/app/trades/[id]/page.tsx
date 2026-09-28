@@ -24,8 +24,7 @@ import { TagSuggestionsPanel } from "@/components/trade-card/tag-suggestions-pan
 import { buildReplay } from "@/lib/replay/build";
 import { getExcursion } from "@/lib/excursions/queries";
 import { listRulesForStrategies } from "@/lib/plan-rules/queries";
-import { evaluateStrategyRules } from "@/lib/plan-rules/evaluate";
-import { detectAdjustments } from "@/lib/trades/adjustments";
+import { planAdherenceFor } from "@/lib/plan-rules/trade-adherence";
 import { getTradeSuggestions } from "@/lib/mistakes/trade-suggestions";
 import { listTradeHistory } from "@/lib/trades/history";
 
@@ -97,15 +96,15 @@ export default async function TradeDetailPage({
 
   // Computed unconditionally now that the history is always read: it is a pure
   // function over rows already in memory, so there is nothing left to save by
-  // deciding in advance whether a rule will ask for it.
-  const adjustments = detectAdjustments(
-    // listTradeHistory returns newest-first; the detector wants oldest-first.
-    [...history].reverse().map((entry) => ({
-      stop_loss: entry.snapshot?.stop_loss ?? null,
-      take_profit: entry.snapshot?.take_profit ?? null,
-    })),
+  // deciding in advance whether a rule will ask for it. Shared with the trade
+  // side panel on /trades, so the two can't score a trade differently.
+  const { adjustments, adherences } = planAdherenceFor({
     trade,
-  );
+    strategyIds: initialStrategyIds,
+    strategies,
+    rulesByStrategy,
+    history,
+  });
 
   // Tags the app can offer on this trade. Needs the same adjustments, so it
   // sits after them. Degrades to none rather than throwing: it reads the
@@ -121,15 +120,6 @@ export default async function TradeDetailPage({
       snapshot: entry.snapshot,
     })),
   );
-
-  const adherences = initialStrategyIds
-    .filter((strategyId) => (rulesByStrategy[strategyId] ?? []).some((rule) => rule.enabled))
-    .map((strategyId) =>
-      evaluateStrategyRules(
-        { trade, strategyId, rules: rulesByStrategy[strategyId] ?? [], adjustments },
-        strategies.find((s) => s.id === strategyId)?.name ?? "Strategy",
-      ),
-    );
 
   // Generate signed URLs for all images in one batched Storage call (1-hour
   // expiry, server-side only) rather than one round trip per image -- with
