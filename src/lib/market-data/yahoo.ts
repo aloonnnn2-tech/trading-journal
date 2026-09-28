@@ -178,3 +178,59 @@ export async function fetchDayRange(
     quoteTime: result.quoteTime,
   };
 }
+
+export interface YahooBarsResult {
+  /** Unix seconds UTC, bar start. See trade-window.ts. */
+  bars: { time: number; open: number; high: number; low: number; close: number }[];
+  /** The exchange's IANA timezone (e.g. America/New_York), so the chart can
+   *  label bars in the market's own time. A zone, not Yahoo's `gmtoffset`:
+   *  that's the offset today, and it's an hour wrong for a winter trade read
+   *  in summer. */
+  timeZone: string;
+}
+
+/**
+ * Bars of one size over a date range -- the trade chart's holding-period view
+ * (Phase 4C). Same unofficial endpoint and retries as fetchYahooCandles, but
+ * with period1/period2 in place of a range and unix times kept as they are,
+ * because intraday bars have no calendar date of their own. Yahoo keeps 5m
+ * bars for 60 days and 60m for two years; trade-window.ts stays inside that.
+ *
+ * A range entirely in the past can't change, so it's cached for a day; one
+ * reaching today refreshes like the daily chart.
+ */
+export async function fetchYahooBars(
+  symbol: string,
+  request: { interval: "5m" | "60m" | "1d"; period1: number; period2: number },
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<YahooBarsResult | null> {
+  const { interval, period1, period2 } = request;
+  const url =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+    `?period1=${period1}&period2=${period2}&interval=${interval}` +
+    // Pre- and after-market bars for intraday views: plenty of fills happen
+    // outside regular hours, and without them those trades have no bar.
+    (interval === "1d" ? "" : "&includePrePost=true");
+  const settled = period2 < nowSeconds - 86_400;
+  const res = await fetchWithRetry(url, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+    next: { revalidate: settled ? 86_400 : 300 },
+  });
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  const result = json?.chart?.result?.[0];
+  if (!result) return null;
+
+  const timestamps: number[] = result.timestamp ?? [];
+  const quote = result.indicators?.quote?.[0] ?? {};
+  const { open = [], high = [], low = [], close = [] } = quote as Record<string, (number | null)[]>;
+  const timeZone = result.meta?.exchangeTimezoneName ? String(result.meta.exchangeTimezoneName) : "UTC";
+
+  const bars: YahooBarsResult["bars"] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    if (open[i] == null || high[i] == null || low[i] == null || close[i] == null) continue;
+    bars.push({ time: timestamps[i], open: open[i]!, high: high[i]!, low: low[i]!, close: close[i]! });
+  }
+  return { bars, timeZone };
+}

@@ -1,18 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import {
   createChart,
+  createSeriesMarkers,
   CandlestickSeries,
   ColorType,
   LineStyle,
+  type AutoscaleInfoProvider,
   type IPriceLine,
   type ISeriesApi,
+  type UTCTimestamp,
 } from "lightweight-charts";
 import { Card } from "@/components/ui/Card";
 import type { Candle, CandlesResponse } from "@/app/api/market-data/candles/route";
 import { guessYahooSymbol } from "@/lib/market-data/yahoo";
+import type { BarsResponse } from "@/app/api/market-data/bars/route";
+import {
+  chooseBars,
+  fitRange,
+  formatBarTime,
+  formatQuote,
+  locate,
+  priceMismatch,
+  tradeMarkers,
+  visibleRange,
+  type BarInterval,
+  zoneOffset,
+} from "@/lib/market-data/trade-window";
 
 const inputClass =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary font-mono";
@@ -45,12 +61,25 @@ const guessSymbol = guessYahooSymbol;
 // live TradingView embed anymore -- that widget is a locked third-party
 // iframe with no supported way to draw custom lines on it, so getting
 // auto-drawn lines meant owning the whole chart instead.
+//
+// Phase 4C (issue 5 of docs/design-audit.md): a trade with an entry date
+// opens on its holding period -- a few bars either side of entry to exit, in
+// a bar size that suits the hold -- with ▲/▼ markers on the entry and exit
+// bars, and a price scale that always keeps its own levels in view. When the
+// trade's price isn't on the market's bar for that moment, the chart says so
+// and scales to the trade instead. See src/lib/market-data/trade-window.ts.
+// Without an entry date (a new or pending trade) it shows the two-year daily
+// history as before.
 export function PriceChart({
   ticker,
   assetType,
   entryPrice,
   stopLoss,
   takeProfit,
+  exitPrice = null,
+  entryDate = null,
+  exitDate = null,
+  direction = null,
   breakevenPrice = null,
   watchForAutoExecution = false,
   onPriceUpdate,
@@ -60,6 +89,12 @@ export function PriceChart({
   entryPrice: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
+  exitPrice?: number | null;
+  /** ISO timestamps. With an entry date the chart opens on the holding
+   *  period; without one it shows the two-year daily history. */
+  entryDate?: string | null;
+  exitDate?: string | null;
+  direction?: "long" | "short" | null;
   /** Price at which the trade clears its full round-trip commission -- sits
    *  past the entry line, and is where profit actually begins. Null when no
    *  commission rule applies. */
@@ -95,14 +130,19 @@ export function PriceChart({
   // existing 600ms autosave cadence.
   const [debouncedTicker, setDebouncedTicker] = useState(ticker);
   const [debouncedAssetType, setDebouncedAssetType] = useState(assetType);
+  // The dates too: they come off the same form, and each change refetches.
+  const [debouncedDates, setDebouncedDates] = useState({ entry: entryDate, exit: exitDate });
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedTicker(ticker);
       setDebouncedAssetType(assetType);
+      setDebouncedDates((prev) =>
+        prev.entry === entryDate && prev.exit === exitDate ? prev : { entry: entryDate, exit: exitDate },
+      );
     }, 600);
     return () => clearTimeout(timer);
-  }, [ticker, assetType]);
+  }, [ticker, assetType, entryDate, exitDate]);
 
   useEffect(() => {
     // localStorage isn't available during SSR, so the saved override has to
@@ -120,6 +160,9 @@ export function PriceChart({
   // because `load` below is now shared across two effects instead of being
   // defined fresh inside one -- see the split below for why.
   const activeSymbolRef = useRef(symbol);
+  // Which data the series holds, so a price poll knows whether its daily bar
+  // belongs on it (4C: the holding-period view may be intraday).
+  const sourceRef = useRef<"daily" | "holding">("daily");
 
   const load = useCallback(
     (isPoll: boolean) => {
@@ -139,7 +182,9 @@ export function PriceChart({
             // a new one depending on its timestamp, so it handles both an
             // intraday tick and the roll into a new day.
             const latest = data.candles[data.candles.length - 1];
-            if (latest && seriesRef.current) {
+            // Not onto the holding-period view: its bars may be intraday, and
+            // a daily bar appended there would be a bar of the wrong size.
+            if (latest && seriesRef.current && sourceRef.current === "daily") {
               seriesRef.current.update({
                 time: latest.time,
                 open: latest.open,
@@ -184,6 +229,95 @@ export function PriceChart({
     load(false);
   }, [symbol, load]);
 
+  // ---- The holding period (4C) ------------------------------------------
+  //
+  // "none" without an entry date, "loading" until the bars arrive, then
+  // "ready" -- or "failed", which falls back to the daily history above.
+  const [holding, setHolding] = useState<
+    | { state: "none" | "loading" | "failed" }
+    | { state: "ready"; data: BarsResponse }
+  >({ state: "none" });
+
+  useEffect(() => {
+    const entry = debouncedDates.entry ? Date.parse(debouncedDates.entry) / 1000 : NaN;
+    if (!symbol || !Number.isFinite(entry)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHolding({ state: "none" });
+      return;
+    }
+    const exitParsed = debouncedDates.exit ? Date.parse(debouncedDates.exit) / 1000 : NaN;
+    const exit = Number.isFinite(exitParsed) ? exitParsed : null;
+    const now = Date.now() / 1000;
+    let cancelled = false;
+    setHolding({ state: "loading" });
+
+    const fetchBars = (force?: BarInterval) => {
+      const req = chooseBars(entry, exit, now, force);
+      const qs = new URLSearchParams({
+        ticker: symbol,
+        interval: req.interval,
+        period1: String(req.period1),
+        period2: String(req.period2),
+      });
+      return fetch(`/api/market-data/bars?${qs}`).then((res) =>
+        res.ok ? (res.json() as Promise<BarsResponse>) : Promise.reject(res),
+      );
+    };
+
+    fetchBars()
+      // Some symbols have daily history but no intraday bars on Yahoo.
+      .catch(() => fetchBars("1d"))
+      .then((data) => {
+        if (!cancelled) setHolding({ state: "ready", data });
+      })
+      .catch(() => {
+        if (!cancelled) setHolding({ state: "failed" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, debouncedDates]);
+
+  // Where the trade sits on those bars. Everything here is a pure function of
+  // the bars and the trade -- see trade-window.ts for each rule.
+  const holdingView = useMemo(() => {
+    if (holding.state !== "ready") return null;
+    const { bars, timeZone, interval } = holding.data;
+    const at = (iso: string | null) =>
+      iso && Number.isFinite(Date.parse(iso))
+        ? locate(bars, Date.parse(iso) / 1000, interval, timeZone)
+        : { index: -1, inside: false };
+    const entry = at(debouncedDates.entry);
+    const exit = at(debouncedDates.exit);
+    return {
+      bars,
+      timeZone,
+      interval,
+      range: visibleRange(bars, entry.index, exit.index),
+      markers: tradeMarkers(bars, entry.index, exit.index, direction),
+      mismatch: priceMismatch(bars, { entryPrice, entry, exitPrice, exit }),
+    };
+  }, [holding, debouncedDates, direction, entryPrice, exitPrice]);
+
+  // The price scale keeps the trade's own levels in view: read through refs
+  // by the series' autoscale provider, so a keystroke in the form rescales
+  // without rebuilding the chart.
+  const levelsRef = useRef<(number | null)[]>([]);
+  const mismatchRef = useRef(false);
+  // Declared before the chart effects below, so they read current values.
+  const hasMismatch = holdingView?.mismatch != null;
+  useEffect(() => {
+    levelsRef.current = [entryPrice, stopLoss, takeProfit, breakevenPrice, exitPrice];
+    mismatchRef.current = hasMismatch;
+  }, [entryPrice, stopLoss, takeProfit, breakevenPrice, exitPrice, hasMismatch]);
+  const autoscale = useCallback<AutoscaleInfoProvider>((original) => {
+    const base = original();
+    const barRange = base?.priceRange ? { min: base.priceRange.minValue, max: base.priceRange.maxValue } : null;
+    const fit = fitRange(barRange, levelsRef.current, mismatchRef.current);
+    if (!fit) return base;
+    return { priceRange: { minValue: fit.min, maxValue: fit.max }, margins: base?.margins };
+  }, []);
+
   // Polling lives in its own effect, deliberately *not* depending on
   // anything about the fetched data -- only on whether there's something to
   // watch for. Auto-execution firing changes `watchForAutoExecution` (e.g.
@@ -198,8 +332,14 @@ export function PriceChart({
     return () => clearInterval(interval);
   }, [symbol, watchForAutoExecution, load]);
 
+  // Holding-period bars once they're in; the daily history otherwise (no
+  // entry date, or the bars couldn't be fetched).
+  const waitingForHolding = holding.state === "loading";
+  const useHolding = holdingView !== null && holdingView.bars.length > 0;
+
   useEffect(() => {
-    if (!containerRef.current || !candles || candles.length === 0) return;
+    if (!containerRef.current || waitingForHolding) return;
+    if (!useHolding && (!candles || candles.length === 0)) return;
     const dark = resolvedTheme !== "light";
 
     const chart = createChart(containerRef.current, {
@@ -212,7 +352,8 @@ export function PriceChart({
         vertLines: { color: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(28, 27, 24, 0.06)" },
         horzLines: { color: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(28, 27, 24, 0.06)" },
       },
-      timeScale: { borderVisible: false },
+      // Intraday bars need their time of day on the axis.
+      timeScale: { borderVisible: false, timeVisible: useHolding && holdingView.interval !== "1d" },
       rightPriceScale: { borderVisible: false },
     });
 
@@ -222,17 +363,42 @@ export function PriceChart({
       borderVisible: false,
       wickUpColor: "#22c55e",
       wickDownColor: "#ef4444",
+      autoscaleInfoProvider: autoscale,
     });
-    series.setData(candles.map((c) => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
+
+    if (useHolding) {
+      // Shifted by the exchange's offset so the axis reads in the market's
+      // own time (the chart library labels UTC).
+      const shift = (t: number) => (t + zoneOffset(holdingView.timeZone, t)) as UTCTimestamp;
+      series.setData(holdingView.bars.map((b) => ({ time: shift(b.time), open: b.open, high: b.high, low: b.low, close: b.close })));
+      createSeriesMarkers(
+        series,
+        holdingView.markers.map((m) => ({
+          time: shift(m.time),
+          position: m.position,
+          shape: m.shape,
+          text: m.text,
+          color: dark ? "#e4e4e0" : "#1c1b18",
+        })),
+      );
+      sourceRef.current = "holding";
+    } else if (candles) {
+      series.setData(candles.map((c) => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close })));
+      sourceRef.current = "daily";
+    }
     seriesRef.current = series;
 
-    chart.timeScale().fitContent();
+    if (useHolding && holdingView.range) {
+      chart.timeScale().setVisibleLogicalRange({ from: holdingView.range.from - 0.5, to: holdingView.range.to + 0.5 });
+    } else {
+      chart.timeScale().fitContent();
+    }
 
     return () => {
       seriesRef.current = null;
       chart.remove();
     };
-  }, [candles, resolvedTheme]);
+  }, [candles, resolvedTheme, waitingForHolding, useHolding, holdingView, autoscale]);
 
   // Price lines live in their own effect, keyed only on the three prices.
   // Entry/SL/TP come straight off the trade form, so they change on every
@@ -270,13 +436,18 @@ export function PriceChart({
       );
     }
 
+    // A new provider reference makes the chart recompute its scale around the
+    // levels that just changed.
+    const provider: AutoscaleInfoProvider = (original) => autoscale(original);
+    series.applyOptions({ autoscaleInfoProvider: provider });
+
     return () => {
       // Guard: if the chart was disposed first, the series is already gone
       // and removing a line off it would throw.
       if (seriesRef.current !== series) return;
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [entryPrice, breakevenPrice, stopLoss, takeProfit, currentPrice, candles, resolvedTheme]);
+  }, [entryPrice, breakevenPrice, stopLoss, takeProfit, exitPrice, currentPrice, candles, resolvedTheme, holdingView, autoscale]);
 
   function applyOverride() {
     const next = draft.trim().toUpperCase();
@@ -330,11 +501,24 @@ export function PriceChart({
           </button>
         </div>
       </div>
-      {failed ? (
+      {holdingView?.mismatch && (
+        // The chart is honest about data it can't reconcile: the trade's
+        // lines are drawn to their own scale, and this says why the bars
+        // aren't beside them.
+        <p className="border-b border-amber-500/30 bg-amber-500/10 px-5 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+          {holdingView.mismatch.label} {holdingView.mismatch.price.toLocaleString("en-US", { maximumFractionDigits: 8 })} is
+          outside {symbol}&apos;s range at that time ({formatQuote(holdingView.mismatch.low)}–
+          {formatQuote(holdingView.mismatch.high)},{" "}
+          {formatBarTime(holdingView.mismatch.barTime, holdingView.timeZone, holdingView.interval)}). Check the
+          symbol, the date or the price. Market data is also adjusted for splits, so a trade from before a split
+          won&apos;t line up. The chart is scaled to this trade&apos;s own levels.
+        </p>
+      )}
+      {failed && !useHolding ? (
         <p className="px-5 py-16 text-center text-sm text-zinc-500">
           No price history found for &quot;{symbol}&quot;. Try correcting the symbol above.
         </p>
-      ) : !candles ? (
+      ) : waitingForHolding || (!useHolding && !candles) ? (
         <p className="px-5 py-16 text-center text-sm text-zinc-500">Loading price history…</p>
       ) : (
         <div className="h-[480px] w-full overflow-hidden rounded-b-xl" ref={containerRef} />
