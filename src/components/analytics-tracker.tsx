@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { useAnalytics, getSessionId } from "@/lib/tracking/useAnalytics";
-import { startClickCapture } from "@/lib/tracking/click-capture";
+import { isTourActive, startClickCapture } from "@/lib/tracking/click-capture";
 
 // Must match the 30-second increment in record_heartbeat() (migration 0045):
 // the database adds a fixed 30s per beat rather than measuring elapsed time,
@@ -50,6 +50,9 @@ export function AnalyticsTracker() {
 
   useEffect(() => {
     if (isPublicPage) return;
+    // A page the tour walked the user to isn't a visit of their own; the tour
+    // reports itself as one event when it ends. See isTourActive().
+    if (isTourActive(document)) return;
     track("page_view", { path: pathname });
   }, [pathname, isPublicPage, track]);
 

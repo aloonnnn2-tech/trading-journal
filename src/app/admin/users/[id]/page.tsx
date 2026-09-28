@@ -35,6 +35,9 @@ const EVENT_LABELS: Record<string, string> = {
   commissions_recalculated: "Commission recalculations",
   login: "Logins",
   signup_completed: "Signed up",
+  // One event per tour; the clicks inside it aren't recorded (2026-09-29).
+  tour_completed: "Tours completed",
+  tour_skipped: "Tours skipped",
   session_start: "Sessions started",
   page_view: "Page views",
   click: "Clicks",

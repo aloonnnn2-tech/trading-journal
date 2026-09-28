@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
+import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-offer";
 import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
 import { WelcomeModal } from "./welcome-modal";
@@ -247,7 +248,31 @@ export function TourOverlay() {
     [router],
   );
 
-  const finish = useCallback(() => {
+  // One analytics event per tour instead of a click-by-click trail (Alon,
+  // 2026-09-29): while the tour or its questions are on screen, <html> carries
+  // data-tour="active" and click capture and page views stand down (see
+  // isTourActive in lib/tracking/click-capture.ts). Not while paused -- the
+  // user has wandered off to do their own thing -- and not for the paid-tour
+  // offer, a corner card the user works around rather than a tour: flagging
+  // it muted all their ordinary use while it sat there.
+  const { track } = useAnalytics();
+  useEffect(() => {
+    const root = document.documentElement;
+    const inTour = phase === "demo-offer" || phase === "welcome" || phase === "touring";
+    if (inTour && !offRoute) root.dataset.tour = "active";
+    else delete root.dataset.tour;
+    return () => {
+      delete root.dataset.tour;
+    };
+  }, [phase, offRoute]);
+
+  const finish = useCallback((outcome: "completed" | "skipped") => {
+    if (phase === "touring" || phase === "welcome") {
+      track(outcome === "completed" ? "tour_completed" : "tour_skipped", {
+        tour,
+        ...(outcome === "completed" ? { steps: steps.length } : { atStep: phase === "welcome" ? 0 : stepIndex + 1 }),
+      });
+    }
     setPhase("idle");
     setOffRoute(false);
     setMissing(false);
@@ -255,7 +280,7 @@ export function TourOverlay() {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
     fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {});
-  }, []);
+  }, [phase, tour, steps.length, stepIndex, track]);
 
   // The next step that can actually be shown from here: one the tour can
   // navigate to, one that lives on this route, or a route-less one whose
@@ -283,7 +308,7 @@ export function TourOverlay() {
           return;
         }
       }
-      finish();
+      finish("completed");
     },
     [steps, navigateTo, finish],
   );
@@ -338,7 +363,7 @@ export function TourOverlay() {
         return;
       }
     }
-    finish();
+    finish("completed");
   }, [stepIndex, steps, navigateTo, finish]);
 
   // Replay requests from the "?" menu.
@@ -527,13 +552,13 @@ export function TourOverlay() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (dialogIsOpen()) return;
-        finish();
+        finish("skipped");
         return;
       }
       if (isTyping(e.target)) return;
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        if (stepIndex >= steps.length - 1) finish();
+        if (stepIndex >= steps.length - 1) finish("completed");
         else goForward(stepIndex);
       } else if (e.key === "ArrowLeft" && stepIndex > 0) {
         e.preventDefault();
@@ -548,7 +573,7 @@ export function TourOverlay() {
     return <DemoOfferModal onDone={() => setPhase("welcome")} />;
   }
   if (phase === "welcome") {
-    return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={finish} />;
+    return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={() => finish("skipped")} />;
   }
   if (phase === "paid-offer") {
     // Both answers write locally first and tell the server second. The local
@@ -627,7 +652,7 @@ export function TourOverlay() {
           Resume
         </button>
         <button
-          onClick={finish}
+          onClick={() => finish("skipped")}
           aria-label="End tour"
           className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         >
@@ -759,7 +784,7 @@ export function TourOverlay() {
                 Step {stepIndex + 1} of {steps.length} · {step.where}
               </p>
               <button
-                onClick={finish}
+                onClick={() => finish("skipped")}
                 aria-label="Skip tour"
                 className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
@@ -802,7 +827,7 @@ export function TourOverlay() {
               </button>
             )}
             <button
-              onClick={() => (isLast ? finish() : goForward(stepIndex))}
+              onClick={() => (isLast ? finish("completed") : goForward(stepIndex))}
               className={`rounded-lg px-3.5 py-1.5 text-xs font-medium ${
                 step.action && !isLast
                   ? "border border-zinc-300 text-zinc-600 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-300"

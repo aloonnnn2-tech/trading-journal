@@ -186,6 +186,17 @@ export function createBatcher<T>(
  */
 const DEDUPE_WINDOW_MS = 25;
 
+/**
+ * Whether a guided tour (or its welcome and demo-journal questions) is on
+ * screen. tour-overlay.tsx sets `data-tour="active"` on <html> while it is.
+ * Clicks and page views made during a tour are the tour's, not the user's
+ * own use of the app, so they aren't recorded; the tour sends one
+ * tour_completed / tour_skipped event instead (Alon, 2026-09-29).
+ */
+export function isTourActive(doc: { documentElement?: { dataset?: Record<string, string | undefined> } } | undefined): boolean {
+  return doc?.documentElement?.dataset?.tour === "active";
+}
+
 export function startClickCapture(send: (events: ClickEvent[]) => void): () => void {
   const batcher = createBatcher<ClickEvent>(send);
 
@@ -193,6 +204,7 @@ export function startClickCapture(send: (events: ClickEvent[]) => void): () => v
   let lastAt = 0;
 
   const onClick = (event: MouseEvent) => {
+    if (isTourActive(document)) return;
     const el = findInteractive(event.target);
     if (!el) return;
 
