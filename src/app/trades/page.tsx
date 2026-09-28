@@ -20,6 +20,7 @@ import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
 import { TradeList } from "./trade-list";
 import { SummaryStrip } from "./summary-strip";
+import { ImportFirstTrade } from "./import-first-trade";
 
 const PAGE_SIZE = 50;
 
@@ -154,6 +155,9 @@ export default async function TradesPage({
           <QuickTradeButton accountBalance={accountBalance} />
         </div>
       </div>
+
+      {/* Phase 4D: an empty journal says how to start it. */}
+      {counts.all === 0 && <ImportFirstTrade accountBalance={accountBalance} />}
 
       <div className="flex flex-wrap items-center gap-2">
         <StatusTab href={buildHref({ status: undefined, page: "1" })} label="All" count={counts.all} active={!status} />

@@ -69,7 +69,14 @@ function toInput(key: OcrCoreField, value: unknown): string {
   return String(value);
 }
 
-export function ScreenshotTradeButton({ accountBalance = null }: { accountBalance?: number | null }) {
+/** `label` for the empty-journal banner (4D); the header keeps the default. */
+export function ScreenshotTradeButton({
+  accountBalance = null,
+  label = "From screenshot",
+}: {
+  accountBalance?: number | null;
+  label?: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("pick");
@@ -329,7 +336,7 @@ export function ScreenshotTradeButton({ accountBalance = null }: { accountBalanc
         data-tour-id="trades-screenshot"
         className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500"
       >
-        From screenshot
+        {label}
       </button>
 
       <AnimatePresence>

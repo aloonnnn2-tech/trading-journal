@@ -21,6 +21,8 @@ import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
+import { DemoBanner } from "@/components/demo/demo-banner";
+import { getDemoState } from "@/lib/demo/queries";
 import { DesignFlagScript } from "@/components/design/design-flag";
 import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -106,6 +108,11 @@ export default async function RootLayout({
     : null;
   const admin = settings?.is_admin ?? false;
   const paid = settings ? isPaidUser(settings) : false;
+  // Phase 4D: while the demo journal is in the account, every page says so.
+  // Fails quiet: an error (or 0051 unapplied) just means no banner.
+  const demoActive = userId
+    ? (await getDemoState(await createClient(), userId).catch(() => null)) === "active"
+    : false;
 
   return (
     <html
@@ -134,6 +141,7 @@ export default async function RootLayout({
             Skip to main content
           </a>
           <NavBar isAdmin={admin} isPaid={paid} />
+          {demoActive && <DemoBanner />}
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />

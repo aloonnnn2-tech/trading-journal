@@ -9,6 +9,8 @@ import {
   setTourCompleted,
 } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
+import { getDemoState, hasAnyTrades } from "@/lib/demo/queries";
+import { shouldOfferDemo } from "@/lib/demo/state";
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -19,8 +21,19 @@ export async function GET() {
   const supabase = await createClient();
 
   const settings = await getUserSettings(supabase, userId);
+  // Only worked out for someone who hasn't seen the first tour: everyone else
+  // is past the point where the demo question could be asked.
+  const offerDemo = settings.has_completed_tour
+    ? false
+    : shouldOfferDemo({
+        demoState: await getDemoState(supabase, userId).catch(() => "unavailable" as const),
+        hasTrades: await hasAnyTrades(supabase).catch(() => true),
+        hasCompletedTour: settings.has_completed_tour,
+      });
   return NextResponse.json({
     hasCompletedTour: settings.has_completed_tour,
+    // Phase 4D: ask "Start with a demo journal?" before the welcome.
+    offerDemo,
     isPaid: isPaidUser(settings),
     // Null on both means migration 0049 has not been applied: the client
     // falls back to localStorage rather than reading a missing column as

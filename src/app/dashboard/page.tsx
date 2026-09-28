@@ -18,6 +18,7 @@ import { AccountCashCard } from "./account-cash-card";
 import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { QuickTradeButton } from "@/app/trades/new-trade-button";
+import { ImportFirstTrade } from "@/app/trades/import-first-trade";
 import { TrackPageView } from "@/components/track-page-view";
 import { formatMoney } from "@/lib/format/money";
 
@@ -69,6 +70,11 @@ export default async function DashboardPage() {
           accountBalance={accountBalance.hasTransactions ? accountBalance.balance : null}
         />
       </div>
+
+      {/* Phase 4D: an empty journal says how to start it. */}
+      {counts.all === 0 && (
+        <ImportFirstTrade accountBalance={accountBalance.hasTransactions ? accountBalance.balance : null} />
+      )}
 
       <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <AccountCashCard
