@@ -760,6 +760,11 @@ export function TradeCard({
         entryPrice={isInvestment ? null : trade.entry_price}
         stopLoss={isInvestment ? null : trade.stop_loss}
         takeProfit={isInvestment ? null : trade.take_profit}
+        exitPrice={isInvestment ? null : trade.exit_price}
+        // An investment has no holding-period trade to zoom to.
+        entryDate={isInvestment ? null : trade.entry_date}
+        exitDate={isInvestment ? null : trade.exit_date}
+        direction={trade.direction}
         breakevenPrice={breakevenPrice}
         watchForAutoExecution={watchForAutoExecution}
         onPriceUpdate={handlePriceUpdate}

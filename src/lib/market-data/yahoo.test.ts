@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { guessYahooSymbol, fetchYahooCandles } from "./yahoo";
+import { guessYahooSymbol, fetchYahooCandles, fetchYahooBars } from "./yahoo";
 
 // Shared by the trade chart and the background auto-execution sweep. When
 // only the chart had this, a crypto trade auto-executed in the browser
@@ -186,5 +186,64 @@ describe("fetchYahooCandles dates each bar in the exchange's own timezone", () =
     );
     const result = await fetchYahooCandles("AAPL");
     expect(result?.candles[0].time).toBe("2026-08-07");
+  });
+});
+
+// The trade chart's holding-period bars (Phase 4C): a date range at one bar
+// size, with unix times kept as they are -- intraday bars have no calendar
+// date of their own.
+describe("fetchYahooBars", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const body = {
+    chart: {
+      result: [
+        {
+          timestamp: [1_788_356_400, 1_788_356_700, 1_788_357_000],
+          indicators: { quote: [{ open: [350, null, 352], high: [351, 353, 354], low: [349, 350, 351], close: [350.5, 352, 353] }] },
+          meta: { gmtoffset: -14_400, exchangeTimezoneName: "America/New_York" },
+        },
+      ],
+    },
+  };
+
+  it("asks for the range and bar size, and keeps unix times and the exchange offset", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchYahooBars("TSLA", { interval: "5m", period1: 1_788_000_000, period2: 1_788_500_000 }, 1_789_000_000);
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/TSLA?period1=1788000000&period2=1788500000&interval=5m&includePrePost=true");
+    // The bar with a missing open is skipped rather than drawn at zero.
+    expect(result?.bars.map((b) => b.time)).toEqual([1_788_356_400, 1_788_357_000]);
+    // The zone, not gmtoffset: that's the offset today, wrong for a winter bar.
+    expect(result?.timeZone).toBe("America/New_York");
+  });
+
+  it("caches a range that's entirely in the past for a day, and one reaching today for five minutes", async () => {
+    // A fresh Response per call: a body can only be read once.
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, body));
+    vi.stubGlobal("fetch", fetchMock);
+    const now = 1_789_000_000;
+
+    await fetchYahooBars("TSLA", { interval: "5m", period1: 1_788_000_000, period2: now - 3 * 86_400 }, now);
+    await fetchYahooBars("TSLA", { interval: "5m", period1: 1_788_000_000, period2: now }, now);
+
+    expect(fetchMock.mock.calls[0][1].next.revalidate).toBe(86_400);
+    expect(fetchMock.mock.calls[1][1].next.revalidate).toBe(300);
+  });
+
+  it("asks for regular hours only on daily bars", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, body));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchYahooBars("TSLA", { interval: "1d", period1: 1, period2: 2 });
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("includePrePost");
+  });
+
+  it("is null for an unknown symbol", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(404)));
+    expect(await fetchYahooBars("NOPE", { interval: "1d", period1: 0, period2: 1 })).toBeNull();
   });
 });
