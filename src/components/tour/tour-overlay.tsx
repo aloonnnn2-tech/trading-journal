@@ -8,6 +8,7 @@ import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-offer";
 import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
 import { WelcomeModal } from "./welcome-modal";
+import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
 
 // The guided tour.
 //
@@ -42,6 +43,8 @@ const PAID_OFFER_SESSION_KEY = "tl-paid-tour-offer-seen";
 
 interface TourSettings {
   hasCompletedTour: boolean;
+  /** Phase 4D: ask "Start with a demo journal?" before the welcome. */
+  offerDemo?: boolean;
   isPaid: boolean;
   paidTourDismissed: boolean | null;
   paidTourSnoozedUntil: string | null;
@@ -143,7 +146,7 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-type Phase = "idle" | "welcome" | "paid-offer" | "touring";
+type Phase = "idle" | "demo-offer" | "welcome" | "paid-offer" | "touring";
 
 interface Saved {
   tour: TourName;
@@ -372,7 +375,9 @@ export function TourOverlay() {
       .then((data: TourSettings | null) => {
         if (!data) return;
         if (!data.hasCompletedTour) {
-          setPhase("welcome");
+          // The demo question comes first, so the tour runs over whichever
+          // journal the user chose.
+          setPhase(data.offerDemo ? "demo-offer" : "welcome");
           return;
         }
 
@@ -539,6 +544,9 @@ export function TourOverlay() {
     return () => window.removeEventListener("keydown", onKey);
   }, [phase, stepIndex, steps.length, finish, goForward, goBack]);
 
+  if (phase === "demo-offer") {
+    return <DemoOfferModal onDone={() => setPhase("welcome")} />;
+  }
   if (phase === "welcome") {
     return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={finish} />;
   }
@@ -641,6 +649,12 @@ export function TourOverlay() {
       placement = "right";
       cardLeft = rect.left + rect.width + GAP;
       cardTop = Math.min(Math.max(GAP, rect.top - 12), viewport.h - CARD_H - GAP);
+    } else if (spaceBelow < CARD_H + GAP && spaceAbove < CARD_H + GAP) {
+      // A target taller than the window (the Mistakes panel over a full
+      // journal, e.g. the 4D demo's) leaves no room either side. "Below" put
+      // the card off the bottom of the screen with its buttons out of reach;
+      // floating it at the bottom keeps it readable over the target.
+      placement = "float";
     } else if (spaceBelow >= CARD_H + GAP || spaceBelow >= spaceAbove) {
       placement = "below";
       cardTop = rect.top + rect.height + GAP;

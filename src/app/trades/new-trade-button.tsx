@@ -13,7 +13,8 @@ const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
 const labelClass = "mb-1 block text-xs font-medium text-zinc-500";
 
-export function AddTradeButton() {
+/** `label` for the empty-journal banner (4D); the header keeps the default. */
+export function AddTradeButton({ label = "+ Add trade" }: { label?: string } = {}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +53,7 @@ export function AddTradeButton() {
         disabled={loading}
         className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500 disabled:opacity-50"
       >
-        {loading ? "Creating..." : "+ Add trade"}
+        {loading ? "Creating..." : label}
       </button>
       <FormError size="xs">{error}</FormError>
     </div>
