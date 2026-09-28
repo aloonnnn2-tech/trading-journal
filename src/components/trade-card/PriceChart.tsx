@@ -420,6 +420,12 @@ export function PriceChart({
       { price: breakevenPrice, color: "#3b82f6", style: LineStyle.LargeDashed, title: "Breakeven" },
       { price: stopLoss, color: "#ef4444", style: LineStyle.Dashed, title: "Stop Loss" },
       { price: takeProfit, color: "#22c55e", style: LineStyle.Dashed, title: "Take Profit" },
+      // Where the trade actually closed, so it reads against Entry and
+      // Breakeven directly. The exit marker alone sits on its market bar,
+      // which is off-screen whenever the trade doesn't match the market data
+      // (the "outside the range" note) -- and then nothing showed the exit at
+      // all. Amber: no other line uses it, and it isn't a plan level.
+      { price: exitPrice, color: "#f59e0b", style: LineStyle.Solid, title: "Exit" },
       { price: currentPrice, color: "#a1a1aa", style: LineStyle.Dotted, title: "Last" },
     ];
     for (const spec of specs) {
