@@ -282,3 +282,33 @@ describe("summariseSegment — the scorecard stats", () => {
     });
   });
 });
+
+describe("summariseSegment: average hold", () => {
+  // Added for the /trades summary strip (Phase 4B). Same rule as
+  // getAnalyticsSummary's avgHoldingDays: both dates, non-negative hold.
+  it("averages entry-to-exit days over trades with both dates", () => {
+    const stats = summariseSegment([
+      t({ entry_date: "2026-08-10T00:00:00Z", exit_date: "2026-08-11T00:00:00Z" }),
+      t({ entry_date: "2026-08-10T00:00:00Z", exit_date: "2026-08-13T00:00:00Z" }),
+    ]);
+    expect(stats.avgHoldingDays).toBe(2);
+    expect(stats.withHold).toBe(2);
+  });
+
+  it("skips trades missing a date or running backwards", () => {
+    const stats = summariseSegment([
+      t({ entry_date: "2026-08-10T00:00:00Z", exit_date: "2026-08-10T12:00:00Z" }),
+      t({ entry_date: null, exit_date: "2026-08-12T00:00:00Z" }),
+      t({ entry_date: "2026-08-12T00:00:00Z", exit_date: "2026-08-10T00:00:00Z" }),
+      t(),
+    ]);
+    expect(stats.avgHoldingDays).toBe(0.5);
+    expect(stats.withHold).toBe(1);
+  });
+
+  it("is null, not 0, when no trade has both dates", () => {
+    const stats = summariseSegment([t(), t()]);
+    expect(stats.avgHoldingDays).toBeNull();
+    expect(stats.withHold).toBe(0);
+  });
+});

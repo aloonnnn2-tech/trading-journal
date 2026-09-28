@@ -7,15 +7,19 @@ import {
   getStatusCounts,
   listDistinctEmotions,
   listDistinctMarkets,
+  listFilteredClosedTrades,
   listTradesPage,
   toTradeSortField,
+  type TradeListFilters,
 } from "@/lib/trades/queries";
+import { buildSummaryFigures } from "@/lib/trades/summary-strip";
 import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
 import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
 import { TradeList } from "./trade-list";
+import { SummaryStrip } from "./summary-strip";
 
 const PAGE_SIZE = 50;
 
@@ -64,26 +68,28 @@ export default async function TradesPage({
   const riskMin = Number.isFinite(Number(params.riskMin)) && params.riskMin ? Number(params.riskMin) : undefined;
   const riskMax = Number.isFinite(Number(params.riskMax)) && params.riskMax ? Number(params.riskMax) : undefined;
 
-  const [{ trades, total }, counts, folders, strategies, tradeStrategyLinks, emotions, markets, fieldDefs, account] =
+  // One filter set for the table and the summary strip above it, so the
+  // strip always describes the trades the table is filtered to.
+  const filters: TradeListFilters = {
+    search: params.q,
+    status,
+    folderId: params.folder,
+    strategyId: params.strategy,
+    market: params.market,
+    emotion: params.emotion,
+    direction: params.direction,
+    plMin,
+    plMax,
+    riskMin,
+    riskMax,
+    customField: params.fieldKey && params.fieldValue ? { key: params.fieldKey, value: params.fieldValue } : undefined,
+  };
+
+  const [{ trades, total }, summaryTrades, counts, folders, strategies, tradeStrategyLinks, emotions, markets, fieldDefs, account] =
     await Promise.all([
-      listTradesPage(supabase, {
-        search: params.q,
-        status,
-        folderId: params.folder,
-        strategyId: params.strategy,
-        market: params.market,
-        emotion: params.emotion,
-        direction: params.direction,
-        plMin,
-        plMax,
-        riskMin,
-        riskMax,
-        customField: params.fieldKey && params.fieldValue ? { key: params.fieldKey, value: params.fieldValue } : undefined,
-        sortBy,
-        sortDir,
-        page,
-        pageSize: PAGE_SIZE,
-      }),
+      listTradesPage(supabase, { ...filters, sortBy, sortDir, page, pageSize: PAGE_SIZE }),
+      // Every closed trade matching the filters, across all pages (4B).
+      listFilteredClosedTrades(supabase, filters),
       getStatusCounts(supabase),
       listFolders(supabase),
       listStrategies(supabase),
@@ -284,6 +290,9 @@ export default async function TradesPage({
 
         <SortSelect buildHref={buildHref} sortBy={sortBy} sortDir={sortDir} />
       </div>
+
+      {/* Phase 4B: the filtered closed trades at a glance, across all pages. */}
+      <SummaryStrip figures={buildSummaryFigures(summaryTrades)} />
 
       {/* Rows open the trade side panel (Phase 4A) -- see trade-list.tsx. */}
       <TradeList trades={trades} stratNamesByTradeId={stratNamesByTradeId} />
