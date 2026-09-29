@@ -11,56 +11,9 @@ import { endSession } from "@/lib/tracking/useAnalytics";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { startTour } from "@/components/tour/tour-overlay";
+import { NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId, type NavLink } from "@/lib/nav/links";
 
-// Twelve flat links became six top-level items.
-//
-// The old list was every page in the app, side by side, in the order they
-// happened to be built -- so Goals, Reports and AI Reviews arrived as equal
-// peers to Commissions, and a new user met twelve choices before doing
-// anything. These three stay direct because they are the daily path; the rest
-// group by the question they answer.
-
-interface NavLink {
-  href: string;
-  label: string;
-  /** Shown under the label in a dropdown, so a group is browsable without
-   *  having to already know what each page is. */
-  hint?: string;
-}
-
-const PRIMARY_LINKS: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/trades", label: "Trades" },
-  { href: "/strategies", label: "Strategies" },
-];
-
-const NAV_GROUPS: { label: string; links: NavLink[] }[] = [
-  {
-    label: "Analysis",
-    links: [
-      { href: "/analytics", label: "Analytics", hint: "Equity, drawdown, risk, market conditions" },
-      { href: "/insights", label: "Insights", hint: "Patterns and recurring mistakes" },
-      { href: "/goals", label: "Goals", hint: "Commitments scored from your trades" },
-      { href: "/reports", label: "Reports", hint: "A printable weekly or monthly summary" },
-      { href: "/emotions", label: "Emotions", hint: "How your mood tracks your results" },
-    ],
-  },
-  {
-    label: "AI",
-    links: [
-      { href: "/ask", label: "Ask", hint: "Questions about your own journal" },
-      { href: "/reviews", label: "AI Reviews", hint: "Your week or month, critiqued" },
-    ],
-  },
-  {
-    label: "Setup",
-    links: [
-      { href: "/fields", label: "Fields", hint: "Track anything the app doesn't already" },
-      { href: "/commissions", label: "Commissions", hint: "Broker fees, so P/L is always net" },
-      { href: "/settings", label: "Settings", hint: "Choose what the app shows you" },
-    ],
-  },
-];
+// The menu's links live in src/lib/nav/links.ts, shared with the guided tour.
 
 /** The guided tours, shared by the help menu (>=1000px) and the account menu
  *  (below it), so the two cannot drift apart. */
@@ -125,7 +78,7 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
   return (
     <Link
       href={link.href}
-      data-tour-id={`nav-${link.href.slice(1)}`}
+      data-tour-id={navLinkTourId(link.href)}
       className={`relative shrink-0 px-3 py-3.5 text-[13px] transition-colors ${
         active
           ? "font-medium text-zinc-900 dark:text-zinc-50"
@@ -270,6 +223,9 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                   // pointer merely crosses the bar on its way somewhere else,
                   // and is unreachable by touch.
                   onClick={() => setOpenGroup(open ? null : group.label)}
+                  // The tour points here when its next stop is inside this
+                  // menu (src/lib/tour/nav-target.ts).
+                  data-tour-id={navGroupTourId(group.label)}
                   aria-expanded={open}
                   aria-haspopup="true"
                   className={`relative flex items-center gap-1 px-3 py-3.5 text-[13px] transition-colors ${
@@ -300,7 +256,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                       <Link
                         key={link.href}
                         href={link.href}
-                        data-tour-id={`nav-${link.href.slice(1)}`}
+                        data-tour-id={navLinkTourId(link.href)}
                         // Closed here rather than in an effect watching the
                         // pathname: clicking a link to the page you are
                         // already on produces no navigation, so an effect
@@ -424,7 +380,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                     <Link
                       key={link.href}
                       href={link.href}
-                      data-tour-id={`nav-${link.href.slice(1)}`}
+                      data-tour-id={navLinkTourId(link.href)}
                       onClick={() => setAccountOpen(false)}
                       className={`block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
                         isActive(pathname, link.href)

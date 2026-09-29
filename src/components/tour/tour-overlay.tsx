@@ -8,6 +8,7 @@ import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-offer";
 import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
+import { navDirections, type NavDirections } from "@/lib/tour/nav-target";
 import { WelcomeModal } from "./welcome-modal";
 import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
 
@@ -220,6 +221,15 @@ export function TourOverlay() {
 
   const [rect, setRect] = useState<Rect | null>(null);
   const [offRoute, setOffRoute] = useState(false);
+  // The next stop is on another page, and the tour is waiting for the user to
+  // go there through the menu (Alon, 2026-09-29: the tour used to move them
+  // itself, so fast they couldn't follow where they were). `navInfo` says what
+  // to point at and how to word it; see src/lib/tour/nav-target.ts.
+  const [navPending, setNavPending] = useState(false);
+  const [navInfo, setNavInfo] = useState<NavDirections | null>(null);
+  // The user has clicked the menu item and the page is on its way: the card
+  // says "Opening…" straight away rather than repeating "Click …".
+  const [navClicked, setNavClicked] = useState(false);
   const [missing, setMissing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -293,7 +303,8 @@ export function TourOverlay() {
         const s = steps[j];
         if (s.path) {
           setStepIndex(j);
-          navigateTo(s.path);
+          // Another page: the user goes there through the menu, shown the way.
+          setNavPending(s.path !== here);
           return;
         }
         if (s.pathPrefix) {
@@ -310,11 +321,13 @@ export function TourOverlay() {
       }
       finish("completed");
     },
-    [steps, navigateTo, finish],
+    [steps, finish],
   );
 
   const goBack = useCallback(
     (from: number) => {
+      // Back still takes the user there itself: they asked to go back.
+      setNavPending(false);
       const here = pathnameRef.current;
       for (let j = from - 1; j >= 0; j--) {
         const s = steps[j];
@@ -345,6 +358,7 @@ export function TourOverlay() {
       setTour(which);
       setStepIndex(0);
       setOffRoute(false);
+      setNavPending(false);
       setMissing(false);
       setPhase("touring");
       if (first.path) navigateTo(first.path);
@@ -359,12 +373,12 @@ export function TourOverlay() {
       if (steps[j].path) {
         setStepIndex(j);
         setOffRoute(false);
-        navigateTo(steps[j].path!);
+        setNavPending(steps[j].path !== pathnameRef.current);
         return;
       }
     }
     finish("completed");
-  }, [stepIndex, steps, navigateTo, finish]);
+  }, [stepIndex, steps, finish]);
 
   // Replay requests from the "?" menu.
   useEffect(() => {
@@ -434,6 +448,20 @@ export function TourOverlay() {
       .catch(() => {});
   }, [pathname]);
 
+  // A click on the item the tour is pointing at: the page is on its way.
+  useEffect(() => {
+    if (!navPending || !step?.path) return;
+    const linkSelector = `[data-tour-id="nav-${step.path.slice(1)}"]`;
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.(linkSelector)) setNavClicked(true);
+    };
+    document.addEventListener("click", onClick, { capture: true });
+    return () => {
+      document.removeEventListener("click", onClick, { capture: true });
+      setNavClicked(false);
+    };
+  }, [navPending, step]);
+
   // Save progress on every change.
   useEffect(() => {
     if (phase !== "touring") return;
@@ -453,6 +481,19 @@ export function TourOverlay() {
     if (phase !== "touring" || !step) return;
 
     const id = setTimeout(() => {
+      // Waiting for the user to open the next page: arriving there resumes
+      // the step; anywhere else, the card keeps pointing the way.
+      if (navPending) {
+        if (step.path && pathname === step.path) {
+          // Drop the menu item's spotlight on arrival, so the step can't show
+          // for a frame against it before the page's own target is measured.
+          rectRef.current = null;
+          setRect(null);
+          setNavPending(false);
+        }
+        setOffRoute(false);
+        return;
+      }
       if (step.done && "route" in step.done && pathname.startsWith(step.done.route)) {
         goForward(stepIndex);
         return;
@@ -472,7 +513,7 @@ export function TourOverlay() {
       setOffRoute(true);
     }, 0);
     return () => clearTimeout(id);
-  }, [pathname, phase, step, stepIndex, steps, goForward]);
+  }, [pathname, phase, step, stepIndex, steps, goForward, navPending]);
 
   // Track the target every frame: position, presence, the app's dialogs, and
   // the two conditions that move a step on its own (a task completing, a
@@ -495,6 +536,28 @@ export function TourOverlay() {
       if (cancelled) return;
       const dlg = dialogIsOpen();
       setDialogOpen((prev) => (prev === dlg ? prev : dlg));
+
+      if (navPending && step.path) {
+        // Pointing the way: the menu item, or the dropdown holding it, found
+        // afresh each frame so the spotlight moves to the item the moment its
+        // menu opens.
+        const d = navDirections(step.path, (id) => measure(id) !== null && measure(id)!.width > 0);
+        setNavInfo((prev) =>
+          prev && prev.kind === d.kind && prev.targetId === d.targetId ? prev : d,
+        );
+        const nm = d.targetId ? measure(d.targetId) : null;
+        if (nm && d.targetId && !scrolled) {
+          // A phone's menu scrolls sideways: bring the item into view once.
+          scrolled = true;
+          findTarget(d.targetId)?.scrollIntoView({ block: "nearest", inline: "center" });
+        }
+        if (!sameRect(rectRef.current, nm)) {
+          rectRef.current = nm;
+          setRect(nm);
+        }
+        raf = requestAnimationFrame(tick);
+        return;
+      }
 
       const m = measure(step.targetId);
       if (m) {
@@ -542,7 +605,7 @@ export function TourOverlay() {
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [phase, step, stepIndex, offRoute, goForward, goBack]);
+  }, [phase, step, stepIndex, offRoute, goForward, goBack, navPending]);
 
   // Keys: Escape ends the tour only when no dialog is open (the dialog's own
   // Escape closes it); arrows step, from anywhere -- including inside a focus
@@ -556,6 +619,8 @@ export function TourOverlay() {
         return;
       }
       if (isTyping(e.target)) return;
+      // While pointing the way, the next step is the page the user opens.
+      if (e.key === "ArrowRight" && navPending) return;
       if (e.key === "ArrowRight") {
         e.preventDefault();
         if (stepIndex >= steps.length - 1) finish("completed");
@@ -567,7 +632,7 @@ export function TourOverlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, stepIndex, steps.length, finish, goForward, goBack]);
+  }, [phase, stepIndex, steps.length, finish, goForward, goBack, navPending]);
 
   if (phase === "demo-offer") {
     return <DemoOfferModal onDone={() => setPhase("welcome")} />;
@@ -698,6 +763,17 @@ export function TourOverlay() {
       : { position: "fixed", width: CARD_W, zIndex: 102 };
 
   const primaryLabel = isLast ? "Finish" : step.action ? "I'll do this later" : "Next";
+  // "go": pointing the way to the next page. "loading": arrived, but the
+  // step's target isn't on the page yet -- say so, rather than show this
+  // step's text over a page that hasn't loaded (it used to, for up to half a
+  // second on a production build). "step": the step itself.
+  const cardMode: "go" | "loading" | "step" = navPending
+    ? navClicked
+      ? "loading"
+      : "go"
+    : !rect && !missing && step.path && !step.action
+      ? "loading"
+      : "step";
 
   return (
     <>
@@ -771,40 +847,72 @@ export function TourOverlay() {
           />
         )}
 
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={`${tour}-${stepIndex}`}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
-                Step {stepIndex + 1} of {steps.length} · {step.where}
-              </p>
-              <button
-                onClick={() => finish("skipped")}
-                aria-label="Skip tour"
-                className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">{step.title}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{step.body}</p>
+        {/* No fade-out: the old step used to fade for 180ms before the new
+            one appeared, on top of the page change -- part of what read as
+            lag. The new content simply settles in. */}
+        <motion.div
+          key={`${tour}-${stepIndex}-${cardMode}`}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.12 }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
+              Step {stepIndex + 1} of {steps.length} · {step.where}
+            </p>
+            <button
+              onClick={() => finish("skipped")}
+              aria-label="Skip tour"
+              className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
-            {step.action && (
+          {cardMode === "go" ? (
+            <>
+              <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
+                Next: {step.where}
+              </h3>
               <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                 <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{step.action}</span>
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  {navInfo?.kind === "group" ? (
+                    <>
+                      Open <b>{navInfo.groupLabel}</b> in the menu, then click <b>{navInfo.label}</b>.
+                    </>
+                  ) : navInfo?.kind === "link" ? (
+                    <>
+                      Click <b>{navInfo.label}</b> in the menu.
+                    </>
+                  ) : (
+                    <>Open {step.where} to carry on.</>
+                  )}
+                </span>
               </div>
-            )}
-            {missing && (
-              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Can&rsquo;t find this on the page right now.</p>
-            )}
-          </motion.div>
-        </AnimatePresence>
+            </>
+          ) : cardMode === "loading" ? (
+            <p className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400" role="status">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary" aria-hidden />
+              Opening {step.where}…
+            </p>
+          ) : (
+            <>
+              <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">{step.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{step.body}</p>
+
+              {step.action && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                  <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{step.action}</span>
+                </div>
+              )}
+              {missing && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Can&rsquo;t find this on the page right now.</p>
+              )}
+            </>
+          )}
+        </motion.div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1" aria-hidden>
@@ -826,6 +934,16 @@ export function TourOverlay() {
                 Back
               </button>
             )}
+            {cardMode === "go" ? (
+              navInfo?.kind === "none" && (
+                <button
+                  onClick={() => step.path && navigateTo(step.path)}
+                  className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+                >
+                  Take me there
+                </button>
+              )
+            ) : (
             <button
               onClick={() => (isLast ? finish("completed") : goForward(stepIndex))}
               className={`rounded-lg px-3.5 py-1.5 text-xs font-medium ${
@@ -836,6 +954,7 @@ export function TourOverlay() {
             >
               {primaryLabel}
             </button>
+            )}
           </div>
         </div>
       </motion.div>

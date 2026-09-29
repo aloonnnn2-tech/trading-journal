@@ -12,6 +12,12 @@ import { createTestUser, deleteTestUser, signIn, type TestUser } from "./fixture
  * on the trade-page step afterwards; then wander off with the nav and assert
  * it pauses and resumes rather than ending; then reload mid-tour and assert
  * it resumes. `has_completed_tour` must remain false throughout.
+ *
+ * Since 2026-09-29 the tour never changes pages by itself: when the next stop
+ * is on another page it points at the menu item and waits for the user to
+ * click it ("Click Strategies in the menu."). And a fresh account is first
+ * asked whether to start with a demo journal (Phase 4D); these tests answer
+ * No, so the account stays empty as they expect.
  */
 
 let user: TestUser;
@@ -35,7 +41,10 @@ async function completedFlag(page: Page): Promise<boolean> {
 test("creating the trade from the first modal step carries the tour to the trade page", async ({ page }) => {
   await signIn(page, user);
 
-  // A fresh account is offered the tour. Take it.
+  // A fresh account is first asked about the demo journal. Start empty.
+  await page.getByRole("button", { name: /no thanks, start empty/i }).click({ timeout: 30_000 });
+
+  // Then offered the tour. Take it.
   await page.getByRole("button", { name: /show me around/i }).click({ timeout: 30_000 });
   await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
 
@@ -57,8 +66,11 @@ test("creating the trade from the first modal step carries the tour to the trade
   await card(page).getByRole("button", { name: "Next" }).click();
   await expect(card(page)).toContainText("Your rules grade every trade");
 
-  // ...and again navigates to Strategies on the tour's own initiative.
+  // ...then points the way to Strategies rather than going there itself.
   await card(page).getByRole("button", { name: "Next" }).click();
+  await expect(card(page)).toContainText("Click Strategies in the menu", { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/trades\//);
+  await page.locator('header [data-tour-id="nav-strategies"]').first().click();
   await page.waitForURL(/\/strategies/, { timeout: 30_000 });
   await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
 });
@@ -76,9 +88,11 @@ test("wandering off pauses the tour; Resume brings it back; a reload keeps the p
   await page.getByRole("button", { name: /getting started/i }).click();
   await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
 
-  // Skip the two task steps: "I'll do this later" lands on Strategies, the
-  // first later step the tour can reach on its own.
+  // Skip the two task steps: "I'll do this later" points the way to
+  // Strategies, the first later step that has a page of its own.
   await card(page).getByRole("button", { name: /do this later/i }).click();
+  await expect(card(page)).toContainText("Click Strategies in the menu", { timeout: 15_000 });
+  await page.locator('header [data-tour-id="nav-strategies"]').first().click();
   await page.waitForURL(/\/strategies/, { timeout: 30_000 });
   await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
 
@@ -86,7 +100,10 @@ test("wandering off pauses the tour; Resume brings it back; a reload keeps the p
   await page.getByRole("link", { name: "Dashboard" }).first().click();
   await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
   await expect(page.getByText(/tour paused/i)).toBeVisible({ timeout: 15_000 });
+  // Resume points the way back rather than jumping there.
   await page.getByRole("button", { name: "Resume" }).click();
+  await expect(card(page)).toContainText("Click Strategies in the menu", { timeout: 15_000 });
+  await page.locator('header [data-tour-id="nav-strategies"]').first().click();
   await page.waitForURL(/\/strategies/, { timeout: 30_000 });
   await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
 
