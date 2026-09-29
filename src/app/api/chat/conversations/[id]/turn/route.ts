@@ -4,6 +4,9 @@ import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { buildToolOverview, buildToolSystemPrompt } from "@/lib/ai-keys/context";
 import { getProvider, MAX_ANSWER_TOKENS } from "@/lib/ai-keys/providers";
+import { chooseModel } from "@/lib/ai-keys/providers/model-check";
+import { markApiKeyInvalid, setApiKeyModel } from "@/lib/ai-keys/queries";
+import { scrubString } from "@/lib/observability/scrub";
 import { TradeStore, makeToolExecutor, toolDefsFor } from "@/lib/ai-keys/tools";
 import { tierPolicyFor } from "@/lib/ai-keys/tier";
 import { claimTurn, getConversation, releaseTurn } from "@/lib/chat/queries";
@@ -105,6 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const policy = tierPolicyFor(ready.provider);
+  const keyId = conversation.key_id;
   const userId = gate.userId;
   const supabase = gate.supabase;
 
@@ -152,6 +156,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             conversationId: id,
             provider,
             apiKey: ready.key,
+            model: ready.model,
+            healModel: async () => {
+              // The model this key used is gone. Re-pick from the live list,
+              // skipping the dead one, and remember the pick for next time.
+              try {
+                const check = await provider.validateKey(ready.key);
+                if (!check.valid) return null;
+                const next = chooseModel(ready.provider, check.models.filter((m) => m !== ready.model));
+                if (next) await setApiKeyModel(supabase, keyId, next);
+                console.warn(`[chat/turn] ${ready.provider}: ${ready.model} retired, switched key to ${next}`);
+                return next;
+              } catch (err) {
+                console.error("[chat/turn] model re-pick failed:", scrubString(err instanceof Error ? err.message : String(err)));
+                return null;
+              }
+            },
+            onKeyRejected: () => markApiKeyInvalid(supabase, keyId),
             policy,
             system: buildToolSystemPrompt(overview),
             tools: toolDefsFor(policy),

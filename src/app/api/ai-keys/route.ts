@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { countApiKeys, createApiKey, listApiKeys, MAX_KEYS_PER_USER } from "@/lib/ai-keys/queries";
 import { apiKeyCreateSchema } from "@/lib/ai-keys/schema";
-import { getProvider, providerModel, ProviderError } from "@/lib/ai-keys/providers";
+import { getProvider, ProviderError, type KeyCheck } from "@/lib/ai-keys/providers";
+import { chooseModel } from "@/lib/ai-keys/providers/model-check";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
 import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { rateLimit } from "@/lib/rate-limit";
@@ -94,27 +95,14 @@ export async function POST(request: Request) {
   // this would save a broken key silently, and the user would discover it as
   // a confusing failure the first time they asked a question -- long after
   // the moment when "that key was rejected" is actionable.
-  let valid: boolean;
+  let check: KeyCheck;
   try {
-    valid = await getProvider(provider).validateKey(key);
+    check = await getProvider(provider).validateKey(key);
   } catch (err) {
     const failure = err instanceof ProviderError ? err.failure : "failed";
     const detail = err instanceof ProviderError ? err.detail : String(err);
     // Scrubbed: a provider's error body can echo the request, key included.
     console.error(`[ai-keys] validate ${provider} ${failure}:`, scrubString(detail));
-
-    // The key authenticated, but the model this app asks for is gone. Saving
-    // would produce a key that fails on its first question, so refuse now and
-    // name the cause -- the user's key is not the problem and telling them to
-    // check it would send them the wrong way entirely.
-    if (failure === "model_missing") {
-      return NextResponse.json(
-        {
-          error: `Your key works, but ${provider} no longer offers the model this app uses (${providerModel(provider)}). This needs updating in the app — it isn't something you can fix.`,
-        },
-        { status: 503 },
-      );
-    }
 
     // Couldn't reach the provider at all. Deliberately *not* saved: an
     // unverified key is exactly what this step exists to prevent, and asking
@@ -129,7 +117,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!valid) {
+  if (!check.valid) {
     return NextResponse.json(
       {
         error:
@@ -139,7 +127,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const created = await createApiKey(gate.supabase, gate.userId, { provider, key, label });
+  // Pick the model from the provider's LIVE list, so a retired default can't
+  // produce a key that fails on its first question. Null only when the list
+  // was readable and holds none of this app's choices: then the app, not the
+  // user's key, needs updating, and saving would just defer the failure.
+  const model = chooseModel(provider, check.models);
+  if (!model) {
+    console.error(`[ai-keys] ${provider}: none of the model choices are in its live list of ${check.models.length}`);
+    return NextResponse.json(
+      {
+        error: `Your key works, but none of the models this app knows for ${provider} are offered to it any more. This needs updating in the app — it isn't something you can fix. Another provider will work meanwhile.`,
+      },
+      { status: 503 },
+    );
+  }
+
+  const created = await createApiKey(gate.supabase, gate.userId, { provider, key, label, model });
   void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_key_added", { provider });
   // createApiKey returns only the masked public columns -- the plaintext key
   // ends here and is never echoed back.

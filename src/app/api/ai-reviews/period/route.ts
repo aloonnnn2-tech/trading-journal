@@ -134,6 +134,7 @@ export async function POST(request: Request) {
     content = await generateStructured({
       provider,
       apiKey: ready.key,
+      model: ready.model,
       systemPrompt: PERIOD_REVIEW_SYSTEM_PROMPT,
       userPrompt: `${context.text}\n\nReview this period now. Reply with the JSON object only.`,
       schema: periodReviewContentSchema,
@@ -166,7 +167,7 @@ export async function POST(request: Request) {
     const review = await savePeriodReview(gate.supabase, gate.userId, {
       period,
       provider: ready.provider,
-      model: provider.model,
+      model: ready.model,
       content,
       tradesAnalyzed: context.tradesAnalyzed,
       sourceUpdatedAt: context.sourceUpdatedAt,

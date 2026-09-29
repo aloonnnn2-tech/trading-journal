@@ -1,5 +1,5 @@
 import { PROVIDER_MODELS } from "../types";
-import { assertModelAvailable } from "./model-check";
+import { readModelIds } from "./model-check";
 import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
@@ -14,8 +14,21 @@ import {
   type ChatMessage,
   type ChatOnceInput,
   type ChatResult,
+  type KeyCheck,
   type ToolCall,
 } from "./types";
+
+/**
+ * A non-2xx reply as a ProviderError, shared by all three request paths so
+ * they classify alike. Anthropic answers an unknown or retired model with 404
+ * `not_found_error` naming the model; that must read as model_missing (which
+ * the caller heals by re-picking), not as a generic failure.
+ */
+async function httpFailure(res: Response): Promise<ProviderError> {
+  const detail = await errorDetail(res);
+  const missing = res.status === 404 && /not_found_error|model/i.test(detail);
+  return new ProviderError(missing ? "model_missing" : failureFromStatus(res.status), detail, retryAfterSeconds(res));
+}
 
 interface AnthropicBlock {
   type: string;
@@ -86,7 +99,7 @@ const THINKING_HEADROOM = 2000;
 /** The request body shared by chatOnce and chatStream, so the two never drift. */
 function chatBody(input: ChatOnceInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
-    model: MODEL,
+    model: input.model ?? MODEL,
     max_tokens: (input.maxTokens ?? MAX_TOKENS) + THINKING_HEADROOM,
     output_config: { effort: "low" },
     // Thinking is OFF on the chat path, deliberately. With it on, a tool-use
@@ -114,20 +127,21 @@ export const anthropicProvider: AIProvider = {
   name: "anthropic",
   model: MODEL,
 
-  async validateKey(apiKey: string): Promise<boolean> {
-    // Listing models is the zero-token way to check a key.
+  async validateKey(apiKey: string): Promise<KeyCheck> {
+    // Listing models is the zero-token way to check a key. The list is paged
+    // (20 by default), so ask for all of it: a new model beyond the first page
+    // would otherwise look missing.
     const res = await providerFetch(
-      `${BASE}/models`,
+      `${BASE}/models?limit=1000`,
       { headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION } },
       VALIDATE_TIMEOUT_MS,
     );
 
-    if (res.status === 401 || res.status === 403) return false;
+    if (res.status === 401 || res.status === 403) return { valid: false };
     if (!res.ok) throw new ProviderError("unavailable", await errorDetail(res));
 
-    // Reuses the response already fetched to test the key -- see model-check.ts.
-    await assertModelAvailable(res, MODEL, "anthropic");
-    return true;
+    // The caller picks this key's model from the list -- see model-check.ts.
+    return { valid: true, models: await readModelIds(res, "anthropic") };
   },
 
   async askQuestion(
@@ -146,7 +160,7 @@ export const anthropicProvider: AIProvider = {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: options?.model ?? MODEL,
           max_tokens:
             options?.maxTokens === undefined
               ? MAX_TOKENS
@@ -163,9 +177,7 @@ export const anthropicProvider: AIProvider = {
       options?.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) {
-      throw new ProviderError(failureFromStatus(res.status), await errorDetail(res));
-    }
+    if (!res.ok) throw await httpFailure(res);
 
     const json = await res.json();
 
@@ -223,9 +235,7 @@ export const anthropicProvider: AIProvider = {
       input.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) {
-      throw new ProviderError(failureFromStatus(res.status), await errorDetail(res));
-    }
+    if (!res.ok) throw await httpFailure(res);
 
     const json = await res.json();
     if (json?.stop_reason === "refusal") {
@@ -284,9 +294,7 @@ export const anthropicProvider: AIProvider = {
       throw new ProviderError("unavailable", `network: ${reason}`);
     }
 
-    if (!res.ok) {
-      throw new ProviderError(failureFromStatus(res.status), await errorDetail(res), retryAfterSeconds(res));
-    }
+    if (!res.ok) throw await httpFailure(res);
 
     // Anthropic streams content blocks by index. Text blocks arrive as
     // text_delta; tool_use blocks arrive as a start (id + name) followed by

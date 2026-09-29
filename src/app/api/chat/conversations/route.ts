@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
-import { providerModel } from "@/lib/ai-keys/providers";
-import type { AIProviderName } from "@/lib/ai-keys/types";
+import { getActiveKeyMeta } from "@/lib/ai-keys/queries";
 import { createConversation, listConversations } from "@/lib/chat/queries";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -59,21 +58,13 @@ export async function POST(request: Request) {
   // Resolves under RLS, so another user's key id is simply not found. Only
   // the provider is needed here, so the key is never decrypted: the fewer
   // call frames that ever hold plaintext, the better.
-  const { data: stored, error } = await gate.supabase
-    .from("user_api_keys")
-    .select("provider")
-    .eq("id", parsed.data.keyId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (error) throw error;
+  const stored = await getActiveKeyMeta(gate.supabase, parsed.data.keyId);
   if (!stored) {
     return NextResponse.json({ error: "That key isn't available. Pick another, or add one." }, { status: 400 });
   }
-  const provider = stored.provider as AIProviderName;
-
   const conversation = await createConversation(gate.supabase, gate.userId, {
-    provider,
-    model: providerModel(provider),
+    provider: stored.provider,
+    model: stored.model,
     keyId: parsed.data.keyId,
   });
   return NextResponse.json(conversation, { status: 201 });

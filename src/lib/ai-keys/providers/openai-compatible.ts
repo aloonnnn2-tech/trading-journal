@@ -1,5 +1,5 @@
 import type { AIProviderName } from "../types";
-import { assertModelAvailable } from "./model-check";
+import { readModelIds } from "./model-check";
 import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
@@ -17,6 +17,7 @@ import {
   type ChatMessage,
   type ChatOnceInput,
   type ChatResult,
+  type KeyCheck,
   type ToolCall,
 } from "./types";
 
@@ -73,6 +74,13 @@ export interface OpenAICompatibleConfig {
   /** Base URL including the version segment, no trailing slash. */
   baseUrl: string;
   model: string;
+  /**
+   * The request field that caps the answer. OpenAI's reasoning models (the
+   * gpt-5 family) reject `max_tokens` outright and need
+   * `max_completion_tokens`, which OpenAI's older models accept too. Every
+   * other provider in this family takes `max_tokens`.
+   */
+  maxTokensField?: "max_tokens" | "max_completion_tokens";
   /** Extra headers some providers want (e.g. OpenRouter's attribution). */
   headers?: Record<string, string>;
   /**
@@ -87,6 +95,7 @@ export interface OpenAICompatibleConfig {
 
 export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): AIProvider {
   const { name, baseUrl, model, headers = {} } = config;
+  const maxTokensField = config.maxTokensField ?? "max_tokens";
   const modelsUrl = config.modelsUrl ?? `${baseUrl}/models`;
 
   function auth(apiKey: string): Record<string, string> {
@@ -96,8 +105,8 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
   /** The request body shared by chatOnce and chatStream, so the two never drift. */
   function chatBody(input: ChatOnceInput): Record<string, unknown> {
     const body: Record<string, unknown> = {
-      model,
-      max_tokens: input.maxTokens ?? MAX_ANSWER_TOKENS,
+      model: input.model ?? model,
+      [maxTokensField]: input.maxTokens ?? MAX_ANSWER_TOKENS,
       messages: toOpenAIMessages(input.system, input.messages),
     };
     // Only send tools when there are some: several gateways reject an empty
@@ -117,7 +126,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
     name,
     model,
 
-    async validateKey(apiKey: string): Promise<boolean> {
+    async validateKey(apiKey: string): Promise<KeyCheck> {
       // Listing models costs no tokens, which matters because this runs on
       // every save attempt including the mistyped ones.
       const res = await providerFetch(
@@ -126,7 +135,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         VALIDATE_TIMEOUT_MS,
       );
 
-      if (res.status === 401 || res.status === 403) return false;
+      if (res.status === 401 || res.status === 403) return { valid: false };
       if (!res.ok) {
         // Anything else means we never got a verdict. Treat it as "couldn't
         // check" rather than "bad key" -- rejecting a valid key because the
@@ -134,14 +143,9 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         throw new ProviderError("unavailable", await errorDetail(res));
       }
 
-      // The key works. While we have the model list in hand, confirm the model
-      // this app is configured to ask for is actually on it. Providers retire
-      // models on their own schedule and nothing here fails at build time, so
-      // without this check a stale id is only discovered at question time --
-      // reported as a vague provider failure, long after the user has stopped
-      // associating it with adding the key.
-      await assertModelAvailable(res, model, name);
-      return true;
+      // The key works. The model list it came with is what the caller picks
+      // this key's model from -- see chooseModel in model-check.ts.
+      return { valid: true, models: await readModelIds(res, name) };
     },
 
     async askQuestion(
@@ -156,8 +160,8 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
           method: "POST",
           headers: { ...auth(apiKey), "Content-Type": "application/json" },
           body: JSON.stringify({
-            model,
-            max_tokens: options?.maxTokens ?? MAX_ANSWER_TOKENS,
+            model: options?.model ?? model,
+            [maxTokensField]: options?.maxTokens ?? MAX_ANSWER_TOKENS,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: question },
@@ -199,7 +203,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
           ? "unavailable"
           : "failed";
-        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`);
+        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`, retryAfterFromMessage(message));
       }
 
       const choice = json?.choices?.[0];

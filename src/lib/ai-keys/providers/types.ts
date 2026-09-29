@@ -90,7 +90,16 @@ export interface ChatOnceInput {
   tools: ToolDef[];
   maxTokens?: number;
   timeoutMs?: number;
+  /** The model to ask. Defaults to the provider's first choice. */
+  model?: string;
 }
+
+/**
+ * What a key check learned. `models` is the provider's live model list, read
+ * from the same zero-token /models call that tested the credentials; `[]`
+ * means it couldn't be read, not that there are none (see model-check.ts).
+ */
+export type KeyCheck = { valid: false } | { valid: true; models: string[] };
 
 /**
  * The outcome of one model round-trip: either the model produced its final
@@ -105,17 +114,22 @@ export type ChatResult =
 export interface AIProvider {
   name: AIProviderName;
 
-  /** The model this provider asks by default, surfaced in the UI. */
+  /**
+   * The provider's first-choice model: what a key asks until it has been
+   * checked against the live list. A key's own model (user_api_keys.model)
+   * overrides it per call -- see `model` on ChatOnceInput and AskOptions.
+   */
   readonly model: string;
 
   /**
-   * Cheap liveness check used to test a key before it is ever stored.
-   * Returns false for "the provider says these credentials are bad" and
-   * throws ProviderError("unavailable") when we couldn't get an answer at
-   * all -- the difference matters, because refusing to save a good key
-   * because the provider was briefly down would be its own bad experience.
+   * Cheap liveness check used to test a key before it is ever stored, which
+   * also returns the provider's live model list.
+   * Returns `{valid: false}` for "the provider says these credentials are
+   * bad" and throws ProviderError("unavailable") when we couldn't get an
+   * answer at all -- the difference matters, because refusing to save a good
+   * key because the provider was briefly down would be its own bad experience.
    */
-  validateKey(apiKey: string): Promise<boolean>;
+  validateKey(apiKey: string): Promise<KeyCheck>;
 
   /**
    * One single-shot question with no conversation: what the AI review
@@ -180,6 +194,8 @@ export interface AskOptions {
    * platform's limit and replace a specific error with a generic one.
    */
   timeoutMs?: number;
+  /** The model to ask. Defaults to the provider's first choice. */
+  model?: string;
 }
 
 // A provider that hangs would hold a serverless function open until the

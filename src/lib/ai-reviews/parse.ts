@@ -154,6 +154,7 @@ const REPAIR_SYSTEM_PROMPT = [
 export async function generateStructured<T>({
   provider,
   apiKey,
+  model,
   systemPrompt,
   userPrompt,
   schema,
@@ -163,6 +164,8 @@ export async function generateStructured<T>({
 }: {
   provider: AIProvider;
   apiKey: string;
+  /** The key's model (0053); the provider's first choice when omitted. */
+  model?: string;
   systemPrompt: string;
   userPrompt: string;
   schema: z.ZodType<T>;
@@ -177,6 +180,7 @@ export async function generateStructured<T>({
   }
 
   const reply = await provider.askQuestion(apiKey, systemPrompt, userPrompt, {
+    model,
     maxTokens,
     timeoutMs: Math.min(ASK_TIMEOUT_MS, Math.max(1_000, remainingMs())),
   });
@@ -203,6 +207,7 @@ export async function generateStructured<T>({
       reply,
     ].join("\n"),
     {
+      model,
       maxTokens: REPAIR_MAX_TOKENS,
       timeoutMs: Math.min(ASK_TIMEOUT_MS, Math.max(1_000, remainingMs())),
     },

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
-import { PROVIDER_LABELS, type StoredApiKey } from "@/lib/ai-keys/types";
+import { PROVIDER_LABELS, PROVIDER_MODELS, type StoredApiKey } from "@/lib/ai-keys/types";
 import { Card } from "@/components/ui/Card";
 import { KeyForm } from "./key-form";
 
@@ -25,6 +25,31 @@ export function KeyManager({
   // never clears the verdict shown against another.
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  // The provider's live model list per key, filled by a Test -- which is
+  // what "Change model" runs first, so the picker only ever offers models
+  // that key can actually reach.
+  const [modelLists, setModelLists] = useState<Record<string, string[]>>({});
+  const [savingModelId, setSavingModelId] = useState<string | null>(null);
+
+  async function handleChooseModel(key: StoredApiKey, model: string) {
+    setSavingModelId(key.id);
+    try {
+      const res = await fetch(`/api/ai-keys/${key.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      const body = (await res.json().catch(() => null)) as (StoredApiKey & { error?: string }) | null;
+      if (!res.ok || !body) {
+        setTestResults((prev) => ({ ...prev, [key.id]: { ok: false, message: body?.error ?? "Couldn't change the model." } }));
+        return;
+      }
+      onKeysChange((prev) => prev.map((k) => (k.id === key.id ? body : k)));
+      setTestResults((prev) => ({ ...prev, [key.id]: { ok: true, message: `Now using ${model}.` } }));
+    } finally {
+      setSavingModelId(null);
+    }
+  }
 
   async function handleDelete(key: StoredApiKey) {
     if (!confirm(`Remove this ${PROVIDER_LABELS[key.provider]} key? You can add it again later.`)) {
@@ -66,8 +91,13 @@ export function KeyManager({
     try {
       const res = await fetch(`/api/ai-keys/${key.id}/test`, { method: "POST" });
       const body = (await res.json().catch(() => null)) as
-        | { ok?: boolean; message?: string; error?: string }
+        | { ok?: boolean; message?: string; error?: string; model?: string; models?: string[] }
         | null;
+
+      if (body?.models) setModelLists((prev) => ({ ...prev, [key.id]: body.models! }));
+      if (body?.model) {
+        onKeysChange((prev) => prev.map((k) => (k.id === key.id ? { ...k, model: body.model! } : k)));
+      }
 
       if (!res.ok && !body?.message) {
         setTestResults((prev) => ({
@@ -84,8 +114,9 @@ export function KeyManager({
       }));
 
       // A rejected key is switched off server-side; mirror that here so the
-      // row doesn't keep claiming it is on.
-      if (!ok) {
+      // row doesn't keep claiming it is on. (A missing model is not a
+      // rejection: that key stays on and the picker below fixes it.)
+      if (!ok && (body as { state?: string } | null)?.state === "rejected") {
         onKeysChange((prev) => prev.map((k) => (k.id === key.id ? { ...k, is_active: false } : k)));
       }
     } catch {
@@ -113,6 +144,9 @@ export function KeyManager({
                   {k.label && <span className="ml-2 text-xs text-zinc-500">{k.label}</span>}
                 </span>
                 <span className="ml-2 font-mono text-xs text-zinc-500">•••• {k.last_four}</span>
+                <span className="mt-0.5 block truncate font-mono text-[11px] text-zinc-500" title="The model this key asks">
+                  {k.model ?? PROVIDER_MODELS[k.provider]}
+                </span>
                 {!k.is_active && (
                   // A key the provider rejected is switched off automatically,
                   // so this label is often the first sign of a revoked key --
@@ -135,6 +169,16 @@ export function KeyManager({
                 >
                   {testingId === k.id ? "Testing…" : "Test"}
                 </button>
+                {!modelLists[k.id] && (
+                  <button
+                    onClick={() => handleTestKey(k)}
+                    disabled={testingId === k.id}
+                    title="Load the models this key can use and pick one"
+                    className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-50"
+                  >
+                    Change model
+                  </button>
+                )}
                 <button
                   onClick={() => handleToggleActive(k)}
                   className="text-xs text-zinc-500 hover:text-zinc-300"
@@ -150,6 +194,29 @@ export function KeyManager({
                 </button>
               </div>
             </div>
+            {modelLists[k.id] && modelLists[k.id].length > 0 && (
+              <label className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                Model
+                <select
+                  value={k.model ?? PROVIDER_MODELS[k.provider]}
+                  disabled={savingModelId === k.id}
+                  onChange={(e) => handleChooseModel(k, e.target.value)}
+                  className="min-w-0 max-w-full flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 font-mono text-xs text-zinc-900 dark:border-subtle dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  {!modelLists[k.id].includes(k.model ?? PROVIDER_MODELS[k.provider]) && (
+                    <option value={k.model ?? PROVIDER_MODELS[k.provider]} disabled>
+                      {k.model ?? PROVIDER_MODELS[k.provider]} (no longer offered)
+                    </option>
+                  )}
+                  {modelLists[k.id].map((m, i) => (
+                    <option key={m} value={m}>
+                      {m}
+                      {i === 0 ? " (recommended)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {testResults[k.id] && (
               <p
                 role="status"

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { markApiKeyInvalid } from "./queries";
-import { providerModel, ProviderError } from "./providers";
+import { ProviderError } from "./providers";
 import type { AIProviderName } from "./types";
 
 /**
@@ -68,7 +68,7 @@ export async function providerErrorResponse(
   if (failure === "model_missing") {
     return NextResponse.json(
       {
-        error: `${ctx.provider} no longer offers the model this app asks for (${providerModel(ctx.provider)}). Your key is fine — this needs updating in the app.`,
+        error: `${ctx.provider} no longer offers the model this key uses. Your key is fine — press Test on it under Ask → Your keys and it will switch to a model ${ctx.provider} still offers.`,
       },
       { status: 502 },
     );

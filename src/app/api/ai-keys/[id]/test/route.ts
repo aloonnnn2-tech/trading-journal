@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
-import { getDecryptedKey, markApiKeyInvalid } from "@/lib/ai-keys/queries";
-import { getProvider, providerModel, ProviderError } from "@/lib/ai-keys/providers";
+import { getDecryptedKey, markApiKeyInvalid, setApiKeyModel } from "@/lib/ai-keys/queries";
+import { getProvider, providerModel, ProviderError, type KeyCheck } from "@/lib/ai-keys/providers";
+import { chooseModel, pickerModels } from "@/lib/ai-keys/providers/model-check";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
 import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { rateLimit } from "@/lib/rate-limit";
@@ -20,6 +21,11 @@ import { scrubString } from "@/lib/observability/scrub";
 // *journal disclosure*, and requires provider consent. Testing a key calls
 // the provider's model-list endpoint and sends none of the user's data, so
 // requiring consent here would block a diagnostic that discloses nothing.
+//
+// It also keeps the key's model current: the provider's live model list comes
+// back with the check, so a model that was retired since the key was saved is
+// replaced here with the next choice the provider still offers, and the list
+// is returned for the model picker.
 // The decrypted key still goes straight into the provider call and nowhere
 // else -- never into a response, a log, or an error.
 
@@ -72,24 +78,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  let valid: boolean;
+  let check: KeyCheck;
   try {
-    valid = await getProvider(stored.provider).validateKey(stored.key);
+    check = await getProvider(stored.provider).validateKey(stored.key);
   } catch (err) {
     const failure = err instanceof ProviderError ? err.failure : "failed";
     const detail = err instanceof ProviderError ? err.detail : String(err);
     console.error(`[ai-keys/test] ${stored.provider} ${failure}:`, scrubString(detail));
-
-    // The key authenticated but the model is gone. Reported as its own state
-    // because the key is fine and telling the user to replace it would send
-    // them the wrong way entirely.
-    if (failure === "model_missing") {
-      return NextResponse.json({
-        ok: false,
-        state: "model_missing",
-        message: `Your key works, but ${stored.provider} no longer offers the model this app uses (${providerModel(stored.provider)}). This needs updating in the app — it isn't something you can fix.`,
-      });
-    }
 
     return NextResponse.json({
       ok: false,
@@ -98,7 +93,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     });
   }
 
-  if (!valid) {
+  if (!check.valid) {
     // Park it, exactly as a failed question would. A key that just failed an
     // explicit check should not stay listed as usable.
     await markApiKeyInvalid(gate.supabase, id);
@@ -109,9 +104,36 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     });
   }
 
+  const current = stored.model ?? providerModel(stored.provider);
+  const models = pickerModels(stored.provider, check.models);
+  const chosen = chooseModel(stored.provider, check.models, current);
+
+  // The key authenticated but the provider offers none of the models this app
+  // knows. Its own state, because the key is fine and telling the user to
+  // replace it would send them the wrong way entirely -- they can still pick
+  // any model from the list.
+  if (!chosen) {
+    return NextResponse.json({
+      ok: false,
+      state: "model_missing",
+      model: current,
+      models,
+      message: `Your key works, but ${stored.provider} no longer offers ${current}. Pick another model for this key below.`,
+    });
+  }
+
+  // Record the pick (it heals a retired model) and the successful check.
+  // "unsupported" = 0053 not applied: the key still works on the first choice.
+  const saved = await setApiKeyModel(gate.supabase, id, chosen, { validated: true });
+  const switched = chosen !== current && saved !== "unsupported";
+
   return NextResponse.json({
     ok: true,
     state: "working",
-    message: `Working — ${stored.provider} accepted this key and still offers ${providerModel(stored.provider)}.`,
+    model: saved === "unsupported" ? current : chosen,
+    models,
+    message: switched
+      ? `Working — ${stored.provider} no longer offers ${current}, so this key now uses ${chosen}.`
+      : `Working — ${stored.provider} accepted this key and still offers ${chosen}.`,
   });
 }

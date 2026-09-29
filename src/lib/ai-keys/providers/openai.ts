@@ -9,6 +9,7 @@ export const openaiProvider = createOpenAICompatibleProvider({
   name: "openai",
   baseUrl: "https://api.openai.com/v1",
   model: PROVIDER_MODELS.openai,
+  maxTokensField: "max_completion_tokens",
 });
 
 // Free tier, and by some distance the fastest of these.

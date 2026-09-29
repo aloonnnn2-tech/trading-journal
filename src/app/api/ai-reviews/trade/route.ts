@@ -110,6 +110,7 @@ export async function POST(request: Request) {
     content = await generateStructured({
       provider,
       apiKey: ready.key,
+      model: ready.model,
       systemPrompt: TRADE_REVIEW_SYSTEM_PROMPT,
       userPrompt: `${context}\n\nReview this trade now. Reply with the JSON object only.`,
       schema: tradeReviewContentSchema,
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
     const review = await saveTradeReview(gate.supabase, gate.userId, {
       tradeId: trade.id,
       provider: ready.provider,
-      model: provider.model,
+      model: ready.model,
       content,
       // What the review was generated against. A later edit moves the trade's
       // updated_at past this, which is how the card knows it is out of date.

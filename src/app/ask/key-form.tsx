@@ -120,7 +120,10 @@ export function KeyForm({
           </a>
           {/* Naming the model up front matters here: it decides both answer
               quality and, on the paid providers, what the user is billed. */}
-          <span className="font-mono text-xs text-zinc-500">{PROVIDER_MODELS[provider]}</span>
+          <span className="text-xs text-zinc-500">
+            Starts on <span className="font-mono">{PROVIDER_MODELS[provider]}</span> (or the next model {PROVIDER_LABELS[provider]}{" "}
+            still offers). You can pick another after saving.
+          </span>
         </div>
 
         {isFree ? (

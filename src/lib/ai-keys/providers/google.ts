@@ -1,5 +1,5 @@
 import { PROVIDER_MODELS } from "../types";
-import { assertModelAvailable } from "./model-check";
+import { readModelIds } from "./model-check";
 import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
@@ -17,10 +17,32 @@ import {
   type ChatMessage,
   type ChatOnceInput,
   type ChatResult,
+  type KeyCheck,
   type ToolCall,
 } from "./types";
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+/** The endpoint for one model and method. The id sits in the URL path. */
+function modelUrl(model: string | undefined, method: string): string {
+  return `${BASE}/models/${encodeURIComponent(model ?? MODEL)}:${method}`;
+}
+
+/**
+ * A non-2xx reply as a ProviderError, shared by the three request paths.
+ * Google reports a bad key as 400 API_KEY_INVALID rather than 401, and an
+ * unknown or retired model as 404 NOT_FOUND ("models/x is not found").
+ */
+async function httpFailure(res: Response): Promise<ProviderError> {
+  const detail = await errorDetail(res);
+  const failure =
+    res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)
+      ? "invalid_key"
+      : res.status === 404 && /models\/|not found/i.test(detail)
+        ? "model_missing"
+        : failureFromStatus(res.status);
+  return new ProviderError(failure, detail, retryAfterSeconds(res));
+}
 
 /** finishReason values that mean the candidate was cut by a filter, not finished. */
 const BLOCKED_FINISH = new Set(["SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII"]);
@@ -99,24 +121,23 @@ export const googleProvider: AIProvider = {
   name: "google",
   model: MODEL,
 
-  async validateKey(apiKey: string): Promise<boolean> {
+  async validateKey(apiKey: string): Promise<KeyCheck> {
+    // Paged at 50 by default; ask for the whole list so a model on page two
+    // doesn't look retired.
     const res = await providerFetch(
-      `${BASE}/models`,
+      `${BASE}/models?pageSize=1000`,
       { headers: authHeaders(apiKey) },
       VALIDATE_TIMEOUT_MS,
     );
 
-    if (res.ok) {
-      await assertModelAvailable(res, MODEL, "google");
-      return true;
-    }
+    if (res.ok) return { valid: true, models: await readModelIds(res, "google") };
     // Unlike the other two, Google reports a bad key as 400 with an
     // API_KEY_INVALID reason rather than 401. Treating every 400 as a bad key
     // would misreport our own malformed requests as the user's fault, so
     // match on the reason and let anything else fall through.
     if (res.status === 400 || res.status === 401 || res.status === 403) {
       const detail = await errorDetail(res);
-      if (res.status !== 400 || /API_KEY_INVALID|API key not valid/i.test(detail)) return false;
+      if (res.status !== 400 || /API_KEY_INVALID|API key not valid/i.test(detail)) return { valid: false };
       throw new ProviderError("failed", detail);
     }
     throw new ProviderError("unavailable", await errorDetail(res));
@@ -129,7 +150,7 @@ export const googleProvider: AIProvider = {
     options?: AskOptions,
   ): Promise<string> {
     const res = await providerFetch(
-      `${BASE}/models/${MODEL}:generateContent`,
+      modelUrl(options?.model, "generateContent"),
       {
         method: "POST",
         headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
@@ -142,14 +163,7 @@ export const googleProvider: AIProvider = {
       options?.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) {
-      const detail = await errorDetail(res);
-      const failure =
-        res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)
-          ? "invalid_key"
-          : failureFromStatus(res.status);
-      throw new ProviderError(failure, detail);
-    }
+    if (!res.ok) throw await httpFailure(res);
 
     const json = await res.json();
 
@@ -189,7 +203,7 @@ export const googleProvider: AIProvider = {
     const body = chatBody(input);
 
     const res = await providerFetch(
-      `${BASE}/models/${MODEL}:generateContent`,
+      modelUrl(input.model, "generateContent"),
       {
         method: "POST",
         headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
@@ -198,14 +212,7 @@ export const googleProvider: AIProvider = {
       input.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) {
-      const detail = await errorDetail(res);
-      const failure =
-        res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)
-          ? "invalid_key"
-          : failureFromStatus(res.status);
-      throw new ProviderError(failure, detail);
-    }
+    if (!res.ok) throw await httpFailure(res);
 
     const json = await res.json();
     const blockReason = json?.promptFeedback?.blockReason;
@@ -256,7 +263,7 @@ export const googleProvider: AIProvider = {
     try {
       // `alt=sse` makes Gemini frame its chunks as server-sent events, so the
       // shared reader applies here exactly as it does for the other two.
-      res = await fetch(`${BASE}/models/${MODEL}:streamGenerateContent?alt=sse`, {
+      res = await fetch(modelUrl(input.model, "streamGenerateContent?alt=sse"), {
         method: "POST",
         headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -268,14 +275,7 @@ export const googleProvider: AIProvider = {
       throw new ProviderError("unavailable", `network: ${reason}`);
     }
 
-    if (!res.ok) {
-      const detail = await errorDetail(res);
-      const failure =
-        res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)
-          ? "invalid_key"
-          : failureFromStatus(res.status);
-      throw new ProviderError(failure, detail, retryAfterSeconds(res));
-    }
+    if (!res.ok) throw await httpFailure(res);
 
     // Each event carries the candidate's parts for that chunk. Text parts
     // stream; functionCall parts arrive complete per chunk (Gemini does not

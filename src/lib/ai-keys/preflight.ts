@@ -3,10 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isEncryptionConfigured } from "./crypto";
 import { getDecryptedKey } from "./queries";
 import { hasConsent, type ConsentScope } from "./consent";
-import type { AIProviderName } from "./types";
+import { PROVIDER_MODELS, type AIProviderName } from "./types";
 
 type Preflight =
-  | { ok: true; provider: AIProviderName; key: string }
+  | { ok: true; provider: AIProviderName; key: string; model: string }
   | { ok: false; response: NextResponse };
 
 /**
@@ -108,5 +108,6 @@ export async function preflightProviderCall(
     };
   }
 
-  return { ok: true, provider: stored.provider, key: stored.key };
+  // The key's own model (0053), else the provider's first choice.
+  return { ok: true, provider: stored.provider, key: stored.key, model: stored.model ?? PROVIDER_MODELS[stored.provider] };
 }

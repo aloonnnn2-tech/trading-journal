@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const validateKey = vi.fn();
 const markApiKeyInvalid = vi.fn();
+const setApiKeyModel = vi.fn();
 const getDecryptedKey = vi.fn();
 const rateLimit = vi.fn();
 const requirePaidUser = vi.fn();
@@ -23,6 +24,7 @@ vi.mock("@/lib/ai-keys/guard", () => ({ requirePaidUser: () => requirePaidUser()
 vi.mock("@/lib/ai-keys/queries", () => ({
   getDecryptedKey: (...a: unknown[]) => getDecryptedKey(...a),
   markApiKeyInvalid: (...a: unknown[]) => markApiKeyInvalid(...a),
+  setApiKeyModel: (...a: unknown[]) => setApiKeyModel(...a),
 }));
 vi.mock("@/lib/ai-keys/providers", () => ({
   getProvider: () => ({ validateKey: (k: string) => validateKey(k) }),
@@ -44,12 +46,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   requirePaidUser.mockResolvedValue({ ok: true, supabase: {}, userId: "user-1" });
   rateLimit.mockResolvedValue({ ok: true });
-  getDecryptedKey.mockResolvedValue({ provider: "groq", key: "gsk_secret" });
+  getDecryptedKey.mockResolvedValue({ provider: "groq", key: "gsk_secret", model: null });
+  setApiKeyModel.mockResolvedValue({});
 });
 
 describe("POST /api/ai-keys/[id]/test", () => {
   it("reports a working key without parking it", async () => {
-    validateKey.mockResolvedValue(true);
+    validateKey.mockResolvedValue({ valid: true, models: [] });
 
     const res = await call();
     const body = await res.json();
@@ -61,7 +64,7 @@ describe("POST /api/ai-keys/[id]/test", () => {
   });
 
   it("parks a key the provider rejects", async () => {
-    validateKey.mockResolvedValue(false);
+    validateKey.mockResolvedValue({ valid: false });
 
     const body = await (await call()).json();
 
@@ -72,12 +75,37 @@ describe("POST /api/ai-keys/[id]/test", () => {
     expect(markApiKeyInvalid).toHaveBeenCalledWith({}, "key-1");
   });
 
+  it("moves a key off a retired model onto the next choice the provider still offers", async () => {
+    getDecryptedKey.mockResolvedValue({ provider: "groq", key: "gsk_secret", model: "llama-3.3-70b-versatile" });
+    validateKey.mockResolvedValue({ valid: true, models: ["qwen/qwen3.8-27b", "whisper-large-v3"] });
+
+    const body = await (await call()).json();
+
+    expect(body.state).toBe("working");
+    expect(body.model).toBe("qwen/qwen3.8-27b");
+    expect(body.message).toContain("no longer offers llama-3.3-70b-versatile");
+    expect(setApiKeyModel).toHaveBeenCalledWith({}, "key-1", "qwen/qwen3.8-27b", { validated: true });
+    // The picker never offers a speech model.
+    expect(body.models).toEqual(["qwen/qwen3.8-27b"]);
+  });
+
+  it("keeps a user's own model choice while the provider still offers it", async () => {
+    getDecryptedKey.mockResolvedValue({ provider: "groq", key: "gsk_secret", model: "openai/gpt-oss-20b" });
+    validateKey.mockResolvedValue({ valid: true, models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"] });
+
+    const body = await (await call()).json();
+
+    expect(body.model).toBe("openai/gpt-oss-20b");
+    expect(setApiKeyModel).toHaveBeenCalledWith({}, "key-1", "openai/gpt-oss-20b", { validated: true });
+  });
+
   it("separates a retired model from a bad key, and does NOT park it", async () => {
-    validateKey.mockRejectedValue(new ProviderError("model_missing", "no such model"));
+    validateKey.mockResolvedValue({ valid: true, models: ["something-else-entirely"] });
 
     const body = await (await call()).json();
 
     expect(body.state).toBe("model_missing");
+    expect(body.models).toEqual(["something-else-entirely"]);
     // The user's key is fine here; switching it off would send them to
     // replace a key that was never the problem.
     expect(markApiKeyInvalid).not.toHaveBeenCalled();
@@ -102,7 +130,7 @@ describe("POST /api/ai-keys/[id]/test", () => {
   });
 
   it("reads parked keys too -- the case the button exists for", async () => {
-    validateKey.mockResolvedValue(true);
+    validateKey.mockResolvedValue({ valid: true, models: [] });
 
     await call();
 
