@@ -141,7 +141,7 @@ export default function CookiesPage() {
               <Row
                 name="tl-design"
                 type="Local storage (preference)"
-                purpose="A preview switch for a design experiment. Only ever set if you open a link that turns it on; otherwise it is never written."
+                purpose="A preview switch for a design experiment that older versions of the app saved. Nothing is written to it any more; if your browser still has it, it is deleted on your next visit."
               />
               <Row
                 name="tz-synced"
