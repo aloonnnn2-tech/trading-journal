@@ -35,8 +35,14 @@ function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Other names brokers' exports use for the fee column. Only "commission"
+// itself matched before, so a "Fees" or "Comm" column was silently ignored
+// and every imported trade's P/L came in gross.
+const COMMISSION_HEADERS = new Set(["commission", "commissions", "comm", "fee", "fees", "totalfees", "commissionfee", "ibcommission"]);
+
 function guessMapping(header: string): ImportTarget {
-  const normalized = header.trim().toLowerCase().replace(/[\s_]+/g, "");
+  const normalized = header.trim().toLowerCase().replace(/[\s_/.-]+/g, "");
+  if (COMMISSION_HEADERS.has(normalized)) return "commission" as ImportTarget;
   const match = CORE_FIELD_OPTIONS.find(
     (opt) => opt.key.replace(/_/g, "") === normalized || opt.label.toLowerCase().replace(/\s+/g, "") === normalized,
   );

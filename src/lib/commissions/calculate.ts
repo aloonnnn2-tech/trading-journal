@@ -1,4 +1,4 @@
-import type { CommissionRule } from "./types";
+import type { CommissionRule, FeeComponent, FeeSide } from "./types";
 
 export interface CommissionTradeInput {
   /** "investment" is never charged -- see resolveCommission. */
@@ -67,7 +67,12 @@ export function sideFee(
   side: "entry" | "exit",
   price: number | null,
   shares: number | null,
+  /** Only multi-line rules need it: it decides which fill is the sell. */
+  direction: string | null = "long",
 ): number {
+  if (rule.components && rule.components.length > 0) {
+    return rule.components.reduce((sum, c) => sum + componentFee(c, side, price, shares, direction), 0);
+  }
   if (rule.applies_to !== "both" && rule.applies_to !== side) return 0;
 
   const amount = Number(rule.amount);
@@ -89,6 +94,78 @@ export function sideFee(
   }
 }
 
+/** Whether a fee line is charged on this fill. A long buys to enter and sells to exit; a short the reverse. */
+function chargesOn(lineSide: FeeSide, side: "entry" | "exit", direction: string | null): boolean {
+  if (lineSide === "both" || lineSide === side) return true;
+  if (lineSide === "entry" || lineSide === "exit") return false;
+  const isSell = direction === "short" ? side === "entry" : side === "exit";
+  return lineSide === (isSell ? "sell" : "buy");
+}
+
+/**
+ * One fee line for one fill. Same bases and clamping as a single-line rule,
+ * plus an optional cap as a percent of the fill's value -- which is how IBKR
+ * states its maximum ("1% of trade value"), and why a fixed dollar cap
+ * couldn't express it.
+ */
+export function componentFee(
+  c: FeeComponent,
+  side: "entry" | "exit",
+  price: number | null,
+  shares: number | null,
+  direction: string | null = "long",
+): number {
+  if (!chargesOn(c.side, side, direction)) return 0;
+  const amount = Number(c.amount);
+  if (!Number.isFinite(amount)) return 0;
+  const hasPrice = price != null && Number.isFinite(price);
+  const hasShares = shares != null && Number.isFinite(shares);
+  const value = hasPrice && hasShares ? Math.abs(price * shares) : null;
+
+  let fee: number;
+  switch (c.basis) {
+    case "flat":
+      fee = amount;
+      break;
+    case "per_unit":
+      if (!hasShares) return 0;
+      fee = amount * Math.abs(shares);
+      break;
+    case "percent":
+      if (value == null) return 0;
+      fee = (amount / 100) * value;
+      break;
+    default:
+      return 0;
+  }
+  if (c.min_fee != null && Number.isFinite(c.min_fee)) fee = Math.max(fee, Number(c.min_fee));
+  if (c.max_fee != null && Number.isFinite(c.max_fee)) fee = Math.min(fee, Number(c.max_fee));
+  // The percent cap applies after the minimum, as IBKR applies it: on a tiny
+  // order the 1% cap can undercut the $1 minimum.
+  if (c.max_percent != null && Number.isFinite(c.max_percent) && value != null) {
+    fee = Math.min(fee, (Number(c.max_percent) / 100) * value);
+  }
+  return Math.max(fee, 0);
+}
+
+/**
+ * Each fee line's charge for one fill, for showing the breakdown ("Commission
+ * $1.00 · SEC fee $0.02"). A single-line rule reports as one line named after
+ * the rule.
+ */
+export function feeLines(
+  rule: CommissionRule,
+  side: "entry" | "exit",
+  price: number | null,
+  shares: number | null,
+  direction: string | null = "long",
+): { label: string; fee: number }[] {
+  if (rule.components && rule.components.length > 0) {
+    return rule.components.map((c) => ({ label: c.label, fee: componentFee(c, side, price, shares, direction) }));
+  }
+  return [{ label: rule.name, fee: sideFee(rule, side, price, shares, direction) }];
+}
+
 /**
  * Fees actually incurred so far. A pending order hasn't filled, so it owes
  * nothing; an open position has paid to enter; a closed one has paid both
@@ -104,8 +181,9 @@ export function computeCommission(
   if (!rule) return none;
   if (trade.status === "pending") return none;
 
-  const entryFee = sideFee(rule, "entry", trade.entry_price, trade.shares);
-  const exitFee = trade.status === "closed" ? sideFee(rule, "exit", trade.exit_price, trade.shares) : 0;
+  const entryFee = sideFee(rule, "entry", trade.entry_price, trade.shares, trade.direction);
+  const exitFee =
+    trade.status === "closed" ? sideFee(rule, "exit", trade.exit_price, trade.shares, trade.direction) : 0;
 
   return { entryFee, exitFee, total: entryFee + exitFee };
 }
@@ -160,11 +238,11 @@ export function computeBreakevenPrice(
 
   const isShort = trade.direction === "short";
   const absShares = Math.abs(shares);
-  const entryFee = sideFee(rule, "entry", entry, shares);
+  const entryFee = sideFee(rule, "entry", entry, shares, trade.direction);
 
   let breakeven = entry;
   for (let i = 0; i < 40; i++) {
-    const exitFee = sideFee(rule, "exit", breakeven, shares);
+    const exitFee = sideFee(rule, "exit", breakeven, shares, trade.direction);
     const shift = (entryFee + exitFee) / absShares;
     const next = isShort ? entry - shift : entry + shift;
     if (Math.abs(next - breakeven) < 1e-10) {
@@ -180,4 +258,26 @@ export function computeBreakevenPrice(
   // drawing a nonsense line on the chart.
   if (!Number.isFinite(breakeven) || breakeven <= 0) return null;
   return breakeven;
+}
+
+/**
+ * The price that covers only the fee already paid to get in: entry plus the
+ * entry fee spread over the shares (minus, for a short). Buy 1 share at $80
+ * with a $2.50 fee and this is $82.50 -- the first point the trade stops
+ * being underwater for what it has cost so far. The full break-even above
+ * also covers the exit fee still to come ($85.00 in the same example); the
+ * trade card shows both, because both are true and traders think in each.
+ */
+export function computeEntryCoverPrice(
+  rule: CommissionRule | null,
+  trade: CommissionTradeInput,
+): number | null {
+  if (!rule) return null;
+  const { entry_price: entry, shares } = trade;
+  if (entry == null || shares == null || !Number.isFinite(entry) || !Number.isFinite(shares) || shares === 0) {
+    return null;
+  }
+  const shift = sideFee(rule, "entry", entry, shares, trade.direction) / Math.abs(shares);
+  const price = trade.direction === "short" ? entry - shift : entry + shift;
+  return Number.isFinite(price) && price > 0 ? price : null;
 }

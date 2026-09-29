@@ -36,6 +36,8 @@ import {
   matchCommissionRule,
   computeCommission,
   computeBreakevenPrice,
+  computeEntryCoverPrice,
+  feeLines,
 } from "@/lib/commissions/calculate";
 import type { CommissionRule } from "@/lib/commissions/types";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
@@ -178,6 +180,29 @@ export function TradeCard({
   const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
   const commissionPreview = computeCommission(commissionRule, trade);
   const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
+  // The price that covers only the fee already paid to get in ($82.50 for one
+  // share bought at $80 with a $2.50 fee) -- shown beside the full break-even
+  // ($85.00, which also covers the exit fee still to come).
+  const entryCoverPrice = isInvestment ? null : computeEntryCoverPrice(commissionRule, trade);
+  // Per-line fees for a multi-line rule (commission, SEC fee, TAF...), so the
+  // total isn't a black box.
+  const feeBreakdown =
+    commissionRule?.components && commissionRule.components.length > 1
+      ? [
+          ...feeLines(commissionRule, "entry", trade.entry_price, trade.shares, trade.direction),
+          ...(trade.status === "closed"
+            ? feeLines(commissionRule, "exit", trade.exit_price, trade.shares, trade.direction)
+            : []),
+        ]
+          .reduce<{ label: string; fee: number }[]>((acc, l) => {
+            const hit = acc.find((a) => a.label === l.label);
+            if (hit) hit.fee += l.fee;
+            else acc.push({ ...l });
+            return acc;
+          }, [])
+          // Sub-cent lines (the CAT fee) would print as "$0.00" -- a false zero.
+          .filter((l) => l.fee >= 0.005)
+      : [];
 
   const pendingInputs = {
     entry_price: trade.entry_price,
@@ -721,6 +746,12 @@ export function TradeCard({
               pending={pendingReason("commission", pendingInputs)}
             />
             <ReadOnlyField
+              label={trade.direction === "short" ? "Covers Entry Fee At" : "Covers Buy Fee At"}
+              tooltip="The price that pays back only the fee you paid to get in. Past it the trade is no longer underwater for what it has cost so far -- but the exit fee is still to come, so the full break-even is the next figure."
+              value={entryCoverPrice}
+              pending={pendingReason("breakeven_price", pendingInputs)}
+            />
+            <ReadOnlyField
               label="Breakeven Price"
               tooltip={`The price this trade has to reach before it's actually profitable, once the full round trip of commission is paid${commissionPreview.exitFee === 0 && commissionRule ? " (including the exit fee not yet charged)" : ""}. Shown as a dashed line on the chart.`}
               value={breakevenPrice}
@@ -878,6 +909,11 @@ export function TradeCard({
               Commission is applied automatically from your{" "}
               <span className="text-zinc-700 dark:text-zinc-300">{commissionRule.name}</span> rule.
               P/L above is net of it.
+              {feeBreakdown.length > 0 && (
+                <span className="mt-1 block">
+                  {feeBreakdown.map((l) => `${l.label} ${formatMoney(l.fee)}`).join(" · ")}
+                </span>
+              )}
             </p>
           )}
         </Card>

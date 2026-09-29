@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
-import { createCommissionRule, listCommissionRules } from "@/lib/commissions/queries";
+import { ComponentsUnavailableError, createCommissionRule, listCommissionRules } from "@/lib/commissions/queries";
 import { commissionRuleSchema, validateFeeRange } from "@/lib/commissions/schema";
 
 export async function GET() {
@@ -44,6 +44,12 @@ export async function POST(request: Request) {
     const rule = await createCommissionRule(supabase, userId, parsed.data);
     return NextResponse.json(rule, { status: 201 });
   } catch (error) {
+    if (error instanceof ComponentsUnavailableError) {
+      return NextResponse.json(
+        { error: "Broker presets with several fee lines need a database update (migration 0055) that hasn't been applied yet." },
+        { status: 503 },
+      );
+    }
     const code = (error as { code?: string }).code;
     // The commission tables only exist once migration 0022 has been pasted
     // into the SQL editor by hand -- say so explicitly instead of a bare 500.

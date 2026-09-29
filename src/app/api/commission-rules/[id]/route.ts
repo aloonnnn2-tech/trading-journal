@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
-import { deleteCommissionRule, updateCommissionRule } from "@/lib/commissions/queries";
+import { ComponentsUnavailableError, deleteCommissionRule, updateCommissionRule } from "@/lib/commissions/queries";
 import { commissionRulePatchSchema, validateFeeRange } from "@/lib/commissions/schema";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +29,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: rangeError }, { status: 400 });
   }
 
-  const rule = await updateCommissionRule(supabase, id, parsed.data);
+  let rule;
+  try {
+    rule = await updateCommissionRule(supabase, id, parsed.data);
+  } catch (error) {
+    if (error instanceof ComponentsUnavailableError) {
+      return NextResponse.json(
+        { error: "Rules with several fee lines need a database update (migration 0055) that hasn't been applied yet." },
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
   if (!rule) {
     return NextResponse.json({ error: "Rule not found" }, { status: 404 });
   }

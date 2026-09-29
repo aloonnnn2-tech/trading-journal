@@ -12,6 +12,25 @@ const nullableTrimmedString = z
     return trimmed === "" ? null : trimmed;
   });
 
+const nonNegativeOrNull = nullableFiniteNumber
+  .optional()
+  .refine((v) => v == null || v >= 0, "Fees can't be negative");
+
+/** One line of a multi-line rule (0055). */
+export const feeComponentSchema = z
+  .object({
+    label: z.string().trim().min(1, "Each fee line needs a name").max(60),
+    basis: z.enum(["flat", "percent", "per_unit"]),
+    amount: z.number().finite().min(0, "Amount can't be negative"),
+    side: z.enum(["both", "entry", "exit", "buy", "sell"]),
+    min_fee: nonNegativeOrNull,
+    max_fee: nonNegativeOrNull,
+    max_percent: nonNegativeOrNull,
+  })
+  .refine((c) => c.min_fee == null || c.max_fee == null || c.max_fee >= c.min_fee, {
+    message: "A fee line's maximum must be at least its minimum",
+  });
+
 export const commissionRuleSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
   rule_type: z.enum(["flat", "percent", "per_unit"]),
@@ -23,6 +42,9 @@ export const commissionRuleSchema = z.object({
   min_fee: nullableFiniteNumber.refine((v) => v == null || v >= 0, "Minimum fee can't be negative"),
   max_fee: nullableFiniteNumber.refine((v) => v == null || v >= 0, "Maximum fee can't be negative"),
   enabled: z.boolean(),
+  // Up to 8 lines: the richest real schedule here (IBKR Tiered) has 5.
+  components: z.array(feeComponentSchema).max(8).nullable().optional(),
+  preset_id: z.string().trim().max(80).nullable().optional(),
 });
 
 export const commissionRulePatchSchema = commissionRuleSchema
