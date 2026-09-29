@@ -154,7 +154,7 @@ export const FEATURE_TOUR_STEPS: TourStep[] = [
     targetId: "commissions-add",
     where: "Commissions",
     title: "Fees, so P/L is always net",
-    body: "Tell it your broker's rules once and every trade is charged automatically.",
+    body: "Pick your broker or enter your own fees once, and every trade is charged automatically.",
   },
 ];
 

@@ -10,21 +10,35 @@ export default async function CommissionsPage() {
 
   const rules = await listCommissionRules(supabase);
 
+  // The asset types in the user's own trades, offered as "Which trades?"
+  // choices -- free text on the trade card, so they are whatever the user
+  // has actually typed. RLS scopes this to the caller. Fails quiet: the form
+  // still takes a typed type.
+  const { data: typed } = await supabase
+    .from("trades")
+    .select("asset_type")
+    .not("asset_type", "is", null)
+    .limit(2000);
+  const assetTypes = [
+    ...new Map(
+      (typed ?? [])
+        .map((r) => String((r as { asset_type: string | null }).asset_type ?? "").trim())
+        .filter(Boolean)
+        .map((t) => [t.toLowerCase(), t] as const),
+    ).values(),
+  ].sort((a, b) => a.localeCompare(b));
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <TrackPageView event="commissions_viewed" />
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Commissions
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Commissions</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Tell the journal what your broker charges and every trade&apos;s P/L is recorded net of
-          those fees. Pick your broker to start from its published prices, or build your own. Each
-          trade shows two prices: with a $2.50-a-side fee, one share bought at $80 covers the buy fee
-          at $82.50 and breaks even after both fees at $85.00 — that line shows up on the chart.
+          What your broker charges. Every trade&apos;s profit and loss is recorded after these fees, and each trade shows
+          the price it has to reach to break even.
         </p>
       </div>
-      <CommissionManager initialRules={rules} />
+      <CommissionManager initialRules={rules} assetTypes={assetTypes} />
     </div>
   );
 }
