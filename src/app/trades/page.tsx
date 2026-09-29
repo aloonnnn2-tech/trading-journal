@@ -22,6 +22,7 @@ import { ScreenshotTradeButton } from "./screenshot-trade-button";
 import { TradeList } from "./trade-list";
 import { SummaryStrip } from "./summary-strip";
 import { ImportFirstTrade } from "./import-first-trade";
+import { CollapseOnPhone } from "@/components/mobile/collapse-on-phone";
 
 const PAGE_SIZE = 50;
 
@@ -66,6 +67,10 @@ export default async function TradesPage({
   const sortBy = toTradeSortField(params.sort);
   const sortDir = (params.dir as "asc" | "desc" | undefined) ?? "desc";
   const page = Math.max(1, Number(params.page) || 1);
+  // How many filters the phone's folded "Filters & sort" button is hiding,
+  // so an applied filter never looks like an empty list for no reason.
+  const activeFilterCount = [params.folder, params.strategy, params.q, params.market, params.emotion, params.plMin, params.plMax, params.fieldKey]
+    .filter((v) => v != null && v !== "").length;
 
   const plMin = params.plMin ? Number(params.plMin) : undefined;
   const plMax = params.plMax ? Number(params.plMax) : undefined;
@@ -143,10 +148,12 @@ export default async function TradesPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Trades</h1>
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Phones add trades from the tab bar's + button; five buttons here
+            wrapped onto two rows above the list. */}
+        <div className="hidden flex-wrap items-center gap-3 sm:flex">
           <Link
             href="/trades/import"
             data-tour-id="trades-import"
@@ -177,6 +184,7 @@ export default async function TradesPage({
         )}
       </div>
 
+      <CollapseOnPhone label="Filters & sort" activeCount={activeFilterCount} className="flex-col gap-6">
       {folders.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <FolderTab href={buildHref({ folder: undefined, page: "1" })} label="All Folders" active={!params.folder} />
@@ -215,7 +223,7 @@ export default async function TradesPage({
           any single value -- including rows saved before that cap -- from
           deciding the page width. */}
       <div className="flex flex-wrap items-center gap-3">
-        <form action="/trades" method="get" className="flex flex-wrap items-center gap-2">
+        <form action="/trades" method="get" className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {params.folder && <input type="hidden" name="folder" value={params.folder} />}
           {status && <input type="hidden" name="status" value={status} />}
           {params.strategy && <input type="hidden" name="strategy" value={params.strategy} />}
@@ -226,7 +234,7 @@ export default async function TradesPage({
             name="q"
             placeholder="Search ticker or company... (/)"
             defaultValue={params.q ?? ""}
-            className="w-56 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+            className="w-full sm:w-56 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
           />
           <select
             name="market"
@@ -299,6 +307,7 @@ export default async function TradesPage({
 
         <SortSelect buildHref={buildHref} sortBy={sortBy} sortDir={sortDir} />
       </div>
+      </CollapseOnPhone>
 
       {/* Phase 4B: the filtered closed trades at a glance, across all pages. */}
       {summaryTrades && <SummaryStrip figures={buildSummaryFigures(summaryTrades)} />}
@@ -416,7 +425,7 @@ function StatusTab({
   return (
     <Link
       href={href}
-      className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium sm:px-3 sm:py-1.5 sm:text-sm ${
         active
           ? "border-primary bg-primary/10 text-primary"
           : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-500"

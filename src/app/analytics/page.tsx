@@ -7,6 +7,7 @@ import { RMultipleHistogram } from "./r-multiple-histogram";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
+import { CollapseOnPhone } from "@/components/mobile/collapse-on-phone";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { TrackPageView } from "@/components/track-page-view";
 import { ExcursionPanel, ExcursionUpsell } from "./excursion-panel";
@@ -62,14 +63,14 @@ export default async function AnalyticsPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <TrackPageView event="analytics_panel_viewed" />
       <div data-tour-id="analytics-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Analytics</h1>
         <p className="mt-0.5 text-sm text-zinc-500">Every stat below is computed from your closed trades.</p>
       </div>
 
-      <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <StaggerGrid className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-6">
         <StatCard
           label="Total P/L"
           value={formatMoney(summary.totalPL)}
@@ -158,7 +159,9 @@ export default async function AnalyticsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* Phones fold everything below the two charts into one-line buttons:
+          open, this page was ~6,800px tall on a 390px screen. */}
+      <CollapseOnPhone label="Win rate by direction and tag" className="grid gap-4 lg:grid-cols-2">
         <BreakdownTable
           title="Win rate by direction"
           rows={summary.byDirection.map((row) => ({
@@ -179,34 +182,44 @@ export default async function AnalyticsPage() {
             totalPL: row.totalPL,
           }))}
         />
-      </div>
+      </CollapseOnPhone>
 
       {/* The five deep panels, always expanded. These used to collapse behind
           a one-line summary in "Focused" mode, switchable from a toggle in the
           nav bar; that mode and its toggle have been removed. */}
       <section className="flex flex-col gap-2" data-shot="excursion" data-tour-id="tour-excursion">
-        {excursionReport ? <ExcursionPanel report={excursionReport} /> : <ExcursionUpsell />}
+        <CollapseOnPhone label="Entries and exits (MAE / MFE)" className="flex-col gap-2">
+          {excursionReport ? <ExcursionPanel report={excursionReport} /> : <ExcursionUpsell />}
+        </CollapseOnPhone>
       </section>
 
       <section className="flex flex-col gap-2" data-tour-id="tour-performance">
-        {paid ? equityCurve && <PerformancePanel curve={equityCurve} /> : <PerformanceUpsell />}
+        <CollapseOnPhone label="Performance" className="flex-col gap-2">
+          {paid ? equityCurve && <PerformancePanel curve={equityCurve} /> : <PerformanceUpsell />}
+        </CollapseOnPhone>
       </section>
 
       <section className="flex flex-col gap-2" data-tour-id="tour-drawdown">
-        {/* Episodes are a walk over the same curve, so no second query. */}
-        {paid ? (
-          equityCurve && <DrawdownPanel report={buildDrawdownReport(equityCurve.points)} />
-        ) : (
-          <DrawdownUpsell />
-        )}
+        <CollapseOnPhone label="Drawdowns" className="flex-col gap-2">
+          {/* Episodes are a walk over the same curve, so no second query. */}
+          {paid ? (
+            equityCurve && <DrawdownPanel report={buildDrawdownReport(equityCurve.points)} />
+          ) : (
+            <DrawdownUpsell />
+          )}
+        </CollapseOnPhone>
       </section>
 
       <section className="flex flex-col gap-2" data-tour-id="tour-risk">
-        {paid ? riskReport && <RiskPanel report={riskReport} /> : <RiskUpsell />}
+        <CollapseOnPhone label="Risk" className="flex-col gap-2">
+          {paid ? riskReport && <RiskPanel report={riskReport} /> : <RiskUpsell />}
+        </CollapseOnPhone>
       </section>
 
       <section className="flex flex-col gap-2" data-tour-id="tour-regime">
-        {paid ? regimeReport && <RegimePanel report={regimeReport} /> : <RegimeUpsell />}
+        <CollapseOnPhone label="Market conditions" className="flex-col gap-2">
+          {paid ? regimeReport && <RegimePanel report={regimeReport} /> : <RegimeUpsell />}
+        </CollapseOnPhone>
       </section>
     </div>
   );
@@ -227,6 +240,7 @@ function BreakdownTable({
       {rows.length === 0 ? (
         <p className="text-sm text-zinc-500">No closed trades yet.</p>
       ) : (
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
@@ -263,6 +277,7 @@ function BreakdownTable({
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </Card>
   );

@@ -354,7 +354,10 @@ export function TradeCard({
           data-tour-id="trade-detail-hero"
           className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4"
         >
-          <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Two columns even on a phone: one field per row made the form four
+              screens long. The P/L block moves above the fields there (below),
+              instead of taking the right 40% of every row. */}
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
             <Field label="Ticker">
               <input
                 type="text"
@@ -469,7 +472,7 @@ export function TradeCard({
             )}
           </div>
           {!isInvestment && (
-            <div className="shrink-0 text-right">
+            <div className="shrink-0 text-right max-sm:order-first max-sm:w-full max-sm:text-left">
               <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-500">
                 Dollar P/L
               </p>
@@ -532,7 +535,7 @@ export function TradeCard({
         hoverable={false}
         className={activeExtra === null ? "hidden" : "border-primary/30"}
       >
-        <div className={activeExtra === "details" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "hidden"}>
+        <div className={activeExtra === "details" ? "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" : "hidden"}>
           <Field label="Mode">
             <select
               className={inputClass}
@@ -575,7 +578,7 @@ export function TradeCard({
           )}
         </div>
 
-        <div className={activeExtra === "dates" ? "grid gap-4 sm:grid-cols-2" : "hidden"}>
+        <div className={activeExtra === "dates" ? "grid grid-cols-2 gap-3 sm:gap-4" : "hidden"}>
           {!isHidden("entry_date") &&
             (isPending && !trade.entry_date ? (
               // Not asked for yet: the order has not entered. The fill stamps
@@ -708,7 +711,7 @@ export function TradeCard({
                 </>
               )}
             </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <ReadOnlyField
               label="Dollar P/L"
               tooltip="Net of commission. This is what actually landed in your account."
@@ -806,7 +809,7 @@ export function TradeCard({
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
             Entry information
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
             {!isHidden("entry_price") && (
               <NumberField
                 label={priceLabels.entry}

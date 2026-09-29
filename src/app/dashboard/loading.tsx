@@ -13,7 +13,7 @@ export default function DashboardLoading() {
     // data-route-loading: tells the guided tour this page is still on its
     // way, so it does not report a step's target as missing while the real
     // page streams in. See pageStillLoading() in tour-overlay.tsx.
-    <div data-route-loading className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div data-route-loading className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="animate-pulse">
           <div className="h-7 w-40 rounded-md bg-zinc-200 dark:bg-zinc-800" />

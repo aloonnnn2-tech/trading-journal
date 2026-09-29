@@ -15,7 +15,7 @@ export default async function EmotionsPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div data-tour-id="emotions-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Emotion Tracking</h1>
         <p className="mt-0.5 text-sm text-zinc-500">How your state of mind shows up in your results.</p>
@@ -28,6 +28,7 @@ export default async function EmotionsPage() {
         {breakdown.length === 0 ? (
           <p className="text-sm text-zinc-500">No emotion data on closed trades yet.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
@@ -52,6 +53,7 @@ export default async function EmotionsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
 

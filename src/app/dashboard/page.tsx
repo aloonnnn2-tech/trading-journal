@@ -57,7 +57,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <TrackPageView event="dashboard_viewed" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -76,7 +76,10 @@ export default async function DashboardPage() {
         <ImportFirstTrade accountBalance={accountBalance.hasTransactions ? accountBalance.balance : null} />
       )}
 
-      <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Phones: two columns (seven cards one-per-row was a screen and a half
+          of scrolling), with the cash card -- the one with buttons -- across
+          both. */}
+      <StaggerGrid className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
         <AccountCashCard
           initialBalance={accountBalance}
           initialTransactions={accountTransactions}

@@ -15,7 +15,7 @@ export default async function SettingsPage() {
   const showTradeSummary = await getShowTradeSummary(supabase, userId).catch(() => null);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <TrackPageView event="settings_viewed" />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Settings</h1>

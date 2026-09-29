@@ -81,7 +81,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   const features = detail.eventCounts.filter((e) => !PLUMBING.has(e.eventName));
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <AdminTabs active="users" />
 
       <div className="flex flex-wrap items-end justify-between gap-3">

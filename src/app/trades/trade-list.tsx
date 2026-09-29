@@ -90,7 +90,10 @@ export function TradeList({
     // carries on from where they were.
     const last = lastOpenRef.current;
     if (last) {
-      document.querySelector<HTMLElement>(`[data-trade-link="${last}"]`)?.focus();
+      // The phone card and the table row both carry the id; one is hidden.
+      [...document.querySelectorAll<HTMLElement>(`[data-trade-link="${last}"]`)]
+        .find((el) => el.offsetParent !== null)
+        ?.focus();
       lastOpenRef.current = null;
     }
     pushedRef.current = false;
@@ -104,9 +107,59 @@ export function TradeList({
     );
   }
 
+  // Shared by the phone cards and the table rows: plain click opens the
+  // preview (or the full page, per Settings); modified clicks are the
+  // browser's, so ctrl/cmd/middle-click still opens a new tab.
+  const onRowClick = (id: string, e: React.MouseEvent) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    if (prefs.tradePreview) open(id);
+    else router.push(`/trades/${id}`);
+  };
+
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card">
+      {/* Phones: one card per trade. The 7-column table below only fitted by
+          scrolling sideways, cutting every row off mid-way. The card keeps
+          what a trader scans for -- ticker, result, P/L, R:R, date -- and the
+          full detail is one tap away. */}
+      <ul className="flex flex-col gap-2 sm:hidden">
+        {trades.map((trade) => (
+          <li key={trade.id}>
+            <a
+              href={`/trades/${trade.id}`}
+              data-trade-link={trade.id}
+              onClick={(e) => onRowClick(trade.id, e)}
+              className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 ${
+                trade.id === openId
+                  ? "border-primary/50 bg-primary/[0.07]"
+                  : "border-zinc-200 bg-white dark:border-subtle dark:bg-card"
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-semibold text-zinc-900 dark:text-zinc-50">{trade.ticker || "Untitled"}</span>
+                  <ResultBadge result={trade.result} status={trade.status} />
+                </div>
+                <p className="mt-0.5 truncate text-xs text-zinc-500">
+                  {formatDate(trade.entry_date)}
+                  {trade.risk_reward_ratio != null ? ` · R:R ${trade.risk_reward_ratio.toFixed(2)}` : ""}
+                  {(stratNamesByTradeId[trade.id] ?? []).length > 0 ? ` · ${stratNamesByTradeId[trade.id].join(", ")}` : ""}
+                </p>
+              </div>
+              {trade.dollar_pl !== null ? (
+                <span className={`tnum shrink-0 font-mono text-sm ${trade.dollar_pl >= 0 ? "text-profit" : "text-loss"}`}>
+                  {formatMoney(trade.dollar_pl, { sign: "always" })}
+                </span>
+              ) : (
+                <span className="shrink-0 text-xs capitalize text-zinc-500">{trade.status}</span>
+              )}
+            </a>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card sm:block">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-zinc-200 dark:border-subtle text-xs uppercase text-zinc-500">
             <tr>
@@ -128,15 +181,7 @@ export function TradeList({
                 <tr
                   key={trade.id}
                   data-selected={selected || undefined}
-                  onClick={(e) => {
-                    // Leave modified and non-primary clicks to the browser, so
-                    // a ctrl/cmd/middle click on the ticker still opens the
-                    // full page in a new tab.
-                    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                    e.preventDefault();
-                    if (prefs.tradePreview) open(trade.id);
-                    else router.push(`/trades/${trade.id}`);
-                  }}
+                  onClick={(e) => onRowClick(trade.id, e)}
                   className={`cursor-pointer border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 ${
                     selected ? "bg-primary/[0.07]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
                   }`}

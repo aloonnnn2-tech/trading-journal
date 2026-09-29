@@ -39,7 +39,7 @@ export default async function AdminWaitlistPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <AdminTabs active="waitlist" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

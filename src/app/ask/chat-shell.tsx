@@ -354,7 +354,7 @@ export function ChatShell({
             mt-auto pushes it down while the conversation is still short. */}
         <form
           onSubmit={handleSubmit}
-          className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 border-t border-zinc-200 bg-zinc-50/95 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur dark:border-subtle dark:bg-zinc-950/95"
+          className="sticky bottom-[var(--tabbar-h)] z-10 mt-auto flex flex-col gap-2 border-t border-zinc-200 bg-zinc-50/95 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur dark:border-subtle dark:bg-zinc-950/95"
         >
           <textarea
             rows={2}

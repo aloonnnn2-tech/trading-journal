@@ -71,7 +71,7 @@ export default async function AskPage({
       className={
         paid
           ? "flex w-full flex-1 flex-col gap-4 px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8"
-          : "mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-6 sm:p-8"
+          : "mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-5 sm:p-8"
       }
     >
       <div data-tour-id="ask-header">

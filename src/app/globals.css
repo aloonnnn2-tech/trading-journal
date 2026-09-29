@@ -273,3 +273,20 @@ html[data-announcement-dismissed] [data-announcement] {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---- Phones: room for the bottom tab bar ---------------------------------
+ * The bar (components/mobile/mobile-tab-bar.tsx) is fixed to the bottom of
+ * the screen below `sm` on app pages. --tabbar-h is its height there and 0
+ * everywhere else, so the page ends above it rather than under it, and
+ * anything pinned to the bottom (the Ask composer) sits on top of it. */
+:root {
+  --tabbar-h: 0px;
+}
+@media (max-width: 639.98px) {
+  :root:has([data-mobile-tabbar]) {
+    --tabbar-h: calc(3.75rem + env(safe-area-inset-bottom));
+  }
+}
+#main-content {
+  padding-bottom: var(--tabbar-h);
+}

@@ -25,6 +25,7 @@ import { DemoBanner } from "@/components/demo/demo-banner";
 import { getDemoState } from "@/lib/demo/queries";
 import { getPreferences } from "@/lib/settings/preferences-queries";
 import { PreferencesProvider } from "@/components/preferences/preferences-provider";
+import { MobileTabBar } from "@/components/mobile/mobile-tab-bar";
 import { DesignFlagScript } from "@/components/design/design-flag";
 import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -169,6 +170,7 @@ export default async function RootLayout({
           >
             <PageTransition>{children}</PageTransition>
           </main>
+          <MobileTabBar />
           </PreferencesProvider>
         </ThemeProvider>
       </body>

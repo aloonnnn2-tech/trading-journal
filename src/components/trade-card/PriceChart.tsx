@@ -527,7 +527,8 @@ export function PriceChart({
       ) : waitingForHolding || (!useHolding && !candles) ? (
         <p className="px-5 py-16 text-center text-sm text-zinc-500">Loading price history…</p>
       ) : (
-        <div className="h-[480px] w-full overflow-hidden rounded-b-xl" ref={containerRef} />
+        // 288px on a phone: 480 was most of the screen. autoSize follows.
+        <div className="h-72 w-full overflow-hidden rounded-b-xl sm:h-[480px]" ref={containerRef} />
       )}
     </Card>
   );

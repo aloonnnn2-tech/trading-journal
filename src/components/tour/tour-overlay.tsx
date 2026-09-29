@@ -668,9 +668,9 @@ export function TourOverlay() {
         // whatever was on the page -- a trade table, the performance chart --
         // and stayed there until answered (issue 2 of docs/design-audit.md).
         // A corner is the one place a card this size covers nothing that is
-        // being read. Still full-width on a phone, where there is no corner
-        // to sit in.
-        className="fixed bottom-4 right-4 z-[102] flex w-[calc(100vw-2rem)] max-w-sm items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md sm:w-auto dark:bg-card/95"
+        // being read. Not shown on phones at all: there it covered the tab
+        // bar, and every tour is still one tap away in the account menu.
+        className="fixed bottom-4 right-4 z-[102] hidden w-[calc(100vw-2rem)] sm:flex max-w-sm items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md sm:w-auto dark:bg-card/95"
       >
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Paid plan</p>

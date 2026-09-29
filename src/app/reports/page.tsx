@@ -24,7 +24,7 @@ export default async function ReportsPage({
 
   if (!isPaidUser(settings)) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
         <div>
           <h1
             data-tour-id="tour-reports"
@@ -67,7 +67,7 @@ export default async function ReportsPage({
     : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8 print:max-w-none print:p-0">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8 print:max-w-none print:p-0">
       <div className="print:hidden">
         <h1
             data-tour-id="tour-reports"

@@ -35,7 +35,7 @@ export default async function InsightsPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div data-tour-id="insights-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Insights</h1>
         <p className="mt-0.5 text-sm text-zinc-500">

@@ -139,7 +139,7 @@ export default async function TradeDetailPage({
   }));
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <Link href="/trades" className="text-sm text-zinc-500 hover:text-zinc-300">
         ← Back to Trades
       </Link>

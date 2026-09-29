@@ -191,7 +191,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
     // chrome, and it appears on every page, so hiding it here covers all of
     // them rather than only /reports.
     <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-subtle bg-white/85 dark:bg-background/85 backdrop-blur-md print:hidden">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 sm:flex-nowrap sm:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 sm:flex-nowrap sm:px-8">
         <Link
           href="/dashboard"
           className="order-1 flex shrink-0 items-center gap-2.5 py-3.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
@@ -199,12 +199,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
           <BrandMark className="h-6 w-6" />
           <span className="hidden sm:inline">Trading Lens</span>
         </Link>
-        {/* Below `sm`, this wraps onto its own full-width row instead of the
-            horizontal-scroll-with-no-affordance it used to be -- every other
-            multi-item row in this app (status/folder/strategy tabs on
-            /trades) already wraps the same way, this just brings the primary
-            nav in line with that pattern. */}
-        <nav className="order-3 flex w-full flex-wrap items-center gap-1 sm:order-2 sm:w-auto sm:min-w-0 sm:flex-nowrap">
+        {/* Below `sm` (phones) these links live in the bottom tab bar and
+            its More sheet (components/mobile/mobile-tab-bar.tsx) instead: here
+            they wrapped onto two rows and took ~155px off every screen. */}
+        <nav className="order-3 hidden w-full items-center gap-1 sm:order-2 sm:flex sm:w-auto sm:min-w-0 sm:flex-nowrap">
           {PRIMARY_LINKS.map((link) => (
             <NavItem key={link.href} link={link} active={isActive(pathname, link.href)} />
           ))}

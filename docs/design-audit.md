@@ -302,6 +302,14 @@ Found while doing a phase and deliberately left out of its scope. Each needs Alo
 - **The chart's breakeven line ignores a hand-typed commission** *(found checking exit against breakeven, 28 Sep 2026).* `TradeCard` computes it with `computeBreakevenPrice(matchCommissionRule(...), trade)` (`src/lib/commissions/calculate.ts`), from the commission *rule* even when `commission_manual` is set, so a trade whose fee was typed in shows a breakeven for the rule's fee (or none, with no rule) rather than the one it paid. Win/loss is unaffected: it comes from `dollar_pl`, which is net of the stored commission. Needs a decision on what a typed commission covers (entry side only while open, both sides once closed) before the line can use it.
 - **DashboardPage logs a React "missing key" warning** in dev *(noticed during 4A)*, from a child passed into a `motion.div`. Pre-existing.
 
+*From the 29 Sep 2026 round (palette, AI models, Ask, Settings, commissions, mobile):*
+- **Broker presets left out for want of a checkable figure.** Lightspeed (its page doesn't show the base tier clearly), Kraken (tiers changed 2026-07-09 and the new table didn't render), Saxo and moomoo (only third-party figures found), Israeli banks and brokers (no public schedule). Each can be added once its figure is read at the source; `src/lib/commissions/presets.ts` explains the rule. All presets say "checked 2026-09-29", so they need a periodic re-check.
+- **Exchange and NFA fees on futures presets** vary by contract and are not modelled; each futures preset says so. A per-product table (ES, NQ, CL...) would make futures P/L exact.
+- **Options SEC fee** needs the 100x contract multiplier the fee engine doesn't have; options presets leave it out (cents per trade).
+- **Phone: Export and "From screenshot" aren't on /trades below 640px.** The tab bar's + covers Quick trade, the full form and the import page; Export has no phone entry point yet.
+- **Phone: /paid-plan (6,367px) and /privacy (4,646px) are still long.** Marketing and legal pages were not folded; they fit the screen width.
+- **Phone: the guided tour's nav steps** point at bottom-bar items where they exist (Dashboard, Trades, Analytics, the More sheet's links) and fall back to "Take me there" otherwise. Not reviewed step by step on a phone.
+
 ### Backlog: P3, don't start without being asked
 
 - Real testimonials once users supply them.

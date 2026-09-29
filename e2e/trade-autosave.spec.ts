@@ -42,7 +42,13 @@ test.afterAll(async () => {
  *  immediately and navigates -- there is no intermediate dialog. */
 async function newTrade(page: import("@playwright/test").Page): Promise<string> {
   await page.goto("/trades");
-  // First visit shows an onboarding tour whose overlay swallows clicks.
+  // First visit asks about a demo journal (Phase 4D), then offers the tour;
+  // both overlays swallow clicks. Starting empty keeps this user's journal
+  // to the trades these tests create.
+  await page
+    .getByRole("button", { name: /no thanks, start empty/i })
+    .click({ timeout: 8_000 })
+    .catch(() => {});
   await page
     .getByRole("button", { name: /explore on my own/i })
     .click({ timeout: 5_000 })

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { ShowMoreOnPhone } from "@/components/mobile/show-more-on-phone";
 import { MIN_SEGMENT_TRADES, type SegmentStats } from "@/lib/segments/engine";
 import type { ScorecardReport, StrategyScorecard } from "@/lib/scorecards/queries";
 import { formatMoney } from "@/lib/format/money";
@@ -83,7 +84,8 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
             Recent vs earlier
           </p>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[20rem] text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-zinc-400">
                 <th className="py-1 text-left font-medium">Half</th>
@@ -98,6 +100,7 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
               <TrendRow label="Earlier half" stats={card.trend.earlier} />
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -160,11 +163,11 @@ export function StrategyScorecards({ report }: { report: ScorecardReport }) {
           and their scorecards appear here.
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <ShowMoreOnPhone count={report.scorecards.length} noun="scorecards" className="grid gap-4 lg:grid-cols-2">
           {report.scorecards.map((card) => (
             <Scorecard key={card.strategy.id} card={card} />
           ))}
-        </div>
+        </ShowMoreOnPhone>
       )}
 
       {report.belowFloor.length > 0 && (
