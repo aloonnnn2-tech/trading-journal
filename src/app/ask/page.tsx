@@ -64,7 +64,16 @@ export default async function AskPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-6 sm:p-8">
+    // Paid: the chat takes the whole window, edge to edge, and pins its
+    // composer to the bottom -- no bottom padding, the composer owns that
+    // edge. The paywall card keeps the narrow reading column.
+    <div
+      className={
+        paid
+          ? "flex w-full flex-1 flex-col gap-4 px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8"
+          : "mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-6 sm:p-8"
+      }
+    >
       <div data-tour-id="ask-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Ask Your Journal

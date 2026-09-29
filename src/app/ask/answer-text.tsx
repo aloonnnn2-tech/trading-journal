@@ -81,7 +81,7 @@ export function AnswerText({ text }: { text: string }) {
     if (paragraph.length === 0) return;
     const content = paragraph.join(" ");
     blocks.push(
-      <p key={`p${key++}`} className="text-sm leading-relaxed">
+      <p key={`p${key++}`} className="max-w-[90ch] text-[15px] leading-relaxed">
         {renderInline(content, `p${key}`)}
       </p>,
     );
@@ -91,7 +91,9 @@ export function AnswerText({ text }: { text: string }) {
   function flushList() {
     if (!list) return;
     const { ordered, items } = list;
-    const className = `ml-5 flex flex-col gap-1 text-sm leading-relaxed ${
+    // Prose keeps a readable line length on a wide screen; tables (below)
+    // use the full width of the answer.
+    const className = `ml-5 flex max-w-[90ch] flex-col gap-1 text-[15px] leading-relaxed ${
       ordered ? "list-decimal" : "list-disc"
     }`;
     blocks.push(

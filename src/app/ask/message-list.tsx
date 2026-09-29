@@ -33,7 +33,7 @@ export function MessageList({
         return (
           <div key={turn.user.id} className="flex flex-col gap-3">
             <div className="flex justify-end">
-              <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary/10 px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100">
+              <p className="max-w-[min(85%,48rem)] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary/10 px-4 py-2.5 text-[15px] text-zinc-900 dark:text-zinc-100">
                 {turn.user.content}
               </p>
             </div>

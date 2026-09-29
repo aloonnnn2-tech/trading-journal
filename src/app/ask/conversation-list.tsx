@@ -51,7 +51,9 @@ export function ConversationList({
       </div>
 
       {/* Desktop: the rail. */}
-      <aside className="hidden w-56 shrink-0 flex-col gap-1 md:flex">
+      {/* Sticky under the nav bar, scrolling on its own once the list is
+          longer than the window. */}
+      <aside className="hidden w-60 shrink-0 flex-col gap-1 self-start overflow-y-auto md:sticky md:top-20 md:flex md:max-h-[calc(100dvh-6rem)] xl:w-72">
         <button
           type="button"
           onClick={onNew}

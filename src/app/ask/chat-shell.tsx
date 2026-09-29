@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Square } from "lucide-react";
 import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/ai-keys/types";
@@ -86,6 +86,22 @@ export function ChatShell({
     initialTurns,
     onTurnComplete: refreshList,
   });
+
+  // Follow a streaming answer down the page -- but only while the reader is
+  // already at the bottom. Someone who scrolled up to re-read an earlier
+  // answer must not be yanked back down by every new word.
+  const endRef = useRef<HTMLDivElement>(null);
+  const followRef = useRef(true);
+  useEffect(() => {
+    const onScroll = () => {
+      followRef.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  useEffect(() => {
+    if (followRef.current && chat.turns.length > 0) endRef.current?.scrollIntoView({ block: "end" });
+  }, [chat.turns, chat.phase]);
 
   // A conversation opened from the rail: load its rows and swap the URL so
   // refresh lands back here. Server-rendered on first load; fetched after.
@@ -223,7 +239,7 @@ export function ChatShell({
   // ---- No keys yet: setup is the whole page ----------------------------
   if (keys.length === 0) {
     return (
-      <Card hoverable={false} className="flex flex-col gap-4">
+      <Card hoverable={false} className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Connect an AI provider</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -245,7 +261,7 @@ export function ChatShell({
   const tierLine = provider ? describeTier(provider, PROVIDER_LABELS[provider]) : null;
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+    <div className="flex flex-1 flex-col gap-4 md:flex-row md:gap-6">
       <ConversationList
         items={conversations}
         activeId={active?.id ?? null}
@@ -256,6 +272,17 @@ export function ChatShell({
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-4">
+        {chat.turns.length === 0 && !disclosureProvider && <EmptyState onPick={(q) => setQuestion(q)} />}
+
+        <MessageList
+          turns={chat.turns}
+          phase={chat.phase}
+          providerLabel={providerLabel}
+          needsContinue={chat.needsContinue}
+          onKeepGoing={() => void chat.keepGoing()}
+          onResume={() => void chat.resume()}
+        />
+
         {disclosureProvider && (
           <ProviderConsentCard
             provider={disclosureProvider}
@@ -269,15 +296,6 @@ export function ChatShell({
             }}
           />
         )}
-
-        <MessageList
-          turns={chat.turns}
-          phase={chat.phase}
-          providerLabel={providerLabel}
-          needsContinue={chat.needsContinue}
-          onKeepGoing={() => void chat.keepGoing()}
-          onResume={() => void chat.resume()}
-        />
 
         {/* Every key is switched off -- the state that disables Send. Say why. */}
         {usableKeys.length === 0 && (
@@ -299,9 +317,47 @@ export function ChatShell({
           </Card>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        {shownError && (
+          <Card hoverable={false} role="alert" className="flex items-start justify-between gap-3 border-red-500/40 text-sm text-loss">
+            <span>{shownError}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setUiError(null);
+                chat.clearError();
+              }}
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              Dismiss
+            </button>
+          </Card>
+        )}
+
+        {managingKeys && (
+          <KeyManager
+            keys={keys}
+            onKeysChange={(update) => setKeys(update)}
+            onAdded={(created) => {
+              setKeys((prev) => [...prev, created]);
+              setSelectedKeyId(created.id);
+              setManagingKeys(false);
+            }}
+            onError={setUiError}
+          />
+        )}
+
+        {/* The anchor auto-scroll keeps in view while an answer streams. */}
+        <div ref={endRef} aria-hidden />
+
+        {/* Pinned to the bottom of the window, like every chat app: the
+            conversation scrolls behind it and the box never leaves reach.
+            mt-auto pushes it down while the conversation is still short. */}
+        <form
+          onSubmit={handleSubmit}
+          className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 border-t border-zinc-200 bg-zinc-50/95 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur dark:border-subtle dark:bg-zinc-950/95"
+        >
           <textarea
-            rows={3}
+            rows={2}
             placeholder={
               chat.turns.length > 0
                 ? "Ask a follow-up. It remembers this conversation."
@@ -315,7 +371,8 @@ export function ChatShell({
                 (e.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
               }
             }}
-            className={`${inputClass} resize-y`}
+            // Grows with what is typed, up to a third of the window.
+            className={`${inputClass} field-sizing-content min-h-[3.25rem] max-h-[33dvh] resize-none text-[15px]`}
           />
 
           <div className="flex flex-wrap items-center gap-3">
@@ -346,7 +403,7 @@ export function ChatShell({
               <select
                 value={selected?.id ?? ""}
                 onChange={(e) => setSelectedKeyId(e.target.value)}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+                className="min-w-0 max-w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
               >
                 {usableKeys.map((k) => (
                   <option key={k.id} value={k.id}>
@@ -365,39 +422,39 @@ export function ChatShell({
             >
               {managingKeys ? "Hide keys" : `Manage keys (${keys.length})`}
             </button>
+
+            {tierLine && <p className="hidden text-[11px] text-zinc-500 lg:ml-auto lg:block">{tierLine}</p>}
           </div>
-
-          {tierLine && <p className="text-[11px] text-zinc-500">{tierLine}</p>}
         </form>
+      </div>
+    </div>
+  );
+}
 
-        {shownError && (
-          <Card hoverable={false} role="alert" className="flex items-start justify-between gap-3 border-red-500/40 text-sm text-loss">
-            <span>{shownError}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setUiError(null);
-                chat.clearError();
-              }}
-              className="text-xs text-zinc-500 hover:text-zinc-300"
-            >
-              Dismiss
-            </button>
-          </Card>
-        )}
+// Starting points for an empty conversation. Questions only -- they claim
+// nothing about the user's journal, and picking one just fills the box.
+const EXAMPLE_QUESTIONS = [
+  "Which setup is making me the most money, and which is losing it?",
+  "What do my worst trades this month have in common?",
+  "Am I cutting winners too early? Check my exits against my targets.",
+  "How does my win rate change by day of the week?",
+];
 
-        {managingKeys && (
-          <KeyManager
-            keys={keys}
-            onKeysChange={(update) => setKeys(update)}
-            onAdded={(created) => {
-              setKeys((prev) => [...prev, created]);
-              setSelectedKeyId(created.id);
-              setManagingKeys(false);
-            }}
-            onError={setUiError}
-          />
-        )}
+function EmptyState({ onPick }: { onPick: (question: string) => void }) {
+  return (
+    <div className="flex flex-col gap-3 py-2">
+      <p className="text-sm text-zinc-500">Not sure where to start? Pick one and edit it before sending.</p>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {EXAMPLE_QUESTIONS.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => onPick(q)}
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm text-zinc-700 transition-colors hover:border-primary/50 hover:text-zinc-900 dark:border-subtle dark:bg-card dark:text-zinc-300 dark:hover:text-zinc-50"
+          >
+            {q}
+          </button>
+        ))}
       </div>
     </div>
   );
