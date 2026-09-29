@@ -2,6 +2,7 @@
 
 import { motion, type HTMLMotionProps } from "framer-motion";
 import { useReveal } from "@/components/motion/use-reveal";
+import { usePreferences } from "@/components/preferences/preferences-provider";
 
 type CardProps = HTMLMotionProps<"div"> & { hoverable?: boolean; standalone?: boolean };
 
@@ -23,12 +24,16 @@ type CardProps = HTMLMotionProps<"div"> & { hoverable?: boolean; standalone?: bo
 // reads better than a CSS transition.
 export function Card({ className = "", hoverable = true, standalone = true, ...props }: CardProps) {
   const ref = useReveal<HTMLDivElement>();
+  // Setup -> Settings "Hover motion". Outside the app (no provider) this
+  // reads the default, on.
+  const { prefs } = usePreferences();
+  const lift = hoverable && prefs.hoverMotion;
 
   return (
     <motion.div
       ref={standalone ? ref : undefined}
       data-reveal={standalone ? "up" : undefined}
-      whileHover={hoverable ? { y: -1, transition: { duration: 0.15 } } : undefined}
+      whileHover={lift ? { y: -1, transition: { duration: 0.15 } } : undefined}
       // Inert in V1; Design V2 uses it to cancel the entrance animation and
       // the hover lift. See design-v2.css section 5.
       data-v2-flat

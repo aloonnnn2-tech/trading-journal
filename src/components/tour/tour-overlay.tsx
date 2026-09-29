@@ -10,6 +10,7 @@ import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-o
 import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
 import { navDirections, type NavDirections } from "@/lib/tour/nav-target";
 import { WelcomeModal } from "./welcome-modal";
+import { usePreferences } from "@/components/preferences/preferences-provider";
 import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
 
 // The guided tour.
@@ -212,6 +213,9 @@ const spring = { type: "spring", stiffness: 320, damping: 32 } as const;
 export function TourOverlay() {
   const pathname = usePathname();
   const router = useRouter();
+  // Setup -> Settings "Tour offers": off hides the paid-tour nudge card. A
+  // tour the user starts themselves (help menu) is unaffected.
+  const { prefs } = usePreferences();
 
   const [tour, setTour] = useState<TourName>("basics");
   const steps = TOURS[tour];
@@ -640,7 +644,7 @@ export function TourOverlay() {
   if (phase === "welcome") {
     return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={() => finish("skipped")} />;
   }
-  if (phase === "paid-offer") {
+  if (phase === "paid-offer" && prefs.tourOffers) {
     // Both answers write locally first and tell the server second. The local
     // write is what makes this work before 0049 is applied, and it also means
     // a failed request cannot resurrect a card the reader has just declined.

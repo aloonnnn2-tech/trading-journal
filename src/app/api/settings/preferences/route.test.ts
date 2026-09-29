@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUserIdFromHeader = vi.fn();
 const enforceRateLimit = vi.fn();
 const setShowTradeSummary = vi.fn();
+const savePreferences = vi.fn();
 
 vi.mock("@/lib/supabase/auth", () => ({ getUserIdFromHeader: () => getUserIdFromHeader() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: (...a: unknown[]) => enforceRateLimit(...a) }));
 vi.mock("@/lib/settings/trade-summary", () => ({ setShowTradeSummary: (...a: unknown[]) => setShowTradeSummary(...a) }));
+vi.mock("@/lib/settings/preferences-queries", () => ({ savePreferences: (...a: unknown[]) => savePreferences(...a) }));
 
 const { PATCH } = await import("./route");
 
@@ -22,6 +24,7 @@ beforeEach(() => {
   getUserIdFromHeader.mockResolvedValue("user-1");
   enforceRateLimit.mockResolvedValue(null);
   setShowTradeSummary.mockResolvedValue(undefined);
+  savePreferences.mockImplementation(async (_s: unknown, _u: unknown, patch: object) => ({ merged: true, ...patch }));
 });
 
 describe("PATCH /api/settings/preferences", () => {
@@ -46,6 +49,30 @@ describe("PATCH /api/settings/preferences", () => {
   it("says the setting isn't available while 0052 is unapplied", async () => {
     setShowTradeSummary.mockRejectedValue({ code: "PGRST204" });
     expect((await call({ showTradeSummary: true })).status).toBe(503);
+  });
+
+  it("saves a subset of the preferences object", async () => {
+    const res = await call({ preferences: { keyboardShortcuts: false, theme: "dark" } });
+    expect(res.status).toBe(200);
+    expect(savePreferences).toHaveBeenCalledWith({}, "user-1", { keyboardShortcuts: false, theme: "dark" });
+    expect((await res.json()).preferences).toMatchObject({ merged: true, keyboardShortcuts: false });
+  });
+
+  it.each([
+    [{ preferences: {} }],
+    [{ preferences: { keyboardShortcuts: "no" } }],
+    [{ preferences: { theme: "sepia" } }],
+    [{ preferences: { isAdmin: true } }],
+    [{ plan: "paid" }],
+  ])("rejects %j without saving anything", async (body) => {
+    expect((await call(body)).status).toBe(400);
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(setShowTradeSummary).not.toHaveBeenCalled();
+  });
+
+  it("says preferences aren't available while 0054 is unapplied", async () => {
+    savePreferences.mockRejectedValue({ code: "42703" });
+    expect((await call({ preferences: { hoverMotion: false } })).status).toBe(503);
   });
 
   it("stops at the rate limit", async () => {

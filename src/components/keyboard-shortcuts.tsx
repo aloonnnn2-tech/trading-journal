@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
+import { usePreferences } from "@/components/preferences/preferences-provider";
 
 // "g" then a letter is a Gmail/Linear-style nav chord -- pressed within
 // GO_CHORD_WINDOW_MS of each other, otherwise the "g" is dropped so a
@@ -30,9 +31,12 @@ export function KeyboardShortcuts() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [goArmed, setGoArmed] = useState(false);
   const isPublicPage = PUBLIC_PATHS.includes(pathname);
+  // Setup -> Settings "Keyboard shortcuts": off means none of these keys
+  // do anything, the ? help included.
+  const enabled = usePreferences().prefs.keyboardShortcuts;
 
   useEffect(() => {
-    if (isPublicPage) return;
+    if (isPublicPage || !enabled) return;
     let goTimeout: ReturnType<typeof setTimeout> | null = null;
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -96,7 +100,7 @@ export function KeyboardShortcuts() {
       window.removeEventListener("keydown", handleKeyDown);
       if (goTimeout) clearTimeout(goTimeout);
     };
-  }, [router, goArmed, isPublicPage]);
+  }, [router, goArmed, isPublicPage, enabled]);
 
   if (isPublicPage || !helpOpen) return null;
 

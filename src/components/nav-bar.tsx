@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useAccountThemeToggle } from "@/components/preferences/preferences-provider";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sun, Moon, HelpCircle, UserCircle, ShieldCheck, ChevronDown } from "lucide-react";
@@ -100,7 +101,9 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
   const pathname = usePathname();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
+  // Saves to the account too, so every browser signed in matches.
+  const toggleTheme = useAccountThemeToggle();
   const [accountOpen, setAccountOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -321,7 +324,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
             )}
           </div>
           <button
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            onClick={() => toggleTheme()}
             title="Toggle theme"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >

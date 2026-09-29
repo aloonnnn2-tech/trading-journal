@@ -7,6 +7,8 @@ import type { Trade } from "@/lib/trades/types";
 import { formatMoney } from "@/lib/format/money";
 import { formatDate } from "@/lib/dates/format";
 import { TradePanel } from "./trade-panel";
+import { usePreferences } from "@/components/preferences/preferences-provider";
+import { useRouter } from "next/navigation";
 import { ResultBadge } from "./result-badge";
 
 // The trade table and its side panel (Phase 4A of docs/design-audit.md).
@@ -30,6 +32,10 @@ export function TradeList({
   stratNamesByTradeId: Record<string, string[]>;
 }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  // Setup -> Settings "Trade preview": off sends a row click straight to
+  // the full trade page instead of the side panel.
+  const { prefs } = usePreferences();
   const openId = searchParams.get("trade");
   const order = trades.map((t) => t.id);
 
@@ -128,7 +134,8 @@ export function TradeList({
                     // full page in a new tab.
                     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
-                    open(trade.id);
+                    if (prefs.tradePreview) open(trade.id);
+                    else router.push(`/trades/${trade.id}`);
                   }}
                   className={`cursor-pointer border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 ${
                     selected ? "bg-primary/[0.07]" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40"

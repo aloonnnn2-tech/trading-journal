@@ -4,8 +4,10 @@ import { getShowTradeSummary } from "@/lib/settings/trade-summary";
 import { TrackPageView } from "@/components/track-page-view";
 import { SettingsForm } from "./settings-form";
 
-// Setup -> Settings: what the app shows you. One switch so far, the Trades
-// page's summary strip (Alon, 2026-09-29).
+// Setup -> Settings: what the app shows you and how it behaves (Alon,
+// 2026-09-29). The summary strip has its own column (0052); every other
+// switch lives in user_settings.preferences (0054) and reaches the page
+// through PreferencesProvider in the root layout.
 export default async function SettingsPage() {
   const userId = await requireUserId();
   const supabase = await createClient();

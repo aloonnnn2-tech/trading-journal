@@ -23,6 +23,8 @@ import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { getDemoState } from "@/lib/demo/queries";
+import { getPreferences } from "@/lib/settings/preferences-queries";
+import { PreferencesProvider } from "@/components/preferences/preferences-provider";
 import { DesignFlagScript } from "@/components/design/design-flag";
 import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -113,6 +115,9 @@ export default async function RootLayout({
   const demoActive = userId
     ? (await getDemoState(await createClient(), userId).catch(() => null)) === "active"
     : false;
+  // Setup -> Settings switches, handed to every client component through
+  // PreferencesProvider. null (signed out, or 0054 unapplied) = defaults.
+  const preferences = userId ? await getPreferences(await createClient(), userId).catch(() => null) : null;
 
   return (
     <html
@@ -128,6 +133,7 @@ export default async function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
+          <PreferencesProvider initial={preferences}>
           {/* First thing in the tab order, invisible until focused. Every page
               in the app starts with the same nav bar, so without this a
               keyboard or screen-reader user tabs through the whole navigation
@@ -163,6 +169,7 @@ export default async function RootLayout({
           >
             <PageTransition>{children}</PageTransition>
           </main>
+          </PreferencesProvider>
         </ThemeProvider>
       </body>
     </html>
