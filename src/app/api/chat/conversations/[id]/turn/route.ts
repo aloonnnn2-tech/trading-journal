@@ -1,13 +1,11 @@
-import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { buildToolOverview, buildToolSystemPrompt } from "@/lib/ai-keys/context";
 import { getProvider, MAX_ANSWER_TOKENS } from "@/lib/ai-keys/providers";
-import { chooseModel } from "@/lib/ai-keys/providers/model-check";
-import { markApiKeyInvalid, setApiKeyModel } from "@/lib/ai-keys/queries";
-import { scrubString } from "@/lib/observability/scrub";
+import { repickRetiredModel } from "@/lib/ai-keys/repick-model";
+import { markApiKeyInvalid } from "@/lib/ai-keys/queries";
 import { TradeStore, makeToolExecutor, toolDefsFor } from "@/lib/ai-keys/tools";
 import { tierPolicyFor } from "@/lib/ai-keys/tier";
 import { claimTurn, getConversation, releaseTurn } from "@/lib/chat/queries";
@@ -159,25 +157,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             provider,
             apiKey: ready.key,
             model: ready.model,
-            healModel: async () => {
-              // The model this key used is gone. Re-pick from the live list,
-              // skipping the dead one, and remember the pick for next time.
-              try {
-                // A re-check lists models with the key, so it counts against
-                // the same daily cap as every other key check (fail closed).
-                const daily = await rateLimit(keyCheckDailyBucket(userId), KEY_CHECKS_PER_DAY, DAY_MS, { failClosed: true });
-                if (!daily.ok) return null;
-                const check = await provider.validateKey(ready.key);
-                if (!check.valid) return null;
-                const next = chooseModel(ready.provider, check.models.filter((m) => m !== ready.model));
-                if (next) await setApiKeyModel(supabase, keyId, next, { userId });
-                console.warn(`[chat/turn] ${ready.provider}: ${ready.model} retired, switched key to ${next}`);
-                return next;
-              } catch (err) {
-                console.error("[chat/turn] model re-pick failed:", scrubString(err instanceof Error ? err.message : String(err)));
-                return null;
-              }
-            },
+            healModel: () =>
+              repickRetiredModel({
+                supabase,
+                userId,
+                keyId,
+                providerName: ready.provider,
+                provider,
+                key: ready.key,
+                model: ready.model,
+                logPrefix: "chat/turn",
+              }),
             onKeyRejected: () => markApiKeyInvalid(supabase, keyId),
             policy,
             system: buildToolSystemPrompt(overview),

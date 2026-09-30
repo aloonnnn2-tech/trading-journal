@@ -4,6 +4,7 @@ import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { providerErrorResponse } from "@/lib/ai-keys/provider-error-response";
 import { getProvider } from "@/lib/ai-keys/providers";
+import { withRetiredModelRetry } from "@/lib/ai-keys/repick-model";
 import { rateLimit } from "@/lib/rate-limit";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -131,18 +132,38 @@ export async function POST(request: Request) {
   const provider = getProvider(ready.provider);
 
   let content;
+  // The model that actually wrote the review, saved with it.
+  let usedModel = ready.model;
   try {
-    content = await generateStructured({
-      provider,
-      apiKey: ready.key,
-      model: ready.model,
-      systemPrompt: PERIOD_REVIEW_SYSTEM_PROMPT,
-      userPrompt: `${context.text}\n\nReview this period now. Reply with the JSON object only.`,
-      schema: periodReviewContentSchema,
-      schemaHint: PERIOD_REVIEW_SCHEMA_HINT,
-      maxTokens: PERIOD_REVIEW_MAX_TOKENS,
-      deadlineAt: startedAt + PROVIDER_BUDGET_MS,
-    });
+    // A model the provider has since retired is re-picked and tried once
+    // more, as the chat does, instead of failing until the key is re-tested.
+    content = await withRetiredModelRetry(
+      (model) => {
+        usedModel = model;
+        return generateStructured({
+          provider,
+          apiKey: ready.key,
+          model,
+          systemPrompt: PERIOD_REVIEW_SYSTEM_PROMPT,
+          userPrompt: `${context.text}\n\nReview this period now. Reply with the JSON object only.`,
+          schema: periodReviewContentSchema,
+          schemaHint: PERIOD_REVIEW_SCHEMA_HINT,
+          maxTokens: PERIOD_REVIEW_MAX_TOKENS,
+          deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+        });
+      },
+      {
+        supabase: gate.supabase,
+        userId: gate.userId,
+        keyId: parsed.data.keyId,
+        providerName: ready.provider,
+        provider,
+        key: ready.key,
+        model: ready.model,
+        logPrefix: "ai-review",
+        deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+      },
+    );
   } catch (err) {
     if (err instanceof StructuredOutputError) {
       logError(`[ai-review] ${ready.provider} unusable output:`, err.detail);
@@ -168,7 +189,7 @@ export async function POST(request: Request) {
     const review = await savePeriodReview(gate.supabase, gate.userId, {
       period,
       provider: ready.provider,
-      model: ready.model,
+      model: usedModel,
       content,
       tradesAnalyzed: context.tradesAnalyzed,
       sourceUpdatedAt: context.sourceUpdatedAt,
