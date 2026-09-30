@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { logError } from "@/lib/observability/scrub";
 // Re-exported so existing importers keep working; the definition is shared
 // with the plan-rules feature, which needs the same detection.
 import { isMissingTableError } from "@/lib/supabase/errors";
@@ -193,7 +194,7 @@ export async function savePeriodReview(
   try {
     await prunePeriodReviews(supabase);
   } catch (err) {
-    console.error("[ai-review] pruning old period reviews failed:", err);
+    logError("[ai-review] pruning old period reviews failed:", err);
   }
 
   return data as unknown as StoredReview<PeriodReviewContent>;

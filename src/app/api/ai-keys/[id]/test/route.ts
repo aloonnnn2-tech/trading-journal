@@ -40,7 +40,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const gate = await requirePaidUser();
   if (!gate.ok) return gate.response;
 
-  const limit = await rateLimit(`ai-key-test:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`ai-key-test:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS, { failClosed: true });
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many checks in a row — give it a moment and try again." },
@@ -49,7 +49,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
   // Shares the save route's daily bucket: together they are the only two
   // places this server will check a key against a provider.
-  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS);
+  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS, { failClosed: true });
   if (!daily.ok) {
     return NextResponse.json(
       { error: "That's the daily limit for checking keys. Try again tomorrow." },

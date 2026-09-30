@@ -1,3 +1,4 @@
+import { logError } from "@/lib/observability/scrub";
 import { NextResponse } from "next/server";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     if (err instanceof StructuredOutputError) {
-      console.error(`[ai-review] ${ready.provider} unusable output:`, err.detail);
+      logError(`[ai-review] ${ready.provider} unusable output:`, err.detail);
       return NextResponse.json(
         {
           error:

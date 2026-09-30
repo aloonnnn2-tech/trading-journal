@@ -1,5 +1,6 @@
 import type { AIProviderName } from "../types";
 import { readModelIds } from "./model-check";
+import { redactKey, reveal, type KeyInput } from "../secret";
 import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
@@ -98,8 +99,8 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
   const maxTokensField = config.maxTokensField ?? "max_tokens";
   const modelsUrl = config.modelsUrl ?? `${baseUrl}/models`;
 
-  function auth(apiKey: string): Record<string, string> {
-    return { Authorization: `Bearer ${apiKey}`, ...headers };
+  function auth(apiKey: KeyInput): Record<string, string> {
+    return { Authorization: `Bearer ${reveal(apiKey)}`, ...headers };
   }
 
   /** The request body shared by chatOnce and chatStream, so the two never drift. */
@@ -126,7 +127,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
     name,
     model,
 
-    async validateKey(apiKey: string): Promise<KeyCheck> {
+    async validateKey(apiKey: KeyInput): Promise<KeyCheck> {
       // Listing models costs no tokens, which matters because this runs on
       // every save attempt including the mistyped ones.
       const res = await providerFetch(
@@ -140,7 +141,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         // Anything else means we never got a verdict. Treat it as "couldn't
         // check" rather than "bad key" -- rejecting a valid key because the
         // provider was briefly down would be a confusing dead end at setup.
-        throw new ProviderError("unavailable", await errorDetail(res));
+        throw new ProviderError("unavailable", await errorDetail(res, apiKey));
       }
 
       // The key works. The model list it came with is what the caller picks
@@ -149,7 +150,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
     },
 
     async askQuestion(
-      apiKey: string,
+      apiKey: KeyInput,
       systemPrompt: string,
       question: string,
       options?: AskOptions,
@@ -172,7 +173,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
       );
 
       if (!res.ok) {
-        const detail = await errorDetail(res);
+        const detail = await errorDetail(res, apiKey);
         // A retired or inaccessible model id is the single most likely way
         // this breaks over time -- providers drop models on their own
         // schedule and our default becomes stale with no build failure to
@@ -203,7 +204,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
           ? "unavailable"
           : "failed";
-        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`, retryAfterFromMessage(message));
+        throw new ProviderError(failure, `body error: ${redactKey(message, apiKey).slice(0, 300)}`, retryAfterFromMessage(message));
       }
 
       const choice = json?.choices?.[0];
@@ -229,7 +230,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         // the model had nothing to say.
         throw new ProviderError(
           "failed",
-          `empty completion: ${JSON.stringify(json).slice(0, 300)}`,
+          `empty completion: ${redactKey(JSON.stringify(json), apiKey).slice(0, 300)}`,
         );
       }
 
@@ -249,7 +250,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
       return text.trim();
     },
 
-    async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
+    async chatOnce(apiKey: KeyInput, input: ChatOnceInput): Promise<ChatResult> {
       const body = chatBody(input);
 
       const res = await providerFetch(
@@ -263,7 +264,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
       );
 
       if (!res.ok) {
-        const detail = await errorDetail(res);
+        const detail = await errorDetail(res, apiKey);
         const missing =
           /model_not_found|does not exist|no such model|unknown model|model.*not found/i.test(detail);
         throw new ProviderError(
@@ -279,7 +280,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
           ? "unavailable"
           : "failed";
-        throw new ProviderError(failure, `body error: ${message.slice(0, 300)}`, retryAfterFromMessage(message));
+        throw new ProviderError(failure, `body error: ${redactKey(message, apiKey).slice(0, 300)}`, retryAfterFromMessage(message));
       }
 
       const choice = json?.choices?.[0];
@@ -304,7 +305,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         if (choice?.finish_reason === "length") {
           throw new ProviderError("truncated", "hit the token ceiling before writing an answer");
         }
-        throw new ProviderError("failed", `empty completion: ${JSON.stringify(json).slice(0, 300)}`);
+        throw new ProviderError("failed", `empty completion: ${redactKey(JSON.stringify(json), apiKey).slice(0, 300)}`);
       }
       if (choice?.finish_reason === "length") {
         throw new ProviderError(
@@ -316,7 +317,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
     },
 
     async chatStream(
-      apiKey: string,
+      apiKey: KeyInput,
       input: ChatOnceInput,
       onText: (delta: string) => void,
       signal?: AbortSignal,
@@ -343,7 +344,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
       // Status arrives before the body, so non-2xx is handled exactly as in
       // chatOnce -- the error body is small and not streamed.
       if (!res.ok) {
-        const detail = await errorDetail(res);
+        const detail = await errorDetail(res, apiKey);
         const missing =
           /model_not_found|does not exist|no such model|unknown model|model.*not found/i.test(detail);
         throw new ProviderError(
@@ -389,7 +390,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
             const failure = /rate|limit|capacity|no endpoints|unavailable|overload/i.test(message)
               ? "unavailable"
               : "failed";
-            throw new ProviderError(failure, `stream error: ${message.slice(0, 300)}`, retryAfterFromMessage(message));
+            throw new ProviderError(failure, `stream error: ${redactKey(message, apiKey).slice(0, 300)}`, retryAfterFromMessage(message));
           }
 
           const choice = j.choices?.[0];

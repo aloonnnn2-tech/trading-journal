@@ -8,6 +8,7 @@ import {
   type ToolDef,
 } from "@/lib/ai-keys/providers/types";
 import { MAX_ROUNDS_PER_MESSAGE, type TierPolicy } from "@/lib/ai-keys/tier";
+import type { KeyInput } from "@/lib/ai-keys/secret";
 import { buildModelMessages } from "./trim";
 import { labelForTool } from "./labels";
 import {
@@ -45,7 +46,7 @@ export interface TurnContext {
   userId: string;
   conversationId: string;
   provider: AIProvider;
-  apiKey: string;
+  apiKey: KeyInput;
   /** The model the key asks (user_api_keys.model, else the first choice). */
   model: string;
   /**
@@ -432,7 +433,7 @@ function titleFor(rows: MessageRow[]): string | null {
 /** Non-streaming providers: deliver the text as one delta. */
 function adaptOnce(provider: AIProvider) {
   return async (
-    apiKey: string,
+    apiKey: KeyInput,
     input: Parameters<NonNullable<AIProvider["chatOnce"]>>[1],
     onText: (delta: string) => void,
   ): Promise<ChatResult> => {

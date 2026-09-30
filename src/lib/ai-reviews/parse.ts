@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { KeyInput } from "@/lib/ai-keys/secret";
 import { ASK_TIMEOUT_MS, type AIProvider } from "@/lib/ai-keys/providers";
 
 // Getting structured output back from six different providers.
@@ -163,7 +164,7 @@ export async function generateStructured<T>({
   deadlineAt,
 }: {
   provider: AIProvider;
-  apiKey: string;
+  apiKey: KeyInput;
   /** The key's model (0053); the provider's first choice when omitted. */
   model?: string;
   systemPrompt: string;

@@ -4,9 +4,11 @@ import { isEncryptionConfigured } from "./crypto";
 import { getDecryptedKey } from "./queries";
 import { hasConsent, type ConsentScope } from "./consent";
 import { PROVIDER_MODELS, type AIProviderName } from "./types";
+import type { SecretKey } from "./secret";
+import { logError } from "@/lib/observability/scrub";
 
 type Preflight =
-  | { ok: true; provider: AIProviderName; key: string; model: string }
+  | { ok: true; provider: AIProviderName; key: SecretKey; model: string }
   | { ok: false; response: NextResponse };
 
 /**
@@ -82,7 +84,7 @@ export async function preflightProviderCall(
     // migration 0031 hasn't been applied. Fails CLOSED -- nothing is sent to
     // any provider -- and says what to do, rather than surfacing as the bare
     // 500 that an unhandled database error would produce.
-    console.error("[ai] consent lookup failed:", err);
+    logError("[ai] consent lookup failed:", err);
     return {
       ok: false,
       response: NextResponse.json(

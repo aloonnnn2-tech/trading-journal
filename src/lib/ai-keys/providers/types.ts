@@ -1,4 +1,6 @@
 import type { AIProviderName } from "../types";
+import { redactKey, type KeyInput } from "../secret";
+import { scrubString } from "@/lib/observability/scrub";
 
 /**
  * What went wrong when talking to a provider.
@@ -39,7 +41,10 @@ export class ProviderError extends Error {
     super(`Provider request failed: ${failure}`);
     this.name = "ProviderError";
     this.failure = failure;
-    this.detail = detail;
+    // Scrubbed on the way in, so no code path can later log or report an
+    // unscrubbed provider body through this error -- a backstop behind the
+    // exact-key redaction errorDetail() already applies.
+    this.detail = scrubString(detail);
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
@@ -129,14 +134,14 @@ export interface AIProvider {
    * answer at all -- the difference matters, because refusing to save a good
    * key because the provider was briefly down would be its own bad experience.
    */
-  validateKey(apiKey: string): Promise<KeyCheck>;
+  validateKey(apiKey: KeyInput): Promise<KeyCheck>;
 
   /**
    * One single-shot question with no conversation: what the AI review
    * routes use. Throws ProviderError on any failure.
    */
   askQuestion(
-    apiKey: string,
+    apiKey: KeyInput,
     systemPrompt: string,
     question: string,
     options?: AskOptions,
@@ -147,7 +152,7 @@ export interface AIProvider {
    * function calling; the turn route refuses to start a conversation on a
    * provider that has neither this nor `chatStream`.
    */
-  chatOnce?(apiKey: string, input: ChatOnceInput): Promise<ChatResult>;
+  chatOnce?(apiKey: KeyInput, input: ChatOnceInput): Promise<ChatResult>;
 
   /**
    * The streaming form of `chatOnce`. Text arrives through `onText` as the
@@ -165,7 +170,7 @@ export interface AIProvider {
    * reached `onText` is the caller's to keep or discard.
    */
   chatStream?(
-    apiKey: string,
+    apiKey: KeyInput,
     input: ChatOnceInput,
     onText: (delta: string) => void,
     signal?: AbortSignal,
@@ -309,9 +314,11 @@ export async function providerFetch(
 
 /** Reads an error body for logging, bounded so a huge HTML error page can't
  *  flood the logs. Never returned to the client. */
-export async function errorDetail(res: Response): Promise<string> {
+export async function errorDetail(res: Response, key?: KeyInput): Promise<string> {
   try {
-    const text = await res.text();
+    // The key's exact text is removed before this string exists anywhere --
+    // some providers echo part of a rejected credential back.
+    const text = redactKey(await res.text(), key);
     return `HTTP ${res.status}: ${text.slice(0, 500)}`;
   } catch {
     return `HTTP ${res.status}`;

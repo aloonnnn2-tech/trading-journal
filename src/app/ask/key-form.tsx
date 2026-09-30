@@ -61,13 +61,19 @@ export function KeyForm({
     setSaving(true);
     setError(null);
 
+    // A network failure used to throw here and leave the button stuck on
+    // "saving" forever.
     const res = await fetch("/api/ai-keys", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider, key: key.trim(), label: label.trim() || null }),
-    });
+    }).catch(() => null);
     setSaving(false);
 
+    if (!res) {
+      setError("Couldn't reach the server. Check your connection and try again.");
+      return;
+    }
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? "Couldn't save that key.");
@@ -146,8 +152,18 @@ export function KeyForm({
           // type=password so the key isn't shoulder-surfable and browsers
           // don't offer to autofill it from unrelated saved credentials.
           type="password"
+          // "off" alone is ignored on password fields; these tell browsers and
+          // the common password managers (1Password, LastPass, Bitwarden,
+          // Dashlane) not to offer to save or sync an API key.
           autoComplete="off"
+          name="provider-api-key"
+          data-1p-ignore
+          data-lpignore="true"
+          data-bwignore="true"
+          data-form-type="other"
           spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
           placeholder="Paste your key"
           value={key}
           onChange={(e) => setKey(e.target.value)}

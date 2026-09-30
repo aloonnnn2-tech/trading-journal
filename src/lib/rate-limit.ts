@@ -52,12 +52,18 @@ export interface RateLimitResult {
  * @param key      Caller-scoped identity/bucket, e.g. `ocr:<userId>`.
  * @param limit    Max requests allowed inside the window.
  * @param windowMs Window length in milliseconds.
+ * @param options.failClosed Refuse instead of allow when the limiter itself
+ *   is broken. ONLY for limits whose absence is a security problem rather
+ *   than an inconvenience -- the key-check buckets, where an unlimited
+ *   limiter turns the app into a free checker for stolen API keys.
  */
 export async function rateLimit(
   key: string,
   limit: number,
   windowMs: number,
+  options: { failClosed?: boolean } = {},
 ): Promise<RateLimitResult> {
+  const broken: RateLimitResult = options.failClosed ? { ok: false, retryAfterSeconds: 60 } : { ok: true, retryAfterSeconds: 0 };
   try {
     const { data, error } = await rpcClient().rpc("rate_limit_hit", {
       p_bucket: key,
@@ -65,7 +71,7 @@ export async function rateLimit(
       p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
     });
     if (error || !data || typeof data !== "object") {
-      return { ok: true, retryAfterSeconds: 0 };
+      return broken;
     }
     const allowed = (data as { allowed?: unknown }).allowed;
     const retry = (data as { retry_after_seconds?: unknown }).retry_after_seconds;
@@ -75,7 +81,7 @@ export async function rateLimit(
       retryAfterSeconds: typeof retry === "number" && retry > 0 ? retry : 0,
     };
   } catch {
-    return { ok: true, retryAfterSeconds: 0 };
+    return broken;
   }
 }
 

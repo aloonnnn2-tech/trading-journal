@@ -36,16 +36,24 @@ const SECRET_PATTERNS: RegExp[] = [
   /\bgsk_[A-Za-z0-9_-]{16,}/g,
   // Cerebras.
   /\bcsk-[A-Za-z0-9_-]{16,}/g,
+  // GitHub (the retired GitHub Models provider: stored keys still decrypt).
+  /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}/g,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/g,
   // Mistral and SambaNova issue unprefixed tokens (32 alphanumerics; a UUID),
   // which no prefix rule can catch. Anything sitting in a credential header
   // or after "Bearer" is redacted whatever it looks like.
   /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{16,}/g,
-  /\b(x-api-key|x-goog-api-key|api[-_]?key|authorization)(["']?\s*[:=]\s*["']?)[^\s"',;]{8,}/gi,
+  /\b(x-api-key|x-goog-api-key|api[-_]?key|authorization|access[-_]?token|refresh[-_]?token|token|secret|password)(["']?\s*[:=]\s*["']?)[^\s"',;]{8,}/gi,
+  // A bare Mistral-style key: 32+ letters and digits mixing upper case, lower
+  // case and digits. Hex hashes, commit SHAs and ids are single-case, so they
+  // stay readable in a report; a random mixed-case run of that length is
+  // almost always a credential.
+  /\b(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*[0-9])[A-Za-z0-9]{32,}\b/g,
   // Our own stored-key envelope: `v1.<iv>.<tag>.<ciphertext>`, all base64.
   // Ciphertext is not usable without the encryption secret, but it has no
   // business in a third-party error tracker either, and its presence in a
   // report is itself a signal something is logging the wrong object.
-  /\bv[12]\.[A-Za-z0-9+/=]{12,}\.[A-Za-z0-9+/=]{20,}\.[A-Za-z0-9+/=]{8,}/g,
+  /\bv[123]\.[A-Za-z0-9+/=]{12,}\.[A-Za-z0-9+/=]{20,}\.[A-Za-z0-9+/=]{8,}/g,
   // Supabase / JWT-shaped tokens, which includes the service-role key.
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
 ];
@@ -57,7 +65,16 @@ const SENSITIVE_KEY_NAMES = new Set([
   "key",
   "apikey",
   "api_key",
+  "api-key",
   "encrypted_key",
+  "plaintext",
+  "secret",
+  "token",
+  "access_token",
+  "refresh_token",
+  "password",
+  "cookie",
+  "set-cookie",
   "authorization",
   "x-api-key",
   "x-goog-api-key",
@@ -125,4 +142,24 @@ export function scrubEvent<T>(event: T): T | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * console.error with everything scrubbed first. Function logs go to the
+ * hosting platform's log store (and become Sentry breadcrumbs), so on any
+ * path that touches a provider -- where a body might echo a credential --
+ * this is the only way to log. Errors are reduced to name + message: a stack
+ * or an attached `cause` can carry request objects.
+ */
+export function logError(prefix: string, ...values: unknown[]): void {
+  const safe = values.map((v) => {
+    if (typeof v === "string") return scrubString(v);
+    if (v instanceof Error) return scrubString(`${v.name}: ${v.message}`);
+    try {
+      return scrubString(JSON.stringify(v));
+    } catch {
+      return "[unloggable value]";
+    }
+  });
+  console.error(prefix, ...safe);
 }

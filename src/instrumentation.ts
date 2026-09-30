@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubEvent } from "@/lib/observability/scrub";
+import { SENTRY_PRIVACY, SENTRY_SERVER_PRIVACY } from "@/lib/observability/sentry-options";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
@@ -7,9 +7,9 @@ export async function register() {
       dsn: process.env.SENTRY_DSN,
       tracesSampleRate: 0.1,
       // This runtime is the only place a decrypted provider key ever exists.
-      // Everything leaving for Sentry is scrubbed first -- see scrub.ts.
-      beforeSend: scrubEvent,
-      beforeSendTransaction: scrubEvent,
+      // Everything leaving for Sentry is scrubbed first, and bodies, cookies
+      // and local variables are never captured -- see sentry-options.ts.
+      ...SENTRY_SERVER_PRIVACY,
     });
   }
 
@@ -17,8 +17,7 @@ export async function register() {
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       tracesSampleRate: 0.1,
-      beforeSend: scrubEvent,
-      beforeSendTransaction: scrubEvent,
+      ...SENTRY_PRIVACY,
     });
   }
 }

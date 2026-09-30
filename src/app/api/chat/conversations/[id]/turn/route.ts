@@ -1,3 +1,4 @@
+import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
@@ -15,6 +16,7 @@ import { runTurn } from "@/lib/chat/turn";
 import { getUserSettings } from "@/lib/settings/queries";
 import { rateLimit } from "@/lib/rate-limit";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { logError } from "@/lib/observability/scrub";
 
 // One turn of a conversation, streamed back as newline-delimited JSON.
 //
@@ -161,6 +163,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               // The model this key used is gone. Re-pick from the live list,
               // skipping the dead one, and remember the pick for next time.
               try {
+                // A re-check lists models with the key, so it counts against
+                // the same daily cap as every other key check (fail closed).
+                const daily = await rateLimit(keyCheckDailyBucket(userId), KEY_CHECKS_PER_DAY, DAY_MS, { failClosed: true });
+                if (!daily.ok) return null;
                 const check = await provider.validateKey(ready.key);
                 if (!check.valid) return null;
                 const next = chooseModel(ready.provider, check.models.filter((m) => m !== ready.model));
@@ -192,7 +198,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           });
         }
       } catch (err) {
-        console.error("[chat/turn] failed:", err instanceof Error ? err.message : err);
+        logError("[chat/turn] failed:", err);
         emit({ type: "error", code: "failed", message: "Something went wrong on our side. Try again." });
       } finally {
         await releaseTurn(supabase, id);
@@ -216,7 +222,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       "Content-Type": "application/x-ndjson; charset=utf-8",
       // Every layer between here and the browser is told not to buffer,
       // which is what makes text appear as it is written.
-      "Cache-Control": "no-cache, no-transform",
+      "Cache-Control": "private, no-store, no-transform",
       "X-Accel-Buffering": "no",
     },
   });

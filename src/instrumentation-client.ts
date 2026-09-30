@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubEvent } from "@/lib/observability/scrub";
+import { SENTRY_PRIVACY } from "@/lib/observability/sentry-options";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -10,8 +10,7 @@ Sentry.init({
   // the whole point of proxying providers server-side. Scrubbed here anyway,
   // because "never supposed to" is an assertion about current code and this
   // costs nothing to hold true regardless.
-  beforeSend: scrubEvent,
-  beforeSendTransaction: scrubEvent,
+  ...SENTRY_PRIVACY,
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

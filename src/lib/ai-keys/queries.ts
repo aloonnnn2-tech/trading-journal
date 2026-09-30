@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptWithMeta, encrypt, lastFour } from "./crypto";
 import { isMissingColumnError } from "@/lib/supabase/errors";
 import { PROVIDER_MODELS, type AIProviderName, type StoredApiKey } from "./types";
+import { SecretKey } from "./secret";
 
 // All reads and writes here go through the RLS-scoped client
 // (src/lib/supabase/server.ts), so "user_api_keys owner access" from 0029
@@ -135,7 +136,7 @@ export async function getDecryptedKey(
    * calls the provider's model-list endpoint and sends no journal data.
    */
   { includeInactive = false }: { includeInactive?: boolean } = {},
-): Promise<{ provider: AIProviderName; key: string; model: string | null } | null> {
+): Promise<{ provider: AIProviderName; key: SecretKey; model: string | null } | null> {
   const select = (columns: string) => {
     let query = supabase.from("user_api_keys").select(columns).eq("id", id);
     if (!includeInactive) query = query.eq("is_active", true);
@@ -175,7 +176,9 @@ export async function getDecryptedKey(
 
   return {
     provider: data.provider as AIProviderName,
-    key: plaintext,
+    // Wrapped: prints as "[redacted]" everywhere; only a provider adapter
+    // building its auth header calls reveal(). See secret.ts.
+    key: new SecretKey(plaintext),
     model: data.model ?? null,
   };
 }

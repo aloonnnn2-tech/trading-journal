@@ -1,3 +1,4 @@
+import { logError } from "@/lib/observability/scrub";
 import { NextResponse } from "next/server";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
     if (err instanceof StructuredOutputError) {
       // Logged, not returned: the detail quotes the model's reply, which was
       // written from this user's journal.
-      console.error(`[ai-review] ${ready.provider} unusable output:`, err.detail);
+      logError(`[ai-review] ${ready.provider} unusable output:`, err.detail);
       return NextResponse.json(
         {
           error:

@@ -1,3 +1,4 @@
+import { readJsonLimited } from "@/lib/http/read-json";
 import { NextResponse } from "next/server";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { countApiKeys, createApiKey, listApiKeys, MAX_KEYS_PER_USER } from "@/lib/ai-keys/queries";
@@ -47,14 +48,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const limit = await rateLimit(`ai-keys:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  const limit = await rateLimit(`ai-keys:${gate.userId}`, RATE_LIMIT, RATE_WINDOW_MS, { failClosed: true });
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many attempts in a row — give it a moment and try again." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
-  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS);
+  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS, { failClosed: true });
   if (!daily.ok) {
     return NextResponse.json(
       { error: "That's the daily limit for checking keys. Try again tomorrow." },
@@ -62,12 +63,11 @@ export async function POST(request: Request) {
     );
   }
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  // Capped before parsing: a key is at most 500 characters, so 4 KB is
+  // generous and nothing bigger is ever buffered.
+  const body = await readJsonLimited(request, 4096);
+  if (!body.ok) return NextResponse.json({ error: body.error }, { status: body.status });
+  const rawBody = body.value;
 
   const parsed = apiKeyCreateSchema.safeParse(rawBody);
   if (!parsed.success) {

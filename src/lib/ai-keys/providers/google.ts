@@ -1,5 +1,6 @@
 import { PROVIDER_MODELS } from "../types";
 import { readModelIds } from "./model-check";
+import { redactKey, reveal, type KeyInput } from "../secret";
 import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
@@ -33,8 +34,8 @@ function modelUrl(model: string | undefined, method: string): string {
  * Google reports a bad key as 400 API_KEY_INVALID rather than 401, and an
  * unknown or retired model as 404 NOT_FOUND ("models/x is not found").
  */
-async function httpFailure(res: Response): Promise<ProviderError> {
-  const detail = await errorDetail(res);
+async function httpFailure(res: Response, apiKey: KeyInput): Promise<ProviderError> {
+  const detail = await errorDetail(res, apiKey);
   const failure =
     res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)
       ? "invalid_key"
@@ -89,8 +90,8 @@ const MODEL = PROVIDER_MODELS.google;
  * logs, proxy logs, and error messages that quote the URL -- the header keeps
  * the credential out of everything that records where we sent a request.
  */
-function authHeaders(apiKey: string): Record<string, string> {
-  return { "x-goog-api-key": apiKey };
+function authHeaders(apiKey: KeyInput): Record<string, string> {
+  return { "x-goog-api-key": reveal(apiKey) };
 }
 
 /** The request body shared by chatOnce and chatStream, so the two never drift. */
@@ -121,7 +122,7 @@ export const googleProvider: AIProvider = {
   name: "google",
   model: MODEL,
 
-  async validateKey(apiKey: string): Promise<KeyCheck> {
+  async validateKey(apiKey: KeyInput): Promise<KeyCheck> {
     // Paged at 50 by default; ask for the whole list so a model on page two
     // doesn't look retired.
     const res = await providerFetch(
@@ -136,15 +137,15 @@ export const googleProvider: AIProvider = {
     // would misreport our own malformed requests as the user's fault, so
     // match on the reason and let anything else fall through.
     if (res.status === 400 || res.status === 401 || res.status === 403) {
-      const detail = await errorDetail(res);
+      const detail = await errorDetail(res, apiKey);
       if (res.status !== 400 || /API_KEY_INVALID|API key not valid/i.test(detail)) return { valid: false };
       throw new ProviderError("failed", detail);
     }
-    throw new ProviderError("unavailable", await errorDetail(res));
+    throw new ProviderError("unavailable", await errorDetail(res, apiKey));
   },
 
   async askQuestion(
-    apiKey: string,
+    apiKey: KeyInput,
     systemPrompt: string,
     question: string,
     options?: AskOptions,
@@ -163,7 +164,7 @@ export const googleProvider: AIProvider = {
       options?.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) throw await httpFailure(res);
+    if (!res.ok) throw await httpFailure(res, apiKey);
 
     const json = await res.json();
 
@@ -194,12 +195,12 @@ export const googleProvider: AIProvider = {
       );
     }
     if (text === "") {
-      throw new ProviderError("failed", `empty candidate: ${JSON.stringify(json).slice(0, 300)}`);
+      throw new ProviderError("failed", `empty candidate: ${redactKey(JSON.stringify(json), apiKey).slice(0, 300)}`);
     }
     return text;
   },
 
-  async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
+  async chatOnce(apiKey: KeyInput, input: ChatOnceInput): Promise<ChatResult> {
     const body = chatBody(input);
 
     const res = await providerFetch(
@@ -212,7 +213,7 @@ export const googleProvider: AIProvider = {
       input.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) throw await httpFailure(res);
+    if (!res.ok) throw await httpFailure(res, apiKey);
 
     const json = await res.json();
     const blockReason = json?.promptFeedback?.blockReason;
@@ -243,13 +244,13 @@ export const googleProvider: AIProvider = {
     }
 
     if (textOut === "") {
-      throw new ProviderError("failed", `empty candidate: ${JSON.stringify(json).slice(0, 300)}`);
+      throw new ProviderError("failed", `empty candidate: ${redactKey(JSON.stringify(json), apiKey).slice(0, 300)}`);
     }
     return { kind: "text", text: textOut };
   },
 
   async chatStream(
-    apiKey: string,
+    apiKey: KeyInput,
     input: ChatOnceInput,
     onText: (delta: string) => void,
     signal?: AbortSignal,
@@ -275,7 +276,7 @@ export const googleProvider: AIProvider = {
       throw new ProviderError("unavailable", `network: ${reason}`);
     }
 
-    if (!res.ok) throw await httpFailure(res);
+    if (!res.ok) throw await httpFailure(res, apiKey);
 
     // Each event carries the candidate's parts for that chunk. Text parts
     // stream; functionCall parts arrive complete per chunk (Gemini does not

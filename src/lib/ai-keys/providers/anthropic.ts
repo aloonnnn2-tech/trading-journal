@@ -1,5 +1,6 @@
 import { PROVIDER_MODELS } from "../types";
 import { readModelIds } from "./model-check";
+import { redactKey, reveal, type KeyInput } from "../secret";
 import { sseData } from "./sse";
 import {
   ASK_TIMEOUT_MS,
@@ -24,8 +25,8 @@ import {
  * `not_found_error` naming the model; that must read as model_missing (which
  * the caller heals by re-picking), not as a generic failure.
  */
-async function httpFailure(res: Response): Promise<ProviderError> {
-  const detail = await errorDetail(res);
+async function httpFailure(res: Response, apiKey: KeyInput): Promise<ProviderError> {
+  const detail = await errorDetail(res, apiKey);
   const missing = res.status === 404 && /not_found_error|model/i.test(detail);
   return new ProviderError(missing ? "model_missing" : failureFromStatus(res.status), detail, retryAfterSeconds(res));
 }
@@ -127,25 +128,25 @@ export const anthropicProvider: AIProvider = {
   name: "anthropic",
   model: MODEL,
 
-  async validateKey(apiKey: string): Promise<KeyCheck> {
+  async validateKey(apiKey: KeyInput): Promise<KeyCheck> {
     // Listing models is the zero-token way to check a key. The list is paged
     // (20 by default), so ask for all of it: a new model beyond the first page
     // would otherwise look missing.
     const res = await providerFetch(
       `${BASE}/models?limit=1000`,
-      { headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION } },
+      { headers: { "x-api-key": reveal(apiKey), "anthropic-version": API_VERSION } },
       VALIDATE_TIMEOUT_MS,
     );
 
     if (res.status === 401 || res.status === 403) return { valid: false };
-    if (!res.ok) throw new ProviderError("unavailable", await errorDetail(res));
+    if (!res.ok) throw new ProviderError("unavailable", await errorDetail(res, apiKey));
 
     // The caller picks this key's model from the list -- see model-check.ts.
     return { valid: true, models: await readModelIds(res, "anthropic") };
   },
 
   async askQuestion(
-    apiKey: string,
+    apiKey: KeyInput,
     systemPrompt: string,
     question: string,
     options?: AskOptions,
@@ -155,7 +156,7 @@ export const anthropicProvider: AIProvider = {
       {
         method: "POST",
         headers: {
-          "x-api-key": apiKey,
+          "x-api-key": reveal(apiKey),
           "anthropic-version": API_VERSION,
           "Content-Type": "application/json",
         },
@@ -177,7 +178,7 @@ export const anthropicProvider: AIProvider = {
       options?.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) throw await httpFailure(res);
+    if (!res.ok) throw await httpFailure(res, apiKey);
 
     const json = await res.json();
 
@@ -217,25 +218,25 @@ export const anthropicProvider: AIProvider = {
       );
     }
     if (text === "") {
-      throw new ProviderError("failed", `empty message: ${JSON.stringify(json).slice(0, 300)}`);
+      throw new ProviderError("failed", `empty message: ${redactKey(JSON.stringify(json), apiKey).slice(0, 300)}`);
     }
     return text;
   },
 
-  async chatOnce(apiKey: string, input: ChatOnceInput): Promise<ChatResult> {
+  async chatOnce(apiKey: KeyInput, input: ChatOnceInput): Promise<ChatResult> {
     const body = chatBody(input);
 
     const res = await providerFetch(
       `${BASE}/messages`,
       {
         method: "POST",
-        headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION, "Content-Type": "application/json" },
+        headers: { "x-api-key": reveal(apiKey), "anthropic-version": API_VERSION, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
       input.timeoutMs ?? ASK_TIMEOUT_MS,
     );
 
-    if (!res.ok) throw await httpFailure(res);
+    if (!res.ok) throw await httpFailure(res, apiKey);
 
     const json = await res.json();
     if (json?.stop_reason === "refusal") {
@@ -264,13 +265,13 @@ export const anthropicProvider: AIProvider = {
     }
 
     if (textOut === "") {
-      throw new ProviderError("failed", `empty message: ${JSON.stringify(json).slice(0, 300)}`);
+      throw new ProviderError("failed", `empty message: ${redactKey(JSON.stringify(json), apiKey).slice(0, 300)}`);
     }
     return { kind: "text", text: textOut };
   },
 
   async chatStream(
-    apiKey: string,
+    apiKey: KeyInput,
     input: ChatOnceInput,
     onText: (delta: string) => void,
     signal?: AbortSignal,
@@ -284,7 +285,7 @@ export const anthropicProvider: AIProvider = {
     try {
       res = await fetch(`${BASE}/messages`, {
         method: "POST",
-        headers: { "x-api-key": apiKey, "anthropic-version": API_VERSION, "Content-Type": "application/json" },
+        headers: { "x-api-key": reveal(apiKey), "anthropic-version": API_VERSION, "Content-Type": "application/json" },
         body: JSON.stringify(body),
         redirect: "error", // see providerFetch
         signal: combined,
@@ -294,7 +295,7 @@ export const anthropicProvider: AIProvider = {
       throw new ProviderError("unavailable", `network: ${reason}`);
     }
 
-    if (!res.ok) throw await httpFailure(res);
+    if (!res.ok) throw await httpFailure(res, apiKey);
 
     // Anthropic streams content blocks by index. Text blocks arrive as
     // text_delta; tool_use blocks arrive as a start (id + name) followed by
@@ -323,7 +324,7 @@ export const anthropicProvider: AIProvider = {
         if (type === "error") {
           const message = j.error?.message ?? "stream error";
           const failure = /rate|limit|overloaded|capacity/i.test(message) ? "unavailable" : "failed";
-          throw new ProviderError(failure, `stream error: ${message.slice(0, 300)}`);
+          throw new ProviderError(failure, `stream error: ${redactKey(message, apiKey).slice(0, 300)}`);
         }
         if (type === "content_block_start" && typeof j.index === "number") {
           const cb = j.content_block;

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { markApiKeyInvalid } from "./queries";
 import { ProviderError } from "./providers";
 import type { AIProviderName } from "./types";
+import { logError } from "@/lib/observability/scrub";
 
 /**
  * Turns a failed provider call into the right HTTP response, for every route
@@ -53,7 +54,7 @@ export async function providerErrorResponse(
   // revoked key retrying forever.
   const failure = err instanceof ProviderError ? err.failure : "failed";
   const detail = err instanceof ProviderError ? err.detail : String(err);
-  console.error(`[${ctx.logPrefix}] ${ctx.provider} ${failure}:`, detail);
+  logError(`[${ctx.logPrefix}] ${ctx.provider} ${failure}:`, detail);
 
   if (failure === "invalid_key") {
     await markApiKeyInvalid(ctx.supabase, ctx.keyId);

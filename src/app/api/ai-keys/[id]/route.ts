@@ -1,3 +1,4 @@
+import { readJsonLimited } from "@/lib/http/read-json";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
@@ -28,12 +29,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const gate = await requirePaidUser();
   if (!gate.ok) return gate.response;
 
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  // Capped before parsing: a key is at most 500 characters, so 4 KB is
+  // generous and nothing bigger is ever buffered.
+  const body = await readJsonLimited(request, 4096);
+  if (!body.ok) return NextResponse.json({ error: body.error }, { status: body.status });
+  const rawBody = body.value;
 
   const parsed = patchSchema.safeParse(rawBody);
   if (!parsed.success) {
@@ -42,6 +42,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if ("model" in parsed.data) return chooseModelForKey(gate, id, parsed.data.model);
 
+  // Switching a key back on is how a parked (rejected) key returns to use,
+  // so it is limited like the other key actions.
+  const toggled = await rateLimit(`ai-key-toggle:${gate.userId}`, 20, 60_000);
+  if (!toggled.ok) {
+    return NextResponse.json(
+      { error: "Too many changes in a row — give it a moment." },
+      { status: 429, headers: { "Retry-After": String(toggled.retryAfterSeconds) } },
+    );
+  }
   const updated = await setApiKeyActive(gate.supabase, id, parsed.data.is_active);
   if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -78,14 +87,14 @@ async function chooseModelForKey(
   id: string,
   model: string,
 ) {
-  const limit = await rateLimit(`ai-key-test:${gate.userId}`, 5, 60_000);
+  const limit = await rateLimit(`ai-key-test:${gate.userId}`, 5, 60_000, { failClosed: true });
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Too many changes in a row — give it a moment." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
-  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS);
+  const daily = await rateLimit(keyCheckDailyBucket(gate.userId), KEY_CHECKS_PER_DAY, DAY_MS, { failClosed: true });
   if (!daily.ok) {
     return NextResponse.json(
       { error: "That's the daily limit for checking keys. Try again tomorrow." },

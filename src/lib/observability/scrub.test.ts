@@ -150,3 +150,28 @@ describe("scrubEvent", () => {
     expect(scrubEvent(hostile)).toBeNull();
   });
 });
+
+describe("formats added 2026-09-30", () => {
+  it("catches unprefixed Mistral-style keys and GitHub tokens", () => {
+    const mistral = "Zq8mT2vK9pLr4XwB7nYc3HdF6sJe1GaU";
+    const out = scrubString(`key was ${mistral} and ghp_${"A1b2".repeat(9)} and github_pat_${"x9Y".repeat(10)}`);
+    expect(out).not.toContain(mistral);
+    expect(out).not.toContain("ghp_");
+    expect(out).not.toContain("github_pat_");
+  });
+
+  it("keeps single-case ids and hashes readable", () => {
+    const sha = "4143e88b7a0997d619a83f2c1e0f5b6a7c8d9e0f";
+    const uuid = "ac7a50d3-5119-469a-8113-f276468b9e52";
+    expect(scrubString(`${sha} ${uuid}`)).toBe(`${sha} ${uuid}`);
+  });
+
+  it("redacts token/secret/password values and the new field names", () => {
+    expect(scrubString('secret="abcdefghijkl"')).not.toContain("abcdefghijkl");
+    expect(JSON.stringify(scrubValue({ plaintext: "x", token: "y", password: "z" }))).not.toMatch(/"x"|"y"|"z"/);
+  });
+
+  it("recognises the v3 ciphertext envelope", () => {
+    expect(scrubString(`v3.${"A".repeat(16)}.${"B".repeat(24)}.${"C".repeat(12)}`)).toBe("[redacted]");
+  });
+});

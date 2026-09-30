@@ -341,6 +341,14 @@ export async function proxy(request: NextRequest) {
     `csp-endpoint="${request.nextUrl.origin}/api/csp-report"`,
   );
 
+  // No API response may be stored by a browser, proxy or CDN: they carry a
+  // user's own data (key lists, masked keys, journal figures, chat answers).
+  // The chat stream sets its own header (it also needs no-transform, so no
+  // layer buffers it), so it is left to that route.
+  if (request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.endsWith("/turn")) {
+    response.headers.set("Cache-Control", "private, no-store");
+  }
+
   return response;
 }
 
