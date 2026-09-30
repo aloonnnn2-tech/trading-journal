@@ -124,7 +124,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   // Record the pick (it heals a retired model) and the successful check.
   // "unsupported" = 0053 not applied: the key still works on the first choice.
-  const saved = await setApiKeyModel(gate.supabase, id, chosen, { validated: true });
+  const saved = await setApiKeyModel(gate.supabase, id, chosen, { validated: true, userId: gate.userId });
   const switched = chosen !== current && saved !== "unsupported";
 
   return NextResponse.json({

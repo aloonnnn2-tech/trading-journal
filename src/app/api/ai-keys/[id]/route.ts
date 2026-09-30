@@ -130,7 +130,7 @@ async function chooseModelForKey(
     return NextResponse.json({ error: `${stored.provider} doesn't offer "${model}" to this key.` }, { status: 400 });
   }
 
-  const saved = await setApiKeyModel(gate.supabase, id, model, { validated: true });
+  const saved = await setApiKeyModel(gate.supabase, id, model, { validated: true, userId: gate.userId });
   if (saved === "unsupported") {
     return NextResponse.json(
       { error: "Choosing a model needs a database update that hasn't been applied yet (migration 0053)." },

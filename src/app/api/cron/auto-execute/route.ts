@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverSecret } from "@/lib/server-env";
 import { isMissingColumnError } from "@/lib/supabase/errors";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -55,7 +56,7 @@ function secretMatches(provided: string, expected: string): boolean {
 }
 
 function authorize(request: Request): { ok: true } | { ok: false; status: number; error: string } {
-  const expected = process.env.CRON_SECRET;
+  const expected = serverSecret("CRON_SECRET");
   if (!expected) {
     // Fail closed. An unset secret must never mean "open to everyone" --
     // this endpoint can modify every user's trades.

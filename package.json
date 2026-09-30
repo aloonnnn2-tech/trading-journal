@@ -16,6 +16,7 @@
     "restore:db": "tsx --env-file-if-exists=.env.local scripts/restore-db.ts",
     "migrations:status": "tsx --env-file=.env.local scripts/migrations-status.ts",
     "verify:ai-secret": "tsx --conditions=react-server --env-file=.env.local scripts/verify-ai-key-secret.ts",
+    "rotate:ai-keys": "tsx --conditions=react-server --env-file=.env.local scripts/rotate-ai-keys.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

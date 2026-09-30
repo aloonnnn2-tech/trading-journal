@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { serverSecret } from "@/lib/server-env";
 
 // Global rate limiter, backed by a shared Postgres counter (see
 // supabase/migrations/0042_rate_limit_counters.sql). It replaced an in-memory
@@ -28,7 +29,7 @@ let cachedClient: SupabaseClient | null = null;
 function rpcClient(): SupabaseClient {
   if (cachedClient) return cachedClient;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = serverSecret("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) {
     throw new Error("rate-limit: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set");
   }

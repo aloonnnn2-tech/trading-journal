@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMounted } from "@/lib/use-mounted";
 import { Trash2 } from "lucide-react";
 import { PROVIDER_LABELS, PROVIDER_MODELS, type StoredApiKey } from "@/lib/ai-keys/types";
 import { Card } from "@/components/ui/Card";
@@ -10,6 +11,17 @@ import { KeyForm } from "./key-form";
 // of the old ask-manager unchanged so the chat shell stays about the
 // conversation. `keys` is owned by the parent -- the composer's key picker
 // and the "all keys off" notice read the same list.
+/** "Last used 5 min ago" / "Not used yet". */
+function lastUsed(iso: string | null | undefined): string {
+  if (!iso) return "Not used yet";
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return "Last used just now";
+  if (mins < 60) return `Last used ${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `Last used ${hours} h ago`;
+  return `Last used ${Math.round(hours / 24)} days ago`;
+}
+
 export function KeyManager({
   keys,
   onKeysChange,
@@ -23,6 +35,7 @@ export function KeyManager({
 }) {
   // Per-key result of an explicit "Test" -- keyed by id so testing one key
   // never clears the verdict shown against another.
+  const mounted = useMounted();
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
   // The provider's live model list per key, filled by a Test -- which is
@@ -146,6 +159,10 @@ export function KeyManager({
                 <span className="ml-2 font-mono text-xs text-zinc-500">•••• {k.last_four}</span>
                 <span className="mt-0.5 block truncate font-mono text-[11px] text-zinc-500" title="The model this key asks">
                   {k.model ?? PROVIDER_MODELS[k.provider]}
+                  {/* When this key last went to its provider: a use the user
+                      didn't make is the first sign of a problem. After mount
+                      only -- "x min ago" differs between server and browser. */}
+                  {mounted && <span className="font-sans"> · {lastUsed(k.last_used_at)}</span>}
                 </span>
                 {!k.is_active && (
                   // A key the provider rejected is switched off automatically,

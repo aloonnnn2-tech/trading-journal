@@ -144,6 +144,8 @@ export interface StoredApiKey {
    * 0053 isn't applied; those use PROVIDER_MODELS.
    */
   model: string | null;
+  /** When the key was last sent to its provider (0058); null = not since. */
+  last_used_at: string | null;
   is_active: boolean;
   created_at: string;
   last_validated_at: string | null;

@@ -7,6 +7,7 @@
 // would fail until someone noticed.
 import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { serverSecret } from "@/lib/server-env";
 
 // Service-role client for server-only operations the anon key can't do:
 // `auth.admin.deleteUser` (account deletion) and the scheduled
@@ -23,7 +24,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 //  - never reach it from a browser request without an independent
 //    authorization check first.
 export function createAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = serverSecret("SUPABASE_SERVICE_ROLE_KEY");
   if (!serviceRoleKey) {
     throw new Error(
       "SUPABASE_SERVICE_ROLE_KEY is not set -- required for admin operations like account deletion.",

@@ -4,6 +4,7 @@
 // API key -- to every visitor.
 import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { serverSecret } from "@/lib/server-env";
 
 // Symmetric encryption for user-supplied AI provider API keys.
 //
@@ -64,9 +65,37 @@ const KEY_BYTES = 32; // AES-256
 //         production, and accepting the format is now only an open door --
 //         so it is REFUSED. Anyone holding a v1 value (none should exist)
 //         re-pastes their key.
-//   v2 -- AAD is the owning user's id.
+//   v2 -- AAD is the owning user's id. Still decrypts; rewritten as v3 the
+//         first time it is used (or by `npm run rotate:ai-keys`).
+//   v3 -- AAD is user id + the key's own row id + its provider (2026-09-30).
+//         v2 stopped a ciphertext moving to ANOTHER user, but not between a
+//         user's own rows, and not a row's `provider` being changed -- which
+//         would send the key to a different provider's servers on next use.
+//         Binding both makes either change undecryptable instead.
 const FORMAT_V2 = "v2";
-const CURRENT_FORMAT = FORMAT_V2;
+const FORMAT_V3 = "v3";
+
+/** What a v3 ciphertext is bound to, besides its owner. */
+export interface KeyBinding {
+  keyId: string;
+  provider: string;
+}
+
+/**
+ * Whether new ciphertext is written as v3. OFF until the code that can READ
+ * v3 is deployed: local dev and production share one database, so a v3 value
+ * written from a dev machine (or by the opportunistic upgrade) before then
+ * would be undecryptable by the live site. After deploying, set
+ * AI_KEY_WRITE_V3=true (Netlify and .env.local) and run
+ * `npm run rotate:ai-keys -- --apply`. See SECURITY-RUNBOOK.md.
+ */
+export function writesV3(): boolean {
+  return process.env.AI_KEY_WRITE_V3 === "true";
+}
+
+function additionalData(owner: string, binding: KeyBinding | undefined): Buffer {
+  return Buffer.from(binding ? `v3|user:${owner}|key:${binding.keyId}|provider:${binding.provider}` : owner, "utf8");
+}
 
 let cachedKeys: Buffer[] | null = null;
 
@@ -109,7 +138,7 @@ function decodeSecret(raw: string, varName: string): Buffer {
 function getKeys(): Buffer[] {
   if (cachedKeys) return cachedKeys;
 
-  const raw = process.env.AI_KEY_ENCRYPTION_SECRET;
+  const raw = serverSecret("AI_KEY_ENCRYPTION_SECRET");
   if (!raw) {
     throw new Error(
       "AI_KEY_ENCRYPTION_SECRET is not set -- required to store AI provider API keys.",
@@ -118,7 +147,7 @@ function getKeys(): Buffer[] {
 
   const keys = [decodeSecret(raw, "AI_KEY_ENCRYPTION_SECRET")];
 
-  const previous = process.env.AI_KEY_ENCRYPTION_SECRET_PREVIOUS;
+  const previous = serverSecret("AI_KEY_ENCRYPTION_SECRET_PREVIOUS");
   if (previous) {
     for (const entry of previous.split(",")) {
       const trimmed = entry.trim();
@@ -174,15 +203,19 @@ export function resetEncryptionKeyCache(): void {
  * refuses ciphertext that has been altered, so write access to the database
  * cannot be used to swap in an attacker-controlled key undetected either.
  */
-export function encrypt(plaintext: string, owner: string): string {
+export function encrypt(plaintext: string, owner: string, binding?: KeyBinding): string {
+  // Bound to the row and provider only once v3 writing is switched on.
+  if (!writesV3()) binding = undefined;
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, currentKey(), iv);
-  cipher.setAAD(Buffer.from(owner, "utf8"));
+  cipher.setAAD(additionalData(owner, binding));
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
   return [
-    CURRENT_FORMAT,
+    // v3 whenever the row it belongs to is known -- every stored key. v2 is
+    // only produced for a bare round-trip check (verify-ai-key-secret).
+    binding ? FORMAT_V3 : FORMAT_V2,
     iv.toString("base64"),
     authTag.toString("base64"),
     ciphertext.toString("base64"),
@@ -213,12 +246,18 @@ export interface DecryptResult {
  * surface. The specific cause is a server-side debugging concern, not
  * something to hand back.
  */
-export function decryptWithMeta(ciphertext: string, owner: string): DecryptResult {
+export function decryptWithMeta(ciphertext: string, owner: string, binding?: KeyBinding): DecryptResult {
   const parts = ciphertext.split(".");
   const version = parts[0];
-  if (parts.length !== 4 || version !== FORMAT_V2) {
+  if (parts.length !== 4 || (version !== FORMAT_V2 && version !== FORMAT_V3)) {
     throw new Error("Could not decrypt stored API key.");
   }
+  // A v3 value can only be opened with the row and provider it was sealed
+  // to; asking without them is refused rather than guessed.
+  if (version === FORMAT_V3 && !binding) {
+    throw new Error("Could not decrypt stored API key.");
+  }
+  const aad = additionalData(owner, version === FORMAT_V3 ? binding : undefined);
 
   const [, ivB64, authTagB64, dataB64] = parts;
   const iv = Buffer.from(ivB64, "base64");
@@ -235,10 +274,12 @@ export function decryptWithMeta(ciphertext: string, owner: string): DecryptResul
   for (let i = 0; i < keys.length; i++) {
     try {
       const decipher = createDecipheriv(ALGORITHM, keys[i], iv);
-      decipher.setAAD(Buffer.from(owner, "utf8"));
+      decipher.setAAD(aad);
       decipher.setAuthTag(authTag);
       const plaintext = Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
-      return { plaintext, stale: version !== CURRENT_FORMAT || i !== 0 };
+      // Stale = worth rewriting: under a retired secret, or a v2 value whose
+      // row is now known so it can be upgraded to v3.
+      return { plaintext, stale: i !== 0 || (version === FORMAT_V2 && !!binding && writesV3()) };
     } catch {
       // Wrong secret, wrong owner, or tampered input -- indistinguishable by
       // design. Try the next retired secret before giving up.

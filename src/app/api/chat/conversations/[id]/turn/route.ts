@@ -170,7 +170,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                 const check = await provider.validateKey(ready.key);
                 if (!check.valid) return null;
                 const next = chooseModel(ready.provider, check.models.filter((m) => m !== ready.model));
-                if (next) await setApiKeyModel(supabase, keyId, next);
+                if (next) await setApiKeyModel(supabase, keyId, next, { userId });
                 console.warn(`[chat/turn] ${ready.provider}: ${ready.model} retired, switched key to ${next}`);
                 return next;
               } catch (err) {

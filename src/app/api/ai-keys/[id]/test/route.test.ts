@@ -84,7 +84,7 @@ describe("POST /api/ai-keys/[id]/test", () => {
     expect(body.state).toBe("working");
     expect(body.model).toBe("qwen/qwen3.8-27b");
     expect(body.message).toContain("no longer offers llama-3.3-70b-versatile");
-    expect(setApiKeyModel).toHaveBeenCalledWith({}, "key-1", "qwen/qwen3.8-27b", { validated: true });
+    expect(setApiKeyModel).toHaveBeenCalledWith({}, "key-1", "qwen/qwen3.8-27b", { validated: true, userId: "user-1" });
     // The picker never offers a speech model.
     expect(body.models).toEqual(["qwen/qwen3.8-27b"]);
   });
@@ -96,7 +96,7 @@ describe("POST /api/ai-keys/[id]/test", () => {
     const body = await (await call()).json();
 
     expect(body.model).toBe("openai/gpt-oss-20b");
-    expect(setApiKeyModel).toHaveBeenCalledWith({}, "key-1", "openai/gpt-oss-20b", { validated: true });
+    expect(setApiKeyModel).toHaveBeenCalledWith({}, "key-1", "openai/gpt-oss-20b", { validated: true, userId: "user-1" });
   });
 
   it("separates a retired model from a bad key, and does NOT park it", async () => {
