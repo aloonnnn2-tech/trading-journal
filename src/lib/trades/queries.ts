@@ -127,6 +127,8 @@ export async function updateTrade(
       entry_price: merged.entry_price,
       exit_price: merged.exit_price,
       shares: merged.shares,
+      order_type: merged.order_type,
+      commission_rule_id: merged.commission_rule_id ?? null,
     });
   }
 

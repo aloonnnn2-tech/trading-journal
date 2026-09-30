@@ -1,12 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { countPostings, listMonthlyCosts, takeDueMonthlyCosts } from "@/lib/monthly-costs/queries";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { CommissionManager } from "./commission-manager";
 import { TrackPageView } from "@/components/track-page-view";
 
 export default async function CommissionsPage() {
-  await requireUserId();
+  const userId = await requireUserId();
   const supabase = await createClient();
+  await takeDueMonthlyCosts(supabase, userId);
+  const [monthlyCosts, takenCounts] = await Promise.all([
+    listMonthlyCosts(supabase).catch(() => null),
+    countPostings(supabase).catch(() => ({})),
+  ]);
 
   const rules = await listCommissionRules(supabase);
 
@@ -38,7 +44,12 @@ export default async function CommissionsPage() {
           the price it has to reach to break even.
         </p>
       </div>
-      <CommissionManager initialRules={rules} assetTypes={assetTypes} />
+      <CommissionManager
+        initialRules={rules}
+        assetTypes={assetTypes}
+        monthlyCosts={monthlyCosts}
+        takenCounts={takenCounts}
+      />
     </div>
   );
 }

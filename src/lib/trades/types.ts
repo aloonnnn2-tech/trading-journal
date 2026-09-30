@@ -64,6 +64,9 @@ export interface Trade {
   /** True when the user typed a commission by hand, pinning it against the
    *  automatic per-rule recalculation. */
   commission_manual: boolean;
+  /** A fee the user chose on this trade (0056); null = matched automatically.
+   *  Set through PUT /api/trades/[id]/fee, not the general PATCH. */
+  commission_rule_id?: string | null;
 
   /** Net of commission -- see src/lib/trades/compute.ts. */
   dollar_pl: number | null;

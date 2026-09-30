@@ -490,21 +490,51 @@ export const BROKER_PRESETS: BrokerPreset[] = [
 export const CUSTOM_TEMPLATES: { id: string; name: string; hint: string; components: FeeComponent[] }[] = [
   {
     id: "custom-flat",
-    name: "Flat fee per order",
-    hint: "The same amount on every buy and sell -- e.g. $2.50 a side.",
-    components: [{ label: "Commission", basis: "flat", amount: 0, side: "both" }],
+    name: "The same fixed fee each time",
+    hint: "e.g. $2.50 when you buy and $2.50 when you sell",
+    components: [{ label: "Commission", basis: "flat", amount: 2.5, side: "both" }],
+  },
+  {
+    // Alon's own broker (2026-09-29): $2.50 per action; the buy fee comes out
+    // of the shares bought ($80 -> effectively $82.50 a share), the sell fee
+    // from cash.
+    id: "custom-buy-from-shares",
+    name: "Buy fee from the shares, sell fee from cash",
+    hint: "e.g. $2.50 each: buy at $80, effectively $82.50 a share",
+    components: [
+      { label: "Buy fee", basis: "flat", amount: 2.5, side: "buy", taken_from: "shares" },
+      { label: "Sell fee", basis: "flat", amount: 2.5, side: "sell" },
+    ],
   },
   {
     id: "custom-percent-min",
-    name: "% of trade value with a minimum",
-    hint: "How most banks (including Israeli banks) and many European brokers charge.",
-    components: [{ label: "Commission", basis: "percent", amount: 0, side: "both", min_fee: 0 }],
+    name: "A % of the trade with a minimum",
+    hint: "How banks (including Israeli banks) and many European brokers charge",
+    components: [{ label: "Commission", basis: "percent", amount: 0.1, side: "both", min_fee: 5 }],
   },
   {
     id: "custom-per-share",
     name: "Per share with a minimum",
-    hint: "How direct-access day-trading brokers usually charge.",
-    components: [{ label: "Commission", basis: "per_unit", amount: 0, side: "both", min_fee: 0 }],
+    hint: "How day-trading brokers usually charge",
+    components: [{ label: "Commission", basis: "per_unit", amount: 0.005, side: "both", min_fee: 1 }],
+  },
+  {
+    id: "custom-tiered",
+    name: "Cheaper for bigger trades",
+    hint: "e.g. 0.1% up to $10,000, 0.05% above",
+    components: [
+      {
+        label: "Commission",
+        basis: "percent",
+        amount: 0.1,
+        side: "both",
+        tiers: [
+          { up_to: 10000, amount: 0.1 },
+          { up_to: null, amount: 0.05 },
+        ],
+        tier_by: "value",
+      },
+    ],
   },
 ];
 

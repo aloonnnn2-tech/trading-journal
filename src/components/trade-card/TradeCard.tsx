@@ -82,8 +82,33 @@ export function TradeCard({
   accountBalance?: number | null;
 }) {
   const router = useRouter();
-  const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow } =
+  const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade } =
     useAutosaveTrade(initialTrade);
+  const [feeSaving, setFeeSaving] = useState(false);
+  const [feeError, setFeeError] = useState<string | null>(null);
+
+  // Which fee this trade pays: automatic, a chosen one, or none. Pending
+  // edits are saved first, so the fee is worked out from what's on screen.
+  async function chooseFee(fee: string) {
+    setFeeError(null);
+    setFeeSaving(true);
+    try {
+      await flushNow();
+      const res = await fetch(`/api/trades/${trade.id}/fee`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fee }),
+      });
+      const body = (await res.json().catch(() => null)) as (Trade & { error?: string }) | null;
+      if (!res.ok || !body) throw new Error(body?.error ?? "Couldn't change the fee. Try again.");
+      applyServerTrade(body);
+    } catch (err) {
+      setFeeError(err instanceof Error ? err.message : "Couldn't change the fee. Try again.");
+    } finally {
+      setFeeSaving(false);
+    }
+  }
+  const feeChoice = trade.commission_rule_id ?? (trade.commission_manual && trade.commission === 0 ? "none" : "auto");
   const [folderIds, setFolderIds] = useState(new Set(initialFolderIds));
   const [strategyIds, setStrategyIds] = useState(new Set(initialStrategyIds));
   const [imageCount, setImageCount] = useState(initialImages.length);
@@ -907,6 +932,32 @@ export function TradeCard({
               />
             )}
           </div>
+          {commissionRules.length > 0 && !isHidden("commission") && (
+            // Pick the fee: for someone with two brokers or accounts, or a
+            // trade the automatic match gets wrong.
+            <div className="mt-4 flex flex-col gap-1.5">
+              <label className="flex flex-wrap items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                Fee for this trade
+                <select
+                  value={feeChoice}
+                  disabled={feeSaving}
+                  onChange={(e) => void chooseFee(e.target.value)}
+                  className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-primary disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                >
+                  <option value="auto">Automatic{commissionRule && !trade.commission_rule_id ? ` (${commissionRule.name})` : ""}</option>
+                  {commissionRules.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                      {r.enabled ? "" : " (off)"}
+                    </option>
+                  ))}
+                  <option value="none">No fee</option>
+                </select>
+                {feeSaving && <span className="text-xs text-zinc-500">Saving…</span>}
+              </label>
+              {feeError && <p className="text-xs text-loss">{feeError}</p>}
+            </div>
+          )}
           {commissionRule && !trade.commission_manual && (
             <p className="mt-3 text-xs text-zinc-500">
               Commission is applied automatically from your{" "}

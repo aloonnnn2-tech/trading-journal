@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { takeDueMonthlyCosts } from "@/lib/monthly-costs/queries";
 import { getDashboardStats, getPerformanceSeries, getRecentNotes, getRecentTrades } from "@/lib/dashboard/queries";
 import { getEmotionHistory, type EmotionHistoryEntry } from "@/lib/emotions/queries";
 import type { RecentNote, SetupStats } from "@/lib/dashboard/queries";
@@ -25,6 +26,9 @@ import { formatMoney } from "@/lib/format/money";
 export default async function DashboardPage() {
   const userId = await requireUserId();
   const supabase = await createClient();
+  // Monthly costs (0057) that have come due are taken from cash before
+  // the balance is read, so it is right the moment it is shown.
+  await takeDueMonthlyCosts(supabase, userId);
 
   const now = new Date();
   // The stats RPC buckets "today" and "this month" in the user's own timezone,

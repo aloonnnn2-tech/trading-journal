@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { takeDueMonthlyCosts } from "@/lib/monthly-costs/queries";
 import { listFolders } from "@/lib/folders/queries";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import {
@@ -53,6 +54,9 @@ export default async function TradesPage({
   const params = await searchParams;
   const userId = await requireUserId();
   const supabase = await createClient();
+  // Monthly costs (0057) that have come due are taken from cash before
+  // the balance is read, so it is right the moment it is shown.
+  await takeDueMonthlyCosts(supabase, userId);
   // Setup -> Settings can turn the summary strip off (0052). Unknown (0052
   // unapplied, or a failed read) shows it, as before. Off also skips its
   // query, not just its markup.

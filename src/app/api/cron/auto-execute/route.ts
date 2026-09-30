@@ -296,6 +296,8 @@ export async function POST(request: Request) {
               entry_price: merged.entry_price,
               exit_price: merged.exit_price,
               shares: merged.shares,
+              order_type: merged.order_type,
+              commission_rule_id: (merged as { commission_rule_id?: string | null }).commission_rule_id ?? null,
             });
 
         const derived = computeDerivedFields({

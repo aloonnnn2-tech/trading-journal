@@ -26,6 +26,36 @@ export const feeComponentSchema = z
     min_fee: nonNegativeOrNull,
     max_fee: nonNegativeOrNull,
     max_percent: nonNegativeOrNull,
+    // Size bands (see FeeTier). At most 10: a real schedule has 3-5.
+    tiers: z
+      .array(
+        z.object({
+          up_to: z.number().finite().positive().nullable(),
+          amount: z.number().finite().min(0, "A band's amount can't be negative"),
+        }),
+      )
+      .max(10)
+      .nullable()
+      .optional(),
+    tier_by: z.enum(["value", "shares"]).optional(),
+    only_when: z
+      .object({
+        order_types: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
+        direction: z.enum(["long", "short"]).optional(),
+        price_below: z.number().finite().positive().nullable().optional(),
+        price_at_least: z.number().finite().min(0).nullable().optional(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    // ISO 4217-shaped code; the rate is account-currency units per one of it.
+    currency: z.string().trim().regex(/^[A-Z]{3}$/, "Use a 3-letter currency code").nullable().optional(),
+    fx_rate: z.number().finite().positive().max(100000).nullable().optional(),
+    fx_rate_date: z.string().max(40).nullable().optional(),
+    taken_from: z.enum(["cash", "shares"]).optional(),
+  })
+  .refine((c) => !c.currency || (c.fx_rate != null && c.fx_rate > 0), {
+    message: "A fee in another currency needs its exchange rate",
   })
   .refine((c) => c.min_fee == null || c.max_fee == null || c.max_fee >= c.min_fee, {
     message: "A fee line's maximum must be at least its minimum",

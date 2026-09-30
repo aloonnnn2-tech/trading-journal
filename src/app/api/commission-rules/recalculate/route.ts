@@ -37,16 +37,24 @@ export async function POST() {
   try {
     // The narrow column list means the client infers a shape narrower than
     // Trade -- fetch untyped and cast once, same as the other call sites.
-    trades = (await fetchAllRows<Record<string, unknown>>((from, to) =>
-      supabase
-        .from("trades")
-        .select(
-          "id, mode, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, commission, commission_manual",
-        )
-        .eq("mode", "trade")
-        .order("id", { ascending: true })
-        .range(from, to),
-    )) as unknown as Trade[];
+    const BASE =
+      "id, mode, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, risk_amount, commission, commission_manual, order_type";
+    const load = (columns: string) =>
+      fetchAllRows<Record<string, unknown>>((from, to) =>
+        // A runtime column list: the client can't type it, so it is cast once here.
+        supabase.from("trades").select(columns).eq("mode", "trade").order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{
+          data: Record<string, unknown>[] | null;
+          error: { message?: string; code?: string } | null;
+        }>,
+      );
+    // commission_rule_id (a fee chosen on the trade) arrives with 0056; until
+    // it is applied, recalculate as before, by matching alone.
+    try {
+      trades = (await load(`${BASE}, commission_rule_id`)) as unknown as Trade[];
+    } catch (error) {
+      if ((error as { code?: string }).code !== "42703") throw error;
+      trades = (await load(BASE)) as unknown as Trade[];
+    }
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "PGRST205" || code === "42P01" || code === "42703") {
@@ -84,6 +92,8 @@ export async function POST() {
           entry_price: trade.entry_price,
           exit_price: trade.exit_price,
           shares: trade.shares,
+          order_type: trade.order_type,
+          commission_rule_id: (trade as { commission_rule_id?: string | null }).commission_rule_id ?? null,
         });
 
         const derived = computeDerivedFields({

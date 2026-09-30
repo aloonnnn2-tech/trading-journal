@@ -110,6 +110,7 @@ export async function POST(request: Request) {
         entry_price: (core.entry_price as number) ?? null,
         exit_price: (core.exit_price as number) ?? null,
         shares: (core.shares as number) ?? null,
+        order_type: (core.order_type as string) ?? null,
       });
     }
 

@@ -10,6 +10,13 @@ export interface CommissionTradeInput {
   entry_price: number | null;
   exit_price: number | null;
   shares: number | null;
+  /** For fee lines charged only on some order types. */
+  order_type?: string | null;
+  /**
+   * The fee the user chose on this trade (0056). Set: that fee, whatever the
+   * matching would pick. Null/absent: matched automatically as before.
+   */
+  commission_rule_id?: string | null;
 }
 
 export interface CommissionBreakdown {
@@ -31,8 +38,16 @@ const norm = (value: string | null): string => (value ?? "").trim().toLowerCase(
  */
 export function matchCommissionRule(
   rules: CommissionRule[],
-  trade: Pick<CommissionTradeInput, "asset_type" | "market">,
+  trade: Pick<CommissionTradeInput, "asset_type" | "market" | "commission_rule_id">,
 ): CommissionRule | null {
+  // A fee chosen on the trade itself wins over matching -- even one switched
+  // off, since switching a fee off is about which trades it picks up, not
+  // about undoing an explicit choice. A choice whose fee was deleted falls
+  // back to matching (the column is ON DELETE SET NULL anyway).
+  if (trade.commission_rule_id) {
+    const chosen = rules.find((r) => r.id === trade.commission_rule_id);
+    if (chosen) return chosen;
+  }
   const assetType = norm(trade.asset_type);
   const market = norm(trade.market);
 
@@ -69,9 +84,11 @@ export function sideFee(
   shares: number | null,
   /** Only multi-line rules need it: it decides which fill is the sell. */
   direction: string | null = "long",
+  /** The trade's order type (market, limit...), for fee lines charged only on some. */
+  orderType: string | null = null,
 ): number {
   if (rule.components && rule.components.length > 0) {
-    return rule.components.reduce((sum, c) => sum + componentFee(c, side, price, shares, direction), 0);
+    return rule.components.reduce((sum, c) => sum + componentFee(c, side, price, shares, direction, orderType), 0);
   }
   if (rule.applies_to !== "both" && rule.applies_to !== side) return 0;
 
@@ -103,6 +120,44 @@ function chargesOn(lineSide: FeeSide, side: "entry" | "exit", direction: string 
 }
 
 /**
+ * Whether a fee line's "only when" holds for this fill. A condition on order
+ * type needs the trade to have one: a trade with no order type recorded does
+ * not match "market orders only", because claiming it did would be a guess.
+ */
+function conditionHolds(
+  c: FeeComponent,
+  price: number | null,
+  direction: string | null,
+  orderType: string | null,
+): boolean {
+  const w = c.only_when;
+  if (!w) return true;
+  if (w.direction && (direction ?? "long") !== w.direction) return false;
+  if (w.order_types && w.order_types.length > 0) {
+    if (!orderType || !w.order_types.map((o) => o.toLowerCase()).includes(orderType.toLowerCase())) return false;
+  }
+  if (w.price_below != null && !(price != null && price < w.price_below)) return false;
+  if (w.price_at_least != null && !(price != null && price >= w.price_at_least)) return false;
+  return true;
+}
+
+/**
+ * The amount a line charges: its own, or the band the fill falls in. Bands
+ * are checked smallest limit first; the first whose limit the fill is within
+ * wins, and a band with no limit catches the rest. Without the measure a band
+ * needs (no price for a value band), the first band applies.
+ */
+function tierAmount(c: FeeComponent, value: number | null, shares: number | null): number {
+  const tiers = c.tiers?.filter((t) => Number.isFinite(Number(t.amount)));
+  if (!tiers || tiers.length === 0) return Number(c.amount);
+  const sorted = [...tiers].sort((a, b) => (a.up_to ?? Infinity) - (b.up_to ?? Infinity));
+  const measure = c.tier_by === "shares" ? shares : value;
+  if (measure == null) return Number(sorted[0].amount);
+  const band = sorted.find((t) => t.up_to == null || measure <= Number(t.up_to)) ?? sorted[sorted.length - 1];
+  return Number(band.amount);
+}
+
+/**
  * One fee line for one fill. Same bases and clamping as a single-line rule,
  * plus an optional cap as a percent of the fill's value -- which is how IBKR
  * states its maximum ("1% of trade value"), and why a fixed dollar cap
@@ -114,22 +169,28 @@ export function componentFee(
   price: number | null,
   shares: number | null,
   direction: string | null = "long",
+  /** The trade's order type (market, limit...), for fee lines charged only on some. */
+  orderType: string | null = null,
 ): number {
   if (!chargesOn(c.side, side, direction)) return 0;
-  const amount = Number(c.amount);
-  if (!Number.isFinite(amount)) return 0;
+  if (!conditionHolds(c, price, direction, orderType)) return 0;
   const hasPrice = price != null && Number.isFinite(price);
   const hasShares = shares != null && Number.isFinite(shares);
   const value = hasPrice && hasShares ? Math.abs(price * shares) : null;
+  const amount = tierAmount(c, value, hasShares ? Math.abs(shares) : null);
+  if (!Number.isFinite(amount)) return 0;
+  // A fee stated in another currency: fixed amounts and limits convert at
+  // the stored rate; a percentage is of the trade's own value already.
+  const rate = c.currency && c.fx_rate != null && Number.isFinite(c.fx_rate) && c.fx_rate > 0 ? Number(c.fx_rate) : 1;
 
   let fee: number;
   switch (c.basis) {
     case "flat":
-      fee = amount;
+      fee = amount * rate;
       break;
     case "per_unit":
       if (!hasShares) return 0;
-      fee = amount * Math.abs(shares);
+      fee = amount * rate * Math.abs(shares);
       break;
     case "percent":
       if (value == null) return 0;
@@ -138,8 +199,8 @@ export function componentFee(
     default:
       return 0;
   }
-  if (c.min_fee != null && Number.isFinite(c.min_fee)) fee = Math.max(fee, Number(c.min_fee));
-  if (c.max_fee != null && Number.isFinite(c.max_fee)) fee = Math.min(fee, Number(c.max_fee));
+  if (c.min_fee != null && Number.isFinite(c.min_fee)) fee = Math.max(fee, Number(c.min_fee) * rate);
+  if (c.max_fee != null && Number.isFinite(c.max_fee)) fee = Math.min(fee, Number(c.max_fee) * rate);
   // The percent cap applies after the minimum, as IBKR applies it: on a tiny
   // order the 1% cap can undercut the $1 minimum.
   if (c.max_percent != null && Number.isFinite(c.max_percent) && value != null) {
@@ -159,11 +220,13 @@ export function feeLines(
   price: number | null,
   shares: number | null,
   direction: string | null = "long",
+  /** The trade's order type (market, limit...), for fee lines charged only on some. */
+  orderType: string | null = null,
 ): { label: string; fee: number }[] {
   if (rule.components && rule.components.length > 0) {
-    return rule.components.map((c) => ({ label: c.label, fee: componentFee(c, side, price, shares, direction) }));
+    return rule.components.map((c) => ({ label: c.label, fee: componentFee(c, side, price, shares, direction, orderType) }));
   }
-  return [{ label: rule.name, fee: sideFee(rule, side, price, shares, direction) }];
+  return [{ label: rule.name, fee: sideFee(rule, side, price, shares, direction, orderType) }];
 }
 
 /**
@@ -181,9 +244,9 @@ export function computeCommission(
   if (!rule) return none;
   if (trade.status === "pending") return none;
 
-  const entryFee = sideFee(rule, "entry", trade.entry_price, trade.shares, trade.direction);
+  const entryFee = sideFee(rule, "entry", trade.entry_price, trade.shares, trade.direction, trade.order_type);
   const exitFee =
-    trade.status === "closed" ? sideFee(rule, "exit", trade.exit_price, trade.shares, trade.direction) : 0;
+    trade.status === "closed" ? sideFee(rule, "exit", trade.exit_price, trade.shares, trade.direction, trade.order_type) : 0;
 
   return { entryFee, exitFee, total: entryFee + exitFee };
 }
@@ -238,11 +301,11 @@ export function computeBreakevenPrice(
 
   const isShort = trade.direction === "short";
   const absShares = Math.abs(shares);
-  const entryFee = sideFee(rule, "entry", entry, shares, trade.direction);
+  const entryFee = sideFee(rule, "entry", entry, shares, trade.direction, trade.order_type);
 
   let breakeven = entry;
   for (let i = 0; i < 40; i++) {
-    const exitFee = sideFee(rule, "exit", breakeven, shares, trade.direction);
+    const exitFee = sideFee(rule, "exit", breakeven, shares, trade.direction, trade.order_type);
     const shift = (entryFee + exitFee) / absShares;
     const next = isShort ? entry - shift : entry + shift;
     if (Math.abs(next - breakeven) < 1e-10) {
@@ -277,7 +340,7 @@ export function computeEntryCoverPrice(
   if (entry == null || shares == null || !Number.isFinite(entry) || !Number.isFinite(shares) || shares === 0) {
     return null;
   }
-  const shift = sideFee(rule, "entry", entry, shares, trade.direction) / Math.abs(shares);
+  const shift = sideFee(rule, "entry", entry, shares, trade.direction, trade.order_type) / Math.abs(shares);
   const price = trade.direction === "short" ? entry - shift : entry + shift;
   return Number.isFinite(price) && price > 0 ? price : null;
 }

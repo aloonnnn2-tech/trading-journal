@@ -58,8 +58,8 @@ describe("describeRule", () => {
     expect(describeRule(rule)[0]).toBe(
       "$0.005 a share when you buy and when you sell (at least $1.00, at most 1% of the trade)",
     );
-    expect(describeRule(rule)[1]).toBe("SEC fee: 0.00206% of the trade on sells");
-    expect(describeRule(rule)[2]).toContain("FINRA TAF: $0.000195 a share on sells");
+    expect(describeRule(rule)[1]).toBe("SEC fee: 0.00206% of the trade when you sell");
+    expect(describeRule(rule)[2]).toContain("FINRA TAF: $0.000195 a share when you sell");
   });
 
   it("says 'No fees' for a commission-free rule", () => {

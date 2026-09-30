@@ -48,6 +48,49 @@ export interface FeeComponent {
   max_fee?: number | null;
   /** A cap as a percent of the fill's value -- IBKR's "1% of trade value". */
   max_percent?: number | null;
+  /**
+   * Size bands. When present, `amount` is replaced by the amount of the band
+   * the fill falls in -- the band's rate applies to the whole fill, as most
+   * banks' "0.1% up to $10,000, 0.05% above" schedules are read.
+   */
+  tiers?: FeeTier[] | null;
+  /** What the bands measure: the fill's value (default) or its share count. */
+  tier_by?: "value" | "shares";
+  /** Charged only on fills that match. Absent = every fill. */
+  only_when?: FeeCondition | null;
+  /**
+   * The currency the broker states the fee in, and how many account-currency
+   * units one of it is worth -- a rate the user fixed when setting it up
+   * (fetched live, then stored with its date, so a result never changes
+   * because a rate moved later). Absent = the account's own currency.
+   */
+  currency?: string | null;
+  fx_rate?: number | null;
+  fx_rate_date?: string | null;
+  /**
+   * Where the broker takes it from. "shares": out of the position being
+   * bought (it raises the effective buy price, e.g. $80 -> $82.50); "cash":
+   * from the balance. The P/L is the same either way; this decides how the
+   * app describes it.
+   */
+  taken_from?: "cash" | "shares";
+}
+
+/** One size band: up to `up_to` (inclusive; null = no upper limit), charge `amount`. */
+export interface FeeTier {
+  up_to: number | null;
+  amount: number;
+}
+
+/** When a fee line applies. Every field given must match. */
+export interface FeeCondition {
+  /** The trade's order type is one of these (market, limit, stop...). */
+  order_types?: string[];
+  direction?: "long" | "short";
+  /** The fill price is below this -- "stocks under $1". */
+  price_below?: number | null;
+  /** The fill price is at least this. */
+  price_at_least?: number | null;
 }
 
 export type CommissionRuleInput = Pick<

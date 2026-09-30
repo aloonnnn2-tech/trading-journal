@@ -152,6 +152,7 @@ export async function POST(request: Request) {
           entry_price: (result.core.entry_price as number) ?? null,
           exit_price: (result.core.exit_price as number) ?? null,
           shares: (result.core.shares as number) ?? null,
+          order_type: (result.core.order_type as string) ?? null,
         });
 
     const withDerived = withDerivedFields(result.core, commission);

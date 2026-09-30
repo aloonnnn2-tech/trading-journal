@@ -10,6 +10,8 @@ import { FormError } from "@/components/form-error";
 import { FeeList } from "./fee-list";
 import { AddFees } from "./add-fees";
 import { FeeEditor } from "./fee-editor";
+import { MonthlyCosts } from "./monthly-costs";
+import type { MonthlyCost } from "@/lib/monthly-costs/due";
 
 // Setup -> Commissions, rebuilt around three screens (Alon approved the
 // sketch, 2026-09-29): your fees in plain words -> add fees (your broker, or
@@ -21,7 +23,17 @@ type View =
   | { kind: "add" }
   | { kind: "form"; editing: CommissionRule | null; initial: FeeForm; title: string };
 
-export function CommissionManager({ initialRules, assetTypes }: { initialRules: CommissionRule[]; assetTypes: string[] }) {
+export function CommissionManager({
+  initialRules,
+  assetTypes,
+  monthlyCosts,
+  takenCounts,
+}: {
+  initialRules: CommissionRule[];
+  assetTypes: string[];
+  monthlyCosts: MonthlyCost[] | null;
+  takenCounts: Record<string, number>;
+}) {
   const router = useRouter();
   const [rules, setRules] = useState(initialRules);
   const [view, setViewRaw] = useState<View>({ kind: "list" });
@@ -139,6 +151,9 @@ export function CommissionManager({ initialRules, assetTypes }: { initialRules: 
       <AddFees
         onCancel={() => setView({ kind: "list" })}
         onCreateOwn={() => setView({ kind: "form", editing: null, initial: BLANK_FORM, title: "Create my own fee" })}
+        onPickTemplate={(tpl) =>
+          setView({ kind: "form", editing: null, initial: formFromComponents(tpl.components), title: "Create my own fee" })
+        }
         onPickPreset={(p: BrokerPreset) =>
           setView({
             kind: "form",
@@ -194,6 +209,8 @@ export function CommissionManager({ initialRules, assetTypes }: { initialRules: 
         onMove={move}
         onEdit={(rule) => setView({ kind: "form", editing: rule, initial: formFromRule(rule), title: `Edit "${rule.name}"` })}
       />
+
+      <MonthlyCosts initial={monthlyCosts} takenCounts={takenCounts} />
 
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-subtle dark:bg-card sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>

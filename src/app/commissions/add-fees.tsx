@@ -5,6 +5,7 @@ import { PencilLine, Search } from "lucide-react";
 import {
   BROKER_PRESETS,
   CHECKED_ON,
+  CUSTOM_TEMPLATES,
   PRESET_CATEGORY_LABELS,
   type BrokerPreset,
   type PresetCategory,
@@ -26,10 +27,13 @@ function summarise(p: BrokerPreset): string {
 export function AddFees({
   onPickPreset,
   onCreateOwn,
+  onPickTemplate,
   onCancel,
 }: {
   onPickPreset: (preset: BrokerPreset) => void;
   onCreateOwn: () => void;
+  /** A common setup to start "Create my own" from. */
+  onPickTemplate: (template: (typeof CUSTOM_TEMPLATES)[number]) => void;
   onCancel: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -84,7 +88,25 @@ export function AddFees({
         </button>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">Or create your own from a common setup:</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {CUSTOM_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onPickTemplate(t)}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-left hover:border-primary/60 dark:border-subtle dark:bg-card"
+            >
+              <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-50">{t.name}</span>
+              <span className="mt-0.5 block text-xs text-zinc-500">{t.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-subtle dark:bg-card sm:p-5">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Pick my broker</p>
         <label className="flex items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-50 px-3 dark:border-zinc-700 dark:bg-zinc-950">
           <Search className="h-4 w-4 shrink-0 text-zinc-500" />
           <input

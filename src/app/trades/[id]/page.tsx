@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { takeDueMonthlyCosts } from "@/lib/monthly-costs/queries";
 import { listAllStrategyFieldDefinitions, listFieldDefinitions } from "@/lib/fields/definitions";
 import { listFolders, listTradeFolderIds } from "@/lib/folders/queries";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -36,6 +37,9 @@ export default async function TradeDetailPage({
   const { id } = await params;
   const userId = await requireUserId();
   const supabase = await createClient();
+  // Monthly costs (0057) that have come due are taken from cash before
+  // the balance is read, so it is right the moment it is shown.
+  await takeDueMonthlyCosts(supabase, userId);
 
   const trade = await getTrade(supabase, id);
   if (!trade) notFound();
