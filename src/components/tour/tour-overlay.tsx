@@ -709,7 +709,7 @@ export function TourOverlay() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-5 left-1/2 z-[102] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-md dark:border-subtle dark:bg-card/95"
+        className="fixed bottom-[calc(var(--tabbar-h)+1.25rem)] left-1/2 z-[102] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-md dark:border-subtle dark:bg-card/95"
       >
         <span className="text-xs text-zinc-500">
           Tour paused · step {stepIndex + 1} of {steps.length}
@@ -761,7 +761,8 @@ export function TourOverlay() {
   }
 
   const cardStyle: React.CSSProperties = phone
-    ? { position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 102 }
+    ? // Above the phone tab bar, which several steps point at.
+      { position: "fixed", left: 12, right: 12, bottom: "calc(var(--tabbar-h) + 12px)", zIndex: 102 }
     : placement === "float"
       ? { position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", width: CARD_W, zIndex: 102 }
       : { position: "fixed", width: CARD_W, zIndex: 102 };

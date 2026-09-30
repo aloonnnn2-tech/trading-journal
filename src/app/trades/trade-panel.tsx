@@ -144,7 +144,9 @@ export function TradePanel({
       aria-label={`Trade ${title}`}
       data-trade-panel
       style={{ top }}
-      className="fixed bottom-0 right-0 z-30 flex w-full flex-col border-l border-zinc-200 bg-white shadow-[-24px_0_48px_-24px_rgba(0,0,0,0.35)] outline-none dark:border-subtle dark:bg-card sm:w-[560px]"
+      // bottom: the phone tab bar's height (0 elsewhere) -- the panel sits
+      // below it in the stack, so its footer would otherwise be hidden.
+      className="fixed bottom-[var(--tabbar-h)] right-0 z-30 flex w-full flex-col border-l border-zinc-200 bg-white shadow-[-24px_0_48px_-24px_rgba(0,0,0,0.35)] outline-none dark:border-subtle dark:bg-card sm:w-[560px]"
     >
       {/* Header: where you are, how to move, how to leave. */}
       <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3 dark:border-subtle">

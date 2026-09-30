@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BarChart3, FileUp, LayoutDashboard, List, Menu, Moon, Plus, Sun, UserCircle, X } from "lucide-react";
+import { BarChart3, Download, FileUp, LayoutDashboard, List, Menu, Moon, Plus, Sun, UserCircle, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { NAV_GROUPS, PRIMARY_LINKS, navLinkTourId } from "@/lib/nav/links";
 import { AddTradeButton, QuickTradeButton } from "@/app/trades/new-trade-button";
+import { ScreenshotTradeButton } from "@/app/trades/screenshot-trade-button";
 import { useAccountThemeToggle } from "@/components/preferences/preferences-provider";
 
 // The phone navigation (below `sm`, 640px): a bar fixed to the bottom of the
@@ -85,16 +86,7 @@ export function MobileTabBar() {
 
       {sheet === "add" && (
         <Sheet title="Add a trade" onClose={() => setSheet(null)}>
-          <div className="flex flex-col gap-2 [&>button]:w-full [&>button]:py-3 [&>div]:items-stretch [&>div>button]:w-full [&>div>button]:py-3">
-            <QuickTradeButton />
-            <AddTradeButton label="Full trade form" />
-            <Link
-              href="/trades/import"
-              className="flex items-center justify-center gap-2 rounded-lg border border-zinc-300 py-3 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
-            >
-              <FileUp className="h-4 w-4" /> From a screenshot or a file
-            </Link>
-          </div>
+          <AddSheet />
         </Sheet>
       )}
 
@@ -104,6 +96,42 @@ export function MobileTabBar() {
         </Sheet>
       )}
     </>
+  );
+}
+
+/**
+ * The + sheet: the same ways to add a trade as the Trades page header, which
+ * phones don't show. The cash balance is fetched when it opens -- the bar
+ * lives in the root layout, which doesn't load it -- so quick trade and the
+ * screenshot scan prefill position size from cash, as they do on desktop.
+ */
+function AddSheet() {
+  const [accountBalance, setAccountBalance] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/account/transactions")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { balance?: number; hasTransactions?: boolean } | null) => {
+        if (live && data?.hasTransactions && typeof data.balance === "number") setAccountBalance(data.balance);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-2 [&>button]:w-full [&>button]:py-3 [&>div]:items-stretch [&>div>button]:w-full [&>div>button]:py-3">
+      <QuickTradeButton accountBalance={accountBalance} />
+      <AddTradeButton label="Full trade form" />
+      <ScreenshotTradeButton accountBalance={accountBalance} label="From a screenshot" />
+      <Link
+        href="/trades/import"
+        className="flex items-center justify-center gap-2 rounded-lg border border-zinc-300 py-3 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+      >
+        <FileUp className="h-4 w-4" /> From a file (CSV, Excel)
+      </Link>
+    </div>
   );
 }
 
@@ -158,6 +186,28 @@ function MoreLinks({ pathname }: { pathname: string }) {
           </div>
         </section>
       ))}
+      <section>
+        {/* The Trades page's Export menu is hidden on phones with the rest
+            of its header buttons. */}
+        <h3 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+          <Download className="h-3.5 w-3.5" /> Export your trades
+        </h3>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ["csv", "CSV"],
+            ["xlsx", "Excel"],
+            ["json", "JSON"],
+          ].map(([format, label]) => (
+            <a
+              key={format}
+              href={`/api/trades/export?format=${format}`}
+              className="rounded-lg border border-zinc-200 px-3 py-2.5 text-center text-sm text-zinc-700 dark:border-subtle dark:text-zinc-200"
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+      </section>
       <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 pt-4 dark:border-subtle">
         <Link
           href="/account"

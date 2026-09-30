@@ -20,6 +20,9 @@ export interface NavDirections {
   groupLabel: string | null;
 }
 
+/** The phone tab bar's More button (data-tour-id in mobile-tab-bar.tsx). */
+export const MOBILE_MORE_ID = "nav-more";
+
 export function navDirections(path: string, isShown: (targetId: string) => boolean): NavDirections {
   const primary = PRIMARY_LINKS.find((l) => l.href === path);
   const group = NAV_GROUPS.find((g) => g.links.some((l) => l.href === path));
@@ -35,5 +38,9 @@ export function navDirections(path: string, isShown: (targetId: string) => boole
     const groupId = navGroupTourId(group.label);
     if (isShown(groupId)) return { targetId: groupId, kind: "group", label, groupLabel };
   }
+
+  // Phones: no top menu at all. Pages that aren't on the bottom tab bar live
+  // in its More sheet (mobile-tab-bar.tsx), which opens like a dropdown.
+  if (isShown(MOBILE_MORE_ID)) return { targetId: MOBILE_MORE_ID, kind: "group", label, groupLabel: "More" };
   return { targetId: null, kind: "none", label, groupLabel };
 }

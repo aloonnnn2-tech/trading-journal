@@ -40,6 +40,17 @@ describe("navDirections", () => {
     });
   });
 
+  it("on a phone, points at the tab bar's More button for pages inside it", () => {
+    expect(navDirections("/insights", shown("nav-more"))).toEqual({
+      targetId: "nav-more",
+      kind: "group",
+      label: "Insights",
+      groupLabel: "More",
+    });
+    // ...and at the item once the More sheet is open.
+    expect(navDirections("/insights", shown("nav-more", "nav-insights")).targetId).toBe("nav-insights");
+  });
+
   it("knows a menu item for every page a tour visits", () => {
     const menu = new Set([...PRIMARY_LINKS, ...NAV_GROUPS.flatMap((g) => g.links)].map((l) => l.href));
     for (const [name, steps] of Object.entries(TOURS)) {
