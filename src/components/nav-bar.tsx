@@ -322,7 +322,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
             )}
           </div>
           <button
-            onClick={() => toggleTheme()}
+            onClick={() => void toggleTheme()}
             title="Toggle theme"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >

@@ -43,7 +43,18 @@ export async function savePreferences(
   if (error) throw error;
   const next = { ...parsePreferences(data?.preferences), ...patch };
   // update(), not upsert(): see the note above setTourCompleted in queries.ts.
-  const { error: writeError } = await supabase.from("user_settings").update({ preferences: next }).eq("user_id", userId);
+  const { data: written, error: writeError } = await supabase
+    .from("user_settings")
+    .update({ preferences: next })
+    .eq("user_id", userId)
+    .select("user_id");
   if (writeError) throw writeError;
+  // An update matching no row reports success having saved nothing, and the
+  // switch would silently flip back on the next page. Same self-heal as
+  // setTourCompleted: 0054 grants INSERT on preferences.
+  if ((written?.length ?? 0) === 0) {
+    const { error: insertError } = await supabase.from("user_settings").insert({ user_id: userId, preferences: next });
+    if (insertError) throw insertError;
+  }
   return next;
 }

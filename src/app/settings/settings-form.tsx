@@ -48,9 +48,8 @@ export function SettingsForm({ initialShowTradeSummary }: { initialShowTradeSumm
                   role="radio"
                   aria-checked={theme === t}
                   disabled={!saveable}
-                  onClick={() => {
-                    setAccountTheme(t);
-                    mark("theme", true);
+                  onClick={async () => {
+                    mark("theme", await setAccountTheme(t));
                   }}
                   className={`rounded-md px-3 py-1.5 text-sm capitalize disabled:opacity-50 ${
                     theme === t
