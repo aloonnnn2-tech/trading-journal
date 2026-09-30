@@ -44,13 +44,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const { error } = await supabase.from("trades").update({ commission_rule_id: ruleId }).eq("id", id);
   if (error) {
-    if (isMissingColumnError(error)) {
+    // "Automatic" and "No fee" don't need the column: without 0056 there is
+    // no chosen fee to clear, and both are just a commission recompute below.
+    // Only picking one specific fee has nowhere to be stored.
+    if (isMissingColumnError(error) && ruleId) {
       return NextResponse.json(
         { error: "Choosing a fee per trade needs a database update (migration 0056) that hasn't been applied yet." },
         { status: 503 },
       );
     }
-    throw error;
+    if (!isMissingColumnError(error)) throw error;
   }
 
   // Re-derive the commission and P/L with the choice in place: an explicit

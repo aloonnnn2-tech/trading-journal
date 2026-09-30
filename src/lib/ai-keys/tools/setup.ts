@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getStrategyBreakdown } from "@/lib/strategies/queries";
 import { listCommissionRules } from "@/lib/commissions/queries";
+import { describeRule, describeScope, exampleCost } from "@/lib/commissions/fee-form";
 import { localDateParts } from "@/lib/dates/local-day";
 import { getLocalDayName } from "@/lib/dates/day-of-week";
 import { limited } from "./envelope";
@@ -85,15 +86,15 @@ export async function listFolders(ctx: ToolContext, args: z.infer<typeof listFol
 export async function listCommissionRulesTool(ctx: ToolContext) {
   const rules = await listCommissionRules(ctx.supabase);
   return limited(
+    // In words, the way the Commissions page shows them. The legacy
+    // amount / rule_type columns are 0 for a fee made of several lines
+    // (commission + SEC fee, tiers, conditions...), so reading those told the
+    // model a real fee was free.
     rules.map((r) => ({
       name: r.name,
-      type: r.rule_type,
-      amount: r.amount,
-      applies_to: r.applies_to,
-      asset_type: r.asset_type,
-      market: r.market,
-      min_fee: r.min_fee,
-      max_fee: r.max_fee,
+      charges: describeRule(r),
+      applies_to: describeScope(r),
+      example_100_shares_at_50: round(exampleCost(r).total),
       enabled: r.enabled,
     })),
     50,

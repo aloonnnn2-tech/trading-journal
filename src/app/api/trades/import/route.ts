@@ -141,8 +141,10 @@ export async function POST(request: Request) {
     // rules -- it's the broker's own number for this specific fill.
     const mapped = result.core.commission;
     const isMapped = mapped != null && Number.isFinite(Number(mapped));
+    // Size only: IBKR (IBCommission) and some others export fees as
+    // negative cash flows, and a negative fee would be ADDED to the P/L.
     const commission = isMapped
-      ? Number(mapped)
+      ? Math.abs(Number(mapped))
       : resolveCommission(commissionRules, {
           mode: (result.core.mode as string) ?? "trade",
           asset_type: (result.core.asset_type as string) ?? null,

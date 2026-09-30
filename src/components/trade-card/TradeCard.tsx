@@ -202,7 +202,9 @@ export function TradeCard({
   // lagging a 600ms autosave round trip behind it. The server recomputes and
   // persists the authoritative value on save -- this is purely the live
   // preview of the same calculation.
-  const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
+  // "No fee" chosen on this trade means no fee anywhere: not in the total and
+  // not in a fee-based break-even line on the chart either.
+  const commissionRule = isInvestment || feeChoice === "none" ? null : matchCommissionRule(commissionRules, trade);
   const commissionPreview = computeCommission(commissionRule, trade);
   const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
   // The price that covers only the fee already paid to get in ($82.50 for one
@@ -214,9 +216,9 @@ export function TradeCard({
   const feeBreakdown =
     commissionRule?.components && commissionRule.components.length > 1
       ? [
-          ...feeLines(commissionRule, "entry", trade.entry_price, trade.shares, trade.direction),
+          ...feeLines(commissionRule, "entry", trade.entry_price, trade.shares, trade.direction, trade.order_type),
           ...(trade.status === "closed"
-            ? feeLines(commissionRule, "exit", trade.exit_price, trade.shares, trade.direction)
+            ? feeLines(commissionRule, "exit", trade.exit_price, trade.shares, trade.direction, trade.order_type)
             : []),
         ]
           .reduce<{ label: string; fee: number }[]>((acc, l) => {
@@ -945,7 +947,9 @@ export function TradeCard({
                   className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-primary disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                 >
                   <option value="auto">Automatic{commissionRule && !trade.commission_rule_id ? ` (${commissionRule.name})` : ""}</option>
-                  {commissionRules.map((r) => (
+                  {/* A specific fee needs the column from migration 0056; until
+                      it's applied the trade row simply hasn't got it. */}
+                  {"commission_rule_id" in trade && commissionRules.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
                       {r.enabled ? "" : " (off)"}

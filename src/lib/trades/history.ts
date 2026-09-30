@@ -58,6 +58,16 @@ export async function restoreTradeVersion(
   const snapshot = historyRow.snapshot as Trade;
   const { id: _id, user_id: _userId, created_at: _createdAt, updated_at: _updatedAt, ...rest } = snapshot;
 
+  // The fee chosen back then may have been deleted since. The live row lost
+  // it through `on delete set null` (0056), but the snapshot still names it,
+  // and writing a vanished id back fails the foreign key -- the restore would
+  // error out. Such a trade goes back to automatic matching instead.
+  const ruleId = (rest as { commission_rule_id?: string | null }).commission_rule_id;
+  if (ruleId) {
+    const { data: rule } = await supabase.from("commission_rules").select("id").eq("id", ruleId).maybeSingle();
+    if (!rule) (rest as { commission_rule_id?: string | null }).commission_rule_id = null;
+  }
+
   // Re-derive P&L from the restored values instead of trusting the snapshot's
   // stored dollar_pl. A snapshot taken before commissions existed carries a
   // *gross* dollar_pl and no commission key at all -- writing that back
