@@ -68,6 +68,17 @@ export function costInAccountCurrency(cost: Pick<MonthlyCost, "amount" | "curren
   return Math.round(Number(cost.amount) * rate * 100) / 100;
 }
 
+/**
+ * Every withdrawal a monthly cost makes starts its note with this. It is how
+ * the ledger tells them apart from the user's own deposits and withdrawals:
+ * costs alone don't mean the user tracks cash (see hasOwnCashEntries).
+ */
+export const MONTHLY_COST_NOTE_PREFIX = "Monthly cost: ";
+
+export function isMonthlyCostNote(note: string | null | undefined): boolean {
+  return note != null && note.startsWith(MONTHLY_COST_NOTE_PREFIX);
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "Sep 2026" for "2026-09-01". Locale-free, so server and client agree. */

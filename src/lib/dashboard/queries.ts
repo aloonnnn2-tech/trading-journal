@@ -3,7 +3,7 @@ import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import type { Trade } from "@/lib/trades/types";
 import { getLocalDayOfMonth, localDateParts, startOfLocalDayIso } from "@/lib/dates/local-day";
 import { getStatusCounts } from "@/lib/trades/queries";
-import { getAccountBalance, type AccountBalance } from "@/lib/account/queries";
+import { getAccountBalance, hasOwnCashEntries, type AccountBalance } from "@/lib/account/queries";
 
 // "Today" and "this month" are bucketed by the user's own calendar day, not
 // UTC's -- see src/lib/dates/local-day.ts for why that distinction matters
@@ -267,6 +267,10 @@ export async function getDashboardStats(
     const tradePL = Number(row.trade_pl ?? 0);
     const balance = deposited + tradePL;
     const committedCash = Number(row.committed_cash ?? 0);
+    // The RPC counts every ledger row, monthly-cost withdrawals included;
+    // those alone mustn't switch cash tracking on (see getAccountBalance).
+    let hasTransactions = Boolean(row.has_transactions);
+    if (hasTransactions) hasTransactions = (await hasOwnCashEntries(supabase)) ?? hasTransactions;
 
     return {
       counts: {
@@ -290,7 +294,7 @@ export async function getDashboardStats(
         balance,
         committedCash,
         availableCash: balance - committedCash,
-        hasTransactions: Boolean(row.has_transactions),
+        hasTransactions,
       },
     };
   }

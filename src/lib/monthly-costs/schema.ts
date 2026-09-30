@@ -24,4 +24,8 @@ export const monthlyCostPatchSchema = z
     active: z.boolean(),
   })
   .partial()
-  .strict();
+  .strict()
+  // Same pairing as a new cost, for whichever half the change sets: a
+  // foreign currency with no rate would be taken 1:1 in the account currency.
+  .refine((c) => !c.currency || c.fx_rate != null, { message: "A cost in another currency needs its exchange rate" })
+  .refine((c) => c.fx_rate !== null || c.currency === null, { message: "A cost in another currency needs its exchange rate" });

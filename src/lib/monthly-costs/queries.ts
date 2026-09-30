@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingTableError } from "@/lib/supabase/errors";
-import { costInAccountCurrency, dueMonths, monthLabel, type MonthlyCost } from "./due";
+import { MONTHLY_COST_NOTE_PREFIX, costInAccountCurrency, dueMonths, monthLabel, type MonthlyCost } from "./due";
 
 // Monthly costs (migration 0057). Reads and writes go through the RLS-scoped
 // client, so every statement is confined to the signed-in user.
@@ -43,7 +43,17 @@ export async function updateMonthlyCost(
   supabase: SupabaseClient,
   id: string,
   changes: Partial<MonthlyCostInput>,
+  today = new Date(),
 ): Promise<MonthlyCost | null> {
+  // Resuming a paused cost starts it again from today. Otherwise every month
+  // it sat paused would come due at once on the next page load (dueMonths
+  // counts from starts_on), charging the very months it was paused for.
+  if (changes.active === true && changes.starts_on === undefined) {
+    const { data: current } = await supabase.from("monthly_costs").select("active").eq("id", id).maybeSingle();
+    if (current && !(current as { active: boolean }).active) {
+      changes = { ...changes, starts_on: today.toISOString().slice(0, 10) };
+    }
+  }
   const { data, error } = await supabase.from("monthly_costs").update(changes).eq("id", id).select().maybeSingle();
   if (error) throw error;
   return data as MonthlyCost | null;
@@ -89,7 +99,7 @@ export async function takeDueMonthlyCosts(supabase: SupabaseClient, userId: stri
           .insert({
             user_id: userId,
             amount: -costInAccountCurrency(cost),
-            note: `Monthly cost: ${cost.name} (${monthLabel(month)})`,
+            note: `${MONTHLY_COST_NOTE_PREFIX}${cost.name} (${monthLabel(month)})`,
             created_at: `${dueDate}T12:00:00Z`,
           })
           .select("id")

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { MONTHLY_COST_NOTE_PREFIX, isMonthlyCostNote } from "@/lib/monthly-costs/due";
 
 export interface AccountTransaction {
   id: string;
@@ -93,8 +94,8 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
   // prefill spends it. The `.order("id")` on each keeps offset pagination
   // deterministic.
   const [txRows, plRows, committedRows] = await Promise.all([
-    fetchAllRows<{ amount: number }>((from, to) =>
-      supabase.from("account_transactions").select("amount").order("id").range(from, to),
+    fetchAllRows<{ amount: number; note: string | null }>((from, to) =>
+      supabase.from("account_transactions").select("amount, note").order("id").range(from, to),
     ).catch((error: { code?: string }) => {
       // Migration 0016 not applied yet: treat as "no transactions", same
       // dormant-feature behavior as before.
@@ -164,8 +165,26 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
     balance,
     committedCash,
     availableCash: balance - committedCash,
-    hasTransactions: txRows.length > 0,
+    // Monthly costs alone don't switch cash tracking on: someone who never
+    // entered a deposit would suddenly get a negative "balance" driving risk
+    // % and position-size prefill. They still count once real entries exist.
+    hasTransactions: txRows.some((row) => !isMonthlyCostNote(row.note)),
   };
+}
+
+/**
+ * Whether the ledger holds any entry the user made themselves -- a deposit or
+ * withdrawal, not one a monthly cost took. For the dashboard RPC, whose
+ * has_transactions counts every row.
+ */
+export async function hasOwnCashEntries(supabase: SupabaseClient): Promise<boolean | null> {
+  const { data, error } = await supabase
+    .from("account_transactions")
+    .select("id")
+    .or(`note.is.null,note.not.like."${MONTHLY_COST_NOTE_PREFIX}*"`)
+    .limit(1);
+  if (error) return null;
+  return (data?.length ?? 0) > 0;
 }
 
 export async function listAccountTransactions(
