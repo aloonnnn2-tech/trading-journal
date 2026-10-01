@@ -215,3 +215,24 @@ export function withDerivedFields(
 
   return { ...core, ...derived };
 }
+
+/**
+ * Which way round a file writes its fees. The journal stores a fee as a
+ * positive commission (a rebate is negative). IBKR (IBCommission) and some
+ * other brokers export cash flows instead: a fee is negative and a rebate is
+ * positive. Taken as-is, those fees were ADDED to the P/L; taking the size
+ * of each would turn a rebate into a fee. So the file is read as a whole:
+ * when most of its non-zero fees are negative, every sign is flipped.
+ */
+export function importedFeeSign(values: readonly unknown[]): 1 | -1 {
+  let negative = 0;
+  let positive = 0;
+  for (const v of values) {
+    const n = v == null || v === "" ? NaN : Number(v);
+    if (!Number.isFinite(n) || n === 0) continue;
+    if (n < 0) negative += 1;
+    else positive += 1;
+  }
+  return negative > positive ? -1 : 1;
+}
+

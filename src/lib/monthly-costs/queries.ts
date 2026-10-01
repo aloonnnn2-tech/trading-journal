@@ -48,10 +48,13 @@ export async function updateMonthlyCost(
   // Resuming a paused cost starts it again from today. Otherwise every month
   // it sat paused would come due at once on the next page load (dueMonths
   // counts from starts_on), charging the very months it was paused for.
+  // Only ever forward: a cost scheduled to start later keeps its start.
   if (changes.active === true && changes.starts_on === undefined) {
-    const { data: current } = await supabase.from("monthly_costs").select("active").eq("id", id).maybeSingle();
-    if (current && !(current as { active: boolean }).active) {
-      changes = { ...changes, starts_on: today.toISOString().slice(0, 10) };
+    const { data: current } = await supabase.from("monthly_costs").select("active, starts_on").eq("id", id).maybeSingle();
+    const row = current as { active: boolean; starts_on: string } | null;
+    const day = today.toISOString().slice(0, 10);
+    if (row && !row.active && row.starts_on < day) {
+      changes = { ...changes, starts_on: day };
     }
   }
   const { data, error } = await supabase.from("monthly_costs").update(changes).eq("id", id).select().maybeSingle();

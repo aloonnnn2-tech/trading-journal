@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     // rules, same as a fresh CSV import.
     const exported = core.commission;
     const hasExported = exported != null && Number.isFinite(Number(exported));
-    let commission: number | null = hasExported ? Math.abs(Number(exported)) : null;
+    let commission: number | null = hasExported ? Number(exported) : null;
     if (!hasExported) {
       const provisional = withDerivedFields(core);
       const provisionalStatus = deriveStatusAndResult(core, provisional);

@@ -31,11 +31,11 @@ describe("monthly cost withdrawals are recognisable", () => {
 
 // A stand-in for the two calls updateMonthlyCost makes: read `active`, then
 // update. Records what the update was given.
-function fakeClient(currentlyActive: boolean) {
+function fakeClient(currentlyActive: boolean, startsOn = "2026-01-01") {
   const sent: Record<string, unknown>[] = [];
   const client = {
     from: () => ({
-      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { active: currentlyActive }, error: null }) }) }),
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { active: currentlyActive, starts_on: startsOn }, error: null }) }) }),
       update: (changes: Record<string, unknown>) => {
         sent.push(changes);
         return { eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: changes, error: null }) }) }) };
@@ -52,6 +52,12 @@ describe("resuming a paused cost", () => {
     const { client, sent } = fakeClient(false);
     await updateMonthlyCost(client, "id", { active: true }, today);
     expect(sent[0]).toEqual({ active: true, starts_on: "2026-09-30" });
+  });
+
+  it("keeps a later scheduled start", async () => {
+    const { client, sent } = fakeClient(false, "2026-12-01");
+    await updateMonthlyCost(client, "id", { active: true }, today);
+    expect(sent[0]).toEqual({ active: true });
   });
 
   it("leaves the start alone when the cost was already running", async () => {
