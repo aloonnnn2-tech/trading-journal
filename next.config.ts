@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // No persistent Turbopack cache for `next build`. Since 16.3 it is on by
+    // default, and it stores a snapshot of the WHOLE build environment --
+    // every variable, AI_KEY_ENCRYPTION_SECRET and CRON_SECRET included -- in
+    // .next/cache/turbopack/*.sst, which Netlify saves and restores between
+    // builds (see netlify.toml). Reading secrets indirectly doesn't help: it
+    // is the process environment itself that is recorded, not the reads.
+    // Cost: every build compiles from cold. `npm run check:cache-secrets`
+    // confirms nothing lands there after a build.
+    turbopackFileSystemCacheForBuild: false,
+  },
   // Security headers applied to every response, including the static assets
   // and cron routes the proxy matcher deliberately skips. The
   // Content-Security-Policy is NOT here: it carries a per-request nonce,

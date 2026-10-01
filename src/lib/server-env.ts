@@ -1,12 +1,11 @@
-// Reads a server secret from the environment at RUN time, in a way the
-// bundler cannot see at build time.
+// Reads a server secret from the environment at RUN time, by a name held in
+// a variable, so no build step can ever inline its value into compiled code.
 //
-// Turbopack tracks literal `process.env.NAME` reads while compiling and
-// records their values in its cache (.next/cache), which Netlify keeps
-// between builds -- that is how AI_KEY_ENCRYPTION_SECRET and CRON_SECRET came
-// to sit in the build cache (netlify.toml has the history). A lookup by a
-// name held in a variable is invisible to that analysis, so the value is
-// only ever read by the running server.
+// This is NOT what keeps secrets out of the build cache: Turbopack's
+// persistent build cache recorded the entire process environment no matter
+// how the code read it. That cache is switched off in next.config.ts
+// (turbopackFileSystemCacheForBuild), and `npm run check:cache-secrets`
+// verifies it after a build.
 //
 // Use it for secrets only; ordinary configuration can keep plain reads. Not
 // "server-only": the proxy (middleware) uses it via rate-limit.ts, and it

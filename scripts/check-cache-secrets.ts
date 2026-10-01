@@ -1,11 +1,11 @@
 // Reports which build-cache and build-output files contain the value of a
 // server secret. Prints file paths and counts only -- never the secret.
 //
-//   npx tsx --env-file=.env.local scripts/check-cache-secrets.ts
+//   npm run check:cache-secrets      (after `npm run build`)
 //
-// Turbopack records the environment it compiled with in .next/cache, and
-// Netlify keeps that cache between builds (see netlify.toml). This is how to
-// see whether a secret still lands there.
+// Turbopack's persistent build cache recorded the whole build environment in
+// .next/cache, and Netlify keeps that cache between builds (see netlify.toml).
+// It is switched off in next.config.ts; this proves it stays that way.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

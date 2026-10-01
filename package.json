@@ -22,6 +22,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "check:bundle": "tsx --env-file=.env.local scripts/check-bundle-secrets.ts",
+    "check:cache-secrets": "tsx --env-file=.env.local scripts/check-cache-secrets.ts",
     "check:design-v2": "tsx scripts/check-design-v2-scope.ts",
     "check:ai-models": "tsx --env-file-if-exists=.env.local scripts/check-ai-models.ts",
     "shots:marketing": "node scripts/capture-marketing-shots.mjs"
