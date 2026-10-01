@@ -306,9 +306,15 @@ Found while doing a phase and deliberately left out of its scope. Each needs Alo
 - **Broker presets left out for want of a checkable figure.** Lightspeed (its page doesn't show the base tier clearly), Kraken (tiers changed 2026-07-09 and the new table didn't render), Saxo and moomoo (only third-party figures found), Israeli banks and brokers (no public schedule). Each can be added once its figure is read at the source; `src/lib/commissions/presets.ts` explains the rule. All presets say "checked 2026-09-29", so they need a periodic re-check.
 - **Exchange and NFA fees on futures presets** vary by contract and are not modelled; each futures preset says so. A per-product table (ES, NQ, CL...) would make futures P/L exact.
 - **Options SEC fee** needs the 100x contract multiplier the fee engine doesn't have; options presets leave it out (cents per trade).
-- **Phone: Export and "From screenshot" aren't on /trades below 640px.** The tab bar's + covers Quick trade, the full form and the import page; Export has no phone entry point yet.
+- ~~**Phone: Export and "From screenshot" aren't on /trades below 640px.**~~ Done 2026-09-30: the + sheet has the screenshot scan, the More sheet has Export.
 - **Phone: /paid-plan (6,367px) and /privacy (4,646px) are still long.** Marketing and legal pages were not folded; they fit the screen width.
-- **Phone: the guided tour's nav steps** point at bottom-bar items where they exist (Dashboard, Trades, Analytics, the More sheet's links) and fall back to "Take me there" otherwise. Not reviewed step by step on a phone.
+- **Phone: the guided tour's nav steps** point at bottom-bar items where they exist (Dashboard, Trades, Analytics), and since 2026-09-30 at More for pages inside it. Not reviewed step by step on a phone.
+
+*From the 30 Sep 2026 security and bug pass:*
+- **Not yet checked against the live database:** the mobile and autosave e2e runs and a browser pass over Ask (save/test a key), Commissions, a trade page and the dashboard. Waiting on Supabase; everything offline (tsc, lint, 1,428 unit tests, build, both secret scans) passed.
+- **`monthly_cost_postings` accepts another user's ids in its foreign keys** *(security review, below the bar).* RLS checks the row's own `user_id`, but a foreign key doesn't check ownership, so a user could insert a posting pointing at someone else's cost. It reveals nothing and needs that cost's UUID; at most it would skip that cost for one month. Fix: a trigger like 0056's that requires the cost and transaction to belong to the same user.
+- **The vault falls back to the user's session when the service-role key is missing** *(same review).* Harmless before 0058 and fails closed after it, but a missing key should be a loud error rather than a quiet fallback once 0058 is applied everywhere.
+- **The `serverSecret` indirection** (`src/lib/server-env.ts`) turned out not to be what keeps secrets out of the build cache (turning the cache off is). It stays as a guard against inlining; could be removed if it isn't worth the extra name.
 
 ### Backlog: P3, don't start without being asked
 
