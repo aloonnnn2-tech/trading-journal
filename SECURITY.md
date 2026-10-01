@@ -265,6 +265,24 @@ The unbound `v1` format, kept for a while so keys stored before the binding
 kept working, is **refused** since 2026-09-21: no v1 row remained, and
 accepting the format was only a door for exactly this attack.
 
+Since 2026-09-30 the binding is tighter, in two layers:
+
+- **The `v3` format** binds each ciphertext to its owner, **its own row id and
+  its provider**. Swapping ciphertext between two of a user's own rows, or
+  changing a row's `provider` so the key is sent to a different company's
+  servers, now makes it undecryptable instead of silently working. `v2` still
+  reads; it is rewritten as `v3` on next use, or all at once with
+  `npm run rotate:ai-keys`. Writing `v3` is switched on by
+  `AI_KEY_WRITE_V3=true` (SECURITY-RUNBOOK.md §6), because code already
+  deployed can't read it.
+- **Migration 0058** takes the table away from the user's own session. A
+  signed-in user (or anyone holding their session, or an XSS) can see a key's
+  public columns and change only its label and on/off state. Reading the
+  ciphertext, storing a key and changing its model go through
+  `src/lib/ai-keys/vault.ts` only: the service role, always filtered by the
+  verified user id. A unit test fails if any other file names
+  `encrypted_key`.
+
 ### If the encryption secret itself leaks
 
 Recoverable, provided it is noticed. Rotation is supported:
@@ -276,8 +294,10 @@ Recoverable, provided it is noticed. Rotation is supported:
 4. Deploy, then run `npm run verify:ai-secret` to confirm both are readable
 
 Stored keys keep working immediately and are re-encrypted under the new secret
-the next time each one is used. Once every active key has been used at least
-once, drop `AI_KEY_ENCRYPTION_SECRET_PREVIOUS`.
+the next time each one is used. To finish at once rather than waiting on idle
+keys, run `npm run rotate:ai-keys` (a dry run) and then
+`npm run rotate:ai-keys -- --apply`; it prints counts and row ids only. Then
+drop `AI_KEY_ENCRYPTION_SECRET_PREVIOUS`.
 
 Before this, a leaked secret meant permanent compromise: there was no way to
 change it that did not require every user to re-paste their key.
@@ -287,19 +307,47 @@ secret is known to have leaked, tell users to revoke and reissue their provider
 keys — rotation protects the ciphertext going forward, not keys an attacker
 already decrypted.
 
-### Keys in logs and error reports
+### Keys in logs, error reports and caches
 
+- **The decrypted key is not a string.** It is a `SecretKey` (`secret.ts`):
+  printing it, `JSON.stringify`-ing it, or capturing it in an error shows
+  `[redacted]`. Only `reveal()` returns the text, and the providers call it in
+  one place each: building the auth header.
 - Providers are given the key in a **header**, never a URL query parameter, so
   it cannot land in request logs, proxy logs, or an error that quotes the URL.
   `providers/google.ts` documents this explicitly — Google's API accepts both,
   and the wrong choice would put a live key in every access log hop.
 - `ProviderError` carries a generic message; provider-side detail lives in a
-  separate field that is never serialized into an HTTP response.
-- Everything sent to Sentry is scrubbed first (`src/lib/observability/scrub.ts`,
-  wired into `beforeSend` on server, edge and browser). It redacts values
-  matching every supported provider's key format, our own ciphertext envelope,
-  and JWT-shaped tokens, plus any field named like a credential. An event that
+  separate field that is never serialized into an HTTP response. That detail
+  has the exact key text cut out (`redactKey`) and is scrubbed again on
+  construction, so a provider that echoes the key back can't put it in a log.
+- Every log line on the AI paths goes through `logError`, which scrubs.
+- Sentry is scrubbed (`scrub.ts`, wired into events, transactions,
+  breadcrumbs and spans) with its privacy options pinned in code
+  (`sentry-options.ts`): no default PII, no local variables. An event that
   cannot be scrubbed is dropped rather than sent.
+- **Correction (2026-09-30):** this section used to say the scrubber matched
+  "every supported provider's key format". It didn't: Mistral, SambaNova and
+  GitHub keys have no fixed prefix and slipped through. It now also catches
+  GitHub token formats, long mixed-case random strings, and any value after
+  a word like key/token/secret/password. Pattern matching is still the
+  backstop, not the defence; the defence is the two layers above it.
+- `/api/*` responses are `Cache-Control: private, no-store` (set in
+  `src/proxy.ts`), so no shared cache keeps an AI answer or key list.
+- **The build cache.** Next 16.3's Turbopack build cache stored a snapshot
+  of the whole build environment, `AI_KEY_ENCRYPTION_SECRET` included, and
+  Netlify kept it between builds. It is switched off (`next.config.ts`), and
+  `npm run check:cache-secrets` proves a build leaves no secret in `.next`.
+  The secret did sit in Netlify's saved cache before that, so rotating it is
+  recommended (SECURITY-RUNBOOK.md §6).
+
+### Abuse limits
+
+Checking a key against its provider is capped per user per day and fails
+**closed**: if the limiter itself is down, checks are refused rather than
+unlimited, so the app can't be used to test stolen keys in bulk. The chat's
+model re-check counts against the same cap. Key routes refuse bodies over 4 KB.
+Each key shows when it was last used, so use the owner didn't make stands out.
 
 ### The limit, stated plainly
 
