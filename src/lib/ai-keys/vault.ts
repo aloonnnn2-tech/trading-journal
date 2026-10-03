@@ -19,14 +19,25 @@ import type { AIProviderName } from "./types";
 // and every statement below is filtered by the user id the verified session
 // supplied (never by anything from the request body).
 //
-// Before 0058 is applied the RLS client works too, so it is the fallback when
-// the service-role key isn't configured (local setups without it).
+// No fallback to the user's own session: with 0058 applied (everywhere since
+// 2026-10-03) that session can't reach these columns, so a fallback only
+// turned "the service-role key is missing" into a puzzling permission error.
 
-function client(fallback: SupabaseClient): SupabaseClient {
+class VaultNotConfiguredError extends Error {
+  constructor() {
+    super(
+      "AI keys need SUPABASE_SERVICE_ROLE_KEY on the server (src/lib/ai-keys/vault.ts). " +
+        "It is not set in this environment.",
+    );
+    this.name = "VaultNotConfiguredError";
+  }
+}
+
+function client(): SupabaseClient {
   try {
     return createAdminClient();
   } catch {
-    return fallback;
+    throw new VaultNotConfiguredError();
   }
 }
 
@@ -37,11 +48,10 @@ const RETURNED = "id, provider, label, last_four, is_active, created_at, last_va
  * to it (v3: user + row + provider) before the row exists.
  */
 export async function insertKey(
-  rls: SupabaseClient,
   userId: string,
   input: { provider: AIProviderName; key: string; label: string | null; model: string | null },
 ): Promise<Record<string, unknown>> {
-  const db = client(rls);
+  const db = client();
   const id = crypto.randomUUID();
   const row = {
     id,
@@ -73,12 +83,11 @@ export async function insertKey(
  * allowed to fail silently -- the user's request must not fail over them.
  */
 export async function readKey(
-  rls: SupabaseClient,
   userId: string,
   id: string,
   { includeInactive = false }: { includeInactive?: boolean } = {},
 ): Promise<{ provider: AIProviderName; key: SecretKey; model: string | null } | null> {
-  const db = client(rls);
+  const db = client();
   const select = (columns: string) => {
     let q = db.from("user_api_keys").select(columns).eq("id", id).eq("user_id", userId);
     if (!includeInactive) q = q.eq("is_active", true);
@@ -121,13 +130,12 @@ export async function readKey(
  * accepted it. "unsupported" while 0053 isn't applied; null if not the user's.
  */
 export async function writeKeyModel(
-  rls: SupabaseClient,
   userId: string,
   id: string,
   model: string,
   validated: boolean,
 ): Promise<Record<string, unknown> | null | "unsupported"> {
-  const db = client(rls);
+  const db = client();
   const patch: Record<string, unknown> = { model };
   if (validated) patch.last_validated_at = new Date().toISOString();
   const { data, error } = await db

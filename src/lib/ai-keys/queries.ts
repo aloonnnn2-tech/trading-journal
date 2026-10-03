@@ -52,7 +52,7 @@ export async function createApiKey(
   userId: string,
   input: { provider: AIProviderName; key: string; label: string | null; model: string | null },
 ): Promise<StoredApiKey> {
-  const row = await insertKey(supabase, userId, input);
+  const row = await insertKey(userId, input);
   return { model: null, last_used_at: null, ...row } as unknown as StoredApiKey;
 }
 
@@ -103,7 +103,7 @@ export async function getDecryptedKey(
 ): Promise<{ provider: AIProviderName; key: SecretKey; model: string | null } | null> {
   // Through the vault: decryption is bound to this user, this row and its
   // provider, and a v2 / retired-secret value is upgraded on the way.
-  return readKey(supabase, userId, id, { includeInactive });
+  return readKey(userId, id, { includeInactive });
 }
 
 /**
@@ -145,7 +145,7 @@ export async function setApiKeyModel(
   model: string,
   { validated = false, userId }: { validated?: boolean; userId: string },
 ): Promise<StoredApiKey | null | "unsupported"> {
-  const row = await writeKeyModel(supabase, userId, id, model, validated);
+  const row = await writeKeyModel(userId, id, model, validated);
   if (row === "unsupported" || row === null) return row;
   return { last_used_at: null, ...row } as unknown as StoredApiKey;
 }

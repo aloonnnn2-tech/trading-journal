@@ -313,7 +313,7 @@ Found while doing a phase and deliberately left out of its scope. Each needs Alo
 *From the 30 Sep 2026 security and bug pass:*
 - **Not yet checked against the live database:** the mobile and autosave e2e runs and a browser pass over Ask (save/test a key), Commissions, a trade page and the dashboard. Waiting on Supabase; everything offline (tsc, lint, 1,428 unit tests, build, both secret scans) passed.
 - **`monthly_cost_postings` accepts another user's ids in its foreign keys** *(security review, below the bar).* RLS checks the row's own `user_id`, but a foreign key doesn't check ownership, so a user could insert a posting pointing at someone else's cost. It reveals nothing and needs that cost's UUID; at most it would skip that cost for one month. Fix: a trigger like 0056's that requires the cost and transaction to belong to the same user.
-- **The vault falls back to the user's session when the service-role key is missing** *(same review).* Harmless before 0058 and fails closed after it, but a missing key should be a loud error rather than a quiet fallback once 0058 is applied everywhere.
+- ~~**The vault falls back to the user's session when the service-role key is missing**~~ Done 2026-10-03: it now fails with a clear "SUPABASE_SERVICE_ROLE_KEY is not set" error.
 - **The `serverSecret` indirection** (`src/lib/server-env.ts`) turned out not to be what keeps secrets out of the build cache (turning the cache off is). It stays as a guard against inlining; could be removed if it isn't worth the extra name.
 
 ### Backlog: P3, don't start without being asked
