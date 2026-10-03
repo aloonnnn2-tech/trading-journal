@@ -345,7 +345,18 @@ export async function proxy(request: NextRequest) {
   // user's own data (key lists, masked keys, journal figures, chat answers).
   // The chat stream sets its own header (it also needs no-transform, so no
   // layer buffers it), so it is left to that route.
-  if (request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.endsWith("/turn")) {
+  //
+  // GET only. Caches store GET responses, not POST/PATCH/DELETE ones, so
+  // nothing is lost -- and no-store on the rest is harmful: the app's
+  // fire-and-forget calls (analytics beacons, the timezone sync) never read
+  // their response body, and without the HTTP cache draining it a no-store
+  // response is never finished. Each held a connection open, and pages never
+  // went network-idle (found by e2e/mobile.spec.ts, 2026-10-03).
+  if (
+    request.method === "GET" &&
+    request.nextUrl.pathname.startsWith("/api/") &&
+    !request.nextUrl.pathname.endsWith("/turn")
+  ) {
     response.headers.set("Cache-Control", "private, no-store");
   }
 
