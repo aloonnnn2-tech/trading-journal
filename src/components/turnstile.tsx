@@ -53,6 +53,15 @@ const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render
  */
 const TOKEN_TIMEOUT_MS = 45_000;
 
+/**
+ * If the box hasn't appeared by now, something in the browser is blocking it
+ * (an ad/tracker blocker such as Opera GX's or uBlock, a privacy setting).
+ * Cloudflare then calls none of its callbacks, so without this the page
+ * waited in silence -- "stuck" (Alon, 2026-10-07: a fresh Chrome profile on
+ * his PC showed the box in ~6s; his own browser never did).
+ */
+const NOT_SHOWN_MS = 12_000;
+
 /** A computer clock further off than this breaks the check; say so. */
 const CLOCK_SKEW_WARN_MS = 120_000;
 
@@ -248,6 +257,18 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
           }
         });
 
+      // The box is an iframe inside the container; a container still empty
+      // after NOT_SHOWN_MS means it is being blocked, not slow.
+      const notShown = setTimeout(() => {
+        if (cancelled || statusRef.current !== "loading") return;
+        const box = containerRef.current?.getBoundingClientRect();
+        if (box && box.height >= 20) return;
+        errorCodeRef.current = NOT_SHOWN;
+        setErrorCode(NOT_SHOWN);
+        setStatus("failed");
+        settle(undefined);
+      }, NOT_SHOWN_MS);
+
       // A computer clock that is minutes off makes the check fail (found on
       // Alon's PC, 4 minutes fast). Measured once against the server's Date
       // header -- same origin, so readable -- and only reported when wrong.
@@ -262,6 +283,7 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
 
       return () => {
         cancelled = true;
+        clearTimeout(notShown);
         if (widgetIdRef.current && window.turnstile) {
           window.turnstile.remove(widgetIdRef.current);
           widgetIdRef.current = null;
@@ -317,7 +339,9 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
         problem: () => {
           const s = statusRef.current;
           if (s === "interactive") return "Tick \u201cVerify you are human\u201d below, then try again.";
-          if (s === "failed") return failureText(errorCodeRef.current, clockSkewRef.current);
+          // The note under the check says why (and keeps saying it as that
+          // changes); the form error just points at it, so the two never disagree.
+          if (s === "failed") return "The security check didn’t work. See the note under it.";
           return "The security check is still loading. Give it a moment, then try again.";
         },
       }),
@@ -331,6 +355,11 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
     return (
       <div className={className}>
         <div ref={containerRef} />
+        {status === "loading" && !failed && (
+          <p className="mt-1 text-xs text-zinc-500" aria-live="polite">
+            Loading the security check…
+          </p>
+        )}
         {failed ? (
           // Not a FormError: this is not the outcome of a submit, and
           // role="alert" would interrupt a screen reader mid-form to announce
@@ -352,9 +381,14 @@ function clockText(skewMs: number): string {
   return `Your computer's clock is about ${minutes} minute${minutes === 1 ? "" : "s"} ${skewMs > 0 ? "fast" : "slow"}, which stops the security check working. Turn on automatic time in your system settings, then reload.`;
 }
 
+const NOT_SHOWN = "not-shown";
+
 /** The "couldn't load" sentence, with Cloudflare's code and the clock when relevant. */
 function failureText(code: string | null, skewMs: number | null): string {
   if (skewMs !== null && Math.abs(skewMs) > CLOCK_SKEW_WARN_MS) return clockText(skewMs);
+  if (code === NOT_SHOWN) {
+    return "The security check isn't appearing in this browser. An ad or tracker blocker, or a privacy setting, is probably blocking challenges.cloudflare.com. Allow it, or try another browser, then reload.";
+  }
   const suffix = code ? ` (Cloudflare error ${code})` : "";
   return `The security check couldn't load${suffix}. Check your connection or any ad blocker, then reload.`;
 }
