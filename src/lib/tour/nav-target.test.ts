@@ -51,6 +51,19 @@ describe("navDirections", () => {
     expect(navDirections("/insights", shown("nav-more", "nav-insights")).targetId).toBe("nav-insights");
   });
 
+  it("below 1000px, points at the account menu for a Setup page", () => {
+    expect(navDirections("/commissions", shown("nav-account"))).toEqual({
+      targetId: "nav-account",
+      kind: "account",
+      label: "Commissions",
+      groupLabel: "Setup",
+    });
+    // ...and at the item once the account menu is open.
+    expect(navDirections("/commissions", shown("nav-account", "nav-commissions")).targetId).toBe("nav-commissions");
+    // Not for a page that isn't in the account menu.
+    expect(navDirections("/insights", shown("nav-account")).kind).toBe("none");
+  });
+
   it("knows a menu item for every page a tour visits", () => {
     const menu = new Set([...PRIMARY_LINKS, ...NAV_GROUPS.flatMap((g) => g.links)].map((l) => l.href));
     for (const [name, steps] of Object.entries(TOURS)) {

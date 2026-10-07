@@ -1,4 +1,4 @@
-import { NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId } from "@/lib/nav/links";
+import { ACCOUNT_MENU_GROUP, NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId } from "@/lib/nav/links";
 
 // Where the tour points when its next stop is on another page (Alon,
 // 2026-09-29: the tour used to move the user there itself, so fast they
@@ -10,15 +10,20 @@ import { NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId } from "@/lib/
 export interface NavDirections {
   /** What the spotlight goes on, or null when neither is on screen. */
   targetId: string | null;
-  /** "link": the page's own menu item. "group": the dropdown holding it,
-   *  which has to be opened first. "none": nothing to point at (e.g. the
-   *  menu is folded away) -- the card offers "Take me there" instead. */
-  kind: "link" | "group" | "none";
+  /** "link": the page's own menu item. "group": the dropdown (or the
+   *  phone's More sheet) holding it, opened first. "account": the account
+   *  menu, where Setup lives below 1000px. "none": nothing on screen to point
+   *  at -- the card still says where to go, in words; the tour never goes
+   *  there itself. */
+  kind: "link" | "group" | "account" | "none";
   /** The menu item's label, e.g. "Insights". */
   label: string;
   /** The dropdown's label when the item lives in one, e.g. "Analysis". */
   groupLabel: string | null;
 }
+
+/** The account menu's wrapper (data-tour-id in nav-bar.tsx). */
+export const ACCOUNT_MENU_ID = "nav-account";
 
 /** The phone tab bar's More button (data-tour-id in mobile-tab-bar.tsx). */
 export const MOBILE_MORE_ID = "nav-more";
@@ -37,6 +42,12 @@ export function navDirections(path: string, isShown: (targetId: string) => boole
   if (group) {
     const groupId = navGroupTourId(group.label);
     if (isShown(groupId)) return { targetId: groupId, kind: "group", label, groupLabel };
+  }
+
+  // Below 1000px the Setup group is not in the bar: it lives in the account
+  // menu. Checked before More, which also holds it on a phone.
+  if (group?.label === ACCOUNT_MENU_GROUP && isShown(ACCOUNT_MENU_ID)) {
+    return { targetId: ACCOUNT_MENU_ID, kind: "account", label, groupLabel };
   }
 
   // Phones: no top menu at all. Pages that aren't on the bottom tab bar live

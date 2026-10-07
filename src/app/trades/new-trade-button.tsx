@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FormError } from "@/components/form-error";
 import { failureMessage } from "@/lib/api/failure-message";
 import { useDialog } from "@/lib/a11y/use-dialog";
+import { signalQuickTradeClosed, signalTradeCreated } from "@/lib/tour/signals";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
 
@@ -79,9 +80,16 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
   // so tabbing walked focus out of the dialog and into the page behind it --
   // which is covered by a backdrop and impossible to see.
   const tickerRef = useRef<HTMLInputElement>(null);
+  // Closing without creating anything. The guided tour is told, so it goes
+  // back a step at once instead of guessing from timing (src/lib/tour/signals.ts).
+  function closeWithoutCreating() {
+    setOpen(false);
+    signalQuickTradeClosed();
+  }
+
   const dialogRef = useDialog({
     open,
-    onClose: () => setOpen(false),
+    onClose: closeWithoutCreating,
     // Same submitting-guard the backdrop click already used: a request in
     // flight can't be abandoned out from under itself.
     closeOnEscape: !submitting,
@@ -194,12 +202,16 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
         if (!patchRes.ok) {
           setSubmitting(false);
           setError("Trade created, but its details couldn't be saved. Opening it so you can fill them in.");
+          signalTradeCreated(`/trades/${trade.id}`);
           setTimeout(() => router.push(`/trades/${trade.id}`), 1200);
           return;
         }
       }
 
       setSubmitting(false);
+      // Before closing: the tour must know the form went away because a trade
+      // was made, not because it was cancelled.
+      signalTradeCreated(`/trades/${trade.id}`);
       setOpen(false);
       reset();
       router.push(`/trades/${trade.id}`);
@@ -226,7 +238,7 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-            onClick={() => !submitting && setOpen(false)}
+            onClick={() => !submitting && closeWithoutCreating()}
           >
             <motion.div
               initial={{ opacity: 0, y: 12, scale: 0.98 }}

@@ -12,7 +12,7 @@ import { endSession } from "@/lib/tracking/useAnalytics";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { startTour } from "@/components/tour/tour-overlay";
-import { NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId, type NavLink } from "@/lib/nav/links";
+import { ACCOUNT_MENU_GROUP, NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId, type NavLink } from "@/lib/nav/links";
 
 // The menu's links live in src/lib/nav/links.ts, shared with the guided tour.
 
@@ -216,7 +216,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                 data-nav-group
                 // Setup folds into the account menu below 1000px: it is the
                 // least-used of the three groups and the one that collided.
-                className={`relative shrink-0 ${group.label === "Setup" ? "hidden nav:block" : ""}`}
+                className={`relative shrink-0 ${group.label === ACCOUNT_MENU_GROUP ? "hidden nav:block" : ""}`}
               >
                 <button
                   type="button"
@@ -334,7 +334,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
               running "Setup" through the help icon at 850px (issue 1 of
               docs/design-audit.md). Above 1000px the menu holds only account
               settings and sign-out, and everything else stays in the bar. */}
-          <div data-nav-group className="relative">
+          {/* nav-account: the tour points here for a Setup page below the
+              nav breakpoint (src/lib/tour/nav-target.ts). On the wrapper, as
+              the button itself already carries nav-help. */}
+          <div data-nav-group data-tour-id="nav-account" className="relative">
             <button
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
@@ -377,7 +380,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                     the server and the client render the same markup. */}
                 <div className="nav:hidden">
                   <div className="my-1 border-t border-zinc-200 dark:border-subtle" />
-                  {NAV_GROUPS.filter((g) => g.label === "Setup").flatMap((g) => g.links).map((link) => (
+                  {NAV_GROUPS.filter((g) => g.label === ACCOUNT_MENU_GROUP).flatMap((g) => g.links).map((link) => (
                     <Link
                       key={link.href}
                       href={link.href}

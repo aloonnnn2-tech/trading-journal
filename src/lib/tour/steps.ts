@@ -22,11 +22,6 @@ export interface TourStep {
   action?: string;
   /** When a task counts as done: a route the user lands on, or an element that appears. */
   done?: { route: string } | { target: string };
-  /**
-   * If this step's target disappears and no navigation follows, go back a
-   * step rather than wait on a form that has been closed.
-   */
-  retreat?: boolean;
 }
 
 // The core tour. Nine stops, one sentence each, in the order a new account
@@ -49,8 +44,9 @@ export const TOUR_STEPS: TourStep[] = [
     title: "Just the essentials",
     body: "Every other field is optional and lives on the trade page.",
     action: "Type a symbol, pick long or short, then Create trade.",
+    // Quick trade signals "created" or "closed" (src/lib/tour/signals.ts);
+    // the tour no longer guesses from the form disappearing.
     done: { route: "/trades/" },
-    retreat: true,
   },
   {
     pathPrefix: "/trades/",

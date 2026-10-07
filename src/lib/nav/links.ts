@@ -50,6 +50,13 @@ export const NAV_GROUPS: { label: string; links: NavLink[] }[] = [
   },
 ];
 
+/**
+ * The group that folds into the account menu below the nav breakpoint
+ * (1000px), where the bar has no room for it. The nav bar renders it there,
+ * and the tour points at the account button to reach it.
+ */
+export const ACCOUNT_MENU_GROUP = "Setup";
+
 /** The data-tour-id a menu link carries: `nav-insights` for /insights. */
 export function navLinkTourId(href: string): string {
   return `nav-${href.slice(1)}`;
