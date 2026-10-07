@@ -27,6 +27,7 @@ import { getPreferences } from "@/lib/settings/preferences-queries";
 import { PreferencesProvider } from "@/components/preferences/preferences-provider";
 import { MobileTabBar } from "@/components/mobile/mobile-tab-bar";
 import { DesignFlagScript } from "@/components/design/design-flag";
+import { HostCommentCleanupScript } from "@/components/host-comment-cleanup";
 import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
@@ -131,6 +132,9 @@ export default async function RootLayout({
             flashes V1 chrome. See src/components/design/design-flag.tsx --
             with the flag off this writes no attribute at all. */}
         <DesignFlagScript nonce={nonce} />
+        {/* Netlify writes a comment into <head>; left there it breaks
+            hydration and flashes the wrong theme. See the component. */}
+        <HostCommentCleanupScript nonce={nonce} />
       </head>
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
