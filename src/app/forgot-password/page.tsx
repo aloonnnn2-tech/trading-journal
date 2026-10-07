@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
 
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
-      setError(CAPTCHA_INCOMPLETE);
+      setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
       setLoading(false);
       return;
     }

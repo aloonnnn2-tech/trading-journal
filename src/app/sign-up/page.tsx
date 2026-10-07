@@ -38,7 +38,7 @@ export default function SignUpPage() {
 
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
-      setError(CAPTCHA_INCOMPLETE);
+      setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
       setLoading(false);
       return;
     }
@@ -82,7 +82,7 @@ export default function SignUpPage() {
     setError(null);
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
-      setError(CAPTCHA_INCOMPLETE);
+      setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
       return;
     }
     const { error } = await supabase.auth.resend({

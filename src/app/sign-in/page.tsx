@@ -62,7 +62,7 @@ function SignInForm() {
 
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
-      setError(CAPTCHA_INCOMPLETE);
+      setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
       setLoading(false);
       return;
     }
@@ -98,7 +98,7 @@ function SignInForm() {
   async function handleResend() {
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
-      setError(CAPTCHA_INCOMPLETE);
+      setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
       return;
     }
     const { error } = await supabase.auth.resend({
