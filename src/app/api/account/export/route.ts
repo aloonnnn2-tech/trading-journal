@@ -1,0 +1,85 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { EXPORT_SECTIONS } from "@/lib/account/data-export";
+
+// "Download all my data" (security hardening, Part B). Everything stored
+// about the signed-in account as one JSON file. See src/lib/account/
+// data-export.ts for what is in it and why each excluded table is excluded.
+//
+// A FIXED path on purpose: this route uses the service-role client (for the
+// analytics tables only, filtered by the header user id), and no
+// service-role route may live under a dynamic segment (see SECURITY.md).
+//
+// Streamed section by section: a large journal with full edit history can
+// pass Netlify's 6 MB limit for a buffered function response.
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+export async function GET() {
+  const userId = await getUserIdFromHeader();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limited = await enforceRateLimit(
+    `account-export:${userId}`,
+    5,
+    60 * 60_000,
+    "You've downloaded your data a few times already. Try again in an hour.",
+  );
+  if (limited) return limited;
+  const daily = await enforceDailyCap("export", userId);
+  if (daily) return daily;
+
+  const db = await createClient();
+  let admin = null;
+  try {
+    admin = createAdminClient();
+  } catch {
+    // No service-role key configured: the export still works, without the
+    // usage-event sections, and says so below.
+  }
+  const ctx = { db, admin, userId };
+  const encoder = new TextEncoder();
+  const exportedAt = new Date().toISOString();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const write = (s: string) => controller.enqueue(encoder.encode(s));
+      try {
+        write(
+          `{"exported_at":${JSON.stringify(exportedAt)},"user_id":${JSON.stringify(userId)},` +
+            `"note":${JSON.stringify(
+              "Everything Trading Lens stores about this account. Screenshot links expire after one hour." +
+                (admin ? "" : " Usage events could not be included on this server."),
+            )},"sections":{`,
+        );
+        let first = true;
+        for (const section of EXPORT_SECTIONS) {
+          const rows = await section.rows(ctx);
+          write(`${first ? "" : ","}${JSON.stringify(section.name)}:${JSON.stringify(rows)}`);
+          first = false;
+        }
+        write("}}");
+        controller.close();
+      } catch (error) {
+        // Headers are already sent, so the honest failure is a truncated
+        // file that does not parse -- never a file that looks complete.
+        console.error("[account-export] failed part way", { userId, error });
+        controller.error(error);
+      }
+    },
+  });
+
+  const day = exportedAt.slice(0, 10);
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="trading-lens-data-${day}.json"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}

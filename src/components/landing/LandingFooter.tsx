@@ -91,9 +91,17 @@ export function LandingFooter() {
         </div>
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-zinc-100 pt-6 dark:border-subtle sm:flex-row">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            © {new Date().getFullYear()} Trading Lens
-          </span>
+          {/* The disclaimer sits with the copyright on every public page.
+              Wording mirrors /terms ("Not financial advice"); a lawyer
+              should confirm it (security hardening brief, Part B). */}
+          <div className="flex flex-col items-center gap-1 text-center sm:items-start sm:text-left">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              © {new Date().getFullYear()} Trading Lens
+            </span>
+            <span className="max-w-md text-xs text-zinc-500 dark:text-zinc-400">
+              A trading journal and education tool. Not financial advice.
+            </span>
+          </div>
           <div className="flex items-center gap-1">
             {SOCIALS.map((social) => (
               <a

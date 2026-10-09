@@ -47,6 +47,7 @@ applies to that route.
 | Route | Methods | Auth | Client | Per-route limit | Validation | Tables / RPCs |
 |---|---|---|---|---|---|---|
 | `/api/account/delete` | DELETE | user | user + **service-role** | yes | manual / none | trade_images |
+| `/api/account/export` | GET | user | user (RLS) + **service-role** (analytics only, filtered by header id) | 5/hr + daily | none (no input) | every user table (Part B) |
 | `/api/account/transactions/[id]` | DELETE | user | user (RLS) | proxy only | manual / none | account_transactions, analytics_events, trades |
 | `/api/account/transactions` | GET POST | user | user (RLS) | proxy only | zod | account_transactions, analytics_events, trades |
 | `/api/admin/analytics-exclusion` | POST | admin | user (RLS) | yes | zod | user_settings, admin_* RPCs |

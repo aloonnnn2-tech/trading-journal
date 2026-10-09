@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Page } from "@playwright/test";
+import { TERMS_VERSION } from "../../src/lib/legal/terms";
 
 /**
  * Throwaway users for the E2E suite, created and destroyed through the admin
@@ -110,6 +111,9 @@ export async function createTestUser(): Promise<TestUser> {
     // Independent of whether the project requires confirmation, so the suite
     // does not silently start failing if that dashboard setting is changed.
     email_confirm: true,
+    // What the sign-up checkbox sends (migration 0061 records it), so the
+    // one-time consent prompt never covers the pages these tests drive.
+    user_metadata: { age_confirmed: true, accepted_terms_version: TERMS_VERSION },
   });
   if (error || !data.user) throw new Error(`could not create test user: ${error?.message}`);
 

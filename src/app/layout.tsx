@@ -18,6 +18,8 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { rolesFrom } from "@/lib/auth/roles";
+import { needsConsent } from "@/lib/legal/consent";
+import { ConsentGate } from "@/components/legal/consent-gate";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -121,6 +123,9 @@ export default async function RootLayout({
   // Setup -> Settings switches, handed to every client component through
   // PreferencesProvider. null (signed out, or 0054 unapplied) = defaults.
   const preferences = userId ? await getPreferences(await createClient(), userId).catch(() => null) : null;
+  // Accounts with no recorded age/Terms agreement (made before the sign-up
+  // checkbox) confirm once. Fails open -- see src/lib/legal/consent.ts.
+  const consentNeeded = userId ? await needsConsent(await createClient(), userId) : false;
 
   return (
     <html
@@ -157,6 +162,7 @@ export default async function RootLayout({
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />
+          {consentNeeded && <ConsentGate />}
           {/* The app's pages had no <main> at all -- only the three legal pages
               did -- so assistive tech had no "main landmark" to jump to and the
               skip link above would have had nothing to point at. tabIndex={-1}

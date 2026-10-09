@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { HONEYPOT_FIELD, MAX_EMAIL_LENGTH, type WaitlistSource } from "@/lib/waitlist/constants";
 
 // The paid-plan waitlist form (Phase 2B of docs/design-audit.md). Posts to
@@ -128,6 +129,14 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
       </form>
       <p aria-live="polite" className={`mt-2 min-h-4 text-center text-xs ${status === "idle" || submitting ? "text-zinc-500" : "text-loss"}`}>
         {message ?? ""}
+      </p>
+      {/* Said where the address is given, matching the waitlist clause in
+          the Privacy Policy word for word in substance. */}
+      <p className="mt-1 text-center text-xs text-zinc-500">
+        Used only to tell you when the paid plan launches.{" "}
+        <Link href="/privacy" className="font-medium text-primary hover:underline">
+          Privacy Policy
+        </Link>
       </p>
     </div>
   );

@@ -8,6 +8,7 @@ import { FormError } from "@/components/form-error";
 import { authErrorMessage } from "@/lib/auth/error-messages";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
+import { MINIMUM_AGE, TERMS_VERSION } from "@/lib/legal/terms";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -25,6 +26,7 @@ export default function SignUpPage() {
   const { track } = useAnalytics();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
@@ -33,6 +35,12 @@ export default function SignUpPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // The checkbox is `required`, so the browser normally stops the submit
+    // first; this covers a form submitted some other way.
+    if (!agreed) {
+      setError(`Please confirm you're ${MINIMUM_AGE} or older and agree to the Terms and Privacy Policy.`);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -51,6 +59,9 @@ export default function SignUpPage() {
       options: {
         emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
         captchaToken,
+        // Read by the database at account creation (migration 0061), which
+        // records WHEN with its own clock. Only the user's claim travels here.
+        data: { age_confirmed: true, accepted_terms_version: TERMS_VERSION },
       },
     });
 
@@ -180,11 +191,34 @@ export default function SignUpPage() {
             className={INPUT_CLASS}
           />
         </label>
+        {/* Required: Part B of the security hardening brief. An unchecked box
+            blocks the submit, and the agreement is recorded per account
+            (migration 0061). */}
+        <label className="flex items-start gap-2.5 text-sm leading-snug text-zinc-600 dark:text-zinc-400">
+          <input
+            type="checkbox"
+            required
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-primary)]"
+          />
+          <span>
+            I&apos;m {MINIMUM_AGE} or older and I agree to the{" "}
+            <Link href="/terms" className="font-medium text-primary hover:underline">
+              Terms and Conditions
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="font-medium text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
         <Turnstile ref={captcha} />
         <FormError>{error}</FormError>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !agreed}
           className="mt-1 rounded-lg bg-primary px-5 py-2.5 font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
         >
           {loading ? "Creating account..." : "Sign up"}
@@ -195,19 +229,11 @@ export default function SignUpPage() {
             Sign in
           </Link>
         </p>
-        {/* The legal terms belong at the point the account is actually
-            created, not only in a footer three scrolls down the marketing
-            page. Same three documents, same plain labels as the footer. */}
+        {/* The Terms and Privacy Policy are agreed to by the checkbox above;
+            the Cookies Policy is information, not an agreement, so it stays
+            a plain link. */}
         <p className="border-t border-zinc-100 pt-4 text-center text-xs leading-relaxed text-zinc-500 dark:border-subtle">
-          By creating an account you agree to our{" "}
-          <Link href="/terms" className="font-medium text-primary hover:underline">
-            Terms and Conditions
-          </Link>
-          ,{" "}
-          <Link href="/privacy" className="font-medium text-primary hover:underline">
-            Privacy Policy
-          </Link>
-          , and{" "}
+          How we use cookies:{" "}
           <Link href="/cookies" className="font-medium text-primary hover:underline">
             Cookies Policy
           </Link>

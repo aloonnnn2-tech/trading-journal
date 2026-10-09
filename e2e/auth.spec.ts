@@ -51,6 +51,9 @@ test("sign up, sign out, then sign back in", async ({ page }) => {
 
   await page.locator(EMAIL).fill(email);
   await page.locator(NEW_PASSWORD).fill(password);
+  // Required since 2026-10-09 (age + Terms consent); the button stays
+  // disabled until it is ticked.
+  await page.getByRole("checkbox", { name: /18 or older/i }).check();
   await page.getByRole("button", { name: /sign up|create account/i }).click();
 
   // Email confirmation is switched off on this project, so signUp returns a

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 const SECTION_HEADING = "mt-8 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
 const BODY = "mt-3 leading-relaxed text-zinc-600 dark:text-zinc-400";
-const LAST_UPDATED = "July 2026";
+const LAST_UPDATED = "October 2026";
 
 export default function TermsPage() {
   return (
@@ -27,6 +27,12 @@ export default function TermsPage() {
         <p className={BODY}>
           By creating an account or using Trading Lens (&quot;the Service&quot;), you agree to
           these terms. If you don&apos;t agree, please don&apos;t use the Service.
+        </p>
+
+        <h2 className={SECTION_HEADING}>Who can use Trading Lens</h2>
+        <p className={BODY}>
+          You must be 18 or older to create an account or use the Service. By creating an
+          account you confirm that you are.
         </p>
 
         <h2 className={SECTION_HEADING}>Not financial advice</h2>
