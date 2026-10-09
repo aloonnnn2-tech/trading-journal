@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { clientIpKey, enforceRateLimit } from "@/lib/rate-limit";
 import { declaredBodyTooLarge } from "@/lib/http/body-limits";
+import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 // Route handlers and Server Components used to each call `getUser()`
 // themselves purely to read `user.id` and gate access -- a second real
@@ -245,10 +246,9 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      // Pinned rather than left to the library default: SameSite=Lax is one
-      // of the two things standing between a cross-site page and this app's
-      // cookie-authenticated API (see isCrossSite).
-      cookieOptions: { sameSite: "lax" },
+      // Pinned rather than left to the library defaults (SameSite=Lax, Secure
+      // in production). See src/lib/supabase/cookie-options.ts.
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll();

@@ -92,7 +92,7 @@ applies to that route.
 | `/api/strategies/[id]` | PATCH DELETE | user | user (RLS) | proxy only | zod | strategies, trade_strategies, trades |
 | `/api/strategies` | GET POST | user | user (RLS) | proxy only | zod | strategies, trade_strategies, trades |
 | `/api/strategy-rules/[id]` | PATCH DELETE | user | user (RLS) | proxy only | zod | strategy_rules |
-| `/api/strategy-rules` | GET POST | paid | user (RLS) | proxy only | zod | strategies, strategy_rules |
+| `/api/strategy-rules` | GET POST | user (free by design) | user (RLS) | proxy only | zod | strategies, strategy_rules |
 | `/api/trades/[id]/duplicate` | POST | user | user (RLS) | proxy only | id only | analytics_events, commission_rules, trades |
 | `/api/trades/[id]/export` | GET | user | user (RLS) | proxy only | id only | commission_rules, field_definitions, trades |
 | `/api/trades/[id]/fee` | PUT | user | user (RLS) | yes | zod | commission_rules, trades |
@@ -291,3 +291,29 @@ the code today:
   and wrongly shaped bodies get 400 on all 39 JSON routes; non-multipart and
   SVG-as-GIF uploads get 400 on all 3 upload routes; the real proxy answers
   413 to an oversized body on every one of those paths.
+
+## Phase 5 results (2026-10-09)
+
+- **Roles in one place:** `src/lib/auth/roles.ts` defines `user | paid |
+  admin` and reads them fail-closed. `isPaidUser()`, `isAdmin()` and the
+  root layout's Admin link all go through it.
+- **Admin backstop:** `src/app/admin/layout.tsx` redirects non-admins on any
+  `/admin` load. Every page still runs its own check, because Next doesn't
+  re-run a layout on client-side navigation.
+  `src/app/admin/admin-gates.test.ts` fails if an admin page or admin route
+  ever lacks `isAdmin()`.
+- **Session cookies:** one shared setting (`src/lib/supabase/cookie-options.ts`):
+  SameSite=Lax as before, now also **Secure in production** (the library
+  default left it off). Deliberately not httpOnly: the browser Supabase client
+  reads the session from them, so the enforcing CSP is the control against
+  XSS reading them.
+- **Headers, verified on a local production server (`next start`):**
+  - HSTS (2 years, preload), nosniff, X-Frame-Options DENY,
+    Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy, COOP
+    same-origin.
+  - Enforcing CSP with a per-request nonce.
+  - A cross-site POST to `/api` gets 403; a same-origin POST with no session
+    gets 401; a cross-origin preflight gets no `Access-Control-*` headers.
+- **Tokens in URLs:** only the single-use `token_hash` in emailed auth links
+  (Supabase's standard flow, consumed by `/auth/confirm`). No session or API
+  token ever travels in a URL.

@@ -1,3 +1,5 @@
+import { rolesFrom } from "@/lib/auth/roles";
+
 // Free/paid plan gating.
 //
 // There is no billing system in this app -- no Stripe, no webhooks, nothing
@@ -27,5 +29,5 @@ export const DEFAULT_PLAN: UserPlan = "free";
  * in src/lib/tracking/admin-queries.ts.
  */
 export function isPaidUser(settings: { plan: UserPlan }): boolean {
-  return settings.plan === "paid";
+  return rolesFrom(settings).paid;
 }

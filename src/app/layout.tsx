@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
+import { rolesFrom } from "@/lib/auth/roles";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -110,7 +111,7 @@ export default async function RootLayout({
   const settings = userId
     ? await getUserSettings(await createClient(), userId).catch(() => null)
     : null;
-  const admin = settings?.is_admin ?? false;
+  const admin = rolesFrom(settings).admin;
   const paid = settings ? isPaidUser(settings) : false;
   // Phase 4D: while the demo journal is in the account, every page says so.
   // Fails quiet: an error (or 0051 unapplied) just means no banner.

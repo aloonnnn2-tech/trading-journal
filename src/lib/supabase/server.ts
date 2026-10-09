@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 // Wrapped in React's per-request cache() so every caller in one render --
 // the root layout, the page, anything they import -- gets the same instance.
@@ -17,7 +18,7 @@ export const createClient = cache(async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       // Same pin as src/proxy.ts; see isCrossSite there.
-      cookieOptions: { sameSite: "lax" },
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();
