@@ -171,7 +171,7 @@ is "prove it filters", and these columns do not.
 | **ai_reviews.trade_id** | **no** |
 | **trade_excursions.trade_id** | **no**. It is also the primary key, so a foreign row could block the owner's own excursion row. |
 | **strategy_rules.strategy_id** | **no** |
-| **trades.strategy_id** (0017) | **no** |
+| **field_definitions.strategy_id** (0017) | **no** |
 | **ai_conversations.key_id** | **no** |
 
 Phase 1 closes all of these with one migration (0059) that adds owner-check
@@ -228,3 +228,29 @@ the code today:
 | Privacy page doesn't name Netlify, Cloudflare or Yahoo; contradicts itself on OCR | Part B |
 | Data export covers trades only | Part B |
 | Seed scripts and e2e use the production project, with no guard | Final task (moves to the dev project) |
+
+## Phase 1 results (2026-10-09)
+
+- **Migration 0059** adds owner-check triggers on all 8 unguarded foreign keys
+  above, with one shared function (`enforce_fk_owner`). Proven on the dev
+  project: every cross-user link is refused with 42501, and the user's own
+  links still work. Verified separately in a local Postgres: demo-journal
+  seeding, trade edits and the history trigger still work.
+- **Two route answers fixed** (no data leaked from either; both answered wrongly):
+  - `GET /api/trades/[id]/history` returned `200 []` for a trade that isn't
+    yours. It now returns 404, and a malformed id is also 404.
+  - `PATCH /api/strategies/[id]` reported every error as "a strategy with
+    that name already exists" (400), including "not yours". Now: no row is
+    404, a real name clash is 400, anything else is 500.
+- **Cross-user suite:** `npm run test:idor`, 165 tests, against the DEV
+  Supabase project only (`tests/idor/env.ts` refuses the production URL).
+  - `postgrest.idor.test.ts`: user A, holding their own JWT, reads, updates
+    and deletes B's rows in 18 tables; writes as B; links to B's records;
+    reaches B's storage files; tries admin RPCs and service-only tables.
+  - `routes.idor.test.ts`: the real handlers for every id-taking route,
+    aimed at B's record (must be 403/404, echo nothing of B, and leave B's
+    row byte-identical) and at A's own record (must succeed). Also covers
+    A's record with B's ids mixed into the body, the admin routes, and
+    no session at all.
+- **Dev project setup:** `npm run dev-schema` builds `supabase/dev/schema.sql`
+  from the migrations. A unit test fails if that file drifts from them.
