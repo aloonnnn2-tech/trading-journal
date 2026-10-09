@@ -13,6 +13,7 @@ import { FormError } from "@/components/form-error";
 import { useDialog } from "@/lib/a11y/use-dialog";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
+import { AiReadPanel } from "./ai-read-panel";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -426,8 +427,9 @@ export function ScreenshotTradeButton({
                 Trade from Screenshot
               </h2>
               <p className="mb-4 text-xs text-zinc-500">
-                Upload a screenshot of your fill, order, or position. It&apos;s parsed by the app&apos;s built-in
-                reader. Never sent to any third-party AI service or API.
+                Upload a screenshot of your fill, order, or position. It&apos;s read by the app&apos;s built-in
+                reader. It goes to an AI service only if you choose &ldquo;Read with AI&rdquo; (paid plan, your own
+                key).
               </p>
 
               {step === "pick" && (
@@ -507,6 +509,15 @@ export function ScreenshotTradeButton({
                       {result.screenshotType.replace(/_/g, " ")}
                     </p>
                   )}
+
+                  <AiReadPanel
+                    file={file}
+                    onResult={(r) => {
+                      setResult(r);
+                      applyDetected(r);
+                      setError(null);
+                    }}
+                  />
 
                   {result && result.warnings.length > 0 && (
                     <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2">

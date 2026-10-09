@@ -13,6 +13,7 @@
     "ocr:fixtures": "tsx scripts/ocr-eval/generate.ts",
     "ocr:eval": "tsx scripts/ocr-eval/run.ts",
     "ocr:record": "tsx scripts/ocr-eval/record.ts",
+    "ocr:eval-ai": "tsx scripts/ocr-eval/run-ai.ts",
     "backup:db": "tsx --env-file-if-exists=.env.local scripts/backup-db.ts",
     "restore:db": "tsx --env-file-if-exists=.env.local scripts/restore-db.ts",
     "migrations:status": "tsx --env-file=.env.local scripts/migrations-status.ts",

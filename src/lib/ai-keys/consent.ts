@@ -18,7 +18,10 @@ import type { AIProviderName } from "./types";
 // asks again with its own wording in front of the user. Defaulting the
 // parameter keeps every existing caller on the original meaning untouched.
 
-export type ConsentScope = "journal_v1" | "chat_v2";
+// "screenshot_v1" (2026-10-10): screenshot import's "Read with AI" sends the
+// screenshot image itself -- not covered by either agreement above, whose
+// wording never mentions images.
+export type ConsentScope = "journal_v1" | "chat_v2" | "screenshot_v1";
 
 export async function listConsentedProviders(
   supabase: SupabaseClient,

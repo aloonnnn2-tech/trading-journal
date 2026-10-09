@@ -76,9 +76,11 @@ export default function PrivacyPage() {
         <h2 className={SECTION_HEADING}>How screenshot processing works</h2>
         <p className={BODY}>
           Screenshot text extraction runs entirely on our own servers using offline OCR software.
-          Your screenshots are never sent to a third-party AI or OCR API to be read. The
+          By default your screenshots are never sent to a third-party AI or OCR API to be read. On
+          the paid plan you can choose &ldquo;Read with AI&rdquo; for a screenshot: that one image is then
+          sent to the AI provider of your own key, only after you agree for that provider. The
           recognition model runs locally as part of our infrastructure, and the image itself is
-          stored in your account&apos;s private storage, not shared externally.
+          stored in your account&apos;s private storage.
         </p>
 
         <h2 className={SECTION_HEADING}>Where your data is stored</h2>

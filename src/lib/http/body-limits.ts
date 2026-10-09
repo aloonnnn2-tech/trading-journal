@@ -21,6 +21,7 @@ export const LARGE_BODY_LIMIT = 6 * 1024 * 1024; // 6 MB
 
 const LARGE_BODY_ROUTES: RegExp[] = [
   /^\/api\/ocr\/parse$/,
+  /^\/api\/ocr\/ai$/,
   /^\/api\/trades\/[^/]+\/images$/,
   /^\/api\/trades\/import(?:-json)?$/,
   /^\/api\/trades\/import\/parse-xlsx$/,

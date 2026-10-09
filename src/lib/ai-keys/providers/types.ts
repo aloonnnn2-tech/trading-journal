@@ -201,6 +201,18 @@ export interface AskOptions {
   timeoutMs?: number;
   /** The model to ask. Defaults to the provider's first choice. */
   model?: string;
+  /**
+   * Images sent with the question (screenshot import's "Read with AI").
+   * Base64, already resized and re-encoded server-side. Only providers in
+   * SCREENSHOT_AI_PROVIDERS (src/lib/ocr/ai-extract.ts) are ever given any.
+   */
+  images?: AskImage[];
+}
+
+export interface AskImage {
+  /** image/jpeg, image/png or image/webp. */
+  mime: string;
+  base64: string;
 }
 
 // A provider that hangs would hold a serverless function open until the

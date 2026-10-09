@@ -165,7 +165,19 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
             [maxTokensField]: options?.maxTokens ?? MAX_ANSWER_TOKENS,
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: question },
+              {
+                role: "user",
+                // With images, OpenAI's content becomes a list of parts.
+                content: options?.images?.length
+                  ? [
+                      { type: "text", text: question },
+                      ...options.images.map((img) => ({
+                        type: "image_url",
+                        image_url: { url: `data:${img.mime};base64,${img.base64}` },
+                      })),
+                    ]
+                  : question,
+              },
             ],
           }),
         },

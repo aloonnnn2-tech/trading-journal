@@ -142,3 +142,40 @@ Each field carries a confidence. The form auto-fills anything at or above
     `entry_price`, so a second column would hold the same number.
   - `import_source` / `import_confidence`: deferred until something reads
     them (Part 2's AI reader may be the first).
+
+## What Part 2 added (2026-10-10): "Read with AI"
+
+- **What it is:** an optional second reader on the review screen, for the
+  paid plan, using the user's own key. It needs an OpenAI, Anthropic, Google,
+  Mistral or OpenRouter key, because Groq, Cerebras and SambaNova's configured
+  models can't see images. The offline reader stays the default and stays on
+  screen if the AI call fails.
+- **Consent:** its own agreement (`screenshot_v1`), worded to say the image
+  itself is sent. The chat's agreement never mentioned images. Checked
+  server-side before anything leaves (`preflightProviderCall`).
+- **The image:** checked by its bytes, re-encoded (metadata stripped, at most
+  2000 px), sent once. The JSON-repair retry never resends it.
+- **Strict output:** `aiReplySchema` (zod) has one row per order/execution
+  and, for every field, a value, a confidence and the exact text read. An
+  unreadable answer is a plain 502 ("nothing was filled in"), never a guess.
+- **Same rules as the offline reader** (`src/lib/ocr/ai-extract.ts`):
+  - filled in only at confidence >= 0.8 with source text;
+  - side maps to direction and entry vs exit (sell closes a long, cover
+    closes a short);
+  - "filled" status is only a suggestion;
+  - cancelled and pending rows are listed but not offered;
+  - code checks (qty × price vs total, stop-limit order, dates, symbol)
+    turn a whole row into suggestions;
+  - a multi-row screenshot lets the user pick the row.
+- **Prompt injection:** the prompt says the image is data, and the reply
+  only fills form fields the user confirms. Nothing the model writes can act
+  on the account.
+- **Eval:**
+  - `npm run ocr:eval-ai -- --live` (your own key, via env) records answers;
+  - replay is free and deterministic;
+  - `npm test` replays recordings and fails on any wrong auto-fill;
+  - no recordings exist yet, because that needs a real key.
+- **Copy kept true:** the dialog, privacy page, FAQ, "How it works" and the
+  tour no longer say screenshots are *never* sent to an AI. They say it
+  happens only if you choose it.
+

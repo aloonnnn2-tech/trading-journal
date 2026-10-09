@@ -92,3 +92,37 @@ describe("screenshot reader regression (recorded OCR)", () => {
     expect(stale, "fixed! remove these from KNOWN_GAPS").toEqual([]);
   });
 });
+
+// Recorded "Read with AI" answers (npm run ocr:eval-ai -- --live), replayed
+// through the app's mapping: the same "never a wrong auto-fill" guarantee.
+// Until Alon records some with his own key there are none, and this says so.
+describe("Read with AI regression (recorded answers)", () => {
+  const recorded: { name: string; reply: unknown; expected: Record<string, unknown> }[] = [];
+  for (const dir of fs.readdirSync(FIXTURES)) {
+    const full = path.join(FIXTURES, dir);
+    if (!fs.statSync(full).isDirectory()) continue;
+    for (const file of fs.readdirSync(full)) {
+      const m = file.match(/^(.*)\.ai-[a-z]+\.json$/);
+      if (!m) continue;
+      const expectedPath = path.join(full, `${m[1]}.expected.json`);
+      if (!fs.existsSync(expectedPath)) continue;
+      recorded.push({
+        name: `${dir}/${file}`,
+        reply: JSON.parse(fs.readFileSync(path.join(full, file), "utf8")).reply,
+        expected: JSON.parse(fs.readFileSync(expectedPath, "utf8")).core,
+      });
+    }
+  }
+
+  it.skipIf(recorded.length > 0)("no recorded AI answers yet (record with your own key to enable)", () => {});
+
+  it.each(recorded.map((r) => [r.name, r] as const))("%s never auto-fills a wrong value", async (_n, r) => {
+    const { aiReplySchema, aiReplyToResult } = await import("./ai-extract");
+    const result = aiReplyToResult(aiReplySchema.parse(r.reply), "openai", "recorded");
+    const wrong = Object.entries(r.expected)
+      .map(([k, want]) => [k, want, result.core[k as keyof typeof result.core]] as const)
+      .filter(([, want, got]) => got && shouldAutofill(got) && !matches(want, got.value))
+      .map(([k, want, got]) => `${k}: auto-filled ${String(got!.value)}, expected ${String(want)}`);
+    expect(wrong).toEqual([]);
+  });
+});

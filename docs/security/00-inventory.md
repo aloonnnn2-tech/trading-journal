@@ -85,6 +85,7 @@ applies to that route.
 | `/api/monthly-costs/[id]` | PATCH DELETE | user | user (RLS) | yes | zod | account_transactions, monthly_cost_postings, monthly_costs |
 | `/api/monthly-costs` | GET POST | user | user (RLS) | yes | zod | account_transactions, monthly_cost_postings, monthly_costs |
 | `/api/ocr/parse` | POST | user | user (RLS) | yes | manual / none | analytics_events, trade_images |
+| `/api/ocr/ai` | POST | paid + consent `screenshot_v1` | user (RLS) + vault | 10/min + daily | zod key id, image bytes, size | user_api_keys (vault), trades (duplicate check); sends the image to the user's own AI provider |
 | `/api/settings/core-fields` | PATCH | user | user (RLS) | proxy only | manual / none | user_settings |
 | `/api/settings/dashboard-layout` | PUT | user | user (RLS) | proxy only | manual / none | user_settings |
 | `/api/settings/preferences` | PATCH | user | user (RLS) | yes | zod | user_settings |

@@ -41,7 +41,7 @@ export const FAQ: readonly FaqItem[] = [
     // src/lib/ocr/engines/paddle.ts; ConfidenceBadge.
     question: "How does the screenshot reader work?",
     answer:
-      "The text is read on our own servers by offline OCR software — your screenshot is never sent to a third-party AI or OCR service. Each field it fills in shows how confident it was, so you can check it before saving. The image is kept with the trade, in your account's private storage.",
+      "The text is read on our own servers by offline OCR software — your screenshot isn't sent to a third-party AI or OCR service unless you choose \"Read with AI\" on the paid plan, which uses your own key. Each field it fills in shows how confident it was, so you can check it before saving. The image is kept with the trade, in your account's private storage.",
   },
   {
     // provider-consent-card.tsx; every AI route goes through requirePaidUser;

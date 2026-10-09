@@ -172,7 +172,21 @@ export const anthropicProvider: AIProvider = {
           output_config: { effort: "low" },
           // `system` is a top-level parameter here, not a message role.
           system: systemPrompt,
-          messages: [{ role: "user", content: question }],
+          messages: [
+            {
+              role: "user",
+              // Images first, then the instruction -- Anthropic's own advice.
+              content: options?.images?.length
+                ? [
+                    ...options.images.map((img) => ({
+                      type: "image",
+                      source: { type: "base64", media_type: img.mime, data: img.base64 },
+                    })),
+                    { type: "text", text: question },
+                  ]
+                : question,
+            },
+          ],
         }),
       },
       options?.timeoutMs ?? ASK_TIMEOUT_MS,

@@ -24,6 +24,7 @@ import { rateLimit } from "@/lib/rate-limit";
  */
 export const DAILY_CAPS = {
   ocr: { limit: 200, what: "screenshot reads" },
+  "screenshot-ai": { limit: 100, what: "AI screenshot reads" },
   "ai-review": { limit: 100, what: "AI reviews" },
   "chat-turn": { limit: 500, what: "Ask messages" },
   import: { limit: 100, what: "imports" },

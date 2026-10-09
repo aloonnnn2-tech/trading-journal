@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { KeyInput } from "@/lib/ai-keys/secret";
 import { ASK_TIMEOUT_MS, type AIProvider } from "@/lib/ai-keys/providers";
+import type { AskImage } from "@/lib/ai-keys/providers/types";
 
 // Getting structured output back from six different providers.
 //
@@ -162,6 +163,7 @@ export async function generateStructured<T>({
   schemaHint,
   maxTokens,
   deadlineAt,
+  images,
 }: {
   provider: AIProvider;
   apiKey: KeyInput;
@@ -175,6 +177,9 @@ export async function generateStructured<T>({
   maxTokens: number;
   /** Epoch ms by which this whole operation must be finished. */
   deadlineAt: number;
+  /** Sent with the first request only. The repair step never resends them:
+   *  fixing a JSON format needs the reply, not the screenshot. */
+  images?: AskImage[];
 }): Promise<T> {
   function remainingMs(): number {
     return deadlineAt - Date.now();
@@ -182,6 +187,7 @@ export async function generateStructured<T>({
 
   const reply = await provider.askQuestion(apiKey, systemPrompt, userPrompt, {
     model,
+    images,
     maxTokens,
     timeoutMs: Math.min(ASK_TIMEOUT_MS, Math.max(1_000, remainingMs())),
   });

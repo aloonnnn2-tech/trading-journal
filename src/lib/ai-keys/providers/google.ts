@@ -157,7 +157,15 @@ export const googleProvider: AIProvider = {
         headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: question }] }],
+          contents: [
+            {
+              role: "user",
+              parts: [
+                ...(options?.images ?? []).map((img) => ({ inlineData: { mimeType: img.mime, data: img.base64 } })),
+                { text: question },
+              ],
+            },
+          ],
           generationConfig: { maxOutputTokens: options?.maxTokens ?? MAX_ANSWER_TOKENS },
         }),
       },
