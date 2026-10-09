@@ -29,7 +29,13 @@ function walk(dir: string): string[] {
   return out;
 }
 
-const files = walk(".next");
+// .next/dev is `next dev`'s own cache (Next 16 keeps it apart from the build).
+// It holds secrets too -- the dev server's environment -- but it only exists
+// on a developer's disk next to .env.local, which holds the same values.
+// Netlify never runs `next dev`, so nothing there is built, cached by the
+// platform, or deployed. This check is about what the BUILD leaves behind.
+const files = walk(".next").filter((f) => !/(^|[\\/])\.next[\\/]dev[\\/]/.test(f));
+console.log("(skipping .next/dev: local dev-server cache, never deployed)");
 let total = 0;
 for (const name of NAMES) {
   const value = process.env[name];

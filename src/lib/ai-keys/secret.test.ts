@@ -3,7 +3,11 @@ import { inspect } from "node:util";
 import { SecretKey, redactKey, reveal } from "./secret";
 import { errorDetail, ProviderError } from "./providers/types";
 
-const KEY = "Zq8mT2vK9pLr4XwB7nYc3HdF6sJe1GaU"; // Mistral-shaped: no prefix at all
+// Mistral-shaped (32 alphanumerics, no prefix), assembled at runtime: a key-
+// shaped literal in source trips GitHub push protection and every secret
+// scanner, real or not. 7 is coprime with 62, so all 32 characters differ.
+const ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const KEY = Array.from({ length: 32 }, (_, i) => ALNUM[(i * 7) % ALNUM.length]).join("");
 
 describe("SecretKey never prints its value", () => {
   const k = new SecretKey(KEY);

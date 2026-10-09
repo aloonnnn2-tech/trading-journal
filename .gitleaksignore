@@ -1,0 +1,9 @@
+# Reviewed secret-scanner findings that are NOT secrets (security hardening, Phase 3,
+# 2026-10-09). Each is a deliberately key-shaped FAKE value in a unit test, still
+# present in old commits. Verified fake: the JWT has no project ref/expiry and a
+# 19-char signature; the sk-proj key is 29 chars with filler; the 32-char Mistral-shaped
+# value has no repeated character. Since replaced by values built at runtime.
+# Add a line here only after checking the finding is not a real credential.
+c40f9316f04a9635fd6fa076639f53500cbf6629:src/lib/ai-keys/secret.test.ts:generic-api-key:6
+b80ed7ca1b80dfbf43cd77cee27910f640f4bbfd:src/lib/observability/scrub.test.ts:jwt:44
+9d215a09f6a8404cced3a40ec04a969d00f4c082:src/lib/ai-keys/schema.test.ts:generic-api-key:4

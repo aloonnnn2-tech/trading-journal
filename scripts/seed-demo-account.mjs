@@ -28,7 +28,8 @@
 //
 // Usage:
 //   node scripts/seed-demo-account.mjs
-//   node scripts/seed-demo-account.mjs --email=demo@example.com --password=... --days=300
+//   node scripts/seed-demo-account.mjs --email=demo@example.com --days=300
+//   (password: DEMO_ACCOUNT_PASSWORD in .env.local, or --password=...)
 //
 // Re-running against an existing demo account WIPES that account's journal
 // rows first (trades, strategies, folders, reviews, ledger) and reseeds them.
@@ -48,7 +49,13 @@ const args = Object.fromEntries(
 );
 
 const EMAIL = args.email ?? "demo@tradinglens.app";
-const PASSWORD = args.password ?? "TradingLens2026!";
+// Never a literal: this file is in a public repository, and a default here
+// was the demo account's real password from 2026-09-08 to 2026-10-09. Comes
+// from --password or DEMO_ACCOUNT_PASSWORD in .env.local (see
+// scripts/set-demo-password.mjs). Absent, an existing account keeps its
+// password and a new one gets a random one nobody knows (sign in by magic
+// link, as scripts/capture-marketing-shots.mjs does).
+const PASSWORD_ARG = typeof args.password === "string" ? args.password : null;
 const DAYS = Number(args.days ?? 300);
 const SEED = Number(args.seed ?? 20260902);
 const TIMEZONE = "America/New_York";
@@ -66,6 +73,8 @@ const env = Object.fromEntries(
 if (!env.SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("SUPABASE_SERVICE_ROLE_KEY missing from .env.local");
 }
+
+const PASSWORD = PASSWORD_ARG ?? (env.DEMO_ACCOUNT_PASSWORD || null);
 
 const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -437,7 +446,7 @@ async function ensureUser() {
   const existing = list.users.find((u) => u.email?.toLowerCase() === EMAIL.toLowerCase());
   if (existing) {
     const { error } = await db.auth.admin.updateUserById(existing.id, {
-      password: PASSWORD,
+      ...(PASSWORD ? { password: PASSWORD } : {}),
       email_confirm: true,
       user_metadata: { display_name: "Demo Trader", is_demo: true },
     });
@@ -448,7 +457,7 @@ async function ensureUser() {
 
   const { data, error } = await db.auth.admin.createUser({
     email: EMAIL,
-    password: PASSWORD,
+    password: PASSWORD ?? `${randomUUID()}${randomUUID()}`,
     email_confirm: true,
     user_metadata: { display_name: "Demo Trader", is_demo: true },
   });
@@ -1509,7 +1518,7 @@ async function main() {
 
   console.log("\n--- demo account seeded ---");
   console.log("email:          ", EMAIL);
-  console.log("password:       ", PASSWORD);
+  console.log("password:", PASSWORD ? "(from --password / DEMO_ACCOUNT_PASSWORD; not printed)" : "(unchanged)");
   console.log("plan:            paid");
   console.log("timezone:       ", TIMEZONE);
   console.log("closed trades:  ", closedCount, `(${wins} wins, ${Math.round((wins / closedCount) * 100)}% win rate)`);

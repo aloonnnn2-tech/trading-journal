@@ -40,8 +40,10 @@ describe("scrubString", () => {
   });
 
   it("redacts JWT-shaped tokens, which includes the service-role key", () => {
-    const jwt =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.AbCdEf0123456789xyz";
+    // Built at runtime (header.payload.signature, base64url) so no JWT-shaped
+    // literal sits in source for scanners to flag.
+    const b64 = (s: string) => Buffer.from(s).toString("base64url");
+    const jwt = [b64('{"alg":"HS256","typ":"JWT"}'), b64('{"role":"service_role"}'), b64("not-a-real-signature")].join(".");
     expect(scrubString(`Authorization: Bearer ${jwt}`)).not.toContain(jwt);
   });
 
