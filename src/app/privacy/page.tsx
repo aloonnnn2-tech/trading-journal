@@ -132,6 +132,15 @@ export default function PrivacyPage() {
           anything you typed.
         </p>
         <p className={BODY}>
+          Exactly what is recorded, with the time: the pages you open; the buttons you press, by
+          their label; when you leave the app or switch away from it, and on which page; signing
+          in and creating your account; how far you got in a product tour; and that you created,
+          edited, deleted, imported or exported trades, added a cash entry, or used an AI feature
+          (with the provider&apos;s name), but never what those trades or entries contain. While
+          the app is open, a timer also counts how long you spend in it. Usage events are
+          included when you download your data from the Account page.
+        </p>
+        <p className={BODY}>
           Separately, we keep an anonymous tally of how many times the home page and pricing
           page are viewed each day. That tally is a single number per day. It stores nothing
           about you — no cookie, no identifier, no IP address — and cannot be connected to any

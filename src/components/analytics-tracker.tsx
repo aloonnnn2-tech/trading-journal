@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
-import { useAnalytics, getSessionId } from "@/lib/tracking/useAnalytics";
+import { useAnalytics, getSessionId, sendPageExit } from "@/lib/tracking/useAnalytics";
 import { isTourActive, startClickCapture } from "@/lib/tracking/click-capture";
 
 // Must match the 30-second increment in record_heartbeat() (migration 0045):
@@ -55,6 +55,18 @@ export function AnalyticsTracker() {
     if (isTourActive(document)) return;
     track("page_view", { path: pathname });
   }, [pathname, isPublicPage, track]);
+
+  // Where they left: one page_exit each time the tab goes hidden (closed,
+  // switched away, phone backgrounded). Once per hidden spell -- a tab that
+  // comes back and hides again sends again, so the last one is the exit.
+  useEffect(() => {
+    if (isPublicPage) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") sendPageExit(window.location.pathname);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isPublicPage]);
 
   useEffect(() => {
     if (isPublicPage) return;

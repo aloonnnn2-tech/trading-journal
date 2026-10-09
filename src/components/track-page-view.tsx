@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
+import type { ClientEventName } from "@/lib/tracking/events";
 import { isTourActive } from "@/lib/tracking/click-capture";
 
 // Fires one named event on mount -- used for features worth tracking
 // distinctly from the generic page_view already fired by <AnalyticsTracker />
 // (e.g. dashboard_viewed, analytics_panel_viewed).
-export function TrackPageView({ event }: { event: string }) {
+export function TrackPageView({ event }: { event: Extract<ClientEventName, `${string}_viewed`> }) {
   const { track } = useAnalytics();
 
   useEffect(() => {

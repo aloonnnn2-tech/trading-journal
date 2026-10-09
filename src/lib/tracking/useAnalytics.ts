@@ -1,6 +1,14 @@
 "use client";
 
+// The browser half of analytics. What may be sent, and how to add an event:
+// src/lib/tracking/events.ts and docs/analytics-events.md.
+
 import { useCallback } from "react";
+import type { z } from "zod";
+import type { CLIENT_EVENTS, ClientEventName } from "@/lib/tracking/events";
+
+/** The props an event takes, straight from its schema in events.ts. */
+export type ClientEventProps<E extends ClientEventName> = z.input<(typeof CLIENT_EVENTS)[E]["props"]>;
 
 const SESSION_ID_KEY = "tj-analytics-session-id";
 
@@ -38,7 +46,9 @@ export function getSessionId(): string {
 // landed, for the one caller (AnalyticsTracker's session_start) that needs
 // to know before recording "already tracked" locally.
 export function useAnalytics() {
-  const track = useCallback((eventName: string, props?: Record<string, unknown>) => {
+  // Only names in src/lib/tracking/events.ts compile, with the props that
+  // event's schema allows -- the server validates the same schema.
+  const track = useCallback(<E extends ClientEventName>(eventName: E, props?: ClientEventProps<E>) => {
     return fetch("/api/analytics/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -64,7 +74,7 @@ export function useAnalytics() {
   // Several events in one request -- what click autocapture sends. keepalive
   // so a flush fired on pagehide survives the navigation that triggered it.
   const trackBatch = useCallback(
-    (events: { eventName: string; props?: Record<string, unknown> }[]) => {
+    (events: { eventName: ClientEventName; props?: Record<string, unknown> }[]) => {
       if (events.length === 0) return;
       fetch("/api/analytics/track", {
         method: "POST",
@@ -77,4 +87,30 @@ export function useAnalytics() {
   );
 
   return { track, trackBatch, heartbeat };
+}
+
+/**
+ * "Left the app on <page>": one event when the tab is hidden -- closed,
+ * switched away from, or backgrounded on a phone. sendBeacon, because it is
+ * the one request a browser promises to deliver while the page goes away;
+ * a fetch started then is often cancelled. Falls back to a keepalive fetch.
+ * The admin's "Left on" for a session is its last one of these.
+ */
+export function sendPageExit(path: string): void {
+  try {
+    const body = JSON.stringify({ sessionId: getSessionId(), eventName: "page_exit", props: { path } });
+    const sent =
+      typeof navigator.sendBeacon === "function" &&
+      navigator.sendBeacon("/api/analytics/track", new Blob([body], { type: "application/json" }));
+    if (!sent) {
+      fetch("/api/analytics/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body,
+      }).catch(() => {});
+    }
+  } catch {
+    // Best-effort, like every analytics call.
+  }
 }

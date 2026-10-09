@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { EventName } from "@/lib/tracking/events";
 
 // Sentinel session_id for events logged from API route handlers rather than
 // the browser tracker (trade CRUD, import) -- these fire from several
@@ -15,7 +16,8 @@ export async function logEvent(
   supabase: SupabaseClient,
   userId: string,
   sessionId: string,
-  eventName: string,
+  // Only names listed in src/lib/tracking/events.ts compile.
+  eventName: EventName,
   props: Record<string, unknown> = {},
 ): Promise<void> {
   try {
@@ -36,7 +38,7 @@ export async function logEvents(
   supabase: SupabaseClient,
   userId: string,
   sessionId: string,
-  events: { eventName: string; props?: Record<string, unknown> }[],
+  events: { eventName: EventName; props?: Record<string, unknown> }[],
 ): Promise<void> {
   if (events.length === 0) return;
   try {
