@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchYahooCandles } from "@/lib/market-data/yahoo";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
 import { CURRENCIES } from "@/lib/commissions/fee-form";
 
 // Today's rate for a fee stated in another currency: how many US dollars one
@@ -23,6 +24,11 @@ export async function GET(request: Request) {
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
+
+  const daily = await enforceDailyCap("market-data", userId);
+  if (daily) return daily;
+  const upstream = await enforceYahooCeiling();
+  if (upstream) return upstream;
 
   const from = new URL(request.url).searchParams.get("from") ?? "";
   if (!(CURRENCIES as readonly string[]).includes(from)) {

@@ -20,15 +20,16 @@ code (see `SECURITY.md §1`).
 
 | Limit | Set to |
 | --- | --- |
-| Sign-in / token grants (per IP, 5 min) | 30 |
+| Sign-in / token grants (per IP, 5 min) | **5** (was 30; hardening brief 2026-10-09 asks for 5 per 15 min, and 5 per 5 min is the closest Supabase allows) |
 | Sign-ups (per IP, hour) | 10 |
 | Password recovery emails (per hour) | 10 |
 | Confirmation / magic-link emails (per hour) | 10 |
 | Verification attempts (per 5 min) | 30 |
 | Token refreshes | leave default |
 
-**Confirm:** attempt ~35 quick failed sign-ins from one browser → you should
-start getting rate-limited (the UI shows a "wait and try again" message, which
+**Confirm:** attempt 6 quick failed sign-ins from one browser (wrong password,
+solving the security check each time) → the 6th should be refused and you
+should start getting rate-limited (the UI shows a "wait and try again" message, which
 `src/lib/auth/error-messages.ts` already maps).
 
 ## 2. Minimum password length  → lifts §1 · DONE

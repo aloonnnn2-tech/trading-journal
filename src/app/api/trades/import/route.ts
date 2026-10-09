@@ -14,6 +14,7 @@ import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 
 const BATCH_SIZE = 500;
 
@@ -57,6 +58,8 @@ export async function POST(request: Request) {
     "Too many imports in a row. Wait a minute, then try again -- rows already imported were saved.",
   );
   if (limited) return limited;
+  const daily = await enforceDailyCap("import", userId);
+  if (daily) return daily;
 
   const supabase = await createClient();
 

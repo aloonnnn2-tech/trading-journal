@@ -13,6 +13,7 @@ import { encodeEvent, type ChatStreamEvent } from "@/lib/chat/protocol";
 import { runTurn } from "@/lib/chat/turn";
 import { getUserSettings } from "@/lib/settings/queries";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { logError } from "@/lib/observability/scrub";
 
@@ -59,6 +60,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const turnLimit = await rateLimit(`chat-turn:${gate.userId}`, TURN_LIMIT, WINDOW_MS);
   if (!turnLimit.ok) return tooMany(turnLimit.retryAfterSeconds);
+  const daily = await enforceDailyCap("chat-turn", gate.userId);
+  if (daily) return daily;
 
   let rawBody: unknown;
   try {

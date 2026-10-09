@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchYahooBars, type YahooBarsResult } from "@/lib/market-data/yahoo";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
 
 // The trade chart's holding-period bars (Phase 4C): one bar size over one
 // date range. The candles route next door still serves the two-year daily
@@ -37,6 +38,11 @@ export async function GET(request: Request) {
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
+
+  const daily = await enforceDailyCap("market-data", userId);
+  if (daily) return daily;
+  const upstream = await enforceYahooCeiling();
+  if (upstream) return upstream;
 
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get("ticker")?.trim().toUpperCase() ?? "";

@@ -6,6 +6,7 @@ import { providerErrorResponse } from "@/lib/ai-keys/provider-error-response";
 import { getProvider } from "@/lib/ai-keys/providers";
 import { withRetiredModelRetry } from "@/lib/ai-keys/repick-model";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { getUserSettings } from "@/lib/settings/queries";
 import { generateStructured, StructuredOutputError } from "@/lib/ai-reviews/parse";
@@ -84,6 +85,9 @@ export async function POST(request: Request) {
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
+
+  const daily = await enforceDailyCap("ai-review", gate.userId);
+  if (daily) return daily;
 
   let rawBody: unknown;
   try {

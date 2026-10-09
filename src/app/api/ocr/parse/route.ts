@@ -10,6 +10,7 @@ import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { runOcrPipeline } from "@/lib/ocr/pipeline";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 
 // Native modules (onnxruntime-node, sharp) require the Node.js runtime.
 export const runtime = "nodejs";
@@ -38,6 +39,9 @@ export async function POST(request: Request) {
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
+
+  const daily = await enforceDailyCap("ocr", userId);
+  if (daily) return daily;
 
   let file: FormDataEntryValue | null;
   try {

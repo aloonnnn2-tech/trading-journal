@@ -44,15 +44,13 @@ The protections that do work are all configured in the Supabase dashboard:
 
 **Authentication → Attack Protection**
 
-- **Enable CAPTCHA** (hCaptcha or Cloudflare Turnstile). This is the single
-  most effective control available for these endpoints, because it applies at
-  Supabase's edge where the requests actually land.
-  After enabling it, the four auth screens listed above must each pass the
-  resulting token through as `options.captchaToken` — **they do not do this
-  today**, so enabling CAPTCHA without that code change will break sign-in.
-  Treat it as one task, not two.
-- **Enable leaked-password protection** (checks new passwords against Have I
-  Been Pwned). The app currently enforces only `minLength=6`.
+- **CAPTCHA: done.** Cloudflare Turnstile has been live since 2026-09-08 on
+  sign-in, sign-up and forgot-password (`src/components/turnstile.tsx`); the
+  screens pass the token as `options.captchaToken`, and Supabase rejects auth
+  calls without one. This is the most effective control here, because it
+  applies at Supabase's edge, where the requests actually land.
+- **Leaked-password protection** (Have I Been Pwned): blocked by the plan
+  tier, see `SECURITY-RUNBOOK.md` §2. The minimum length is now 8.
 
 **Consider also**
 
@@ -63,6 +61,21 @@ The protections that do work are all configured in the Supabase dashboard:
   sign-up no longer requires confirmation while `src/app/sign-up/page.tsx`
   still handles the awaiting-confirmation path; whichever is intended, the
   other should follow.
+
+### "5 attempts per 15 minutes" (hardening brief, 2026-10-09)
+
+The brief asks for at most 5 login attempts per 15 minutes, per IP **and** per
+account. Supabase's auth limits are per IP only, over a 5-minute window, so
+neither half can be expressed exactly:
+
+- **Per IP:** the runbook sets sign-in to 5 per 5 minutes, which is the
+  closest setting (up to 15 per 15 minutes). Going lower locks out someone
+  who mistypes a password twice. Every attempt also needs a fresh Turnstile
+  token, which is what actually stops a script.
+- **Per account:** not possible without proxying auth through our own routes,
+  which this file's §8 records as deliberately not done. Alon confirmed that
+  choice on 2026-10-09. It is listed as an open item in
+  `docs/security/99-audit-report.md`.
 
 ### What the app does do
 
@@ -101,6 +114,23 @@ genuinely expensive or destructive:
 | `GET /api/trades/export` | 20/min | Serialises the whole account |
 | `DELETE /api/account/delete` | 5/hour | Irreversible, partially-completing |
 | `POST /api/admin/plan` | 60/min | Limits a leaked admin session |
+
+**Daily caps — `src/lib/rate-limits/daily.ts`** (2026-10-09). The per-minute
+limits stop a burst. A script making one call every few seconds all day stays
+under every one of them and still runs up the bill, so the expensive routes
+also carry a per-user daily cap. All the caps are in one table and sit far
+above a person's real use: 200 screenshot reads, 100 AI reviews, 500 Ask
+messages, 100 imports, 200 exports, 50 excursion recalculations and 3,000
+price lookups per day.
+
+**Yahoo ceiling.** The market-data routes also share one app-wide bucket of
+600 calls a minute (`upstream:yahoo`). The unofficial endpoint can block this
+server's IP for everyone, so this bounds the app as a whole, not just one
+account.
+
+**Request size — `src/lib/http/body-limits.ts`.** The proxy refuses (413) any
+non-GET `/api` request whose `Content-Length` is over 1 MB, or over 6 MB for
+the upload and import routes, before a handler buffers it.
 
 **Why the remaining routes have no individual limit.** Settings, folders,
 strategies, goals, field definitions and commission rules are all

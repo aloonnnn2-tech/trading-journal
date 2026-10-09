@@ -5,6 +5,7 @@ import { listFieldDefinitions } from "@/lib/fields/definitions";
 import { listAllTradeFolderLinks } from "@/lib/folders/queries";
 import { listTrades } from "@/lib/trades/queries";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import {
   contentTypeFor,
@@ -30,6 +31,8 @@ export async function GET(request: Request) {
     "Too many exports in a row. Wait a moment and try again.",
   );
   if (limited) return limited;
+  const daily = await enforceDailyCap("export", userId);
+  if (daily) return daily;
 
   const supabase = await createClient();
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchYahooCandles, type Candle } from "@/lib/market-data/yahoo";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
 
 // This route makes an outbound request to Yahoo on every call, from this
 // app's IP, with a symbol the caller chooses -- the same shape as the OCR and
@@ -37,6 +38,11 @@ export async function GET(request: Request) {
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
+
+  const daily = await enforceDailyCap("market-data", userId);
+  if (daily) return daily;
+  const upstream = await enforceYahooCeiling();
+  if (upstream) return upstream;
 
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();

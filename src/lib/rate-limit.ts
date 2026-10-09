@@ -76,10 +76,15 @@ export async function rateLimit(
     }
     const allowed = (data as { allowed?: unknown }).allowed;
     const retry = (data as { retry_after_seconds?: unknown }).retry_after_seconds;
+    // Only an explicit `false` blocks; any unexpected shape fails open.
+    const ok = allowed !== false;
     return {
-      // Only an explicit `false` blocks; any unexpected shape fails open.
-      ok: allowed !== false,
-      retryAfterSeconds: typeof retry === "number" && retry > 0 ? retry : 0,
+      ok,
+      // A refusal must never say "retry after 0": clients that honour the
+      // header would retry at once and be refused again. If the counter gave
+      // no usable wait, the whole window is the safe answer.
+      retryAfterSeconds:
+        typeof retry === "number" && retry > 0 ? retry : ok ? 0 : Math.max(1, Math.ceil(windowMs / 1000)),
     };
   } catch {
     return broken;

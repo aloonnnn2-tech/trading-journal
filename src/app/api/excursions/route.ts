@@ -3,6 +3,7 @@ import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { isMissingTableError } from "@/lib/supabase/errors";
 import { computeExcursions } from "@/lib/excursions/queries";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 
 // Recomputing excursions makes one outbound request PER DISTINCT SYMBOL in the
 // journal, to an unofficial endpoint, from this app's IP. That is the whole
@@ -30,6 +31,9 @@ export async function POST() {
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
+
+  const daily = await enforceDailyCap("excursions", gate.userId);
+  if (daily) return daily;
 
   try {
     const summary = await computeExcursions(gate.supabase, gate.userId);
