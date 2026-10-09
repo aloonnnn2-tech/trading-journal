@@ -25,10 +25,10 @@ vi.mock("@/lib/ai-keys/providers", async (orig) => ({
 
 const { POST } = await import("./route");
 
-const KEY = "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b";
+const KEY_ID = "3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"; // a record id (uuid), not a secret
 const png = await sharp({ create: { width: 40, height: 20, channels: 3, background: "#fff" } }).png().toBuffer();
 
-function call(file: Blob | null, keyId: string = KEY) {
+function call(file: Blob | null, keyId: string = KEY_ID) {
   const form = new FormData();
   if (file) form.set("file", new File([file], "shot.png", { type: "image/png" }));
   form.set("keyId", keyId);
