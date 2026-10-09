@@ -254,3 +254,40 @@ the code today:
     no session at all.
 - **Dev project setup:** `npm run dev-schema` builds `supabase/dev/schema.sql`
   from the migrations. A unit test fails if that file drifts from them.
+
+## Phase 4 results (2026-10-09)
+
+- **Input schemas:** every route that takes input now validates it with zod,
+  or with an equivalent allowlist (market-data `bars` and `fx`). Routes moved
+  from hand-written checks to zod: field-definitions (POST, PATCH),
+  settings/core-fields, dashboard-layout, timezone (must be a real IANA zone),
+  tour, trades/[id]/folders, trades/[id]/strategies, demo, and the outer shape
+  of trades/[id] PATCH. market-data/candles gained the same symbol rule as bars.
+- **Bugs this found:**
+  - Editing a custom field from the Fields page was always refused: the
+    client sends `options: { choices }`, but the old check wanted a bare array.
+  - `PUT trades/[id]/folders` and `/strategies` read a missing or malformed
+    list as `[]` and removed every link.
+  - `core-fields` read the string `"false"` as true.
+- **Uploads:** the screenshot upload and the OCR read go by the file's
+  first bytes (`src/lib/images/magic.ts`), not its declared type. An SVG or
+  HTML page labelled `image/gif` is refused; a PNG saved as `.jpg` still works.
+  GIFs must also decode as GIF. Migration **0060** gives the `trade-images`
+  bucket its own limits (10 MB; jpeg/png/webp/gif), so a direct Storage
+  upload can't skip the route.
+- **Signed URLs stay at 1 hour** (the plan said 10 minutes). The trade page
+  lazy-loads screenshots, so a 10-minute link turns into a broken image for
+  anyone who spends a while on the notes before scrolling down. A shorter TTL
+  needs a URL refresh first; listed in the audit report.
+- **Database functions:** every `security definer` function either checks
+  `is_admin`, takes the user from `auth.uid()`, is granted to `service_role`
+  only, or is the allowlisted public page-view counter. No string-built SQL.
+- **AI:** all 13 chat tools are read-only (no insert, update, delete or rpc).
+  Answers render as text with no links or images, so injected instructions in
+  notes or screenshots can mislead an answer but cannot act.
+- **Formula injection in exports:** already escaped (CSV); XLSX writes typed
+  string cells.
+- **Tests:** `tests/idor/validation.idor.test.ts`, 126 cases. Malformed JSON
+  and wrongly shaped bodies get 400 on all 39 JSON routes; non-multipart and
+  SVG-as-GIF uploads get 400 on all 3 upload routes; the real proxy answers
+  413 to an oversized body on every one of those paths.

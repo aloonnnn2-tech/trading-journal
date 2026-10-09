@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { setTradeFolders } from "@/lib/folders/queries";
+
+const bodySchema = z.object({ folderIds: z.array(z.uuid()).max(200) }).strict();
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,13 +15,19 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const supabase = await createClient();
 
-  let body;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const folderIds = Array.isArray(body.folderIds) ? (body.folderIds as string[]) : [];
+  // A missing or non-array folderIds used to mean [] -- "remove every link" -- so a
+  // malformed request silently emptied the trade's list.
+  const parsed = bodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Expected { folderIds: [ids] }" }, { status: 400 });
+  }
+  const { folderIds } = parsed.data;
 
   try {
     await setTradeFolders(supabase, id, folderIds);

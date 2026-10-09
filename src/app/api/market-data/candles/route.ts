@@ -25,6 +25,8 @@ export interface CandlesResponse {
   quoteTime: string | null;
 }
 
+const SYMBOL = /^[A-Z0-9.\-=^]{1,20}$/;
+
 export async function GET(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
@@ -48,6 +50,10 @@ export async function GET(request: Request) {
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();
   if (!ticker) {
     return NextResponse.json({ error: "Missing ticker" }, { status: 400 });
+  }
+  // Same symbol rule as the bars route: it goes into an upstream URL.
+  if (!SYMBOL.test(ticker)) {
+    return NextResponse.json({ error: "Invalid ticker" }, { status: 400 });
   }
 
   let result: Awaited<ReturnType<typeof fetchYahooCandles>>;

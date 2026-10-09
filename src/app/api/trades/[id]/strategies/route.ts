@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { setTradeStrategies } from "@/lib/strategies/queries";
+
+const bodySchema = z.object({ strategyIds: z.array(z.uuid()).max(200) }).strict();
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,13 +15,19 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const supabase = await createClient();
 
-  let body;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const strategyIds = Array.isArray(body.strategyIds) ? (body.strategyIds as string[]) : [];
+  // A missing or non-array strategyIds used to mean [] -- "remove every link" -- so a
+  // malformed request silently emptied the trade's list.
+  const parsed = bodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Expected { strategyIds: [ids] }" }, { status: 400 });
+  }
+  const { strategyIds } = parsed.data;
 
   try {
     await setTradeStrategies(supabase, id, strategyIds);
