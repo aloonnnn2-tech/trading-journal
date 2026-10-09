@@ -275,6 +275,8 @@ export interface TradeListFilters {
   /** Exact match on the `direction` column. Added so Find My Edge can link a
    *  long/short segment to the trades behind it. */
   direction?: string;
+  /** An order_type value, or "unset" for trades with none recorded. */
+  orderType?: string;
   plMin?: number;
   plMax?: number;
   /** Inclusive bounds on risk_percent, for drilling into a risk band. */
@@ -326,6 +328,8 @@ function filteredTradesQuery(
 
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.direction) query = query.eq("direction", filters.direction);
+  if (filters.orderType === "unset") query = query.is("order_type", null);
+  else if (filters.orderType) query = query.eq("order_type", filters.orderType);
   // Bounds are applied independently so a half-open band ("1% or more") works
   // without inventing an upper limit the user never asked for.
   if (filters.riskMin !== undefined) query = query.gte("risk_percent", filters.riskMin);

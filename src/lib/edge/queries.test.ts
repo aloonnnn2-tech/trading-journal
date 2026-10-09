@@ -15,6 +15,7 @@ function row(over: Partial<EdgeRow> = {}): EdgeRow {
     id: `t-${Math.random()}`,
     ticker: "NVDA",
     direction: "long",
+    order_type: null,
     market: "US",
     asset_type: "stock",
     entry_date: "2026-08-10T13:30:00Z",
@@ -153,6 +154,12 @@ describe("edge dimensions — drill-down", () => {
     expect(segmentsFor("day", [row()])[0].drillDownUrl).toBeNull();
     expect(segmentsFor("holding", [row()])[0].drillDownUrl).toBeNull();
     expect(segmentsFor("exit", [row()])[0].drillDownUrl).toBeNull();
+  });
+
+  it("segments by order type, leaves unrecorded ones out, and links to the filter", () => {
+    const segments = segmentsFor("order_type", [row({ order_type: "limit" }), row({ order_type: "stop_limit" }), row()]);
+    expect(segments.map((x) => x.value).sort()).toEqual(["Limit", "Stop limit"]);
+    expect(segments.find((x) => x.value === "Stop limit")?.drillDownUrl).toBe("/trades?orderType=stop_limit");
   });
 
   it("escapes a value that would otherwise break the url", () => {

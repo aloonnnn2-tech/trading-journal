@@ -22,13 +22,15 @@ const LABELLED_NUMERIC: FieldKey[] = [
   "risk_percent",
   "pnl_amount",
   "pnl_percent",
+  "limit_price",
+  "stop_price",
   "risk_reward_ratio",
   "current_price",
   "average_price",
 ];
 
 const LABELLED_DATE: FieldKey[] = ["entry_date", "exit_date"];
-const LABELLED_TEXT: FieldKey[] = ["broker", "account", "exchange", "currency", "order_id", "order_type", "company_name", "asset_type", "market"];
+const LABELLED_TEXT: FieldKey[] = ["broker", "account", "exchange", "currency", "order_id", "order_type", "time_in_force", "company_name", "asset_type", "market"];
 
 type Candidate = DetectedField;
 
@@ -48,9 +50,14 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
     push({ key: "ticker", value: ticker.value, confidence: 0.9, source: ticker.source, raw: ticker.value });
   }
   const dir = findDirection(texts);
-  if (dir) push({ key: "direction", value: dir.value, confidence: 0.85, source: dir.source });
+  // Ambiguous words ("Sell", "Filled") become suggestions, never answers.
+  if (dir) {
+    push({ key: "direction", value: dir.value, confidence: dir.ambiguous ? 0.4 : 0.85, source: dir.source, heuristic: dir.ambiguous });
+  }
   const status = findStatus(texts);
-  if (status) push({ key: "status", value: status.value, confidence: 0.7, source: status.source });
+  if (status) {
+    push({ key: "status", value: status.value, confidence: status.ambiguous ? 0.4 : 0.7, source: status.source, heuristic: status.ambiguous });
+  }
 
   // --- Labelled fields via layout ------------------------------------------
   for (const line of layout.lines) {
@@ -154,9 +161,9 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
       const box = lineFor(arrow[0])?.box;
       const entry = parseNumber(arrow[1]);
       const second = parseNumber(arrow[2]);
-      if (entry !== null) push({ key: "entry_price", value: entry, confidence: 0.6, source: "arrow notation", raw: arrow[0], box });
+      if (entry !== null) push({ key: "entry_price", value: entry, confidence: 0.6, source: "arrow notation", heuristic: true, raw: arrow[0], box });
       if (second !== null && !has(candidates, "current_price")) {
-        push({ key: "current_price", value: second, confidence: 0.5, source: "arrow notation (current)", raw: arrow[0], box });
+        push({ key: "current_price", value: second, confidence: 0.5, source: "arrow notation (current)", heuristic: true, raw: arrow[0], box });
       }
     }
   }
@@ -175,7 +182,7 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
     const distinct = [...new Set(atValues)];
     if (distinct.length === 1) {
       const at = atMatches[0];
-      push({ key: "entry_price", value: distinct[0], confidence: 0.55, source: "fill notation (@)", raw: at[0], box: lineFor(at[0])?.box });
+      push({ key: "entry_price", value: distinct[0], confidence: 0.55, source: "fill notation (@)", heuristic: true, raw: at[0], box: lineFor(at[0])?.box });
     }
   }
 
@@ -189,7 +196,7 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
       // A cropped re-OCR pass can clip the leading digit off a quantity
       // ("10 AAPL" -> "0 AAPL"); a real quantity is never 0, so reject rather
       // than let a clipped read tie confidence with — and beat — a correct one.
-      if (n !== null && n > 0) push({ key: "shares", value: n, confidence: 0.6, source: "order line quantity", raw: m[0], box: lineFor(m[0])?.box });
+      if (n !== null && n > 0) push({ key: "shares", value: n, confidence: 0.6, source: "order line quantity", heuristic: true, raw: m[0], box: lineFor(m[0])?.box });
     }
   }
 
@@ -198,7 +205,7 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
     const m = joined.match(new RegExp(String.raw`(${NUM_RE})[ \t]*(?:shares?|contracts?|units?)\b`, "i"));
     if (m) {
       const n = parseNumber(m[1]);
-      if (n !== null) push({ key: "shares", value: n, confidence: 0.7, source: "quantity phrase", raw: m[0], box: lineFor(m[0])?.box });
+      if (n !== null) push({ key: "shares", value: n, confidence: 0.7, source: "quantity phrase", heuristic: true, raw: m[0], box: lineFor(m[0])?.box });
     }
   }
 
@@ -207,7 +214,7 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
     const m = joined.match(new RegExp(String.raw`(?:\b(?:bot|sld|bought|sold)|,[ \t]*(?:buy|sell))[ \t]+(${NUM_RE})\b`, "i"));
     if (m) {
       const n = parseNumber(m[1]);
-      if (n !== null) push({ key: "shares", value: n, confidence: 0.6, source: "order size notation", raw: m[0], box: lineFor(m[0])?.box });
+      if (n !== null) push({ key: "shares", value: n, confidence: 0.6, source: "order size notation", heuristic: true, raw: m[0], box: lineFor(m[0])?.box });
     }
   }
 

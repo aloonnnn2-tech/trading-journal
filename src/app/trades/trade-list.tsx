@@ -10,6 +10,7 @@ import { TradePanel } from "./trade-panel";
 import { usePreferences } from "@/components/preferences/preferences-provider";
 import { useRouter } from "next/navigation";
 import { ResultBadge } from "./result-badge";
+import { orderTypeLabel } from "@/lib/trades/order-labels";
 
 // The trade table and its side panel (Phase 4A of docs/design-audit.md).
 //
@@ -143,6 +144,7 @@ export function TradeList({
                 </div>
                 <p className="mt-0.5 truncate text-xs text-zinc-500">
                   {formatDate(trade.entry_date)}
+                  {orderTypeLabel(trade) ? ` · ${orderTypeLabel(trade)}` : ""}
                   {trade.risk_reward_ratio != null ? ` · R:R ${trade.risk_reward_ratio.toFixed(2)}` : ""}
                   {(stratNamesByTradeId[trade.id] ?? []).length > 0 ? ` · ${stratNamesByTradeId[trade.id].join(", ")}` : ""}
                 </p>
@@ -198,7 +200,10 @@ export function TradeList({
                       <span className="ml-2 text-xs text-zinc-500">(Investment)</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400 capitalize">{trade.status}</td>
+                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                    <span className="capitalize">{trade.status}</span>
+                    {orderTypeLabel(trade) && <span className="block text-[11px] text-zinc-500">{orderTypeLabel(trade)}</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <ResultBadge result={trade.result} status={trade.status} />
                   </td>

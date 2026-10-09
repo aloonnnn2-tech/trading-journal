@@ -34,7 +34,7 @@ const LABEL_DEFS: LabelDef[] = [
   {
     key: "stop_loss",
     aliases: [
-      "stop loss", "stoploss", "stop-loss", "s/l", "sl", "sl price", "s/l price", "stop", "stop price",
+      "stop loss", "stoploss", "stop-loss", "s/l", "sl", "sl price", "s/l price", "stop",
       "protective stop", "initial stop", "hard stop", "stop out", "stop @", "close stop", "risk stop",
       "cut loss", "cut loss at", "max loss", "loss limit", "downside", "exit stop",
     ],
@@ -43,7 +43,7 @@ const LABEL_DEFS: LabelDef[] = [
     key: "take_profit",
     aliases: [
       "take profit", "takeprofit", "take-profit", "t/p", "tp", "tp price", "t/p price", "profit target",
-      "target", "target price", "tgt", "limit price", "exit target", "reward target", "profit taking",
+      "target", "target price", "tgt", "exit target", "reward target", "profit taking",
       "close target", "upside", "take profit at", "profit price",
     ],
   },
@@ -121,7 +121,15 @@ const LABEL_DEFS: LabelDef[] = [
   // NB: no bare "market" alias — it collides with the order-type "Market" tab.
   { key: "market", aliases: ["exchange", "venue"] },
   { key: "asset_type", aliases: ["asset type", "type", "security type", "instrument type", "product"] },
-  { key: "order_type", aliases: ["order type", "order", "type of order"] },
+  // Not bare "order": it matched the "Order info" heading on order tickets
+  // and saved "Tick value 0.01 USD" as the order type.
+  { key: "order_type", aliases: ["order type", "type of order", "ord type", "order kind"] },
+  // An order's own prices. Resolved against the order type in pipeline.ts:
+  // on a stop or limit ENTRY ticket they are the entry, not a stop-loss or a
+  // target, which is what these labels used to be read as.
+  { key: "limit_price", aliases: ["limit price", "lmt price", "limit px", "lmt px", "lmt"] },
+  { key: "stop_price", aliases: ["stop price", "stop px", "trigger price", "trigger", "aux price", "stp price"] },
+  { key: "time_in_force", aliases: ["time in force", "tif", "validity"] },
   { key: "status", aliases: ["status", "order status", "state"] },
   // No bare "time"/"date" — they match "Time in force", date-column headers, etc.
   {
@@ -360,42 +368,84 @@ export function unglueDirectionKeyword(text: string): string {
   return text.replace(GLUED_DIRECTION_RE, "$1 $2");
 }
 
-export function findDirection(texts: string[]): { value: "long" | "short"; source: string } | null {
+export function findDirection(
+  texts: string[],
+): { value: "long" | "short"; source: string; ambiguous?: boolean } | null {
   // "Limit Sell" / "Sell Limit" describe an exit order, not the trade direction.
   let joined = texts.join("\n").replace(/\b(?:limit\s+sell|sell\s+limit|stop\s+sell|sell\s+stop)\b/gi, " ");
   // A two-sided quote ("Sell 61.73  Buy 61.73") shows both sides of the
-  // market, not the order's own direction — buy/sell always appear together
+  // market, not the order's own direction -- buy/sell always appear together
   // there, which would otherwise make this always read as "long" (buy is
   // checked first). Strip it before scanning for a real direction keyword.
   // NUM_RE has top-level `|` alternation, so every embedding here must wrap it
-  // in its own group — otherwise the alternation "leaks" out and silently
+  // in its own group -- otherwise the alternation "leaks" out and silently
   // splits this whole pattern into unintended alternatives.
   const quoteRow = new RegExp(
     String.raw`\b(?:sell\b[^\n]{0,20}(?:${NUM_RE})[^\n]{0,20}\bbuy|buy\b[^\n]{0,20}(?:${NUM_RE})[^\n]{0,20}\bsell)\b[^\n]{0,20}(?:${NUM_RE})`,
     "gi",
   );
   joined = joined.replace(quoteRow, " ");
-  // Options phrasing: opening a position is the direction; closing one isn't.
-  // (Deliberately not inferring direction from "call"/"put" alone — a call can
-  // be bought or sold, so the option type doesn't reliably say which.)
-  if (/\bbuy\s+to\s+open\b/i.test(joined)) return { value: "long", source: "direction keyword" };
-  if (/\bsell\s+to\s+open\b/i.test(joined)) return { value: "short", source: "direction keyword" };
-  if (/\b(?:long|buy|bought|bot)\b/i.test(joined)) return { value: "long", source: "direction keyword" };
-  if (/\b(?:short|sell|sold|sld)\b/i.test(joined)) return { value: "short", source: "direction keyword" };
+  // Unambiguous phrasing first: these say which way the POSITION is.
+  if (/\bbuy\s+to\s+open\b/i.test(joined)) return { value: "long", source: "\"buy to open\"" };
+  if (/\b(?:sell\s+to\s+open|sell\s+short|short\s+sale|sold\s+short)\b/i.test(joined)) {
+    return { value: "short", source: "\"sell short / sell to open\"" };
+  }
+  if (/\b(?:buy\s+to\s+(?:cover|close))\b/i.test(joined)) return { value: "short", source: "\"buy to cover\" (closing a short)" };
+  if (/\bsell\s+to\s+close\b/i.test(joined)) return { value: "long", source: "\"sell to close\" (closing a long)" };
+  if (/\b(?:long|short)\b/i.test(joined)) {
+    const isShort = /\bshort\b/i.test(joined) && !/\blong\b/i.test(joined);
+    return { value: isShort ? "short" : "long", source: "direction keyword" };
+  }
+  if (/\b(?:buy|bought|bot)\b/i.test(joined)) return { value: "long", source: "\"buy\" keyword" };
+  // A bare "Sell" is usually a long being CLOSED, but can open a short. It
+  // used to be read as short, so selling a long saved as a short trade. Now
+  // it is only a suggestion the user confirms.
+  if (/\b(?:sell|sold|sld)\b/i.test(joined)) {
+    return { value: "long", source: "\"sell\": usually closes a long, but could open a short", ambiguous: true };
+  }
   return null;
 }
 
 export function findStatus(
   texts: string[],
-): { value: "pending" | "open" | "closed"; source: string } | null {
+): { value: "pending" | "open" | "closed"; source: string; ambiguous?: boolean } | null {
   const joined = texts.join("\n").toLowerCase();
   if (/\b(pending|working|submitted|queued)\b/.test(joined)) return { value: "pending", source: "status keyword" };
-  // Bare "filled" must not match "Filled Qty" / "Qty Filled" — that names a
-  // field (how many shares got filled), not the trade's own status.
-  const withoutFilledQty = joined.replace(/\b(?:filled\s+qty|qty\s+filled)\b/g, "");
-  if (/\b(closed|realized|executed)\b/.test(joined) || /\bfilled\b/.test(withoutFilledQty)) {
-    return { value: "closed", source: "status keyword" };
-  }
+  if (/\b(closed|realized)\b/.test(joined)) return { value: "closed", source: "status keyword" };
   if (/\b(open|active|unrealized|running)\b/.test(joined)) return { value: "open", source: "status keyword" };
+  // "Filled"/"executed" says an ORDER went through, not whether the trade is
+  // now open or closed: a filled buy opens a long, a filled sell closes it.
+  // It used to be read as "closed", so filled entries saved as closed trades.
+  // Bare "filled" must not match "Filled Qty" / "Qty Filled".
+  const withoutFilledQty = joined.replace(/\b(?:filled\s+qty|qty\s+filled)\b/g, "");
+  if (/\bexecuted\b/.test(joined) || /\bfilled\b/.test(withoutFilledQty)) {
+    return { value: "open", source: "\"filled\": the order went through; open or closed depends on the order", ambiguous: true };
+  }
+  return null;
+}
+
+/** "LMT", "Stop Limit", "MKT"... -> the trade's order_type, or null when the
+ *  text isn't recognisably an order type (never a guess). */
+export function normalizeOrderType(
+  text: string,
+): { value: "market" | "limit" | "stop" | "stop_limit" | "trailing_stop" | "other"; other?: string } | null {
+  const t = text.toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (/\b(?:trail|trailing|trail stop|trailing stop|trail limit)\b/.test(t)) return { value: "trailing_stop" };
+  if (/\b(?:stop limit|stp lmt|stop lmt|stp limit|stoplimit)\b/.test(t)) return { value: "stop_limit" };
+  if (/\b(?:market on open|moo)\b/.test(t)) return { value: "other", other: "Market on open" };
+  if (/\b(?:market on close|moc)\b/.test(t)) return { value: "other", other: "Market on close" };
+  if (/^(?:stop|stp|stop market|stop order)$/.test(t)) return { value: "stop" };
+  if (/^(?:limit|lmt|limit order)$/.test(t)) return { value: "limit" };
+  if (/^(?:market|mkt|market order)$/.test(t)) return { value: "market" };
+  return null;
+}
+
+/** "Good Till Cancel", "GTC", "Day" -> the trade's time_in_force, or null. */
+export function normalizeTimeInForce(text: string): "gtc" | "day" | null {
+  const t = text.toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (/^(?:gtc|good ?till ?cancel(?:led)?|good ?til ?cancel(?:led)?|good until cancel(?:led)?)$/.test(t.replace(/ /g, " "))) return "gtc";
+  if (/\bgood\s*till?\s*cancel/.test(t) || t === "gtc") return "gtc";
+  if (/^(?:day|day order|good for day|gfd)$/.test(t)) return "day";
   return null;
 }

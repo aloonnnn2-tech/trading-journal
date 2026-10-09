@@ -3,6 +3,7 @@
   "core": {
     "ticker": "SPY",
     "direction": "long",
-    "shares": 10
+    "shares": 10,
+    "order_type": "market"
   }
 }

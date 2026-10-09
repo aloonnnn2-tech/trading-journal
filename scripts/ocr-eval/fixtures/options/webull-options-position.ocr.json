@@ -1,0 +1,253 @@
+{
+ "lines": [
+  {
+   "text": "AAPL $110",
+   "confidence": 0.9465449253718058,
+   "box": {
+    "x0": 76,
+    "y0": 122,
+    "x1": 201,
+    "y1": 146
+   },
+   "cx": 138.5,
+   "cy": 134,
+   "height": 24
+  },
+  {
+   "text": "09 Sep 22(W) Call 100",
+   "confidence": 0.9302574140684945,
+   "box": {
+    "x0": 75,
+    "y0": 155,
+    "x1": 230,
+    "y1": 172
+   },
+   "cx": 152.5,
+   "cy": 163.5,
+   "height": 17
+  },
+  {
+   "text": "Open P&L(USD) Day's P&L(USD)",
+   "confidence": 0.9757676203172285,
+   "box": {
+    "x0": 10,
+    "y0": 207,
+    "x1": 468,
+    "y1": 226
+   },
+   "cx": 239,
+   "cy": 216.5,
+   "height": 19
+  },
+  {
+   "text": "-332.50-33.25%",
+   "confidence": 0.9986754911286491,
+   "box": {
+    "x0": 11,
+    "y0": 230,
+    "x1": 146,
+    "y1": 247
+   },
+   "cx": 78.5,
+   "cy": 238.5,
+   "height": 17
+  },
+  {
+   "text": "Market Value Total Cost Average Price",
+   "confidence": 0.9820223926733701,
+   "box": {
+    "x0": 9,
+    "y0": 272,
+    "x1": 469,
+    "y1": 289
+   },
+   "cx": 239,
+   "cy": 280.5,
+   "height": 17
+  },
+  {
+   "text": "667.50 1,000.00 9.70",
+   "confidence": 0.9991649265090624,
+   "box": {
+    "x0": 9,
+    "y0": 293,
+    "x1": 471,
+    "y1": 315
+   },
+   "cx": 240,
+   "cy": 304,
+   "height": 22
+  },
+  {
+   "text": "Qty in Position Position Ratio Mid Price",
+   "confidence": 0.975755289528105,
+   "box": {
+    "x0": 11,
+    "y0": 337,
+    "x1": 470,
+    "y1": 354
+   },
+   "cx": 240.5,
+   "cy": 345.5,
+   "height": 17
+  },
+  {
+   "text": "1 4.03% 9.45",
+   "confidence": 0.998808224995931,
+   "box": {
+    "x0": 10,
+    "y0": 356,
+    "x1": 471,
+    "y1": 378
+   },
+   "cx": 240.5,
+   "cy": 367,
+   "height": 22
+  },
+  {
+   "text": "Bid 30 10.00 10.10 35 Ask",
+   "confidence": 0.9980036185847388,
+   "box": {
+    "x0": 15,
+    "y0": 408,
+    "x1": 464,
+    "y1": 427
+   },
+   "cx": 239.5,
+   "cy": 417.5,
+   "height": 19
+  },
+  {
+   "text": "AAPL Price 163.43 +6.06 +3.85%",
+   "confidence": 0.9893121620542125,
+   "box": {
+    "x0": 9,
+    "y0": 446,
+    "x1": 468,
+    "y1": 465
+   },
+   "cx": 238.5,
+   "cy": 455.5,
+   "height": 19
+  },
+  {
+   "text": "Delta Break Even",
+   "confidence": 0.9975400805473327,
+   "box": {
+    "x0": 9,
+    "y0": 511,
+    "x1": 308,
+    "y1": 528
+   },
+   "cx": 158.5,
+   "cy": 519.5,
+   "height": 17
+  },
+  {
+   "text": "Theta Impl. Vol.",
+   "confidence": 0.9978179186582565,
+   "box": {
+    "x0": 9,
+    "y0": 535,
+    "x1": 295,
+    "y1": 552
+   },
+   "cx": 152,
+   "cy": 543.5,
+   "height": 17
+  },
+  {
+   "text": "Buy1",
+   "confidence": 0.9932791441679001,
+   "box": {
+    "x0": 219,
+    "y0": 649,
+    "x1": 260,
+    "y1": 667
+   },
+   "cx": 239.5,
+   "cy": 658,
+   "height": 18
+  },
+  {
+   "text": "$110",
+   "confidence": 0.9995750039815903,
+   "box": {
+    "x0": 219,
+    "y0": 665,
+    "x1": 261,
+    "y1": 687
+   },
+   "cx": 240,
+   "cy": 676,
+   "height": 22
+  },
+  {
+   "text": "al",
+   "confidence": 0.7136694192886353,
+   "box": {
+    "x0": 231,
+    "y0": 694,
+    "x1": 245,
+    "y1": 701
+   },
+   "cx": 238,
+   "cy": 697.5,
+   "height": 7
+  },
+  {
+   "text": "10",
+   "confidence": 0.5581714808940887,
+   "box": {
+    "x0": 236,
+    "y0": 727,
+    "x1": 250,
+    "y1": 735
+   },
+   "cx": 243,
+   "cy": 731,
+   "height": 8
+  },
+  {
+   "text": "Sell to Close",
+   "confidence": 0.9985548441226666,
+   "box": {
+    "x0": 56,
+    "y0": 843,
+    "x1": 167,
+    "y1": 865
+   },
+   "cx": 111.5,
+   "cy": 854,
+   "height": 22
+  },
+  {
+   "text": "Take Profit/Stop Loss maximum profits and losses. A...More",
+   "confidence": 0.9667300421094138,
+   "box": {
+    "x0": 2,
+    "y0": 905,
+    "x1": 468,
+    "y1": 927
+   },
+   "cx": 235,
+   "cy": 916,
+   "height": 22
+  },
+  {
+   "text": "Sell to Close ^ Buy",
+   "confidence": 0.9679600199063618,
+   "box": {
+    "x0": 31,
+    "y0": 978,
+    "x1": 333,
+    "y1": 1004
+   },
+   "cx": 182,
+   "cy": 991,
+   "height": 26
+  }
+ ],
+ "roiLines": [],
+ "rawText": "AAPL $110\n09 Sep 22(W) Call 100\nOpen P&L(USD) Day's P&L(USD)\n-332.50-33.25%\nMarket Value Total Cost Average Price\n667.50 1,000.00 9.70\nQty in Position Position Ratio Mid Price\n1 4.03% 9.45\nBid 30 10.00 10.10 35 Ask\nAAPL Price 163.43 +6.06 +3.85%\nDelta Break Even\nTheta Impl. Vol.\nBuy1\n$110\nal\n10\nSell to Close\nTake Profit/Stop Loss maximum profits and losses. A...More\nSell to Close ^ Buy"
+}

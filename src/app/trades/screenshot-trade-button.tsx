@@ -7,7 +7,7 @@ import Image from "next/image";
 import exampleTradeScreenshot from "../../../public/example-trade-screenshot.png";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { OcrCoreField, ParseResult } from "@/lib/ocr/types";
-import { AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
+import { shouldAutofill } from "@/lib/ocr/types";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
 import { FormError } from "@/components/form-error";
 import { useDialog } from "@/lib/a11y/use-dialog";
@@ -19,7 +19,7 @@ const inputClass =
 const labelClass = "mb-1 flex items-center text-xs font-medium text-zinc-500";
 
 type Step = "pick" | "scanning" | "review";
-type FieldType = "text" | "number" | "date" | "direction" | "status";
+type FieldType = "text" | "number" | "date" | "direction" | "status" | "order_type" | "time_in_force";
 
 interface FieldDef {
   key: OcrCoreField;
@@ -48,6 +48,23 @@ const MORE: FieldDef[] = [
   { key: "risk_percent", label: "Risk %", type: "number" },
   { key: "entry_date", label: "Entry Date", type: "date" },
   { key: "exit_date", label: "Exit Date", type: "date" },
+  { key: "order_type", label: "Order Type", type: "order_type" },
+  { key: "limit_price", label: "Limit Price (stop-limit)", type: "number" },
+  { key: "time_in_force", label: "Time in Force", type: "time_in_force" },
+];
+
+// Without these the trade can't be saved honestly, and nothing may stand in
+// for them: an unread direction used to default to "long" and status to
+// "open", so a short trade saved as long without a word on screen.
+const REQUIRED: OcrCoreField[] = ["ticker", "direction", "status"];
+
+const ORDER_TYPE_OPTIONS: [string, string][] = [
+  ["market", "Market"],
+  ["limit", "Limit"],
+  ["stop", "Stop"],
+  ["stop_limit", "Stop limit"],
+  ["trailing_stop", "Trailing stop"],
+  ["other", "Other"],
 ];
 
 const NUMERIC_KEYS = new Set<OcrCoreField>([
@@ -60,6 +77,7 @@ const NUMERIC_KEYS = new Set<OcrCoreField>([
   "dollar_amount",
   "risk_amount",
   "risk_percent",
+  "limit_price",
 ]);
 const DATE_KEYS = new Set<OcrCoreField>(["entry_date", "exit_date"]);
 
@@ -129,17 +147,15 @@ export function ScreenshotTradeButton({
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
+  // Fills only what was read beside its own label with confidence. Nothing
+  // is assumed: no default direction or status, and an exit price no longer
+  // flips the status to Closed (it can be a target, not a fill). Everything
+  // else is a suggestion the user accepts, or left blank for them.
   function applyDetected(parsed: ParseResult) {
-    const next: Record<string, string> = { direction: "long", status: "open" };
+    const next: Record<string, string> = {};
     for (const key of [...PRIMARY, ...MORE].map((f) => f.key)) {
       const f = parsed.core[key];
-      if (f && f.confidence >= AUTOFILL_CONFIDENCE) next[key] = toInput(key, f.value);
-    }
-    // A detected exit price means the trade is already closed — but only act
-    // on it if it's confident enough to have actually been filled in above;
-    // otherwise Status would flip to Closed while Exit Price stays blank.
-    if (!parsed.core.status && parsed.core.exit_price && parsed.core.exit_price.confidence >= AUTOFILL_CONFIDENCE) {
-      next.status = "closed";
+      if (shouldAutofill(f)) next[key] = toInput(key, f!.value);
     }
     setValues(next);
   }
@@ -178,7 +194,7 @@ export function ScreenshotTradeButton({
       }
     } catch {
       setError("Couldn't read the image. Fill in the details below.");
-      setValues({ direction: "long", status: "open" });
+      setValues({});
     }
     setStep("review");
   }
@@ -204,16 +220,23 @@ export function ScreenshotTradeButton({
       if (!res.ok) throw new Error();
       const trade = await res.json();
 
+      // REQUIRED fields are checked before this can run (the button is
+      // disabled until they are filled), so nothing here falls back to a
+      // default value.
       const core: Record<string, unknown> = {
-        ticker: values.ticker ?? "",
-        direction: values.direction || null,
-        status: values.status || "open",
+        ticker: values.ticker,
+        direction: values.direction,
+        status: values.status,
       };
       for (const { key } of [...PRIMARY, ...MORE]) {
         if (key === "ticker" || key === "direction" || key === "status") continue;
         const raw = values[key];
         if (raw === undefined || raw === "") continue;
         core[key] = NUMERIC_KEYS.has(key) ? Number(raw) : raw;
+      }
+      // "Other" keeps the words the screenshot used ("Market on open").
+      if (core.order_type === "other" && result?.core.order_type?.raw) {
+        core.order_type_other = result.core.order_type.raw.slice(0, 64);
       }
 
       // A screenshot showing Entry/Stop/Shares but no explicit Risk Amount
@@ -262,27 +285,36 @@ export function ScreenshotTradeButton({
     }
   }
 
+  // The hover text names where the value came from and the exact text the
+  // reader saw, so a wrong number can be traced to what was on screen.
   function badge(key: OcrCoreField) {
     const f = result?.core?.[key];
     if (!f) return null;
-    return <ConfidenceBadge confidence={f.confidence} source={f.source} />;
+    const source = f.raw ? `${f.source} · read "${f.raw}"` : f.source;
+    return <ConfidenceBadge confidence={f.confidence} source={source} />;
   }
 
-  // A field detected but below the auto-fill bar: offer it as a suggestion.
+  // Read, but not certain enough to fill in by itself -- found by a pattern,
+  // an ambiguous word ("Sell", "Filled"), or a greyed-out box. Offered with
+  // its reason; it lands in the form only if the user clicks it.
   function suggestion(key: OcrCoreField) {
     const f = result?.core?.[key];
-    if (!f || f.confidence >= AUTOFILL_CONFIDENCE) return null;
+    if (!f || shouldAutofill(f)) return null;
     if (values[key]) return null;
+    const shown = key === "order_type" ? ORDER_TYPE_OPTIONS.find(([v]) => v === f.value)?.[1] ?? String(f.value) : String(f.value);
     return (
       <button
         type="button"
         onClick={() => set(key, toInput(key, f.value))}
-        className="mt-1 text-[11px] text-amber-500 hover:underline"
+        title={f.raw ? `Read "${f.raw}"` : undefined}
+        className="mt-1 block text-left text-[11px] text-amber-600 hover:underline dark:text-amber-400"
       >
-        Detected {String(f.value)} ({Math.round(f.confidence * 100)}%). Use it?
+        Maybe {shown}? ({f.source}). Use it
       </button>
     );
   }
+
+  const missing = REQUIRED.filter((k) => !values[k]);
 
   function renderField({ key, label, type }: FieldDef) {
     // One id per field, tying the <label> to the control it names. The label
@@ -299,17 +331,43 @@ export function ScreenshotTradeButton({
         <div className={labelClass}>
           <label htmlFor={controlId}>{label}</label>
           {badge(key)}
+          {REQUIRED.includes(key) && !values[key] && (
+            <span className="ml-1.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+              needs your input
+            </span>
+          )}
         </div>
         {type === "direction" ? (
-          <select id={controlId} className={inputClass} value={values.direction ?? "long"} onChange={(e) => set("direction", e.target.value)}>
+          <select id={controlId} className={inputClass} value={values.direction ?? ""} onChange={(e) => set("direction", e.target.value)}>
+            <option value="" disabled>
+              Choose…
+            </option>
             <option value="long">Long</option>
             <option value="short">Short</option>
           </select>
         ) : type === "status" ? (
-          <select id={controlId} className={inputClass} value={values.status ?? "open"} onChange={(e) => set("status", e.target.value)}>
+          <select id={controlId} className={inputClass} value={values.status ?? ""} onChange={(e) => set("status", e.target.value)}>
+            <option value="" disabled>
+              Choose…
+            </option>
             <option value="pending">Pending</option>
             <option value="open">Open</option>
             <option value="closed">Closed</option>
+          </select>
+        ) : type === "order_type" ? (
+          <select id={controlId} className={inputClass} value={values.order_type ?? ""} onChange={(e) => set("order_type", e.target.value)}>
+            <option value="">Not shown / unknown</option>
+            {ORDER_TYPE_OPTIONS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        ) : type === "time_in_force" ? (
+          <select id={controlId} className={inputClass} value={values.time_in_force ?? ""} onChange={(e) => set("time_in_force", e.target.value)}>
+            <option value="">Not shown / unknown</option>
+            <option value="gtc">Good till cancelled</option>
+            <option value="day">Day</option>
           </select>
         ) : (
           <input
@@ -450,6 +508,30 @@ export function ScreenshotTradeButton({
                     </p>
                   )}
 
+                  {result && result.warnings.length > 0 && (
+                    <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+                      <p className="mb-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400">Check before saving</p>
+                      <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-zinc-600 dark:text-zinc-300">
+                        {result.warnings.map((w) => (
+                          <li key={w}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {result?.duplicates && result.duplicates.length > 0 && (
+                    <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[11px] text-zinc-600 dark:text-zinc-300">
+                      <p className="mb-1 font-semibold text-amber-700 dark:text-amber-400">
+                        This looks like a trade you already have
+                      </p>
+                      {result.duplicates.map((d) => (
+                        <a key={d.id} href={`/trades/${d.id}`} target="_blank" rel="noreferrer" className="mr-3 text-primary hover:underline">
+                          {d.status} trade{d.entryDate ? ` from ${d.entryDate.slice(0, 10)}` : ""}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{PRIMARY.map(renderField)}</div>
 
                   {moreDetected.length > 0 && (
@@ -483,8 +565,9 @@ export function ScreenshotTradeButton({
                   )}
 
                   <p className="text-xs text-zinc-500">
-                    Green = high confidence, amber = please check. Low-confidence values are left blank on purpose. The
-                    screenshot is attached automatically.
+                    Values read next to their own label are filled in. Anything uncertain is shown as a suggestion you
+                    can accept, and anything not read is left blank for you. Nothing is guessed. The screenshot is
+                    attached automatically.
                   </p>
 
                   {result?.log.rawText && (
@@ -522,13 +605,19 @@ export function ScreenshotTradeButton({
                     </div>
                   )}
 
+                  {missing.length > 0 && (
+                    <p className="text-right text-[11px] text-amber-700 dark:text-amber-400">
+                      Fill in {missing.map((k) => [...PRIMARY, ...MORE].find((f) => f.key === k)?.label ?? k).join(", ")} to
+                      create the trade.
+                    </p>
+                  )}
                   <div className="mt-2 flex items-center justify-between">
                     <button onClick={reset} disabled={submitting} className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50">
                       Try another image
                     </button>
                     <button
                       onClick={handleCreate}
-                      disabled={submitting}
+                      disabled={submitting || missing.length > 0}
                       className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
                     >
                       {submitting ? "Creating..." : "Create trade"}

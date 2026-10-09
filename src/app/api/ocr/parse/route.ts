@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { detectImageKind } from "@/lib/images/magic";
+import { accuracyLogLine, findPossibleDuplicates } from "@/lib/ocr/duplicates";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
@@ -79,14 +80,17 @@ export async function POST(request: Request) {
       );
     }
     const result = await runOcrPipeline(buffer);
-    // The RLS client exists here only to log this usage event; the route
-    // itself never touches the database.
-    void logEvent(await createClient(), userId, SERVER_SESSION_ID, "screenshot_parsed", {});
+    // The caller's RLS client: logs the usage event, and looks for trades of
+    // their own that this one may duplicate (never anyone else's).
+    const supabase = await createClient();
+    result.duplicates = await findPossibleDuplicates(supabase, result).catch(() => []);
+    console.info("[ocr] read", accuracyLogLine(result));
+    void logEvent(supabase, userId, SERVER_SESSION_ID, "screenshot_parsed", {});
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "OCR failed";
     return NextResponse.json(
-      { ok: false, core: {}, extra: [], screenshotType: "unknown", broker: null, error: message },
+      { ok: false, core: {}, extra: [], screenshotType: "unknown", broker: null, warnings: [], error: message },
       { status: 200 },
     );
   }

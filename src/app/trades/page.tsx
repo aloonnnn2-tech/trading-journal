@@ -18,6 +18,7 @@ import { getShowTradeSummary } from "@/lib/settings/trade-summary";
 import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
 import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
+import { ORDER_TYPE_LABELS } from "@/lib/trades/order-labels";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
 import { TradeList } from "./trade-list";
@@ -35,6 +36,7 @@ interface TradesSearchParams {
   market?: string;
   emotion?: string;
   direction?: string;
+  orderType?: string;
   plMin?: string;
   plMax?: string;
   riskMin?: string;
@@ -73,7 +75,7 @@ export default async function TradesPage({
   const page = Math.max(1, Number(params.page) || 1);
   // How many filters the phone's folded "Filters & sort" button is hiding,
   // so an applied filter never looks like an empty list for no reason.
-  const activeFilterCount = [params.folder, params.strategy, params.q, params.market, params.emotion, params.plMin, params.plMax, params.fieldKey]
+  const activeFilterCount = [params.folder, params.strategy, params.q, params.market, params.emotion, params.orderType, params.plMin, params.plMax, params.fieldKey]
     .filter((v) => v != null && v !== "").length;
 
   const plMin = params.plMin ? Number(params.plMin) : undefined;
@@ -93,6 +95,7 @@ export default async function TradesPage({
     market: params.market,
     emotion: params.emotion,
     direction: params.direction,
+    orderType: params.orderType && (params.orderType === "unset" || params.orderType in ORDER_TYPE_LABELS) ? params.orderType : undefined,
     plMin,
     plMax,
     riskMin,
@@ -140,6 +143,7 @@ export default async function TradesPage({
     if (next.strategy) query.set("strategy", next.strategy);
     if (next.market) query.set("market", next.market);
     if (next.emotion) query.set("emotion", next.emotion);
+    if (next.orderType) query.set("orderType", next.orderType);
     if (next.plMin) query.set("plMin", next.plMin);
     if (next.plMax) query.set("plMax", next.plMax);
     if (next.fieldKey) query.set("fieldKey", next.fieldKey);
@@ -263,6 +267,20 @@ export default async function TradesPage({
                 {emotion}
               </option>
             ))}
+          </select>
+          <select
+            name="orderType"
+            aria-label="Order type"
+            defaultValue={params.orderType ?? ""}
+            className="max-w-48 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+          >
+            <option value="">All Order Types</option>
+            {Object.entries(ORDER_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+            <option value="unset">Not set</option>
           </select>
           <input
             type="number"

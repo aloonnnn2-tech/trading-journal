@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import type { ApplyCoreFields, OcrCoreField, ParseResult } from "@/lib/ocr/types";
-import { FIELD_LABELS, OCR_CORE_FIELDS, AUTOFILL_CONFIDENCE } from "@/lib/ocr/types";
+import { FIELD_LABELS, OCR_CORE_FIELDS, shouldAutofill } from "@/lib/ocr/types";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
 import { FormError } from "@/components/form-error";
 import { useDialog } from "@/lib/a11y/use-dialog";
@@ -80,8 +80,9 @@ export function ImageUploader({
       const keys = OCR_CORE_FIELDS.filter((k) => parsed.core[k]) as OcrCoreField[];
       if (keys.length > 0 || parsed.extra.length > 0) {
         setResult(parsed);
-        // Pre-select the fields confident enough to auto-fill.
-        setSelected(new Set(keys.filter((k) => (parsed.core[k]?.confidence ?? 0) >= AUTOFILL_CONFIDENCE)));
+        // Pre-select only what was read beside its own label with confidence;
+        // suggestions (patterns, ambiguous words, greyed boxes) stay unticked.
+        setSelected(new Set(keys.filter((k) => shouldAutofill(parsed.core[k]))));
       }
     } catch {
       // OCR failure is non-fatal — just don't show the panel

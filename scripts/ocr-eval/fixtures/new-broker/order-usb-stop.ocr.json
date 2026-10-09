@@ -1,0 +1,318 @@
+{
+ "lines": [
+  {
+   "text": "USB",
+   "confidence": 0.9952954649925232,
+   "box": {
+    "x0": 43,
+    "y0": 12,
+    "x1": 79,
+    "y1": 30
+   },
+   "cx": 61,
+   "cy": 21,
+   "height": 18
+  },
+  {
+   "text": "Order DOM",
+   "confidence": 0.9934184412161509,
+   "box": {
+    "x0": 68,
+    "y0": 61,
+    "x1": 276,
+    "y1": 80
+   },
+   "cx": 172,
+   "cy": 70.5,
+   "height": 19
+  },
+  {
+   "text": "Sell Buy",
+   "confidence": 0.9941761096318562,
+   "box": {
+    "x0": 17,
+    "y0": 115,
+    "x1": 331,
+    "y1": 139
+   },
+   "cx": 174,
+   "cy": 127,
+   "height": 24
+  },
+  {
+   "text": "61.73 0.00 61.73",
+   "confidence": 0.9950373133023579,
+   "box": {
+    "x0": 17,
+    "y0": 138,
+    "x1": 332,
+    "y1": 160
+   },
+   "cx": 174.5,
+   "cy": 149,
+   "height": 22
+  },
+  {
+   "text": "Market Limit Stop Stop Limit",
+   "confidence": 0.9914317602912585,
+   "box": {
+    "x0": 19,
+    "y0": 191,
+    "x1": 340,
+    "y1": 210
+   },
+   "cx": 179.5,
+   "cy": 200.5,
+   "height": 19
+  },
+  {
+   "text": "Price",
+   "confidence": 0.9834372878074646,
+   "box": {
+    "x0": 4,
+    "y0": 239,
+    "x1": 47,
+    "y1": 257
+   },
+   "cx": 25.5,
+   "cy": 248,
+   "height": 18
+  },
+  {
+   "text": "61.73 n Ask",
+   "confidence": 0.9771506256527371,
+   "box": {
+    "x0": 12,
+    "y0": 271,
+    "x1": 332,
+    "y1": 292
+   },
+   "cx": 172,
+   "cy": 281.5,
+   "height": 21
+  },
+  {
+   "text": "Shares",
+   "confidence": 0.9959382315476736,
+   "box": {
+    "x0": 6,
+    "y0": 323,
+    "x1": 74,
+    "y1": 341
+   },
+   "cx": 40,
+   "cy": 332,
+   "height": 18
+  },
+  {
+   "text": "1 n 61.73USD",
+   "confidence": 0.9909047409892082,
+   "box": {
+    "x0": 14,
+    "y0": 358,
+    "x1": 329,
+    "y1": 375
+   },
+   "cx": 171.5,
+   "cy": 366.5,
+   "height": 17
+  },
+  {
+   "text": "Exits·Risk/Reward 11.12",
+   "confidence": 0.9651736124702122,
+   "box": {
+    "x0": 6,
+    "y0": 418,
+    "x1": 212,
+    "y1": 439
+   },
+   "cx": 109,
+   "cy": 428.5,
+   "height": 21
+  },
+  {
+   "text": "Take profit,price",
+   "confidence": 0.9494078439824721,
+   "box": {
+    "x0": 5,
+    "y0": 456,
+    "x1": 155,
+    "y1": 477
+   },
+   "cx": 80,
+   "cy": 466.5,
+   "height": 21
+  },
+  {
+   "text": "86.31 n 2458ticks",
+   "confidence": 0.9537281967975475,
+   "box": {
+    "x0": 12,
+    "y0": 501,
+    "x1": 329,
+    "y1": 520
+   },
+   "cx": 170.5,
+   "cy": 510.5,
+   "height": 19
+  },
+  {
+   "text": "Stoploss,price",
+   "confidence": 0.9793332602296557,
+   "box": {
+    "x0": 6,
+    "y0": 557,
+    "x1": 140,
+    "y1": 574
+   },
+   "cx": 73,
+   "cy": 565.5,
+   "height": 17
+  },
+  {
+   "text": "59.52 n 221ticks",
+   "confidence": 0.9925713330507279,
+   "box": {
+    "x0": 12,
+    "y0": 597,
+    "x1": 318,
+    "y1": 620
+   },
+   "cx": 165,
+   "cy": 608.5,
+   "height": 23
+  },
+  {
+   "text": "Extra settings",
+   "confidence": 0.9914883077144623,
+   "box": {
+    "x0": 5,
+    "y0": 662,
+    "x1": 116,
+    "y1": 683
+   },
+   "cx": 60.5,
+   "cy": 672.5,
+   "height": 21
+  },
+  {
+   "text": "Time in force",
+   "confidence": 0.9668523669242859,
+   "box": {
+    "x0": 6,
+    "y0": 701,
+    "x1": 109,
+    "y1": 720
+   },
+   "cx": 57.5,
+   "cy": 710.5,
+   "height": 19
+  },
+  {
+   "text": "Good Till Cancel",
+   "confidence": 0.93526516482234,
+   "box": {
+    "x0": 17,
+    "y0": 737,
+    "x1": 139,
+    "y1": 754
+   },
+   "cx": 78,
+   "cy": 745.5,
+   "height": 17
+  },
+  {
+   "text": "Routing",
+   "confidence": 0.9984713622501918,
+   "box": {
+    "x0": 5,
+    "y0": 787,
+    "x1": 67,
+    "y1": 809
+   },
+   "cx": 36,
+   "cy": 798,
+   "height": 22
+  },
+  {
+   "text": "SMART",
+   "confidence": 0.9795990347862243,
+   "box": {
+    "x0": 15,
+    "y0": 821,
+    "x1": 67,
+    "y1": 839
+   },
+   "cx": 41,
+   "cy": 830,
+   "height": 18
+  },
+  {
+   "text": "Outside RTH TakeProfit",
+   "confidence": 0.9534920860420574,
+   "box": {
+    "x0": 37,
+    "y0": 866,
+    "x1": 214,
+    "y1": 883
+   },
+   "cx": 125.5,
+   "cy": 874.5,
+   "height": 17
+  },
+  {
+   "text": "Order info",
+   "confidence": 0.964955461025238,
+   "box": {
+    "x0": 6,
+    "y0": 915,
+    "x1": 88,
+    "y1": 933
+   },
+   "cx": 47,
+   "cy": 924,
+   "height": 18
+  },
+  {
+   "text": "Tick value 0.01 USD",
+   "confidence": 0.9511505156755448,
+   "box": {
+    "x0": 4,
+    "y0": 941,
+    "x1": 342,
+    "y1": 963
+   },
+   "cx": 173,
+   "cy": 952,
+   "height": 22
+  },
+  {
+   "text": "Trade value 61.73 USD",
+   "confidence": 0.9676595381414047,
+   "box": {
+    "x0": 5,
+    "y0": 972,
+    "x1": 341,
+    "y1": 990
+   },
+   "cx": 173,
+   "cy": 981,
+   "height": 18
+  },
+  {
+   "text": "Reward 5.17%/24.581ISD",
+   "confidence": 0.9506217936674753,
+   "box": {
+    "x0": 4,
+    "y0": 998,
+    "x1": 342,
+    "y1": 1019
+   },
+   "cx": 173,
+   "cy": 1008.5,
+   "height": 21
+  }
+ ],
+ "roiLines": [],
+ "rawText": "USB\nOrder DOM\nSell Buy\n61.73 0.00 61.73\nMarket Limit Stop Stop Limit\nPrice\n61.73 n Ask\nShares\n1 n 61.73USD\nExits·Risk/Reward 11.12\nTake profit,price\n86.31 n 2458ticks\nStoploss,price\n59.52 n 221ticks\nExtra settings\nTime in force\nGood Till Cancel\nRouting\nSMART\nOutside RTH TakeProfit\nOrder info\nTick value 0.01 USD\nTrade value 61.73 USD\nReward 5.17%/24.581ISD"
+}

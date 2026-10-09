@@ -1,0 +1,266 @@
+{
+ "lines": [
+  {
+   "text": "3:59 5G0",
+   "confidence": 0.9174681057532628,
+   "box": {
+    "x0": 60,
+    "y0": 28,
+    "x1": 428,
+    "y1": 50
+   },
+   "cx": 244,
+   "cy": 39,
+   "height": 22
+  },
+  {
+   "text": "QQQS590 Put",
+   "confidence": 0.9571927298199047,
+   "box": {
+    "x0": 182,
+    "y0": 71,
+    "x1": 300,
+    "y1": 91
+   },
+   "cx": 241,
+   "cy": 81,
+   "height": 20
+  },
+  {
+   "text": "ViewQQQ",
+   "confidence": 0.9956283569335938,
+   "box": {
+    "x0": 375,
+    "y0": 83,
+    "x1": 456,
+    "y1": 104
+   },
+   "cx": 415.5,
+   "cy": 93.5,
+   "height": 21
+  },
+  {
+   "text": "$7.63",
+   "confidence": 0.9952555894851685,
+   "box": {
+    "x0": 220,
+    "y0": 98,
+    "x1": 262,
+    "y1": 116
+   },
+   "cx": 241,
+   "cy": 107,
+   "height": 18
+  },
+  {
+   "text": "Your position",
+   "confidence": 0.9966627542789166,
+   "box": {
+    "x0": 34,
+    "y0": 161,
+    "x1": 203,
+    "y1": 189
+   },
+   "cx": 118.5,
+   "cy": 175,
+   "height": 28
+  },
+  {
+   "text": "Contracts Current price",
+   "confidence": 0.996662494718519,
+   "box": {
+    "x0": 35,
+    "y0": 220,
+    "x1": 343,
+    "y1": 240
+   },
+   "cx": 189,
+   "cy": 230,
+   "height": 20
+  },
+  {
+   "text": "+2 $7.63",
+   "confidence": 0.9980257153511047,
+   "box": {
+    "x0": 33,
+    "y0": 246,
+    "x1": 306,
+    "y1": 269
+   },
+   "cx": 169.5,
+   "cy": 257.5,
+   "height": 23
+  },
+  {
+   "text": "Average cost Market value",
+   "confidence": 0.9723553036650021,
+   "box": {
+    "x0": 35,
+    "y0": 295,
+    "x1": 340,
+    "y1": 313
+   },
+   "cx": 187.5,
+   "cy": 304,
+   "height": 18
+  },
+  {
+   "text": "$0.36 $1,526.00",
+   "confidence": 0.9710652046733432,
+   "box": {
+    "x0": 34,
+    "y0": 322,
+    "x1": 350,
+    "y1": 344
+   },
+   "cx": 192,
+   "cy": 333,
+   "height": 22
+  },
+  {
+   "text": "Date bought Expiration date",
+   "confidence": 0.9797468680323976,
+   "box": {
+    "x0": 33,
+    "y0": 370,
+    "x1": 357,
+    "y1": 391
+   },
+   "cx": 195,
+   "cy": 380.5,
+   "height": 21
+  },
+  {
+   "text": "11/20 11/21",
+   "confidence": 0.9991605997085571,
+   "box": {
+    "x0": 33,
+    "y0": 398,
+    "x1": 301,
+    "y1": 420
+   },
+   "cx": 167,
+   "cy": 409,
+   "height": 22
+  },
+  {
+   "text": "QQQbreakevenprice Current QQQ price",
+   "confidence": 0.9900410911616158,
+   "box": {
+    "x0": 35,
+    "y0": 447,
+    "x1": 377,
+    "y1": 467
+   },
+   "cx": 206,
+   "cy": 457,
+   "height": 20
+  },
+  {
+   "text": "$589.64 $585.42",
+   "confidence": 0.9991826074463981,
+   "box": {
+    "x0": 34,
+    "y0": 473,
+    "x1": 333,
+    "y1": 497
+   },
+   "cx": 183.5,
+   "cy": 485,
+   "height": 24
+  },
+  {
+   "text": "Today's return +$1,455.00 (+2,049.30%)",
+   "confidence": 0.9552503523434172,
+   "box": {
+    "x0": 34,
+    "y0": 525,
+    "x1": 446,
+    "y1": 545
+   },
+   "cx": 240,
+   "cy": 535,
+   "height": 20
+  },
+  {
+   "text": "Totalretun +$1,455.00（+2,049.30%)",
+   "confidence": 0.9333893293684179,
+   "box": {
+    "x0": 35,
+    "y0": 573,
+    "x1": 445,
+    "y1": 590
+   },
+   "cx": 240,
+   "cy": 581.5,
+   "height": 17
+  },
+  {
+   "text": "Simulate myreturns",
+   "confidence": 0.9700243870417277,
+   "box": {
+    "x0": 81,
+    "y0": 629,
+    "x1": 240,
+    "y1": 646
+   },
+   "cx": 160.5,
+   "cy": 637.5,
+   "height": 17
+  },
+  {
+   "text": "B Exercise",
+   "confidence": 0.9280962236225605,
+   "box": {
+    "x0": 37,
+    "y0": 690,
+    "x1": 151,
+    "y1": 714
+   },
+   "cx": 94,
+   "cy": 702,
+   "height": 24
+  },
+  {
+   "text": "Stats",
+   "confidence": 0.9992061853408813,
+   "box": {
+    "x0": 33,
+    "y0": 767,
+    "x1": 104,
+    "y1": 796
+   },
+   "cx": 68.5,
+   "cy": 781.5,
+   "height": 29
+  },
+  {
+   "text": "Individual Trade",
+   "confidence": 0.9939109474420547,
+   "box": {
+    "x0": 57,
+    "y0": 873,
+    "x1": 367,
+    "y1": 895
+   },
+   "cx": 212,
+   "cy": 884,
+   "height": 22
+  },
+  {
+   "text": "。",
+   "confidence": 0.7702741026878357,
+   "box": {
+    "x0": 309,
+    "y0": 950,
+    "x1": 336,
+    "y1": 966
+   },
+   "cx": 322.5,
+   "cy": 958,
+   "height": 16
+  }
+ ],
+ "roiLines": [],
+ "rawText": "3:59 5G0\nQQQS590 Put\nViewQQQ\n$7.63\nYour position\nContracts Current price\n+2 $7.63\nAverage cost Market value\n$0.36 $1,526.00\nDate bought Expiration date\n11/20 11/21\nQQQbreakevenprice Current QQQ price\n$589.64 $585.42\nToday's return +$1,455.00 (+2,049.30%)\nTotalretun +$1,455.00（+2,049.30%)\nSimulate myreturns\nB Exercise\nStats\nIndividual Trade\n。"
+}

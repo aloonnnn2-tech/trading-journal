@@ -1,0 +1,97 @@
+{
+ "lines": [
+  {
+   "text": "NASDAQ:AAPL",
+   "confidence": 0.9892524480819702,
+   "box": {
+    "x0": 60,
+    "y0": 59,
+    "x1": 439,
+    "y1": 100
+   },
+   "cx": 249.5,
+   "cy": 79.5,
+   "height": 41
+  },
+  {
+   "text": "Buy Market",
+   "confidence": 0.9992012023925781,
+   "box": {
+    "x0": 57,
+    "y0": 156,
+    "x1": 282,
+    "y1": 198
+   },
+   "cx": 169.5,
+   "cy": 177,
+   "height": 42
+  },
+  {
+   "text": "Entry Price 150.25",
+   "confidence": 0.9870335923300849,
+   "box": {
+    "x0": 58,
+    "y0": 239,
+    "x1": 417,
+    "y1": 280
+   },
+   "cx": 237.5,
+   "cy": 259.5,
+   "height": 41
+  },
+  {
+   "text": "Stop L0ss 147.80",
+   "confidence": 0.9772020392119884,
+   "box": {
+    "x0": 59,
+    "y0": 322,
+    "x1": 395,
+    "y1": 360
+   },
+   "cx": 227,
+   "cy": 341,
+   "height": 38
+  },
+  {
+   "text": "Take Profit 158.40",
+   "confidence": 0.996884822845459,
+   "box": {
+    "x0": 59,
+    "y0": 405,
+    "x1": 407,
+    "y1": 439
+   },
+   "cx": 233,
+   "cy": 422,
+   "height": 34
+  },
+  {
+   "text": "Quantity 100",
+   "confidence": 0.9990761627753576,
+   "box": {
+    "x0": 57,
+    "y0": 484,
+    "x1": 305,
+    "y1": 529
+   },
+   "cx": 181,
+   "cy": 506.5,
+   "height": 45
+  },
+  {
+   "text": "Position Size 15025.00",
+   "confidence": 0.9964225210926749,
+   "box": {
+    "x0": 58,
+    "y0": 568,
+    "x1": 503,
+    "y1": 606
+   },
+   "cx": 280.5,
+   "cy": 587,
+   "height": 38
+  }
+ ],
+ "roiLines": [],
+ "rawText": "NASDAQ:AAPL\nBuy Market\nEntry Price 150.25\nStop L0ss 147.80\nTake Profit 158.40\nQuantity 100\nPosition Size 15025.00"
+}
