@@ -8,6 +8,7 @@ import { PaidPlanModal } from "@/components/landing/PaidPlanModal";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
 import { Reveal } from "@/components/motion/Reveal";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
+import { FREE_FEATURES } from "@/lib/plans/paid-features";
 
 // The pricing section for /home-v2. Same two plans, same copy, same honesty
 // as ../PricingTeaser.tsx (which stays untouched): the paid card is the hero,
@@ -24,14 +25,6 @@ import { WaitlistForm } from "@/components/landing/WaitlistForm";
 // from sitting a touch quieter next to it. (Phase 3C: the two now sit side
 // by side as peers, Free on the left -- see the layout note below.)
 
-const FREE_FEATURES = [
-  "Unlimited trades",
-  "Equity curve & drawdown",
-  "Win rate, profit factor, expectancy",
-  "Trading rules & mistake tracking",
-  "Goals, imports, exports",
-  "Edit history on every trade",
-];
 
 // The review card's score, drawn as a dial. The ring fills on view; the
 // number is simply there, because it is a figure and not decoration.

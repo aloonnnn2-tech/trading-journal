@@ -13,6 +13,7 @@ import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/a
 import type { TradeReviewContent } from "@/lib/ai-reviews/schema";
 import type { StoredReview } from "@/lib/ai-reviews/types";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // The AI Trade Review entry point, rendered as a sibling of the trade card
 // rather than inside it. TradeCard is a 900-line form with its own autosave
 // lifecycle; a panel that only reads the trade id has no business being
@@ -170,9 +171,7 @@ export function AiReviewPanel({
           Have this trade analysed for execution quality. What you did well, what to fix, and
           how it compares with your own history. Available on the paid plan.
         </p>
-        <Link href="/#pricing" className="text-sm text-primary hover:underline">
-          See plans
-        </Link>
+        <SeePlansButton feature="trade-review" />
       </PanelShell>
     );
   }

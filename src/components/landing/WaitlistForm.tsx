@@ -32,7 +32,20 @@ const MESSAGES: Partial<Record<Status, string>> = {
   limited: "Too many tries from here. Wait a while, then try again.",
 };
 
-export function WaitlistForm({ source, className = "" }: { source: WaitlistSource; className?: string }) {
+export function WaitlistForm({
+  source,
+  className = "",
+  defaultEmail,
+  hero = false,
+}: {
+  source: WaitlistSource;
+  className?: string;
+  /** A signed-in user's own address, so joining is one click. Still editable. */
+  defaultEmail?: string;
+  /** The Plans panel's call to action: a full-width button with the
+   *  homepage paid card's shimmer. */
+  hero?: boolean;
+}) {
   const [status, setStatus] = useState<Status>("idle");
 
   // After mount, so the server's HTML (always the form) matches the first
@@ -91,7 +104,7 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
 
   return (
     <div id="waitlist" className={`scroll-mt-20 ${className}`}>
-      <form onSubmit={onSubmit} className="mx-auto flex max-w-sm flex-col gap-2 sm:flex-row">
+      <form onSubmit={onSubmit} className={`mx-auto flex flex-col gap-2 ${hero ? "max-w-md" : "max-w-sm sm:flex-row"}`}>
         <label htmlFor="waitlist-email" className="sr-only">
           Email address
         </label>
@@ -102,6 +115,7 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
           required
           maxLength={MAX_EMAIL_LENGTH}
           autoComplete="email"
+          defaultValue={defaultEmail}
           placeholder="you@example.com"
           disabled={submitting}
           onChange={() => status !== "idle" && setStatus("idle")}
@@ -121,10 +135,23 @@ export function WaitlistForm({ source, className = "" }: { source: WaitlistSourc
         />
         <button
           type="submit"
+          data-track="waitlist-join"
           disabled={submitting}
-          className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60 dark:text-zinc-950"
+          className={
+            hero
+              ? "group relative shrink-0 overflow-hidden rounded-lg bg-primary px-6 py-3.5 text-base font-medium text-white shadow-lg shadow-primary/30 transition hover:bg-primary-hover disabled:opacity-60 dark:text-zinc-950"
+              : "shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-60 dark:text-zinc-950"
+          }
         >
-          {submitting ? "Joining…" : "Join the waitlist"}
+          {hero && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 animate-shimmer bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.35)_50%,transparent_65%)]"
+            />
+          )}
+          <span className="relative">
+            {submitting ? "Joining…" : hero ? "Tell me when it launches" : "Join the waitlist"}
+          </span>
         </button>
       </form>
       <p aria-live="polite" className={`mt-2 min-h-4 text-center text-xs ${status === "idle" || submitting ? "text-zinc-500" : "text-loss"}`}>

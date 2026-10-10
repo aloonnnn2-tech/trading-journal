@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
@@ -8,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { buildTradingReport, resolveReportPeriod, REPORT_PRESETS, type ReportPreset } from "@/lib/report/build";
 import { ReportView } from "./report-view";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 function isPreset(value: string | undefined): value is ReportPreset {
   return value !== undefined && (REPORT_PRESETS as readonly string[]).includes(value);
 }
@@ -45,9 +45,7 @@ export default async function ReportsPage({
             strategy, most frequent mistake, best and worst trade, and your risk profile. Every
             number computed by the app from your own trades. No API key needed.
           </p>
-          <Link href="/#pricing" className="text-sm text-primary hover:underline">
-            See plans
-          </Link>
+          <SeePlansButton feature="reports" />
         </Card>
       </div>
     );

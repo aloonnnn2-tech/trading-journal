@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { FormError } from "@/components/form-error";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import type { CaptureBand, ExcursionAverages, ExcursionReport } from "@/lib/excursions/aggregate";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // MAE / MFE aggregates -- the paid section of /analytics.
 //
 // Every figure here is an OUTER BOUND, because it rests on daily bars that
@@ -312,9 +312,7 @@ export function ExcursionUpsell() {
         move you actually captured. The honest test of where your stops sit and whether you exit
         too early. Available on the paid plan.
       </p>
-      <Link href="/#pricing" className="text-sm text-primary hover:underline">
-        See plans
-      </Link>
+      <SeePlansButton feature="excursions" />
     </Card>
   );
 }

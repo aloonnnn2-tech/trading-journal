@@ -5,6 +5,7 @@ import { MIN_SEGMENT_TRADES, type SegmentStats } from "@/lib/segments/engine";
 import type { ScorecardReport, StrategyScorecard } from "@/lib/scorecards/queries";
 import { formatMoney } from "@/lib/format/money";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Detailed strategy scorecards -- the paid layer on /strategies.
 //
 // The free win-rate table above stays exactly as it was. This adds the deeper
@@ -200,9 +201,7 @@ export function ScorecardUpsell() {
         <p className="text-sm text-zinc-500">
           Available on the paid plan. The win-rate table above stays free.
         </p>
-        <Link href="/#pricing" className="text-sm text-primary hover:underline">
-          See plans
-        </Link>
+        <SeePlansButton feature="scorecards" />
       </Card>
     </div>
   );

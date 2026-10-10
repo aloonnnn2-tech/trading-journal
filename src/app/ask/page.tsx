@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Sparkles, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
@@ -12,6 +11,7 @@ import { getConversation, listConversations, listMessages, type Conversation } f
 import { foldMessages, type TurnView } from "@/lib/chat/fold";
 import { ChatShell } from "./chat-shell";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Derived from the provider registry rather than written out, because the
 // hand-written version of this list went stale: it still said "OpenAI,
 // Anthropic or Google" long after seven free-tier providers were added, hiding
@@ -125,12 +125,7 @@ export default async function AskPage({
             </li>
           </ul>
 
-          <Link
-            href="/#pricing"
-            className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
-          >
-            See plans
-          </Link>
+          <SeePlansButton feature="ask" className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110" />
         </Card>
       )}
     </div>

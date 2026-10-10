@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { TrendingDown } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { MIN_EPISODES_TO_COMPARE, type DrawdownEpisode, type DrawdownReport } from "@/lib/drawdown/episodes";
 import { formatMoney } from "@/lib/format/money";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Drawdown as episodes: how often, how deep, how long back.
 //
 // The figure a trader most needs and is least likely to notice is whether the
@@ -190,9 +190,7 @@ export function DrawdownUpsell() {
         Every drawdown you have had, how deep, how long, how many trades it took to climb back,
         and whether the one you are in now is normal for you. Available on the paid plan.
       </p>
-      <Link href="/#pricing" className="text-sm text-primary hover:underline">
-        See plans
-      </Link>
+      <SeePlansButton feature="analysis-panels" />
     </Card>
   );
 }

@@ -115,6 +115,11 @@ export const CLICK_LABELS: Record<string, string> = {
   "conversation-open": "Opened a **conversation** in Ask",
   "conversation-delete": "Deleted a **conversation** in Ask",
 
+  // Paid plan.
+  "see-plans": "Opened **Plans** from a paid feature",
+  "plans-details": "Opened **how every paid feature works** from Plans",
+  "waitlist-join": "Joined the **paid-plan waitlist**",
+
   // Section anchors the tours point at; rarely clicked themselves.
   "analytics-header": "Clicked the **Analytics** header",
   "insights-header": "Clicked the **Insights** header",

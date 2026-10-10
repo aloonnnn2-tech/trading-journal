@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { MIN_SEGMENT_TRADES, type Segment } from "@/lib/segments/engine";
 import type { EdgeRow } from "@/lib/edge/queries";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Find My Edge -- the paid section of /insights.
 //
 // Everything above it on the page stays free and unchanged. This is an
@@ -206,9 +207,7 @@ export function EdgeUpsell() {
         <p className="text-sm text-zinc-500">
           Available on the paid plan. Needs no API key. It&apos;s computed from your own trades.
         </p>
-        <Link href="/#pricing" className="text-sm text-primary hover:underline">
-          See plans
-        </Link>
+        <SeePlansButton feature="edge" />
       </Card>
     </div>
   );

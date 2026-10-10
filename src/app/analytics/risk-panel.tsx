@@ -5,6 +5,7 @@ import { MIN_COMPARISON, OUTLIER_MULTIPLE, type Comparison } from "@/lib/risk/an
 import type { FullRiskReport } from "@/lib/risk/queries";
 import { formatMoney } from "@/lib/format/money";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // The risk dashboard -- the paid risk section of /analytics.
 //
 // **Describes, never prescribes.** There is no correct risk percentage, so
@@ -249,9 +250,7 @@ export function RiskUpsell() {
         during drawdowns, and which trades were unusually large for you. Available on the paid
         plan.
       </p>
-      <Link href="/#pricing" className="text-sm text-primary hover:underline">
-        See plans
-      </Link>
+      <SeePlansButton feature="analysis-panels" />
     </Card>
   );
 }
