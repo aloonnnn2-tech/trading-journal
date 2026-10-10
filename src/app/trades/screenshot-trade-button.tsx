@@ -180,13 +180,16 @@ export function ScreenshotTradeButton({
       const formData = new FormData();
       formData.append("file", selected);
       const res = await fetch("/api/ocr/parse", { method: "POST", body: formData });
-      const parsed = (await res.json()) as ParseResult;
+      const body = (await res.json()) as ParseResult;
       // The route always responds 200 with a full ParseResult shape, even on
       // an internal OCR failure -- but a platform-level failure (e.g. the
       // function itself erroring out) can return a non-2xx with a different
       // body shape entirely. Treat that the same as a network failure rather
       // than feeding a malformed object into applyDetected below.
-      if (!res.ok || !parsed.core) throw new Error("OCR request failed");
+      if (!res.ok || !body.core) throw new Error("OCR request failed");
+      // Lists added later (warnings, 2026-10) are absent from older answers;
+      // the review screen reads their length.
+      const parsed: ParseResult = { ...body, extra: body.extra ?? [], warnings: body.warnings ?? [] };
       setResult(parsed);
       applyDetected(parsed);
       const detectedCount = Object.keys(parsed.core ?? {}).length;

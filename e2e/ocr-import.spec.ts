@@ -41,6 +41,8 @@ const PARSE_RESULT = {
     shares: { value: 10, confidence: 0.86, source: "layout" },
   },
   extra: [],
+  warnings: [],
+  duplicates: [],
   screenshotType: "position",
   broker: "TradingView",
   log: { passes: [], notes: [] },
