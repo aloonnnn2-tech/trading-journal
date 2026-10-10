@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchYahooBars, type YahooBarsResult } from "@/lib/market-data/yahoo";
+import { TIMEFRAMES, type BarInterval } from "@/lib/market-data/trade-window";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
 
@@ -14,8 +15,8 @@ import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
 const RATE_LIMIT = 60;
 const RATE_WINDOW_MS = 60_000;
 
-const INTERVALS = ["5m", "60m", "1d"] as const;
-type Interval = (typeof INTERVALS)[number];
+const INTERVALS: readonly string[] = TIMEFRAMES;
+type Interval = BarInterval;
 
 /** Yahoo symbols: letters, digits and . - = ^ (e.g. BRK.B, BTC-USD, EURUSD=X, ^GSPC). */
 const SYMBOL = /^[A-Z0-9.\-=^]{1,20}$/;

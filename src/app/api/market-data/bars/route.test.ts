@@ -51,7 +51,7 @@ describe("GET /api/market-data/bars", () => {
   });
 
   it.each([
-    ["an unknown bar size", "ticker=TSLA&interval=1m&period1=1&period2=2"],
+    ["an unknown bar size", "ticker=TSLA&interval=2m&period1=1&period2=2"],
     ["a missing ticker", "interval=5m&period1=1&period2=2"],
     ["a ticker with odd characters", "ticker=TS%2FLA&interval=5m&period1=1&period2=2"],
     ["a backwards range", "ticker=TSLA&interval=5m&period1=5&period2=2"],

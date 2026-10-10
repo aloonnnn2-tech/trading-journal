@@ -19,11 +19,16 @@ import { guessYahooSymbol } from "@/lib/market-data/yahoo";
 import type { BarsResponse } from "@/app/api/market-data/bars/route";
 import {
   chooseBars,
+  DEFAULT_TIMEFRAME,
   fitRange,
   formatBarTime,
   formatQuote,
+  isCalendarInterval,
   locate,
   priceMismatch,
+  timeframeAvailability,
+  TIMEFRAME_LABELS,
+  TIMEFRAMES,
   tradeMarkers,
   visibleRange,
   type BarInterval,
@@ -237,6 +242,16 @@ export function PriceChart({
     | { state: "none" | "loading" | "failed" }
     | { state: "ready"; data: BarsResponse }
   >({ state: "none" });
+  // The bar size the user picked: daily until they choose another.
+  const [timeframe, setTimeframe] = useState<BarInterval>(DEFAULT_TIMEFRAME);
+  // Set when the picked size had no bars and daily is shown instead.
+  const [fallbackNote, setFallbackNote] = useState<string | null>(null);
+  // Each size is fetched once per trade and symbol, so switching back and
+  // forth doesn't spend price lookups.
+  const barsCache = useRef(new Map<string, BarsResponse>());
+  // When the chart opened: Yahoo's limits are in days, so this is current
+  // enough to decide which sizes an older trade can still be shown in.
+  const [openedAt] = useState(() => Date.now() / 1000);
 
   useEffect(() => {
     const entry = debouncedDates.entry ? Date.parse(debouncedDates.entry) / 1000 : NaN;
@@ -251,22 +266,41 @@ export function PriceChart({
     let cancelled = false;
     setHolding({ state: "loading" });
 
-    const fetchBars = (force?: BarInterval) => {
-      const req = chooseBars(entry, exit, now, force);
+    const fetchBars = (interval: BarInterval) => {
+      const key = `${symbol}|${entry}|${exit}|${interval}`;
+      const hit = barsCache.current.get(key);
+      if (hit) return Promise.resolve(hit);
+      const req = chooseBars(entry, exit, now, interval);
       const qs = new URLSearchParams({
         ticker: symbol,
         interval: req.interval,
         period1: String(req.period1),
         period2: String(req.period2),
       });
-      return fetch(`/api/market-data/bars?${qs}`).then((res) =>
-        res.ok ? (res.json() as Promise<BarsResponse>) : Promise.reject(res),
-      );
+      return fetch(`/api/market-data/bars?${qs}`)
+        .then((res) => (res.ok ? (res.json() as Promise<BarsResponse>) : Promise.reject(res)))
+        .then((data) => {
+          barsCache.current.set(key, data);
+          return data;
+        });
     };
 
-    fetchBars()
-      // Some symbols have daily history but no intraday bars on Yahoo.
-      .catch(() => fetchBars("1d"))
+    // A size this trade is too old for never gets asked: the button is
+    // disabled, but a stale pick (the dates were just edited) lands here.
+    const picked = timeframeAvailability(timeframe, entry, now).ok ? timeframe : DEFAULT_TIMEFRAME;
+    setFallbackNote(null);
+    fetchBars(picked)
+      // Some symbols have daily history but no intraday (or weekly) bars on
+      // Yahoo: say so, and show daily rather than nothing.
+      .catch((err) => {
+        if (picked === DEFAULT_TIMEFRAME) throw err;
+        return fetchBars(DEFAULT_TIMEFRAME).then((data) => {
+          if (!cancelled) {
+            setFallbackNote(`Yahoo has no ${TIMEFRAME_LABELS[picked].long} bars for ${symbol} around this trade, so this is the daily chart.`);
+          }
+          return data;
+        });
+      })
       .then((data) => {
         if (!cancelled) setHolding({ state: "ready", data });
       })
@@ -276,7 +310,14 @@ export function PriceChart({
     return () => {
       cancelled = true;
     };
-  }, [symbol, debouncedDates]);
+  }, [symbol, debouncedDates, timeframe]);
+
+  // Which sizes this trade can be shown in (Yahoo drops old intraday bars).
+  const availability = useMemo(() => {
+    const entry = debouncedDates.entry ? Date.parse(debouncedDates.entry) / 1000 : NaN;
+    if (!Number.isFinite(entry)) return null;
+    return TIMEFRAMES.map((interval) => ({ interval, ...timeframeAvailability(interval, entry, openedAt) }));
+  }, [debouncedDates, openedAt]);
 
   // Where the trade sits on those bars. Everything here is a pure function of
   // the bars and the trade -- see trade-window.ts for each rule.
@@ -353,7 +394,7 @@ export function PriceChart({
         horzLines: { color: dark ? "rgba(255, 255, 255, 0.06)" : "rgba(28, 27, 24, 0.06)" },
       },
       // Intraday bars need their time of day on the axis.
-      timeScale: { borderVisible: false, timeVisible: useHolding && holdingView.interval !== "1d" },
+      timeScale: { borderVisible: false, timeVisible: useHolding && !isCalendarInterval(holdingView.interval) },
       rightPriceScale: { borderVisible: false },
     });
 
@@ -507,6 +548,40 @@ export function PriceChart({
           </button>
         </div>
       </div>
+      {availability && holding.state !== "none" && (
+        <div
+          role="group"
+          aria-label="Timeframe"
+          className="flex gap-1.5 overflow-x-auto border-b border-zinc-100 px-5 py-2 dark:border-subtle"
+        >
+          {availability.map(({ interval, ...a }) => {
+            // The size on screen, which is daily after a fallback.
+            const active = (holding.state === "ready" ? holding.data.interval : timeframe) === interval;
+            const reason = a.ok ? undefined : (a as { reason: string }).reason;
+            return (
+              <button
+                key={interval}
+                type="button"
+                aria-pressed={active}
+                disabled={!a.ok}
+                title={reason ?? `${TIMEFRAME_LABELS[interval].long} bars`}
+                aria-label={reason ? `${TIMEFRAME_LABELS[interval].long} bars: ${reason}` : `${TIMEFRAME_LABELS[interval].long} bars`}
+                onClick={() => setTimeframe(interval)}
+                className={`shrink-0 rounded-md border px-2.5 py-1 font-mono text-xs ${
+                  active
+                    ? "border-primary bg-primary/10 text-zinc-900 dark:text-zinc-50"
+                    : "border-zinc-300 text-zinc-600 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                } disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-zinc-300 dark:disabled:hover:border-zinc-700`}
+              >
+                {TIMEFRAME_LABELS[interval].short}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {fallbackNote && (
+        <p className="border-b border-zinc-100 px-5 py-2 text-xs text-zinc-500 dark:border-subtle dark:text-zinc-400">{fallbackNote}</p>
+      )}
       {holdingView?.mismatch && (
         // The chart is honest about data it can't reconcile: the trade's
         // lines are drawn to their own scale, and this says why the bars
@@ -525,7 +600,9 @@ export function PriceChart({
           No price history found for &quot;{symbol}&quot;. Try correcting the symbol above.
         </p>
       ) : waitingForHolding || (!useHolding && !candles) ? (
-        <p className="px-5 py-16 text-center text-sm text-zinc-500">Loading price history…</p>
+        <p className="flex h-72 items-center justify-center px-5 text-center text-sm text-zinc-500 sm:h-[480px]">
+          Loading price history…
+        </p>
       ) : (
         // 288px on a phone: 480 was most of the screen. autoSize follows.
         <div className="h-72 w-full overflow-hidden rounded-b-xl sm:h-[480px]" ref={containerRef} />
