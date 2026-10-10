@@ -263,6 +263,11 @@ export function TourOverlay() {
   const checkedRef = useRef(false);
   const pathnameRef = useRef(pathname);
   const rectRef = useRef<Rect | null>(null);
+  // A target that must disappear before it counts as "shown" again. Set when
+  // Quick trade signals it was closed: the form fades out for a moment, and
+  // its still-visible field would otherwise complete "Click Quick trade" in
+  // the next frame and jump straight back into the closed form's step.
+  const leavingRef = useRef<string | null>(null);
 
   // What the engine needs to know about right now.
   const engineContext = useCallback(
@@ -386,6 +391,8 @@ export function TourOverlay() {
     const onClosed = () => {
       const opener = openerOf(steps, stepIndex);
       if (opener === null) return;
+      const openerDone = steps[opener].done;
+      leavingRef.current = openerDone && "target" in openerDone ? openerDone.target : null;
       setDoneTasks((prev) => prev.filter((i) => i !== opener));
       const m = placeStep(steps, opener, { ...engineContext(), doneTasks: new Set() });
       show(opener, m?.mode ?? "here", true);
@@ -612,7 +619,8 @@ export function TourOverlay() {
           rectRef.current = m;
           setRect(m);
         }
-        if (step.done && "target" in step.done && isShown(step.done.target)) {
+        if (leavingRef.current && !isShown(leavingRef.current)) leavingRef.current = null;
+        if (step.done && "target" in step.done && step.done.target !== leavingRef.current && isShown(step.done.target)) {
           markDone(stepIndex);
           goForward(stepIndex, { ...engineContext(), doneTasks: new Set([...doneTasks, stepIndex]) });
           return;
