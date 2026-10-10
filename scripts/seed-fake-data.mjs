@@ -1,26 +1,32 @@
-// Seeds a demo account with realistic-looking trades so the UI (trades
-// list, analytics, emotions, insights) can be visually reviewed with
-// real-shaped data instead of empty states. Run with:
-//   node scripts/seed-fake-data.mjs [email] [password]
-// If no email/password given, signs up a brand-new demo account first.
+// Seeds an account with realistic-looking trades so the UI (trades list,
+// analytics, emotions, insights) can be visually reviewed with real-shaped
+// data instead of empty states. Run with:
+//   npm run seed:fake [-- email password]
+// If no email/password given, signs up a brand-new throwaway account first.
+//
+// DEV PROJECT ONLY (.env.test.local). This script used to sign accounts up
+// on the live project, and one (demo+...@caliunlock-demo.test) sat there
+// from July to October, counted as a user. loadDevProject refuses the
+// production URL. For the public demo account, use seed-demo-account.mjs.
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "fs";
+import { randomBytes } from "node:crypto";
+import { loadDevProject } from "../src/lib/env/dev-project";
+import { TERMS_VERSION } from "../src/lib/legal/terms";
 
-const env = Object.fromEntries(
-  readFileSync(new URL("../.env.local", import.meta.url), "utf8")
-    .split("\n")
-    .filter((l) => l.includes("="))
-    .map((l) => l.split("=").map((s) => s.trim())),
-);
-
-const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const dev = loadDevProject(process.cwd());
+const supabase = createClient(dev.url, dev.anonKey);
+console.log("Dev project:", dev.host);
 
 let email = process.argv[2];
-let password = process.argv[3] ?? "DemoPass123!";
+let password = process.argv[3] ?? `Fk!${randomBytes(9).toString("base64url")}1a`;
 
 if (!email) {
-  email = `demo+${Date.now()}@caliunlock-demo.test`;
-  const { error } = await supabase.auth.signUp({ email, password });
+  email = `fake-${Date.now()}@tradinglens-dev.test`;
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { age_confirmed: true, accepted_terms_version: TERMS_VERSION } },
+  });
   if (error) throw error;
 } else {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -244,7 +250,7 @@ const { error: linkError } = await supabase.from("trade_folders").insert(folderL
 if (linkError) throw linkError;
 
 console.log("Created folders:", folders.map((f) => f.name).join(", "));
-console.log("\nDemo account ready:");
+console.log("\nDev account ready (dev project only):");
 console.log("  email:   ", email);
 console.log("  password:", password);
-console.log("  Sign in at /sign-in to view the seeded data.");
+console.log("  View it with: npm run dev:devdb  (then sign in on localhost:3003)");

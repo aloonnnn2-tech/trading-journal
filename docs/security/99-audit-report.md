@@ -60,7 +60,7 @@ users' own AI keys held encrypted.
 | F-21 | High | `sharp` | librsvg advisory (GHSA-wq5f-xc86-pv6w). Exposure was low, because SVG is refused by its bytes before sharp sees it. | **Fixed locally:** 0.35.5 | `npm audit --omit=dev` |
 | F-22 | High / Mod | `brace-expansion`, `source-map-js`, `fast-uri` (transitive) | DoS advisories | **Fixed locally:** `overrides` in `package.json` | `npm audit --omit=dev` |
 | F-23 | Low | `src/app/api/ocr/ai/route.test.ts` | gitleaks flagged a uuid named `KEY`. It is a record id, not a secret. | **Fixed:** renamed `KEY_ID`, old commit fingerprint in `.gitleaksignore` | `gitleaks` clean |
-| F-24 | Process | Seed scripts, e2e | Ran against the **production** project with no guard. This is where the throwaway accounts on live came from. | **Partly fixed:** the cross-user suite runs only on the dev project and refuses the prod URL (`src/lib/env/dev-guard.ts`). Seeds/e2e guard: **open**, next task (test-account cleanup). | `dev-guard.test.ts` |
+| F-24 | Process | Seed scripts, e2e | Ran against the **production** project with no guard. This is where the throwaway accounts on live came from. | **Fixed** (branch `cleanup/test-accounts`): everything that creates accounts (cross-user suite, e2e, `seed:fake`) runs only on the dev project via `loadDevProject()`. The 6 leftover accounts on live are deleted by a script Alon runs. See [test-accounts-report.md](../cleanup/test-accounts-report.md). | `account-creators.test.ts`, `dev-project.test.ts`; `npm run accounts:list` → test 0 |
 
 ## Open: decisions and actions for Alon
 
@@ -89,20 +89,24 @@ users' own AI keys held encrypted.
    the footer disclaimer and the privacy page were written carefully but not
    by a lawyer. Users are worldwide, so GDPR was assumed. Details:
    `compliance-notes.md`.
-6. **Old demo sessions.** The leaked demo password no longer works, but a
+6. **Test accounts on live.** 6 found. They're deleted by
+   `supabase/cleanup/0001_delete_test_accounts.sql` once you've removed one
+   Storage folder; steps are in `docs/cleanup/test-accounts-report.md`.
+   Zero test accounts on live only after that.
+7. **Old demo sessions.** The leaked demo password no longer works, but a
    browser that signed in with it before the rotation could still hold a
    session. To end them, run this in the Supabase SQL editor:
    `delete from auth.sessions where user_id = '456454b2-53c2-4252-9ae5-e8f8fe7935c2';`
-7. **Dev-tool advisories.** `npm audit` (all deps) still lists 7 (5 high, 2
+8. **Dev-tool advisories.** `npm audit` (all deps) still lists 7 (5 high, 2
    moderate), all in test/build tooling (vitest's mocker, `braces` via file
    watchers). None ships to users. `npm audit fix --force` would bump major
    versions of test tooling, so I left it for a separate change.
-8. **"Read with AI" accuracy is unmeasured.** It needs recordings made with
+9. **"Read with AI" accuracy is unmeasured.** It needs recordings made with
    your own key: `AI_EVAL_PROVIDER=openai AI_EVAL_KEY=... npm run ocr:eval-ai -- --live`.
    Until then, the guarantee is structural: values are filled in only at
    ≥0.8 confidence with the source text quoted, code cross-checks the row,
    and an unreadable answer is a 502, never a guess.
-9. **Broker coverage.** The offline reader's eval set is 17 images.
+10. **Broker coverage.** The offline reader's eval set is 17 images.
    `scripts/ocr-eval/fixtures/BROKERS.md` lists the 10 most-used brokers and
    which screenshots would close the gaps.
 

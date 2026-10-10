@@ -35,7 +35,7 @@ let email: string;
 test.beforeEach(async () => {
   test.skip(
     await captchaEnforced(),
-    "CAPTCHA is enforced on this Supabase project; an automated browser cannot mint a valid Turnstile token. Needs a second Supabase project configured with Cloudflare's dummy secret.",
+    "CAPTCHA is enforced on the dev Supabase project; an automated browser cannot mint a valid Turnstile token. Switch CAPTCHA off on the dev project (never on production).",
   );
   email = `e2e-auth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@tradinglens-e2e.invalid`;
 });

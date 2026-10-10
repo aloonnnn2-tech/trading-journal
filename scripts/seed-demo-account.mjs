@@ -507,6 +507,10 @@ async function main() {
       user_id: userId,
       timezone: TIMEZONE,
       plan: "paid",
+      // Not a real user: kept out of every admin count. Set here, not only by
+      // 0044's one-off update for the original account's id, so a demo account
+      // created under a new id is excluded from its first minute.
+      excluded_from_analytics: true,
       has_completed_tour: true,
       hidden_core_fields: [],
       dashboard_layout: {
