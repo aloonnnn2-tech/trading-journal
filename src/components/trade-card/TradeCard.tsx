@@ -42,6 +42,8 @@ import {
 import type { CommissionRule } from "@/lib/commissions/types";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
 import { formatMoney } from "@/lib/format/money";
+import { fillQuestion } from "@/lib/trades/fill-check";
+import { FillPricePrompt } from "./FillPricePrompt";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -336,8 +338,21 @@ export function TradeCard({
 
   const pl = trade.dollar_pl;
 
+  // A resting order filled: ask at what price (src/lib/trades/fill-check.ts).
+  // A new price goes through the normal edit path (P/L and R recomputed);
+  // the answer is recorded on its own route so it is asked only once.
+  const fill = fillQuestion(trade);
+  async function answerFill(price: number | null) {
+    if (price != null) applyMoneyFieldEdits([["entry_price", price]]);
+    await flushNow();
+    const res = await fetch(`/api/trades/${trade.id}/fill-confirmed`, { method: "POST" });
+    if (!res.ok) throw new Error("fill-confirmed failed");
+    applyServerTrade((await res.json()) as Trade);
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      {fill && <FillPricePrompt key={`${trade.id}-${fill.assumed}`} question={fill} onAnswer={answerFill} />}
       {autoExecutionMessage && (
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2 text-sm text-primary">
           <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />

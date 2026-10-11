@@ -117,6 +117,14 @@ const CASES: Case[] = [
     guard: tradeGuard,
   },
   {
+    name: "POST trades/[id]/fill-confirmed",
+    load: () => import("@/app/api/trades/[id]/fill-confirmed/route"),
+    method: "POST",
+    params: id,
+    guard: tradeGuard,
+    noControl: "only acts on a trade whose order just filled (0063); the world's trades never were",
+  },
+  {
     name: "PUT trades/[id]/fee",
     load: () => import("@/app/api/trades/[id]/fee/route"),
     method: "PUT",

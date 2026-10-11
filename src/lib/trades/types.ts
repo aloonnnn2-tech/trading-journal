@@ -44,6 +44,11 @@ export interface Trade {
   /** The limit leg of a stop-limit: the stop triggers, then it rests here. */
   limit_price: number | null;
   time_in_force: TradeTimeInForce;
+  /** False: a resting order filled and the trade card asks for the real fill
+   *  price. Null: nothing to ask. Absent until migration 0063 is applied. */
+  fill_price_confirmed?: boolean | null;
+  /** The resting order's own price when it filled (a stop-limit's stop). 0063. */
+  order_price?: number | null;
 
   entry_price: number | null;
   exit_price: number | null;

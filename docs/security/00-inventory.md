@@ -98,6 +98,7 @@ applies to that route.
 | `/api/trades/[id]/duplicate` | POST | user | user (RLS) | proxy only | id only | analytics_events, commission_rules, trades |
 | `/api/trades/[id]/export` | GET | user | user (RLS) | proxy only | id only | commission_rules, field_definitions, trades |
 | `/api/trades/[id]/fee` | PUT | user | user (RLS) | yes | zod | commission_rules, trades |
+| `/api/trades/[id]/fill-confirmed` | POST | user | user (RLS) | proxy only | uuid; no body | trades (only `fill_price_confirmed`, only where it is false; 2026-10-10) |
 | `/api/trades/[id]/folders` | PUT | user | user (RLS) | proxy only | **`Array.isArray` only** | folders, trade_folders, trades |
 | `/api/trades/[id]/history/[historyId]/restore` | POST | user | user (RLS) | proxy only | id only | commission_rules, trade_history, trades |
 | `/api/trades/[id]/history` | GET | user | user (RLS) | proxy only | id only | commission_rules, trade_history, trades |

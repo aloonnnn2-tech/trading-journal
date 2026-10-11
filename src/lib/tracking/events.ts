@@ -101,6 +101,8 @@ export const CLICK_LABELS: Record<string, string> = {
   "quick-shares": "Used the **shares** field in Quick trade",
   "quick-create": "Created a trade with **Quick trade**",
   "folder tab": "Switched **folder tab** on the trade list",
+  "fill-price-save": "Answered **at what price an order filled**",
+  "fill-price-keep": "Kept the **assumed fill price** of an order",
   "trade link": "Opened **a trade** from a list",
 
   // Setup pages.
