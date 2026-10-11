@@ -53,14 +53,23 @@ export function resolveOrderFields(input: DetectedFields, rawText = ""): Resolve
   // "SPY" read as "SSPY", while the order line said "10SPYMKT".
   // Only a plain stock symbol: the button also names option contracts
   // ("SPY250214C603.0") and futures ("NQ1!"), which aren't the ticker.
-  if (
-    fromSummary &&
-    /^[A-Z][A-Z0-9.]{0,9}$/.test(fromSummary.symbol) &&
-    fields.ticker?.source === "header symbol" &&
-    fields.ticker.value !== fromSummary.symbol
-  ) {
-    notes.push({ field: "ticker", ok: true, message: `ticker ${fromSummary.symbol} from the order summary (header read ${String(fields.ticker.value)})` });
-    fields.ticker = { ...fields.ticker, value: fromSummary.symbol, source: "the order summary line", raw: fromSummary.raw };
+  // The button STATES the symbol, so it replaces a guessed ticker (or fills
+  // a missing one) as a read value, not a suggestion.
+  const plainSymbol = fromSummary && /^[A-Z][A-Z0-9.]{0,9}$/.test(fromSummary.symbol) ? fromSummary : null;
+  if (plainSymbol && (!fields.ticker || fields.ticker.heuristic) && fields.ticker?.value !== plainSymbol.symbol) {
+    if (fields.ticker) {
+      notes.push({ field: "ticker", ok: true, message: `ticker ${plainSymbol.symbol} from the order summary (guessed ${String(fields.ticker.value)})` });
+    }
+    fields.ticker = {
+      key: "ticker",
+      value: plainSymbol.symbol,
+      confidence: 0.85,
+      source: "the order summary line",
+      raw: plainSymbol.raw,
+    };
+  } else if (plainSymbol && fields.ticker?.heuristic && fields.ticker.value === plainSymbol.symbol) {
+    // The guess and the button agree: the button makes it a read value.
+    fields.ticker = { ...fields.ticker, confidence: 0.85, heuristic: undefined, source: "the order summary line" };
   }
   if (!fields.order_type) {
     if (detected) {
@@ -83,6 +92,13 @@ export function resolveOrderFields(input: DetectedFields, rawText = ""): Resolve
     fields.order_type = suggestion("order_type", fields.order_type, `${fields.order_type.source}; the screen also says ${detected.value}`);
   }
   const orderType = fields.order_type ? String(fields.order_type.value) : null;
+  // A type the screen states (not a suggestion) settles what its order
+  // prices mean, so they are read values, not suggestions: a stop or
+  // stop-limit's "Stop price" is its entry trigger, a limit's "Limit price"
+  // its entry (Alon's VEEV stop-limit, 2026-10-11).
+  const typeStated = Boolean(fields.order_type && !fields.order_type.heuristic);
+  const entryFrom = (from: DetectedField, source: string): DetectedField =>
+    typeStated ? { ...from, key: "entry_price", source } : suggestion("entry_price", from, source);
 
   // ---- time in force: only GTC / Day exist on a trade.
   if (fields.time_in_force) {
@@ -109,8 +125,8 @@ export function resolveOrderFields(input: DetectedFields, rawText = ""): Resolve
     keepAsExtra(stop);
     if (exitDialog.stopLoss && !fields.stop_loss) {
       fields.stop_loss = { ...stop, key: "stop_loss", source: "stop price of a \"Stop-Loss Order\"" };
-    } else if ((orderType === "stop" || orderType === "stop_limit") && !fields.entry_price) {
-      fields.entry_price = suggestion("entry_price", stop, "the stop price of a stop order (its entry trigger)");
+    } else if ((orderType === "stop" || orderType === "stop_limit") && (!fields.entry_price || fields.entry_price.heuristic)) {
+      fields.entry_price = entryFrom(stop, "the stop price of a stop order (its entry trigger)");
     } else if (!orderType && !fields.stop_loss) {
       fields.stop_loss = suggestion("stop_loss", stop, "\"stop price\": a stop-loss, unless this is a stop ENTRY order");
     }
@@ -123,12 +139,10 @@ export function resolveOrderFields(input: DetectedFields, rawText = ""): Resolve
     keepAsExtra(limit);
     if (exitDialog.takeProfit && !fields.take_profit) {
       fields.take_profit = { ...limit, key: "take_profit", source: "limit price of a \"Take-Profit Order\"" };
+    } else if (orderType === "limit" && (!fields.entry_price || fields.entry_price.heuristic)) {
+      fields.entry_price = entryFrom(limit, "the limit price of a limit order");
     } else if (!fields.entry_price) {
-      fields.entry_price = suggestion(
-        "entry_price",
-        limit,
-        orderType === "limit" ? "the limit price of a limit order" : "\"limit price\": your entry, if this order opens the trade",
-      );
+      fields.entry_price = suggestion("entry_price", limit, "\"limit price\": your entry, if this order opens the trade");
     }
   }
 

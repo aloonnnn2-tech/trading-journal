@@ -47,7 +47,19 @@ export function parseSemantic(lines: OcrLine[]): Candidate[] {
   // --- Ticker / direction / status (keyword-based, whole image) ------------
   const ticker = findTicker(texts);
   if (ticker) {
-    push({ key: "ticker", value: ticker.value, confidence: 0.9, source: ticker.source, raw: ticker.value });
+    // The last-resort rule ("header symbol": the first capitalised word) is a
+    // guess, so it is only offered: on real broker screenshots it picked
+    // "PI" for AAPL (Fidelity), a menu word "ETCS" (E*TRADE) and "F" for
+    // GBPJPY (MetaTrader) (2026-10-11). The other rules read a stated symbol.
+    const guess = ticker.source === "header symbol";
+    push({
+      key: "ticker",
+      value: ticker.value,
+      confidence: guess ? 0.5 : 0.9,
+      source: guess ? "the first capitalised word on the screen" : ticker.source,
+      raw: ticker.value,
+      heuristic: guess || undefined,
+    });
   }
   const dir = findDirection(texts);
   // Ambiguous words ("Sell", "Filled") become suggestions, never answers.

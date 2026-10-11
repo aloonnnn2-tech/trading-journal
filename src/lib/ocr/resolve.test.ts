@@ -75,16 +75,23 @@ describe("order type and time in force", () => {
 });
 
 describe("resolveOrderFields: what an order's prices mean", () => {
-  it("a stop order's stop price is its entry (as a suggestion), not a stop-loss", () => {
+  it("a stated stop order's stop price is its entry, not a stop-loss", () => {
     const fields: DetectedFields = { order_type: f("order_type", "STP"), stop_price: f("stop_price", 25.58) };
     const r = resolveOrderFields(fields).fields;
-    expect(r.entry_price).toMatchObject({ value: 25.58, heuristic: true });
+    expect(r.entry_price).toMatchObject({ value: 25.58 });
+    expect(r.entry_price?.heuristic).toBeFalsy();
     expect(r.stop_loss).toBeUndefined();
   });
 
-  it("a limit order's limit price is its entry (as a suggestion), not a take-profit", () => {
+  it("with only a guessed order type, the stop price is just a suggested entry", () => {
+    const guessed = { order_type: f("order_type", "STP", { heuristic: true, confidence: 0.4 }), stop_price: f("stop_price", 25.58) };
+    expect(resolveOrderFields(guessed).fields.entry_price).toMatchObject({ value: 25.58, heuristic: true });
+  });
+
+  it("a stated limit order's limit price is its entry, not a take-profit", () => {
     const r = resolveOrderFields({ order_type: f("order_type", "LMT"), limit_price: f("limit_price", 56) }).fields;
-    expect(r.entry_price).toMatchObject({ value: 56, heuristic: true });
+    expect(r.entry_price).toMatchObject({ value: 56 });
+    expect(r.entry_price?.heuristic).toBeFalsy();
     expect(r.take_profit).toBeUndefined();
     expect(r.limit_price).toBeUndefined();
   });
@@ -93,6 +100,20 @@ describe("resolveOrderFields: what an order's prices mean", () => {
     const r = resolveOrderFields({ order_type: f("order_type", "Stop Limit"), limit_price: f("limit_price", 101) }).fields;
     expect(r.limit_price).toMatchObject({ value: 101 });
     expect(r.order_type?.value).toBe("stop_limit");
+  });
+
+  it("Alon's VEEV ticket: STOP and LIMIT on the button make a stop-limit, entry = stop, limit kept", () => {
+    const raw = "Market Limit Stop Stop Limit\nStop price\n313.53 Ask + 1740\nLimit price\n316.21 Stop +268\nBuy\n0.524 VEEV @ 313.53 STOP 316.21 LIMIT";
+    const fields: DetectedFields = {
+      entry_price: f("entry_price", 313.53, { heuristic: true, confidence: 0.5, source: "fill notation (@)" }),
+      stop_price: f("stop_price", 313.53),
+      limit_price: f("limit_price", 316.21),
+    };
+    const r = resolveOrderFields(fields, raw).fields;
+    expect(r.order_type?.value).toBe("stop_limit");
+    expect(r.entry_price).toMatchObject({ value: 313.53 });
+    expect(r.entry_price?.heuristic).toBeFalsy();
+    expect(r.limit_price).toMatchObject({ value: 316.21 });
   });
 
   it("in a 'Take-Profit Order' / 'Stop-Loss Order' dialog the prices are the target and stop", () => {
@@ -140,9 +161,16 @@ describe("resolveOrderFields: what an order's prices mean", () => {
     expect(contradictory.direction).toBeUndefined();
   });
 
-  it("the order summary's symbol beats a weak header read", () => {
-    const r = resolveOrderFields({ ticker: f("ticker", "SSPY", { source: "header symbol" }) }, "Buy\n10SPYMKT").fields;
-    expect(r.ticker?.value).toBe("SPY");
+  it("the order summary's symbol beats a guessed ticker, and fills a missing one", () => {
+    const guess = { source: "the first capitalised word on the screen", heuristic: true, confidence: 0.5 };
+    const r = resolveOrderFields({ ticker: f("ticker", "SSPY", guess) }, "Buy\n10SPYMKT").fields;
+    expect(r.ticker).toMatchObject({ value: "SPY", source: "the order summary line" });
+    expect(r.ticker?.heuristic).toBeFalsy();
+    const agreeing = resolveOrderFields({ ticker: f("ticker", "SPY", guess) }, "10SPYMKT").fields;
+    expect(agreeing.ticker?.heuristic).toBeFalsy();
+    expect(resolveOrderFields({}, "1 EURUSD @ 1.15405 LMT").fields.ticker?.value).toBe("EURUSD");
+    // A contract or future isn't the ticker.
+    expect(resolveOrderFields({}, "2 NQ1! @ 25,186.50 STP").fields.ticker).toBeUndefined();
     const strong = resolveOrderFields({ ticker: f("ticker", "QQQ", { source: "Ticker label" }) }, "10SPYMKT").fields;
     expect(strong.ticker?.value).toBe("QQQ");
   });
@@ -179,5 +207,14 @@ describe("findTicker's last-resort guess", () => {
     const { findTicker } = await import("./labels");
     expect(findTicker(["Individual ********", "Side Buy Sell", "ET on the same day for regular trading days."])).toBeNull();
     expect(findTicker(["AAPL 190.12", "closes at 4:00 p.m. ET"])?.value).toBe("AAPL");
+  });
+
+  it("a label and its value aren't an exchange and a ticker; exchange names aren't tickers", async () => {
+    const { findTicker } = await import("./labels");
+    const cost = findTicker(["COMMISSION COST: FREE"]);
+    expect(cost?.value).not.toBe("FREE");
+    expect(cost?.source).not.toMatch(/exchange-qualified/);
+    expect(findTicker(["NASDAQ:AAPL 190.12"])?.value).toBe("AAPL");
+    expect(findTicker(["NASDAQ 100E-mini Futures", "OANDA"])).toBeNull();
   });
 });

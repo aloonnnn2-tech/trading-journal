@@ -305,6 +305,11 @@ export const TICKER_BLOCKLIST = new Set([
   "MARGIN", "LIQ", "FEE", "FEES", "COMM", "LEV", "UNREALIZED", "REALIZED", "DOM", "SMART", "RTH", "ASK",
   "BID", "TIF", "TICK", "TICKS", "PIPS", "RISK", "REWARD", "TARGET", "ACCOUNT", "BALANCE", "EQUITY",
   "IN", "ON", "AT", "TO", "BY", "OR", "IF", "IS", "IT", "BE", "DO", "GO", "NO", "OK", "UP", "PL",
+  // Exchanges, venues and brokers in platform headers, and interface words
+  // that real broker screenshots offered as tickers (2026-10-11).
+  "NASDAQ", "ARCA", "CBOE", "CME", "NYMEX", "COMEX", "BATS", "IEX", "LSE", "TSX", "ASX", "HKEX",
+  "OANDA", "FOREXCOM", "FOREX", "ETRADE", "BINANCE", "COINBASE", "KRAKEN", "FILTER", "DAILY", "CXL",
+  "FREE", "DEMO",
 ]);
 
 /** Tidy a raw ticker: drop a leading "$", and reduce a dated/option symbol to
@@ -320,8 +325,10 @@ function cleanTicker(raw: string): string {
 export function findTicker(texts: string[]): { value: string; source: string } | null {
   const joined = texts.join("\n");
 
-  // 1. Exchange-qualified: "NASDAQ:AAPL", "BINANCE:BTCUSDT"
-  const qualified = joined.match(/\b([A-Z]{2,10})\s*:\s*([A-Z0-9]{1,10})\b/);
+  // 1. Exchange-qualified: "NASDAQ:AAPL", "BINANCE:BTCUSDT". No space around
+  // the colon: a label and its value ("COMMISSION COST: FREE" on IBKR's
+  // ticket) once read as exchange COST, ticker FREE.
+  const qualified = joined.match(/\b([A-Z]{2,10}):([A-Z0-9]{1,10})\b/);
   if (qualified && !TICKER_BLOCKLIST.has(qualified[2])) {
     return { value: cleanTicker(qualified[2]), source: `exchange-qualified (${qualified[1]}:)` };
   }

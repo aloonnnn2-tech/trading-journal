@@ -1,0 +1,15 @@
+{
+  "broker": "TradingView",
+  "note": "Alon's own ticket, 2026-10-11: TradingView order panel (SMART routing), dark. Buy 0.524 VEEV stop-limit: stop 313.53, limit 316.21, TP 377.95, SL 283.38, Good Till Cancel. Stop Limit is only an underlined tab; the order button says '@ 313.53 STOP 316.21 LIMIT'.",
+  "core": {
+    "ticker": "VEEV",
+    "direction": "long",
+    "order_type": "stop_limit",
+    "entry_price": 313.53,
+    "limit_price": 316.21,
+    "shares": 0.524,
+    "take_profit": 377.95,
+    "stop_loss": 283.38,
+    "time_in_force": "gtc"
+  }
+}

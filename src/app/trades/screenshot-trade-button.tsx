@@ -12,7 +12,8 @@ import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
 import { FormError } from "@/components/form-error";
 import { useDialog } from "@/lib/a11y/use-dialog";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
-import type { EditableCoreField } from "@/lib/trades/types";
+import type { EditableCoreField, Trade } from "@/lib/trades/types";
+import { entryPriceLabels } from "@/lib/trades/order-labels";
 import { AiReadPanel } from "./ai-read-panel";
 
 const inputClass =
@@ -392,7 +393,18 @@ export function ScreenshotTradeButton({
     );
   }
 
-  const moreDetected = MORE.filter((f) => result?.core?.[f.key] || values[f.key]);
+  // The order's own prices, named for its type with the trade page's names
+  // ("Stop Price (trigger)", "Limit Price"). A stop-limit has two, so its
+  // Limit Price sits beside the entry instead of folded away -- also when the
+  // type is changed by hand (Alon's VEEV ticket, 2026-10-11).
+  const priceNames = entryPriceLabels((values.order_type || null) as Trade["order_type"], !values.status || values.status === "pending");
+  const showLimit = values.order_type === "stop_limit";
+  const mainFields: FieldDef[] = PRIMARY.flatMap((f) =>
+    f.key === "entry_price"
+      ? [{ ...f, label: priceNames.entry }, ...(showLimit ? [{ key: "limit_price", label: "Limit Price", type: "number" } as FieldDef] : [])]
+      : [f],
+  );
+  const moreDetected = MORE.filter((f) => !(showLimit && f.key === "limit_price") && (result?.core?.[f.key] || values[f.key]));
 
   return (
     <>
@@ -549,7 +561,7 @@ export function ScreenshotTradeButton({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{PRIMARY.map(renderField)}</div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{mainFields.map(renderField)}</div>
 
                   {moreDetected.length > 0 && (
                     <div className="rounded-lg border border-zinc-200 dark:border-zinc-800">

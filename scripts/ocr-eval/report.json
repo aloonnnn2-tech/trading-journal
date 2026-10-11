@@ -1,71 +1,71 @@
 {
-  "generatedAt": "2026-10-11T15:22:48.196Z",
+  "generatedAt": "2026-10-11T16:33:12.897Z",
   "autofillThreshold": 0.55,
-  "images": 17,
-  "overallAccuracy": 0.973,
-  "precision": 0.973,
-  "recall": 0.973,
+  "images": 18,
+  "overallAccuracy": 0.975,
+  "precision": 0.975,
+  "recall": 0.975,
   "falsePositives": 2,
-  "avgProcessingMs": 1120,
+  "avgProcessingMs": 1073,
   "perField": {
     "ticker": {
       "accuracy": 1,
-      "correct": 17,
+      "correct": 18,
       "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.9,
+      "avgConfidenceCorrect": 0.75,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 17,
+      "autofilledCorrect": 12,
       "autofilledWrong": 0
     },
     "direction": {
       "accuracy": 1,
-      "correct": 15,
+      "correct": 16,
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.847,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 15,
+      "autofilledCorrect": 16,
       "autofilledWrong": 0
     },
     "entry_price": {
-      "accuracy": 0.923,
-      "correct": 12,
+      "accuracy": 0.929,
+      "correct": 13,
       "wrong": 1,
       "missing": 0,
-      "avgConfidenceCorrect": 0.893,
+      "avgConfidenceCorrect": 0.898,
       "avgConfidenceWrong": 0.55,
-      "autofilledCorrect": 10,
+      "autofilledCorrect": 11,
       "autofilledWrong": 0
     },
     "stop_loss": {
       "accuracy": 1,
-      "correct": 11,
+      "correct": 12,
       "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.921,
+      "avgConfidenceCorrect": 0.922,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 11,
+      "autofilledCorrect": 12,
       "autofilledWrong": 0
     },
     "take_profit": {
       "accuracy": 1,
-      "correct": 9,
+      "correct": 10,
       "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.921,
+      "avgConfidenceCorrect": 0.924,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 9,
+      "autofilledCorrect": 10,
       "autofilledWrong": 0
     },
     "shares": {
       "accuracy": 1,
-      "correct": 16,
+      "correct": 17,
       "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.86,
+      "avgConfidenceCorrect": 0.867,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 12,
+      "autofilledCorrect": 13,
       "autofilledWrong": 0
     },
     "position_size": {
@@ -89,23 +89,23 @@
       "autofilledWrong": 0
     },
     "order_type": {
-      "accuracy": 0.857,
-      "correct": 6,
+      "accuracy": 0.875,
+      "correct": 7,
       "wrong": 0,
       "missing": 1,
       "avgConfidenceCorrect": 0.8,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 6,
+      "autofilledCorrect": 7,
       "autofilledWrong": 0
     },
     "time_in_force": {
-      "accuracy": 0.8,
-      "correct": 4,
+      "accuracy": 0.833,
+      "correct": 5,
       "wrong": 0,
       "missing": 1,
-      "avgConfidenceCorrect": 0.851,
+      "avgConfidenceCorrect": 0.853,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 4,
+      "autofilledCorrect": 5,
       "autofilledWrong": 0
     },
     "average_price": {
@@ -148,6 +148,16 @@
       "autofilledCorrect": 2,
       "autofilledWrong": 0
     },
+    "limit_price": {
+      "accuracy": 1,
+      "correct": 1,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.958,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 1,
+      "autofilledWrong": 0
+    },
     "entry_date": {
       "accuracy": 1,
       "correct": 1,
@@ -165,7 +175,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 1323,
+      "ms": 1451,
       "engine": "paddleocr"
     },
     {
@@ -173,7 +183,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 481,
+      "ms": 494,
       "engine": "paddleocr"
     },
     {
@@ -181,7 +191,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 555,
+      "ms": 537,
       "engine": "paddleocr"
     },
     {
@@ -189,7 +199,7 @@
       "correct": 9,
       "total": 9,
       "falsePos": 0,
-      "ms": 931,
+      "ms": 886,
       "engine": "paddleocr"
     },
     {
@@ -197,7 +207,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 824,
+      "ms": 812,
       "engine": "paddleocr"
     },
     {
@@ -205,7 +215,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 934,
+      "ms": 779,
       "engine": "paddleocr"
     },
     {
@@ -213,7 +223,7 @@
       "correct": 8,
       "total": 9,
       "falsePos": 0,
-      "ms": 798,
+      "ms": 770,
       "engine": "paddleocr"
     },
     {
@@ -221,7 +231,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 786,
+      "ms": 833,
       "engine": "paddleocr"
     },
     {
@@ -229,7 +239,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 826,
+      "ms": 946,
       "engine": "paddleocr"
     },
     {
@@ -237,7 +247,7 @@
       "correct": 7,
       "total": 8,
       "falsePos": 0,
-      "ms": 738,
+      "ms": 745,
       "engine": "paddleocr"
     },
     {
@@ -245,7 +255,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 463,
+      "ms": 439,
       "engine": "paddleocr"
     },
     {
@@ -253,7 +263,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 588,
+      "ms": 546,
       "engine": "paddleocr"
     },
     {
@@ -261,7 +271,7 @@
       "correct": 4,
       "total": 4,
       "falsePos": 0,
-      "ms": 2270,
+      "ms": 2245,
       "engine": "paddleocr"
     },
     {
@@ -269,7 +279,7 @@
       "correct": 5,
       "total": 5,
       "falsePos": 1,
-      "ms": 514,
+      "ms": 549,
       "engine": "paddleocr"
     },
     {
@@ -277,7 +287,7 @@
       "correct": 4,
       "total": 5,
       "falsePos": 1,
-      "ms": 4242,
+      "ms": 4060,
       "engine": "paddleocr"
     },
     {
@@ -285,7 +295,15 @@
       "correct": 5,
       "total": 5,
       "falsePos": 0,
-      "ms": 2171,
+      "ms": 1965,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/tv-veev-stop-limit-dark.png",
+      "correct": 9,
+      "total": 9,
+      "falsePos": 0,
+      "ms": 718,
       "engine": "paddleocr"
     },
     {
@@ -293,7 +311,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 592,
+      "ms": 531,
       "engine": "paddleocr"
     }
   ],
@@ -304,6 +322,13 @@
       "total": 112,
       "accuracy": 0.973,
       "falsePositives": 2
+    },
+    "TradingView": {
+      "images": 1,
+      "correct": 9,
+      "total": 9,
+      "accuracy": 1,
+      "falsePositives": 0
     }
   }
 }

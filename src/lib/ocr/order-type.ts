@@ -106,14 +106,16 @@ function fromLabels(lines: string[]): Evidence[] {
 }
 
 // ---- 2. The order button / summary: "<qty> <symbol> @ <price> STP",
-// "1 NQZ5 @ 24,755.00 STP / 24,755.25 LMT", "10AAPL@278.00LMT", "Buy 10 SPY MKT".
+// "1 NQZ5 @ 24,755.00 STP / 24,755.25 LMT", "0.524 VEEV @ 313.53 STOP 316.21
+// LIMIT" (a second price + LIMIT, with or without the slash, is a
+// stop-limit), "10AAPL@278.00LMT", "Buy 10 SPY MKT".
 // The symbol must not itself be a type word -- "1,000 STP LMT" once read as
 // symbol STP, type LMT, and filled in a stop-limit as a plain limit.
 const QTY = String.raw`\d[\d.,]*(?:\s\d{3})*`;
 const SYMBOL = String.raw`(?!(?:STP|LMT|MKT|STOP|LIMIT|MARKET|TRAIL)\b)([A-Z][A-Z0-9.!/:_-]{0,14}?)`;
 const PRICE = String.raw`\d[\d.,]*(?:\s\d[\d.,]*)?`;
 const BUTTON_RE = new RegExp(
-  String.raw`\b${QTY}\s*${SYMBOL}\s*(?:@\s*${PRICE}\s*)?(STP\s*LMT|STOP\s*LIMIT|LMT|LIMIT|STP|STOP|MKT|MARKET|TRAIL)\b(?:\s*/\s*${PRICE}\s*(LMT|LIMIT)\b)?`,
+  String.raw`\b${QTY}\s*${SYMBOL}\s*(?:@\s*${PRICE}\s*)?(STP\s*LMT|STOP\s*LIMIT|LMT|LIMIT|STP|STOP|MKT|MARKET|TRAIL)\b(?:\s*/?\s*${PRICE}\s*(LMT|LIMIT)\b)?`,
 );
 
 export function orderSummary(rawText: string): { value: OrderTypeValue; symbol: string; raw: string } | null {
