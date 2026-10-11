@@ -67,3 +67,24 @@ npm run ocr:eval -- --min=0.95   # fails if accuracy drops or a wrong value woul
 
 Whenever someone reports a wrong import, add their screenshot (cleaned up as
 above) as a fixture, so that mistake can never come back unnoticed.
+
+## Screenshots from other sites (order types)
+
+Real screenshots from brokers' help pages and forums widen coverage, but
+they are someone else's images, so they **never go in this public repo**.
+They live in `scripts/ocr-eval/web-inbox/`, which git ignores, with:
+
+- `sources.json`: where each one came from;
+- `answers.json`: the order type each screen's own text states, or `null`
+  when it can't tell (tabs, menus, several different orders).
+
+```bash
+npm run ocr:record -- --dir=scripts/ocr-eval/web-inbox   # after adding images
+npm run ocr:web                                          # score; fails on any wrong fill
+```
+
+As of 2026-10-11: 48 screenshots (TradingView, IBKR TWS / Desktop / Client
+Portal / Mobile, Webull, MetaTrader 5, Trading 212, E\*TRADE, Fidelity,
+tastytrade, thinkorswim): 27 filled correctly, 0 wrong, 20 correctly left
+empty, 1 missed (an MT5 chart label too small to read). The patterns they
+taught are pinned in `src/lib/ocr/order-type.test.ts`.

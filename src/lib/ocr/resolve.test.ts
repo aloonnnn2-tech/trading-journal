@@ -163,4 +163,21 @@ describe("warningsFor", () => {
     expect(w.some((s) => /wrong side/.test(s))).toBe(true);
     expect(w).toHaveLength(3);
   });
+
+  it("a ticket explaining that an order WILL be cancelled is not a cancelled order", () => {
+    const webull = "Time-in-Force Day\nThe order will be canceled after the market closes at 4:00 p.m.\nIf the order has not been filled, it will be canceled up to 60";
+    expect(warningsFor([], webull)).toEqual([]);
+    // The live reader can wrap the sentence mid-phrase.
+    expect(warningsFor([], "The order will be\ncanceled after the market closes")).toEqual([]);
+    expect(warningsFor([], "Time-in-Force\nDay\nGood 'Til Canceled\nGood Till Cancelled")).toEqual([]);
+    expect(warningsFor([], "NASDAQ:AAPL Sell Stop 229.11 Cancelled 1:1")[0]).toMatch(/cancelled/);
+  });
+});
+
+describe("findTicker's last-resort guess", () => {
+  it("never takes a time zone for a ticker (Webull's '4:00 p.m. ET')", async () => {
+    const { findTicker } = await import("./labels");
+    expect(findTicker(["Individual ********", "Side Buy Sell", "ET on the same day for regular trading days."])).toBeNull();
+    expect(findTicker(["AAPL 190.12", "closes at 4:00 p.m. ET"])?.value).toBe("AAPL");
+  });
 });

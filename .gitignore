@@ -86,3 +86,7 @@ skills-lock.json
 
 # Stray scratch screenshot
 notes-page.png
+
+# Screenshots collected from other sites for local OCR testing only:
+# someone else's copyright, never committed (public repo).
+/scripts/ocr-eval/web-inbox/

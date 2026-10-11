@@ -9,6 +9,7 @@
 import type { DetectedField, DetectedFields, FieldKey, ParseResult, ValidationNote } from "./types";
 import { AUTOFILL_CONFIDENCE, FIELD_LABELS } from "./types";
 import { normalizeOrderType, normalizeTimeInForce } from "./labels";
+import { detectOrderType, orderSummary } from "./order-type";
 
 const SUGGESTION_CONFIDENCE = Math.min(0.5, AUTOFILL_CONFIDENCE - 0.05);
 
@@ -40,28 +41,46 @@ export function resolveOrderFields(input: DetectedFields, rawText = ""): Resolve
       delete fields.order_type;
     }
   }
-  // No labelled order type: the ticket's own order summary line states it,
-  // e.g. "10AAPL@278.00LMT", "0.2626TXT@95.20STOP", "Buy 10 SPY MKT". That is
-  // the platform's text, not an inference, so it is not a suggestion.
-  const fromSummary = orderTypeFromSummary(rawText);
+  // What the rest of the screen states about the order type: its button
+  // ("10AAPL@278.00LMT"), its own row, its orders-table row, a chart label
+  // (order-type.ts). Only an agreed, stated type -- the platform's text, not
+  // an inference -- so it is not a suggestion.
+  const detected = detectOrderType(rawText);
+  const fromSummary = orderSummary(rawText);
   // The summary also names the symbol. When the ticker came only from the
   // weakest rule (the first capitalised word in the header) and the summary
   // disagrees, the summary wins: on TradingView the logo's "S" glued onto
   // "SPY" read as "SSPY", while the order line said "10SPYMKT".
-  if (fromSummary && fields.ticker?.source === "header symbol" && fields.ticker.value !== fromSummary.symbol) {
+  // Only a plain stock symbol: the button also names option contracts
+  // ("SPY250214C603.0") and futures ("NQ1!"), which aren't the ticker.
+  if (
+    fromSummary &&
+    /^[A-Z][A-Z0-9.]{0,9}$/.test(fromSummary.symbol) &&
+    fields.ticker?.source === "header symbol" &&
+    fields.ticker.value !== fromSummary.symbol
+  ) {
     notes.push({ field: "ticker", ok: true, message: `ticker ${fromSummary.symbol} from the order summary (header read ${String(fields.ticker.value)})` });
     fields.ticker = { ...fields.ticker, value: fromSummary.symbol, source: "the order summary line", raw: fromSummary.raw };
   }
   if (!fields.order_type) {
-    if (fromSummary) {
+    if (detected) {
       fields.order_type = {
         key: "order_type",
-        value: fromSummary.value,
+        value: detected.value,
         confidence: 0.8,
-        source: "the order summary line",
-        raw: fromSummary.raw,
+        source: detected.source,
+        raw: detected.raw,
       };
     }
+  } else if (detected && detected.value !== fields.order_type.value && !fields.order_type.heuristic) {
+    // The labelled value and the rest of the screen disagree: show it, but
+    // the user decides.
+    notes.push({
+      field: "order_type",
+      ok: false,
+      message: `the screen also says ${detected.value.replace("_", "-")} (${detected.source})`,
+    });
+    fields.order_type = suggestion("order_type", fields.order_type, `${fields.order_type.source}; the screen also says ${detected.value}`);
   }
   const orderType = fields.order_type ? String(fields.order_type.value) : null;
 
@@ -139,20 +158,8 @@ export function resolveOrderFields(input: DetectedFields, rawText = ""): Resolve
   return { fields, extra, notes };
 }
 
-// qty, symbol, optional "@ price", then the type -- with or without spaces,
-// since OCR often glues the summary into one token.
-const SUMMARY_RE =
-  /\b\d[\d.,]*\s*([A-Z][A-Z0-9.]{0,9}?)\s*(?:@\s*\d[\d.,]*\s*)?(STP\s*LMT|STOP\s*LIMIT|LMT|LIMIT|STP|STOP|MKT|MARKET|TRAIL)\b/;
-
-export function orderTypeFromSummary(rawText: string): { value: string; symbol: string; raw: string } | null {
-  for (const line of rawText.split(/\n/)) {
-    const m = line.match(SUMMARY_RE);
-    if (!m) continue;
-    const n = normalizeOrderType(m[2]);
-    if (n) return { value: n.value, symbol: m[1], raw: m[0] };
-  }
-  return null;
-}
+/** The order button / summary line: its type and symbol (order-type.ts). */
+export const orderTypeFromSummary = orderSummary;
 
 function num(f: DetectedField | undefined): number | null {
   if (!f || f.heuristic) return null;
@@ -167,7 +174,16 @@ export function warningsFor(notes: ValidationNote[], rawText: string): string[] 
     if (/pipeline error/.test(n.message)) continue;
     out.push(sentence(n));
   }
-  if (/\b(?:cancel+ed|rejected)\b/i.test(rawText)) {
+  // "Cancelled" as an order's status, not a ticket's explanation of what
+  // will happen ("The order will be canceled after the market closes").
+  // Across line breaks: the reader may wrap "will be / canceled after".
+  const saysCancelled = /\b(?:cancel+ed|rejected)\b/i.test(
+    rawText
+      .replace(/\b(?:will|to|may|can|would)\s+be\s+(?:cancel+ed|rejected)\b/gi, " ")
+      // The time-in-force name, not a status: "Good 'Til Canceled".
+      .replace(/\b(?:til+|until)\s+cancel+ed\b/gi, " "),
+  );
+  if (saysCancelled) {
     out.unshift("The screenshot says this order was cancelled or rejected. A cancelled order isn't a trade; check before saving.");
   }
   return [...new Set(out)];

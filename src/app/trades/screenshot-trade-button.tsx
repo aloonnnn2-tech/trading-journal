@@ -28,15 +28,19 @@ interface FieldDef {
   type: FieldType;
 }
 
+// Order Type sits with Direction and Status: it used to be folded away under
+// "Show N more detected fields", so a type the reader DID capture went
+// unseen -- and it now decides the "at what price did it fill?" question.
 const PRIMARY: FieldDef[] = [
   { key: "ticker", label: "Ticker", type: "text" },
   { key: "direction", label: "Direction", type: "direction" },
+  { key: "order_type", label: "Order Type", type: "order_type" },
+  { key: "status", label: "Status", type: "status" },
   { key: "entry_price", label: "Entry Price", type: "number" },
   { key: "exit_price", label: "Exit Price", type: "number" },
   { key: "stop_loss", label: "Stop Loss", type: "number" },
   { key: "take_profit", label: "Take Profit", type: "number" },
   { key: "shares", label: "Number of Shares", type: "number" },
-  { key: "status", label: "Status", type: "status" },
 ];
 
 const MORE: FieldDef[] = [
@@ -49,7 +53,6 @@ const MORE: FieldDef[] = [
   { key: "risk_percent", label: "Risk %", type: "number" },
   { key: "entry_date", label: "Entry Date", type: "date" },
   { key: "exit_date", label: "Exit Date", type: "date" },
-  { key: "order_type", label: "Order Type", type: "order_type" },
   { key: "limit_price", label: "Limit Price (stop-limit)", type: "number" },
   { key: "time_in_force", label: "Time in Force", type: "time_in_force" },
 ];

@@ -15,16 +15,23 @@ import { fileURLToPath } from "node:url";
 import { preprocessImage } from "../../src/lib/ocr/preprocess";
 import { runOcr } from "../../src/lib/ocr/engines";
 import { ocrRoi } from "../../src/lib/ocr/roi";
+import sharp from "sharp";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURES = path.join(ROOT, "fixtures");
+// --dir=<folder> records another folder instead, e.g. the git-ignored
+// scripts/ocr-eval/web-inbox of screenshots from other sites; every image
+// there is recorded, answer key or not. A GIF is read at its last frame,
+// where a help page's animation shows the finished order.
+const DIR_ARG = process.argv.find((a) => a.startsWith("--dir="))?.slice("--dir=".length);
+const FIXTURES = DIR_ARG ? path.resolve(DIR_ARG) : path.join(ROOT, "fixtures");
+const ALL = Boolean(DIR_ARG);
 
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];
   for (const e of await fs.readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) out.push(...(await walk(full)));
-    else if (/\.(png|jpe?g|webp)$/i.test(e.name)) out.push(full);
+    else if (/\.(png|jpe?g|webp|gif)$/i.test(e.name)) out.push(full);
   }
   return out;
 }
@@ -33,17 +40,22 @@ async function main() {
   const images = await walk(FIXTURES);
   let n = 0;
   for (const img of images) {
-    const expected = img.replace(/\.(png|jpe?g|webp)$/i, ".expected.json");
+    const expected = img.replace(/\.(png|jpe?g|webp|gif)$/i, ".expected.json");
     try {
       await fs.access(expected);
     } catch {
-      continue; // no ground truth, nothing to replay against
+      if (!ALL) continue; // no ground truth, nothing to replay against
     }
-    const pre = await preprocessImage(await fs.readFile(img));
+    let bytes = await fs.readFile(img);
+    if (/\.gif$/i.test(img)) {
+      const pages = (await sharp(bytes, { animated: true }).metadata()).pages ?? 1;
+      bytes = await sharp(bytes, { page: pages - 1 }).png().toBuffer();
+    }
+    const pre = await preprocessImage(bytes);
     try {
       const pass = await runOcr(pre.variants);
       const roiLines = await ocrRoi(pass.variantPath, pass.lines).catch(() => []);
-      const out = img.replace(/\.(png|jpe?g|webp)$/i, ".ocr.json");
+      const out = img.replace(/\.(png|jpe?g|webp|gif)$/i, ".ocr.json");
       await fs.writeFile(out, JSON.stringify({ lines: pass.lines, roiLines, rawText: pass.rawText }, null, 1) + "\n");
       n++;
       console.log("recorded", path.relative(FIXTURES, out));

@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-10-09T21:12:03.398Z",
+  "generatedAt": "2026-10-11T15:22:48.196Z",
   "autofillThreshold": 0.55,
   "images": 17,
   "overallAccuracy": 0.973,
   "precision": 0.973,
   "recall": 0.973,
   "falsePositives": 2,
-  "avgProcessingMs": 1654,
+  "avgProcessingMs": 1120,
   "perField": {
     "ticker": {
       "accuracy": 1,
@@ -89,13 +89,13 @@
       "autofilledWrong": 0
     },
     "order_type": {
-      "accuracy": 0.833,
-      "correct": 5,
+      "accuracy": 0.857,
+      "correct": 6,
       "wrong": 0,
       "missing": 1,
       "avgConfidenceCorrect": 0.8,
       "avgConfidenceWrong": 0,
-      "autofilledCorrect": 5,
+      "autofilledCorrect": 6,
       "autofilledWrong": 0
     },
     "time_in_force": {
@@ -165,7 +165,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 2096,
+      "ms": 1323,
       "engine": "paddleocr"
     },
     {
@@ -173,7 +173,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 688,
+      "ms": 481,
       "engine": "paddleocr"
     },
     {
@@ -181,7 +181,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 786,
+      "ms": 555,
       "engine": "paddleocr"
     },
     {
@@ -189,7 +189,7 @@
       "correct": 9,
       "total": 9,
       "falsePos": 0,
-      "ms": 1203,
+      "ms": 931,
       "engine": "paddleocr"
     },
     {
@@ -197,7 +197,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 1375,
+      "ms": 824,
       "engine": "paddleocr"
     },
     {
@@ -205,7 +205,7 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 1198,
+      "ms": 934,
       "engine": "paddleocr"
     },
     {
@@ -213,7 +213,7 @@
       "correct": 8,
       "total": 9,
       "falsePos": 0,
-      "ms": 1188,
+      "ms": 798,
       "engine": "paddleocr"
     },
     {
@@ -221,7 +221,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 1109,
+      "ms": 786,
       "engine": "paddleocr"
     },
     {
@@ -229,7 +229,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 1238,
+      "ms": 826,
       "engine": "paddleocr"
     },
     {
@@ -237,7 +237,7 @@
       "correct": 7,
       "total": 8,
       "falsePos": 0,
-      "ms": 1213,
+      "ms": 738,
       "engine": "paddleocr"
     },
     {
@@ -245,7 +245,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 735,
+      "ms": 463,
       "engine": "paddleocr"
     },
     {
@@ -253,7 +253,7 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 915,
+      "ms": 588,
       "engine": "paddleocr"
     },
     {
@@ -261,7 +261,7 @@
       "correct": 4,
       "total": 4,
       "falsePos": 0,
-      "ms": 3139,
+      "ms": 2270,
       "engine": "paddleocr"
     },
     {
@@ -269,7 +269,7 @@
       "correct": 5,
       "total": 5,
       "falsePos": 1,
-      "ms": 765,
+      "ms": 514,
       "engine": "paddleocr"
     },
     {
@@ -277,15 +277,15 @@
       "correct": 4,
       "total": 5,
       "falsePos": 1,
-      "ms": 6428,
+      "ms": 4242,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/Trading_View_Gallery-7-7.png",
-      "correct": 4,
-      "total": 4,
+      "correct": 5,
+      "total": 5,
       "falsePos": 0,
-      "ms": 3204,
+      "ms": 2171,
       "engine": "paddleocr"
     },
     {
@@ -293,15 +293,15 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 832,
+      "ms": 592,
       "engine": "paddleocr"
     }
   ],
   "perBroker": {
     "(not labelled)": {
       "images": 17,
-      "correct": 108,
-      "total": 111,
+      "correct": 109,
+      "total": 112,
       "accuracy": 0.973,
       "falsePositives": 2
     }

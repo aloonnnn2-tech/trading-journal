@@ -287,6 +287,12 @@ export function splitMultiLabel(text: string): { key: FieldKey; alias: string }[
 // Ticker detection
 // ---------------------------------------------------------------------------
 
+/** Time-zone abbreviations: never a guessed ticker ("4:00 p.m. ET"). */
+const TIME_ZONES = new Set([
+  "ET", "EDT", "PT", "PST", "PDT", "CT", "CST", "CDT", "MT", "MST", "MDT",
+  "UTC", "GMT", "CET", "CEST", "BST", "JST", "HKT", "IST", "AEST", "AEDT",
+]);
+
 // Uppercase tokens that look like tickers but never are (2-10 chars).
 export const TICKER_BLOCKLIST = new Set([
   "BUY", "SELL", "LONG", "SHORT", "USD", "USDT", "USDC", "EUR", "GBP", "JPY", "QTY", "PNL", "AVG", "DAY",
@@ -342,10 +348,13 @@ export function findTicker(texts: string[]): { value: string; source: string } |
   }
 
   // 4. First all-caps token scanning top-down — headers name the symbol first.
+  // This rule only guesses, so it also skips time-zone abbreviations: a
+  // Webull ticket's "closes at 4:00 p.m. ET" became ticker ET (2026-10-11).
+  // A real ET is still read by the labelled and fill-notation rules above.
   for (const line of texts) {
     const tokens = line.match(/\b[A-Z][A-Z0-9]{1,9}\b/g) ?? [];
     for (const t of tokens) {
-      if (!TICKER_BLOCKLIST.has(t)) return { value: cleanTicker(t), source: "header symbol" };
+      if (!TICKER_BLOCKLIST.has(t) && !TIME_ZONES.has(t)) return { value: cleanTicker(t), source: "header symbol" };
     }
   }
   return null;
