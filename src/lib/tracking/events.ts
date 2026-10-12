@@ -125,6 +125,7 @@ export const CLICK_LABELS: Record<string, string> = {
   "review-prompt-not-now": "Said **Not now** to a review request",
   "review-prompt-never": "Said **Don't ask again** to review requests",
   "review-cta": "Clicked **Leave a review** on the homepage",
+  "review-cta-floating": "Clicked the floating **Leave a review** button on the homepage",
   "nav-review": "Opened **Rate Trading Lens** from the account menu",
 
   // Paid plan.

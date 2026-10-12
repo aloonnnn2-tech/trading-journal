@@ -23,6 +23,7 @@ import { ANNOUNCEMENT_SCRIPT } from "@/components/landing/v2/announcement";
 import { ImportStrip } from "@/components/landing/v2/ImportStrip";
 import { Faq } from "@/components/landing/v2/Faq";
 import { Reviews } from "@/components/landing/v2/Reviews";
+import { FloatingReviewButton } from "@/components/landing/v2/FloatingReviewButton";
 import { createClient } from "@/lib/supabase/server";
 import { listFeaturedReviews } from "@/lib/reviews/queries";
 
@@ -142,6 +143,7 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           </Band>
           <ClosingCTA />
           <LandingFooter />
+          <FloatingReviewButton />
         </div>
       </BgProvider>
     </MotionConfig>
