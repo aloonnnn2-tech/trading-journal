@@ -180,7 +180,7 @@ export async function POST(request: Request) {
       // updated_at past this, which is how the card knows it is out of date.
       sourceUpdatedAt: trade.updated_at,
     });
-    void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
+    void logEvent(gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
       kind: "trade",
       tradeId: trade.id,
     });

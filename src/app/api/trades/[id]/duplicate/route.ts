@@ -22,7 +22,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "trade_created", {
+  void logEvent(userId, SERVER_SESSION_ID, "trade_created", {
     tradeId: duplicate.id,
     source: "duplicate",
   });

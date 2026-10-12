@@ -132,6 +132,7 @@ what keeps it safe.
 | `api/cron/auto-execute/route.ts` | Nightly jobs across all users | `CRON_SECRET` bearer compared with `timingSafeEqual`. Not reachable from the proxy matcher. |
 | `lib/ai-keys/vault.ts:92,109,119,145` | Reads and writes encrypted keys | Every query is `.eq("user_id", userId)` with the header-derived id. Migration 0058 revoked the `authenticated` grants on `user_api_keys`. |
 | `lib/rate-limit.ts` | Calls the `rate_limit_hit` RPC | Service-role only grant (0042), so the anon key cannot drain another user's bucket. |
+| `lib/tracking/log.ts` (`logEvent`, `logEvents`) | Inserts analytics events for every route that logs one | `userId` is always the proxy-header id, passed by a route that already authenticated the caller; client events pass the track route's registry check first. Since 0066 (2026-10-12) users can no longer insert events themselves, so this is the only way in. |
 
 No service-role call ever takes a record id from the request without an admin gate.
 
@@ -145,8 +146,8 @@ policy is `FOR ALL` with both `USING` and `WITH CHECK`.
 | trades, field_definitions, user_settings, folders, trade_history, trade_images, account_transactions, strategies, commission_rules, user_api_keys, ai_provider_consents, ai_reviews, strategy_rules, trade_excursions, goals, ai_conversations, monthly_costs, monthly_cost_postings | `auth.uid() = user_id` (all, using + check) | `user_settings.plan` / `is_admin` have no column grant for `authenticated` (0024/0029/0052/0054), so a user cannot write them. `user_api_keys` grants were narrowed in 0058. |
 | trade_folders, trade_strategies | Both sides must belong to `auth.uid()` (0028) | The junction tables check **both** foreign keys. |
 | ai_messages | Own `user_id` **and** the conversation is own (0048) | Fixed the cross-user chat insert found on 2026-09-21. |
-| analytics_events | Insert own, select admin only | Users cannot read events back. |
-| analytics_sessions | Insert / update own, select admin only | |
+| analytics_events | Select admin only; **no user writes** since 0066 | Users cannot read events back. Server code inserts them with the service-role client (`lib/tracking/log.ts`) after the route's checks. |
+| analytics_sessions | Select admin only; **no user writes** since 0066 | Written only by `record_heartbeat` (security definer, owner from `auth.uid()`), which credits 30 s at most once per 25 s. |
 | rate_limit_counters, schema_migrations, waitlist, public_page_views | RLS on, **no policies** | Service-role / RPC only. |
 
 **Storage, bucket `trade-images`** (0012): private. Select, insert, update and

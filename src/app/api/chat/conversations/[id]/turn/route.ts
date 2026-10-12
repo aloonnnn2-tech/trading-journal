@@ -185,7 +185,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           emit,
         );
         if (mode === "send") {
-          void logEvent(supabase, userId, SERVER_SESSION_ID, "ai_question_answered", {
+          void logEvent(userId, SERVER_SESSION_ID, "ai_question_answered", {
             provider: ready.provider,
             mode: "chat",
           });

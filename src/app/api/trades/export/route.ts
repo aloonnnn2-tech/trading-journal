@@ -71,7 +71,7 @@ export async function GET(request: Request) {
     body = format === "xlsx" ? await rowsToXlsxBuffer(rows) : rowsToCsv(rows);
   }
 
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "export_used", { format });
+  void logEvent(userId, SERVER_SESSION_ID, "export_used", { format });
 
   return new NextResponse(body as BodyInit, {
     headers: {

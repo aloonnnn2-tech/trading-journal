@@ -198,7 +198,7 @@ export async function POST(request: Request) {
       tradesAnalyzed: context.tradesAnalyzed,
       sourceUpdatedAt: context.sourceUpdatedAt,
     });
-    void logEvent(gate.supabase, gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
+    void logEvent(gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
       kind: "period",
       tradesAnalyzed: context.tradesAnalyzed,
     });

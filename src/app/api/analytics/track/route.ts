@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { logEvent, logEvents } from "@/lib/tracking/log";
 import { rateLimit } from "@/lib/rate-limit";
@@ -95,11 +94,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown or malformed event", rejected: rejectedCount }, { status: 400 });
   }
 
-  const supabase = await createClient();
   if (accepted.length === 1 && !("events" in body)) {
-    await logEvent(supabase, userId, body.sessionId, accepted[0].eventName, accepted[0].props);
+    await logEvent(userId, body.sessionId, accepted[0].eventName, accepted[0].props);
   } else {
-    await logEvents(supabase, userId, body.sessionId, accepted);
+    await logEvents(userId, body.sessionId, accepted);
   }
 
   return NextResponse.json({ ok: true, ...(rejectedCount ? { rejected: rejectedCount } : {}) });

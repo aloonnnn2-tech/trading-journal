@@ -127,7 +127,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const code = (err as { code?: string }).code;
     return NextResponse.json({ error: "Failed to update trade", code: code ?? null }, { status: 400 });
   }
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
+  void logEvent(userId, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
   return NextResponse.json(updated);
 }
 
@@ -154,6 +154,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!deleted) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "trade_deleted", { tradeId: id });
+  void logEvent(userId, SERVER_SESSION_ID, "trade_deleted", { tradeId: id });
   return NextResponse.json({ ok: true });
 }
