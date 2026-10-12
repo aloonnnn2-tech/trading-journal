@@ -4,7 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { deleteMyReview, getMyReview, getPromptState, isMissingReviews, saveMyReview } from "@/lib/reviews/queries";
-import { reviewInputSchema } from "@/lib/reviews/types";
+import { reviewInputSchema } from "@/lib/reviews/schema";
 
 // The caller's own review of Trading Lens (migration 0064): read, write or
 // remove. Only ever their own row -- the RLS client and the user id from the

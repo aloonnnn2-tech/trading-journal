@@ -18,16 +18,9 @@ import { z } from "zod";
 import type { AIProviderName } from "@/lib/ai-keys/types";
 import type { CoreFieldResult, OcrCoreField, ParseResult } from "./types";
 
-/** Providers whose configured models can read images (see types.ts in
- *  ai-keys for the model lists). Groq, Cerebras and SambaNova's chosen
- *  models are text-only, so they are never offered this. */
-export const SCREENSHOT_AI_PROVIDERS: ReadonlySet<AIProviderName> = new Set([
-  "openai",
-  "anthropic",
-  "google",
-  "mistral",
-  "openrouter",
-]);
+// Kept in ./ai-providers (no zod) for the client panel; re-exported so the
+// route's import list doesn't change.
+export { SCREENSHOT_AI_PROVIDERS } from "./ai-providers";
 
 const AUTOFILL_AI_CONFIDENCE = 0.8;
 

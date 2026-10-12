@@ -1,13 +1,10 @@
 import * as Sentry from "@sentry/nextjs";
-import { z } from "zod";
 import { SENTRY_PRIVACY } from "@/lib/observability/sentry-options";
+import { setZodJitless } from "@/lib/observability/zod-jitless";
 
-// zod 4 speeds up object parsing with generated code, and first probes for
-// it with `Function("")`. The enforcing CSP (no 'unsafe-eval') blocks that
-// probe -- harmlessly, zod falls back -- but every page then raised a CSP
-// violation and sent a report (found 2026-10-11 checking the production
-// build). Never try: this runs before any app code in the browser.
-z.config({ jitless: true });
+// Before any app code in the browser: zod must never probe for eval under
+// the enforcing CSP. Done without importing zod -- see zod-jitless.ts.
+setZodJitless();
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
