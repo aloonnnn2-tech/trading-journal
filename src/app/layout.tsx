@@ -108,25 +108,32 @@ export default async function RootLayout({
   // it would be blocked outright, bringing back the white flash on every
   // load for anyone using dark mode.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
-  // Read from the same cached settings row every page fetches anyway, so
-  // this costs nothing on top of the page's own load. Fails closed: any
-  // error means no Admin link, which is the same posture isAdmin() takes.
-  const settings = userId
-    ? await getUserSettings(await createClient(), userId).catch(() => null)
-    : null;
+  // Four reads of the user's settings row, started together: awaited one by
+  // one they were the slowest chain on every signed-in page (measured
+  // 2026-10-12, three extra database round trips before the page could
+  // finish). They don't depend on each other, and each keeps its own
+  // fallback, so a migration that isn't applied yet still only switches off
+  // its own feature.
+  const supabase = userId ? await createClient() : null;
+  const [settings, demoState, preferences, consentNeeded] = userId && supabase
+    ? await Promise.all([
+        // The same cached settings row every page fetches anyway. Fails
+        // closed: any error means no Admin link, the posture isAdmin() takes.
+        getUserSettings(supabase, userId).catch(() => null),
+        // Phase 4D: while the demo journal is in the account, every page
+        // says so. Fails quiet: an error (or 0051 unapplied) means no banner.
+        getDemoState(supabase, userId).catch(() => null),
+        // Setup -> Settings switches, handed to every client component
+        // through PreferencesProvider. null (0054 unapplied) = defaults.
+        getPreferences(supabase, userId).catch(() => null),
+        // Accounts with no recorded age/Terms agreement (made before the
+        // sign-up checkbox) confirm once. Fails open -- see legal/consent.ts.
+        needsConsent(supabase, userId),
+      ])
+    : [null, null, null, false];
   const admin = rolesFrom(settings).admin;
   const paid = settings ? isPaidUser(settings) : false;
-  // Phase 4D: while the demo journal is in the account, every page says so.
-  // Fails quiet: an error (or 0051 unapplied) just means no banner.
-  const demoActive = userId
-    ? (await getDemoState(await createClient(), userId).catch(() => null)) === "active"
-    : false;
-  // Setup -> Settings switches, handed to every client component through
-  // PreferencesProvider. null (signed out, or 0054 unapplied) = defaults.
-  const preferences = userId ? await getPreferences(await createClient(), userId).catch(() => null) : null;
-  // Accounts with no recorded age/Terms agreement (made before the sign-up
-  // checkbox) confirm once. Fails open -- see src/lib/legal/consent.ts.
-  const consentNeeded = userId ? await needsConsent(await createClient(), userId) : false;
+  const demoActive = demoState === "active";
 
   return (
     <html
