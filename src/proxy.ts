@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { clientIpKey, enforceRateLimit } from "@/lib/rate-limit";
+import { declaredBodyTooLarge } from "@/lib/http/body-limits";
+import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 // Route handlers and Server Components used to each call `getUser()`
 // themselves purely to read `user.id` and gate access -- a second real
@@ -134,11 +136,10 @@ function buildCsp(nonce: string): string {
 
 // --- Blanket API rate limit ------------------------------------------------
 //
-// **Why here and not in each route.** There are ~49 route handlers; eight of
-// them carried their own limit and the other forty-one had none. Adding a
-// hand-written limit to every one of those is forty-one chances to forget,
-// and the next route added would be the forty-second. This runs before all of
-// them, so a new route is covered the day it is written.
+// **Why here and not in each route.** There are 65 route handlers, and most
+// carry no limit of their own. Adding a hand-written limit to every one is 65
+// chances to forget, and the next route added would be the 66th. This runs
+// before all of them, so a new route is covered the day it is written.
 //
 // The per-route limits still exist and still matter -- they are much tighter,
 // and they are what actually protects the expensive handlers (OCR, AI,
@@ -154,9 +155,8 @@ function buildCsp(nonce: string): string {
 // the ceiling has to sit well above sustained real use. 300/min bounds a
 // runaway loop without ever being reachable by a person using the app.
 //
-// Same per-instance caveat as everything else built on src/lib/rate-limit.ts:
-// serverless instances do not share memory, so this bounds abuse per warm
-// instance rather than globally. See SECURITY.md.
+// Global, not per instance: src/lib/rate-limit.ts counts in Postgres
+// (migration 0042), so every serverless instance shares one counter.
 const API_RATE_LIMIT = 300;
 const API_RATE_WINDOW_MS = 60_000;
 
@@ -246,10 +246,9 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      // Pinned rather than left to the library default: SameSite=Lax is one
-      // of the two things standing between a cross-site page and this app's
-      // cookie-authenticated API (see isCrossSite).
-      cookieOptions: { sameSite: "lax" },
+      // Pinned rather than left to the library defaults (SameSite=Lax, Secure
+      // in production). See src/lib/supabase/cookie-options.ts.
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -284,6 +283,13 @@ export async function proxy(request: NextRequest) {
   } else if (request.nextUrl.pathname.startsWith("/api/")) {
     if (!SAFE_METHODS.has(request.method) && isCrossSite(request)) {
       return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 });
+    }
+    // Before any handler buffers the body. See src/lib/http/body-limits.ts.
+    if (
+      !SAFE_METHODS.has(request.method) &&
+      declaredBodyTooLarge(request.nextUrl.pathname, request.headers.get("content-length"))
+    ) {
+      return NextResponse.json({ error: "That request is too large." }, { status: 413 });
     }
     const limited = data.user
       ? await enforceRateLimit(`api:${data.user.id}`, API_RATE_LIMIT, API_RATE_WINDOW_MS)
@@ -340,6 +346,25 @@ export async function proxy(request: NextRequest) {
     "Reporting-Endpoints",
     `csp-endpoint="${request.nextUrl.origin}/api/csp-report"`,
   );
+
+  // No API response may be stored by a browser, proxy or CDN: they carry a
+  // user's own data (key lists, masked keys, journal figures, chat answers).
+  // The chat stream sets its own header (it also needs no-transform, so no
+  // layer buffers it), so it is left to that route.
+  //
+  // GET only. Caches store GET responses, not POST/PATCH/DELETE ones, so
+  // nothing is lost -- and no-store on the rest is harmful: the app's
+  // fire-and-forget calls (analytics beacons, the timezone sync) never read
+  // their response body, and without the HTTP cache draining it a no-store
+  // response is never finished. Each held a connection open, and pages never
+  // went network-idle (found by e2e/mobile.spec.ts, 2026-10-03).
+  if (
+    request.method === "GET" &&
+    request.nextUrl.pathname.startsWith("/api/") &&
+    !request.nextUrl.pathname.endsWith("/turn")
+  ) {
+    response.headers.set("Cache-Control", "private, no-store");
+  }
 
   return response;
 }

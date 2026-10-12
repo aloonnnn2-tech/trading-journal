@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { takeDueMonthlyCosts } from "@/lib/monthly-costs/queries";
 import { listFolders } from "@/lib/folders/queries";
 import { listFieldDefinitions } from "@/lib/fields/definitions";
 import {
@@ -13,14 +14,17 @@ import {
   type TradeListFilters,
 } from "@/lib/trades/queries";
 import { buildSummaryFigures } from "@/lib/trades/summary-strip";
+import { getShowTradeSummary } from "@/lib/settings/trade-summary";
 import { listAllTradeStrategyLinks, listStrategies } from "@/lib/strategies/queries";
 import { getAccountBalance } from "@/lib/account/queries";
 import type { Trade } from "@/lib/trades/types";
+import { ORDER_TYPE_LABELS } from "@/lib/trades/order-labels";
 import { AddTradeButton, QuickTradeButton } from "./new-trade-button";
 import { ScreenshotTradeButton } from "./screenshot-trade-button";
 import { TradeList } from "./trade-list";
 import { SummaryStrip } from "./summary-strip";
 import { ImportFirstTrade } from "./import-first-trade";
+import { CollapseOnPhone } from "@/components/mobile/collapse-on-phone";
 
 const PAGE_SIZE = 50;
 
@@ -32,6 +36,7 @@ interface TradesSearchParams {
   market?: string;
   emotion?: string;
   direction?: string;
+  orderType?: string;
   plMin?: string;
   plMax?: string;
   riskMin?: string;
@@ -49,8 +54,15 @@ export default async function TradesPage({
   searchParams: Promise<TradesSearchParams>;
 }) {
   const params = await searchParams;
-  await requireUserId();
+  const userId = await requireUserId();
   const supabase = await createClient();
+  // Monthly costs (0057) that have come due are taken from cash before
+  // the balance is read, so it is right the moment it is shown.
+  await takeDueMonthlyCosts(supabase, userId);
+  // Setup -> Settings can turn the summary strip off (0052). Unknown (0052
+  // unapplied, or a failed read) shows it, as before. Off also skips its
+  // query, not just its markup.
+  const showSummary = (await getShowTradeSummary(supabase, userId).catch(() => null)) !== false;
 
   // Validated rather than cast. `status` goes straight into .eq("status", …)
   // against a Postgres enum, so ?status=anything-else came back as a 22P02
@@ -61,6 +73,10 @@ export default async function TradesPage({
   const sortBy = toTradeSortField(params.sort);
   const sortDir = (params.dir as "asc" | "desc" | undefined) ?? "desc";
   const page = Math.max(1, Number(params.page) || 1);
+  // How many filters the phone's folded "Filters & sort" button is hiding,
+  // so an applied filter never looks like an empty list for no reason.
+  const activeFilterCount = [params.folder, params.strategy, params.q, params.market, params.emotion, params.orderType, params.plMin, params.plMax, params.fieldKey]
+    .filter((v) => v != null && v !== "").length;
 
   const plMin = params.plMin ? Number(params.plMin) : undefined;
   const plMax = params.plMax ? Number(params.plMax) : undefined;
@@ -79,6 +95,7 @@ export default async function TradesPage({
     market: params.market,
     emotion: params.emotion,
     direction: params.direction,
+    orderType: params.orderType && (params.orderType === "unset" || params.orderType in ORDER_TYPE_LABELS) ? params.orderType : undefined,
     plMin,
     plMax,
     riskMin,
@@ -90,7 +107,7 @@ export default async function TradesPage({
     await Promise.all([
       listTradesPage(supabase, { ...filters, sortBy, sortDir, page, pageSize: PAGE_SIZE }),
       // Every closed trade matching the filters, across all pages (4B).
-      listFilteredClosedTrades(supabase, filters),
+      showSummary ? listFilteredClosedTrades(supabase, filters) : Promise.resolve(null),
       getStatusCounts(supabase),
       listFolders(supabase),
       listStrategies(supabase),
@@ -126,6 +143,7 @@ export default async function TradesPage({
     if (next.strategy) query.set("strategy", next.strategy);
     if (next.market) query.set("market", next.market);
     if (next.emotion) query.set("emotion", next.emotion);
+    if (next.orderType) query.set("orderType", next.orderType);
     if (next.plMin) query.set("plMin", next.plMin);
     if (next.plMax) query.set("plMax", next.plMax);
     if (next.fieldKey) query.set("fieldKey", next.fieldKey);
@@ -138,10 +156,12 @@ export default async function TradesPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Trades</h1>
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Phones add trades from the tab bar's + button; five buttons here
+            wrapped onto two rows above the list. */}
+        <div className="hidden flex-wrap items-center gap-3 sm:flex">
           <Link
             href="/trades/import"
             data-tour-id="trades-import"
@@ -172,6 +192,7 @@ export default async function TradesPage({
         )}
       </div>
 
+      <CollapseOnPhone label="Filters & sort" activeCount={activeFilterCount} className="flex-col gap-6">
       {folders.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <FolderTab href={buildHref({ folder: undefined, page: "1" })} label="All Folders" active={!params.folder} />
@@ -210,7 +231,7 @@ export default async function TradesPage({
           any single value -- including rows saved before that cap -- from
           deciding the page width. */}
       <div className="flex flex-wrap items-center gap-3">
-        <form action="/trades" method="get" className="flex flex-wrap items-center gap-2">
+        <form action="/trades" method="get" className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {params.folder && <input type="hidden" name="folder" value={params.folder} />}
           {status && <input type="hidden" name="status" value={status} />}
           {params.strategy && <input type="hidden" name="strategy" value={params.strategy} />}
@@ -221,7 +242,7 @@ export default async function TradesPage({
             name="q"
             placeholder="Search ticker or company... (/)"
             defaultValue={params.q ?? ""}
-            className="w-56 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+            className="w-full sm:w-56 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
           />
           <select
             name="market"
@@ -246,6 +267,20 @@ export default async function TradesPage({
                 {emotion}
               </option>
             ))}
+          </select>
+          <select
+            name="orderType"
+            aria-label="Order type"
+            defaultValue={params.orderType ?? ""}
+            className="max-w-48 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary"
+          >
+            <option value="">All Order Types</option>
+            {Object.entries(ORDER_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+            <option value="unset">Not set</option>
           </select>
           <input
             type="number"
@@ -294,9 +329,10 @@ export default async function TradesPage({
 
         <SortSelect buildHref={buildHref} sortBy={sortBy} sortDir={sortDir} />
       </div>
+      </CollapseOnPhone>
 
       {/* Phase 4B: the filtered closed trades at a glance, across all pages. */}
-      <SummaryStrip figures={buildSummaryFigures(summaryTrades)} />
+      {summaryTrades && <SummaryStrip figures={buildSummaryFigures(summaryTrades)} />}
 
       {/* Rows open the trade side panel (Phase 4A) -- see trade-list.tsx. */}
       <TradeList trades={trades} stratNamesByTradeId={stratNamesByTradeId} />
@@ -411,7 +447,7 @@ function StatusTab({
   return (
     <Link
       href={href}
-      className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+      className={`rounded-full border px-2.5 py-1 text-xs font-medium sm:px-3 sm:py-1.5 sm:text-sm ${
         active
           ? "border-primary bg-primary/10 text-primary"
           : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-500"

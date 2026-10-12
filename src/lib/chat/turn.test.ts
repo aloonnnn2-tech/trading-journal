@@ -96,7 +96,7 @@ function scripted(script: ChatResult[], opts: { streamText?: boolean } = {}): AI
     name: "groq" as const,
     model: "m",
     seen,
-    validateKey: async () => true,
+    validateKey: async () => ({ valid: true as const, models: [] }),
     askQuestion: async () => "",
     chatStream: async (_k: string, input: ChatOnceInput, onText: (d: string) => void) => {
       seen.push(input);
@@ -118,6 +118,7 @@ function ctxFor(db: ReturnType<typeof fakeDb>, provider: AIProvider, extra: Part
     conversationId: "c1",
     provider,
     apiKey: "k",
+    model: "m",
     policy: tierPolicyFor("groq"),
     system: "sys",
     tools: [{ name: "compute_stats", description: "d", parameters: {} }],
@@ -229,6 +230,54 @@ describe("runTurn", () => {
     expect(a?.content).toBe("half ");
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "unavailable", retryAfterSeconds: 12 });
     expect(events.find((e) => e.type === "message_end")).toMatchObject({ stopReason: "interrupted" });
+  });
+
+  it("re-picks a retired model and answers anyway, asking the new one", async () => {
+    const db = fakeDb();
+    const models: (string | undefined)[] = [];
+    const provider = {
+      ...scripted([]),
+      chatStream: async (_k: string, input: ChatOnceInput, onText: (d: string) => void) => {
+        models.push(input.model);
+        if (input.model === "dead") throw new ProviderError("model_missing", "404 model not found");
+        onText("fine");
+        return { kind: "text", text: "fine" } as ChatResult;
+      },
+    } as unknown as AIProvider;
+    let healed = 0;
+    const events = await run(
+      ctxFor(db, provider, { newMessage: "q", model: "dead", healModel: async () => (healed++, "alive") }),
+    );
+
+    expect(models).toEqual(["dead", "alive"]);
+    expect(healed).toBe(1);
+    expect(events.some((e) => e.type === "error")).toBe(false);
+    expect(db.rows.find((r) => r.role === "assistant")?.content).toBe("fine");
+  });
+
+  it("reports model_missing when there is nothing to switch to", async () => {
+    const db = fakeDb();
+    const provider = {
+      ...scripted([]),
+      chatStream: async () => {
+        throw new ProviderError("model_missing", "404");
+      },
+    } as unknown as AIProvider;
+    const events = await run(ctxFor(db, provider, { newMessage: "q", healModel: async () => null }));
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "model_missing" });
+  });
+
+  it("parks a key the provider rejects mid-chat", async () => {
+    const db = fakeDb();
+    const provider = {
+      ...scripted([]),
+      chatStream: async () => {
+        throw new ProviderError("invalid_key", "401");
+      },
+    } as unknown as AIProvider;
+    let parked = false;
+    await run(ctxFor(db, provider, { newMessage: "q", onKeyRejected: async () => void (parked = true) }));
+    expect(parked).toBe(true);
   });
 
   it("still titles and counts the conversation when the first turn is interrupted", async () => {

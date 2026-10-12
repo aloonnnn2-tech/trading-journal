@@ -12,17 +12,28 @@
     "lint": "eslint",
     "ocr:fixtures": "tsx scripts/ocr-eval/generate.ts",
     "ocr:eval": "tsx scripts/ocr-eval/run.ts",
+    "ocr:record": "tsx scripts/ocr-eval/record.ts",
+    "ocr:eval-ai": "tsx scripts/ocr-eval/run-ai.ts",
     "backup:db": "tsx --env-file-if-exists=.env.local scripts/backup-db.ts",
     "restore:db": "tsx --env-file-if-exists=.env.local scripts/restore-db.ts",
     "migrations:status": "tsx --env-file=.env.local scripts/migrations-status.ts",
+    "dev-schema": "tsx scripts/build-dev-schema.ts",
     "verify:ai-secret": "tsx --conditions=react-server --env-file=.env.local scripts/verify-ai-key-secret.ts",
+    "rotate:ai-keys": "tsx --conditions=react-server --env-file=.env.local scripts/rotate-ai-keys.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:idor": "vitest run --config vitest.idor.config.mts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "check:bundle": "tsx --env-file=.env.local scripts/check-bundle-secrets.ts",
+    "check:cache-secrets": "tsx --env-file=.env.local scripts/check-cache-secrets.ts",
     "check:design-v2": "tsx scripts/check-design-v2-scope.ts",
-    "shots:marketing": "node scripts/capture-marketing-shots.mjs"
+    "check:ai-models": "tsx --env-file-if-exists=.env.local scripts/check-ai-models.ts",
+    "shots:marketing": "node scripts/capture-marketing-shots.mjs",
+    "accounts:list": "tsx --env-file=.env.local scripts/list-accounts.ts",
+    "seed:fake": "tsx scripts/seed-fake-data.mjs",
+    "dev:devdb": "tsx scripts/dev-on-dev-project.ts",
+    "ocr:web": "tsx scripts/ocr-eval/web-replay.ts"
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",
@@ -34,14 +45,14 @@
     "framer-motion": "^12.42.0",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.23.0",
-    "next": "^16.3.3",
+    "next": "16.3.8",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.0",
     "server-only": "^0.0.1",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -53,7 +64,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.3",
+    "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
     "tesseract.js": "^7.0.0",
     "tsx": "^4.23.0",
@@ -68,14 +79,18 @@
     "unrs-resolver@1.12.2": true,
     "esbuild@0.28.1": true,
     "@sentry/cli@2.58.6": true,
-    "sharp@0.35.4": true
+    "sharp@0.35.4": true,
+    "sharp@0.35.5": true
   },
   "overrides": {
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "nanoid": "^3.3.18",
     "adm-zip": "^0.6.0",
-    "brace-expansion@1.x": "^1.1.18",
-    "brace-expansion@2.x": "^2.1.4",
-    "uuid": "^11.1.1"
+    "brace-expansion@1.x": "^1.1.21",
+    "brace-expansion@2.x": "^2.1.7",
+    "uuid": "^11.1.1",
+    "brace-expansion@5.x": "^5.0.12",
+    "source-map-js": "^1.2.2",
+    "fast-uri": "^3.1.8"
   }
 }

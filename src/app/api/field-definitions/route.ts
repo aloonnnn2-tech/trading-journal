@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createFieldDefinition, listFieldDefinitions } from "@/lib/fields/definitions";
-import { ENTITY_TYPES, FIELD_TYPES, type EntityType } from "@/lib/fields/types";
+import type { EntityType } from "@/lib/fields/types";
+import { fieldDefinitionCreateSchema, fieldKeyFromLabel } from "@/lib/fields/definition-schema";
 
 export async function GET(request: Request) {
   const userId = await getUserIdFromHeader();
@@ -27,36 +28,30 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
 
-  let body;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const key = String(body.label ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  if (!key || !body.label || !body.field_type) {
-    return NextResponse.json({ error: "label and field_type are required" }, { status: 400 });
+  const parsed = fieldDefinitionCreateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid field" }, { status: 400 });
   }
-  if (!FIELD_TYPES.includes(body.field_type)) {
-    return NextResponse.json({ error: "Invalid field_type" }, { status: 400 });
-  }
-  if (body.entity_type !== undefined && !ENTITY_TYPES.includes(body.entity_type)) {
-    return NextResponse.json({ error: "Invalid entity_type" }, { status: 400 });
+  const body = parsed.data;
+  const key = fieldKeyFromLabel(body.label);
+  if (!key) {
+    return NextResponse.json({ error: "Use at least one letter or number in the name." }, { status: 400 });
   }
 
   const field = await createFieldDefinition(supabase, userId, {
-    entity_type: body.entity_type ?? "trade",
+    entity_type: body.entity_type,
     key,
     label: body.label,
     field_type: body.field_type,
-    options: body.options ?? {},
-    sort_order: body.sort_order ?? 200,
-    strategy_id: body.strategy_id ?? null,
+    options: body.options,
+    sort_order: body.sort_order,
+    strategy_id: body.strategy_id,
   });
 
   return NextResponse.json(field, { status: 201 });

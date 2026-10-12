@@ -35,7 +35,7 @@ let email: string;
 test.beforeEach(async () => {
   test.skip(
     await captchaEnforced(),
-    "CAPTCHA is enforced on this Supabase project; an automated browser cannot mint a valid Turnstile token. Needs a second Supabase project configured with Cloudflare's dummy secret.",
+    "CAPTCHA is enforced on the dev Supabase project; an automated browser cannot mint a valid Turnstile token. Switch CAPTCHA off on the dev project (never on production).",
   );
   email = `e2e-auth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@tradinglens-e2e.invalid`;
 });
@@ -51,6 +51,9 @@ test("sign up, sign out, then sign back in", async ({ page }) => {
 
   await page.locator(EMAIL).fill(email);
   await page.locator(NEW_PASSWORD).fill(password);
+  // Required since 2026-10-09 (age + Terms consent); the button stays
+  // disabled until it is ticked.
+  await page.getByRole("checkbox", { name: /18 or older/i }).check();
   await page.getByRole("button", { name: /sign up|create account/i }).click();
 
   // Email confirmation is switched off on this project, so signUp returns a

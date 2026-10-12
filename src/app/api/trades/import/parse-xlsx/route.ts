@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB, same cap as the image upload route
 
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
     "Too many spreadsheets in a row. Give it a moment and try again.",
   );
   if (limited) return limited;
+  const daily = await enforceDailyCap("import", userId);
+  if (daily) return daily;
 
   // formData() throws on a malformed / non-multipart body; without this it
   // was a 500 instead of a 400.

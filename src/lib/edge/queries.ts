@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ORDER_TYPE_LABELS } from "@/lib/trades/order-labels";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { getLocalDayName } from "@/lib/dates/day-of-week";
 import { exitedBeforeTarget, holdingDays } from "@/lib/trades/behaviour";
@@ -32,6 +33,7 @@ export interface EdgeRow extends SegmentableTrade {
   id: string;
   ticker: string | null;
   direction: string | null;
+  order_type: string | null;
   market: string | null;
   asset_type: string | null;
   entry_date: string | null;
@@ -90,6 +92,20 @@ export function edgeDimensions(timezone: string | null): Dimension<EdgeRow>[] {
       label: "Direction",
       valuesOf: (row) => (row.direction ? [row.direction] : []),
       drillDown: (value) => `/trades?direction=${encodeURIComponent(value)}`,
+    },
+    {
+      id: "order_type",
+      label: "Order type",
+      // Trades with no order type recorded are left out of this cut rather
+      // than lumped into a made-up "unknown" segment.
+      valuesOf: (row) =>
+        row.order_type && row.order_type in ORDER_TYPE_LABELS
+          ? [ORDER_TYPE_LABELS[row.order_type as keyof typeof ORDER_TYPE_LABELS]]
+          : [],
+      drillDown: (value) => {
+        const key = Object.entries(ORDER_TYPE_LABELS).find(([, label]) => label === value)?.[0];
+        return key ? `/trades?orderType=${encodeURIComponent(key)}` : null;
+      },
     },
     {
       id: "ticker",
@@ -176,7 +192,7 @@ export interface EdgeReport extends RankedSegments<EdgeRow> {
  *  fetch the same shape and reuse the same dimension definitions rather than
  *  growing a parallel set that could disagree about what "late exit" means. */
 export const EDGE_COLUMNS =
-  "id, ticker, direction, market, asset_type, entry_date, exit_date, dollar_pl, r_multiple, risk_percent, take_profit, exit_price, emotion_before:custom_fields->emotion_before, trade_strategies(strategies(id, name))";
+  "id, ticker, direction, order_type, market, asset_type, entry_date, exit_date, dollar_pl, r_multiple, risk_percent, take_profit, exit_price, emotion_before:custom_fields->emotion_before, trade_strategies(strategies(id, name))";
 
 /** Every closed trade in the shape the dimensions expect, oldest first --
  *  which is also what makes the engine's drawdown meaningful. */

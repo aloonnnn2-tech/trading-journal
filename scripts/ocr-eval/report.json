@@ -1,60 +1,72 @@
 {
-  "generatedAt": "2026-07-06T11:49:19.586Z",
+  "generatedAt": "2026-10-11T16:33:12.897Z",
   "autofillThreshold": 0.55,
-  "images": 17,
-  "overallAccuracy": 0.98,
-  "precision": 0.951,
-  "recall": 0.98,
-  "falsePositives": 3,
-  "avgProcessingMs": 1031,
+  "images": 18,
+  "overallAccuracy": 0.975,
+  "precision": 0.975,
+  "recall": 0.975,
+  "falsePositives": 2,
+  "avgProcessingMs": 1073,
   "perField": {
     "ticker": {
-      "accuracy": 0.941,
-      "correct": 16,
-      "wrong": 1,
+      "accuracy": 1,
+      "correct": 18,
+      "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.9,
-      "avgConfidenceWrong": 0.9
+      "avgConfidenceCorrect": 0.75,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 12,
+      "autofilledWrong": 0
     },
     "direction": {
       "accuracy": 1,
-      "correct": 15,
-      "wrong": 0,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.85,
-      "avgConfidenceWrong": 0
-    },
-    "entry_price": {
-      "accuracy": 0.923,
-      "correct": 12,
-      "wrong": 1,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.893,
-      "avgConfidenceWrong": 0.55
-    },
-    "stop_loss": {
-      "accuracy": 1,
-      "correct": 11,
-      "wrong": 0,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.957,
-      "avgConfidenceWrong": 0
-    },
-    "take_profit": {
-      "accuracy": 1,
-      "correct": 9,
-      "wrong": 0,
-      "missing": 0,
-      "avgConfidenceCorrect": 0.965,
-      "avgConfidenceWrong": 0
-    },
-    "shares": {
-      "accuracy": 1,
       "correct": 16,
       "wrong": 0,
       "missing": 0,
-      "avgConfidenceCorrect": 0.86,
-      "avgConfidenceWrong": 0
+      "avgConfidenceCorrect": 0.847,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 16,
+      "autofilledWrong": 0
+    },
+    "entry_price": {
+      "accuracy": 0.929,
+      "correct": 13,
+      "wrong": 1,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.898,
+      "avgConfidenceWrong": 0.55,
+      "autofilledCorrect": 11,
+      "autofilledWrong": 0
+    },
+    "stop_loss": {
+      "accuracy": 1,
+      "correct": 12,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.922,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 12,
+      "autofilledWrong": 0
+    },
+    "take_profit": {
+      "accuracy": 1,
+      "correct": 10,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.924,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 10,
+      "autofilledWrong": 0
+    },
+    "shares": {
+      "accuracy": 1,
+      "correct": 17,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.867,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 13,
+      "autofilledWrong": 0
     },
     "position_size": {
       "accuracy": 1,
@@ -62,7 +74,9 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.979,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 7,
+      "autofilledWrong": 0
     },
     "risk_amount": {
       "accuracy": 1,
@@ -70,7 +84,29 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.964,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 1,
+      "autofilledWrong": 0
+    },
+    "order_type": {
+      "accuracy": 0.875,
+      "correct": 7,
+      "wrong": 0,
+      "missing": 1,
+      "avgConfidenceCorrect": 0.8,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 7,
+      "autofilledWrong": 0
+    },
+    "time_in_force": {
+      "accuracy": 0.833,
+      "correct": 5,
+      "wrong": 0,
+      "missing": 1,
+      "avgConfidenceCorrect": 0.853,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 5,
+      "autofilledWrong": 0
     },
     "average_price": {
       "accuracy": 1,
@@ -78,7 +114,9 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.93,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 0,
+      "autofilledWrong": 0
     },
     "current_price": {
       "accuracy": 1,
@@ -86,7 +124,9 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.962,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 0,
+      "autofilledWrong": 0
     },
     "status": {
       "accuracy": 1,
@@ -94,7 +134,9 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.7,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 2,
+      "autofilledWrong": 0
     },
     "dollar_amount": {
       "accuracy": 1,
@@ -102,7 +144,19 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.938,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 2,
+      "autofilledWrong": 0
+    },
+    "limit_price": {
+      "accuracy": 1,
+      "correct": 1,
+      "wrong": 0,
+      "missing": 0,
+      "avgConfidenceCorrect": 0.958,
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 1,
+      "autofilledWrong": 0
     },
     "entry_date": {
       "accuracy": 1,
@@ -110,7 +164,9 @@
       "wrong": 0,
       "missing": 0,
       "avgConfidenceCorrect": 0.998,
-      "avgConfidenceWrong": 0
+      "avgConfidenceWrong": 0,
+      "autofilledCorrect": 1,
+      "autofilledWrong": 0
     }
   },
   "perImage": [
@@ -119,7 +175,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 1257,
+      "ms": 1451,
       "engine": "paddleocr"
     },
     {
@@ -127,7 +183,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 447,
+      "ms": 494,
       "engine": "paddleocr"
     },
     {
@@ -135,39 +191,39 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 525,
+      "ms": 537,
       "engine": "paddleocr"
     },
     {
       "name": "new-broker/order-khc-stop.jpg",
-      "correct": 7,
-      "total": 7,
-      "falsePos": 1,
-      "ms": 843,
+      "correct": 9,
+      "total": 9,
+      "falsePos": 0,
+      "ms": 886,
       "engine": "paddleocr"
     },
     {
       "name": "new-broker/order-schw-limit.jpg",
-      "correct": 6,
-      "total": 6,
+      "correct": 8,
+      "total": 8,
       "falsePos": 0,
-      "ms": 752,
+      "ms": 812,
       "engine": "paddleocr"
     },
     {
       "name": "new-broker/order-txt-stop.jpg",
-      "correct": 6,
-      "total": 6,
-      "falsePos": 1,
-      "ms": 805,
+      "correct": 8,
+      "total": 8,
+      "falsePos": 0,
+      "ms": 779,
       "engine": "paddleocr"
     },
     {
       "name": "new-broker/order-usb-stop.jpg",
-      "correct": 7,
-      "total": 7,
+      "correct": 8,
+      "total": 9,
       "falsePos": 0,
-      "ms": 774,
+      "ms": 770,
       "engine": "paddleocr"
     },
     {
@@ -175,7 +231,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 728,
+      "ms": 833,
       "engine": "paddleocr"
     },
     {
@@ -183,15 +239,15 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 755,
+      "ms": 946,
       "engine": "paddleocr"
     },
     {
       "name": "options/webull-options-tpsl.png",
       "correct": 7,
-      "total": 7,
+      "total": 8,
       "falsePos": 0,
-      "ms": 714,
+      "ms": 745,
       "engine": "paddleocr"
     },
     {
@@ -199,7 +255,7 @@
       "correct": 6,
       "total": 6,
       "falsePos": 0,
-      "ms": 406,
+      "ms": 439,
       "engine": "paddleocr"
     },
     {
@@ -207,39 +263,47 @@
       "correct": 7,
       "total": 7,
       "falsePos": 0,
-      "ms": 537,
+      "ms": 546,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/STEP-4-trade-on-tradingview.webp",
-      "correct": 2,
-      "total": 3,
+      "correct": 4,
+      "total": 4,
       "falsePos": 0,
-      "ms": 2048,
+      "ms": 2245,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/stop-order-bare-price.png",
       "correct": 5,
       "total": 5,
-      "falsePos": 0,
-      "ms": 494,
+      "falsePos": 1,
+      "ms": 549,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/Trading_overview_stocks_(Dark_theme).png",
-      "correct": 3,
-      "total": 4,
+      "correct": 4,
+      "total": 5,
       "falsePos": 1,
-      "ms": 3881,
+      "ms": 4060,
       "engine": "paddleocr"
     },
     {
       "name": "stocks/Trading_View_Gallery-7-7.png",
-      "correct": 4,
-      "total": 4,
+      "correct": 5,
+      "total": 5,
       "falsePos": 0,
-      "ms": 2012,
+      "ms": 1965,
+      "engine": "paddleocr"
+    },
+    {
+      "name": "stocks/tv-veev-stop-limit-dark.png",
+      "correct": 9,
+      "total": 9,
+      "falsePos": 0,
+      "ms": 718,
       "engine": "paddleocr"
     },
     {
@@ -247,8 +311,24 @@
       "correct": 8,
       "total": 8,
       "falsePos": 0,
-      "ms": 554,
+      "ms": 531,
       "engine": "paddleocr"
     }
-  ]
+  ],
+  "perBroker": {
+    "(not labelled)": {
+      "images": 17,
+      "correct": 109,
+      "total": 112,
+      "accuracy": 0.973,
+      "falsePositives": 2
+    },
+    "TradingView": {
+      "images": 1,
+      "correct": 9,
+      "total": 9,
+      "accuracy": 1,
+      "falsePositives": 0
+    }
+  }
 }

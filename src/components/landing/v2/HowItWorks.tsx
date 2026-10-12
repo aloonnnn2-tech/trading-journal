@@ -194,7 +194,7 @@ const STEPS = [
     word: "Upload",
     paid: false,
     headline: "Drop in a screenshot",
-    body: "Take it from your broker or platform. The app's own reader parses it, and nothing is sent to a third-party AI service.",
+    body: "Take it from your broker or platform. The app's own reader parses it; nothing goes to an AI service unless you choose to.",
     visual: UploadVisual,
   },
   {

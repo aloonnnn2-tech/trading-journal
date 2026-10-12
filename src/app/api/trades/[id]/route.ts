@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { buildCustomFieldsSchema } from "@/lib/fields/schema";
@@ -19,6 +20,14 @@ function pickEditableCore(input: unknown): Partial<Record<EditableCoreField, unk
   }
   return result;
 }
+
+const patchEnvelopeSchema = z
+  .object({
+    core: z.unknown().optional(),
+    customFields: z.unknown().optional(),
+    strategyFieldValues: z.unknown().optional(),
+  })
+  .strict();
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -53,12 +62,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // connection turned into an unhandled 500 -- and it's the autosave hot
   // path, hit every 600ms while editing. A parse failure is the client's
   // fault: 400, not 500.
-  let body: { core?: unknown; customFields?: unknown; strategyFieldValues?: unknown };
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  // The envelope. Each part is validated in detail below; this refuses
+  // anything that is not the object the autosave sends (an array used to be
+  // read as "no changes" and answered 200).
+  const envelope = patchEnvelopeSchema.safeParse(rawBody);
+  if (!envelope.success) {
+    return NextResponse.json({ error: "Expected { core, customFields, strategyFieldValues }" }, { status: 400 });
+  }
+  const body = envelope.data;
+
   const parsedCore = coreFieldsSchema.safeParse(pickEditableCore(body.core));
   if (!parsedCore.success) {
     return NextResponse.json({ error: parsedCore.error.flatten() }, { status: 400 });

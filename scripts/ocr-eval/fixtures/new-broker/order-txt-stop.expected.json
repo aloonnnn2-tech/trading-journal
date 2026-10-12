@@ -3,9 +3,11 @@
   "core": {
     "ticker": "TXT",
     "direction": "long",
-    "entry_price": 95.20,
+    "entry_price": 95.2,
     "stop_loss": 89.77,
     "shares": 0.2626,
-    "position_size": 25
+    "position_size": 25,
+    "order_type": "stop",
+    "time_in_force": "gtc"
   }
 }

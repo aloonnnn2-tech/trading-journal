@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Sparkles, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
@@ -12,6 +11,7 @@ import { getConversation, listConversations, listMessages, type Conversation } f
 import { foldMessages, type TurnView } from "@/lib/chat/fold";
 import { ChatShell } from "./chat-shell";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Derived from the provider registry rather than written out, because the
 // hand-written version of this list went stale: it still said "OpenAI,
 // Anthropic or Google" long after seven free-tier providers were added, hiding
@@ -64,7 +64,16 @@ export default async function AskPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-6 sm:p-8">
+    // Paid: the chat takes the whole window, edge to edge, and pins its
+    // composer to the bottom -- no bottom padding, the composer owns that
+    // edge. The paywall card keeps the narrow reading column.
+    <div
+      className={
+        paid
+          ? "flex w-full flex-1 flex-col gap-4 px-4 pt-4 sm:px-6 sm:pt-6 lg:px-8"
+          : "mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-5 sm:p-8"
+      }
+    >
       <div data-tour-id="ask-header">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Ask Your Journal
@@ -116,12 +125,7 @@ export default async function AskPage({
             </li>
           </ul>
 
-          <Link
-            href="/#pricing"
-            className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110"
-          >
-            See plans
-          </Link>
+          <SeePlansButton feature="ask" className="w-fit rounded-full bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110" />
         </Card>
       )}
     </div>

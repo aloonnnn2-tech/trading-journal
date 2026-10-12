@@ -4,12 +4,15 @@
 // returns a partial result, so the client gets something to work with.
 
 import { NextResponse } from "next/server";
+import { detectImageKind } from "@/lib/images/magic";
+import { accuracyLogLine, findPossibleDuplicates } from "@/lib/ocr/duplicates";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { runOcrPipeline } from "@/lib/ocr/pipeline";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 
 // Native modules (onnxruntime-node, sharp) require the Node.js runtime.
 export const runtime = "nodejs";
@@ -39,6 +42,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const daily = await enforceDailyCap("ocr", userId);
+  if (daily) return daily;
+
   let file: FormDataEntryValue | null;
   try {
     const formData = await request.formData();
@@ -65,15 +71,26 @@ export async function POST(request: Request) {
   // module fault is guarded regardless) — either way this route must not 500.
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
+    // The declared type is the client's claim (guessed from the file name);
+    // the first bytes are the file. Only a real image reaches the OCR engine.
+    if (!detectImageKind(buffer)) {
+      return NextResponse.json(
+        { error: "That file isn't a JPEG, PNG, WebP or GIF image." },
+        { status: 400 },
+      );
+    }
     const result = await runOcrPipeline(buffer);
-    // The RLS client exists here only to log this usage event; the route
-    // itself never touches the database.
-    void logEvent(await createClient(), userId, SERVER_SESSION_ID, "screenshot_parsed", {});
+    // The caller's RLS client: logs the usage event, and looks for trades of
+    // their own that this one may duplicate (never anyone else's).
+    const supabase = await createClient();
+    result.duplicates = await findPossibleDuplicates(supabase, result).catch(() => []);
+    console.info("[ocr] read", accuracyLogLine(result));
+    void logEvent(supabase, userId, SERVER_SESSION_ID, "screenshot_parsed", {});
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "OCR failed";
     return NextResponse.json(
-      { ok: false, core: {}, extra: [], screenshotType: "unknown", broker: null, error: message },
+      { ok: false, core: {}, extra: [], screenshotType: "unknown", broker: null, warnings: [], error: message },
       { status: 200 },
     );
   }

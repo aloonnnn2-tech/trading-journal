@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
-import { providerModel } from "@/lib/ai-keys/providers";
+import { getActiveKeyMeta } from "@/lib/ai-keys/queries";
 import type { AIProviderName } from "@/lib/ai-keys/types";
 import { foldMessages } from "@/lib/chat/fold";
 import {
@@ -66,18 +66,11 @@ export async function PATCH(request: Request, { params }: Params) {
   // parked key is refused for the same reason the turn route refuses it.
   let key: { key_id: string; provider: AIProviderName; model: string } | undefined;
   if (parsed.data.keyId) {
-    const { data: stored, error } = await gate.supabase
-      .from("user_api_keys")
-      .select("provider")
-      .eq("id", parsed.data.keyId)
-      .eq("is_active", true)
-      .maybeSingle();
-    if (error) throw error;
+    const stored = await getActiveKeyMeta(gate.supabase, parsed.data.keyId);
     if (!stored) {
       return NextResponse.json({ error: "That key isn't available. Pick another, or add one." }, { status: 400 });
     }
-    const provider = stored.provider as AIProviderName;
-    key = { key_id: parsed.data.keyId, provider, model: providerModel(provider) };
+    key = { key_id: parsed.data.keyId, provider: stored.provider, model: stored.model };
   }
 
   const updated = await updateConversation(gate.supabase, id, {

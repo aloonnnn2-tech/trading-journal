@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchYahooCandles, type Candle } from "@/lib/market-data/yahoo";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
 
 // This route makes an outbound request to Yahoo on every call, from this
 // app's IP, with a symbol the caller chooses -- the same shape as the OCR and
@@ -24,6 +25,8 @@ export interface CandlesResponse {
   quoteTime: string | null;
 }
 
+const SYMBOL = /^[A-Z0-9.\-=^]{1,20}$/;
+
 export async function GET(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
@@ -38,10 +41,19 @@ export async function GET(request: Request) {
     );
   }
 
+  const daily = await enforceDailyCap("market-data", userId);
+  if (daily) return daily;
+  const upstream = await enforceYahooCeiling();
+  if (upstream) return upstream;
+
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get("ticker")?.trim().toUpperCase();
   if (!ticker) {
     return NextResponse.json({ error: "Missing ticker" }, { status: 400 });
+  }
+  // Same symbol rule as the bars route: it goes into an upstream URL.
+  if (!SYMBOL.test(ticker)) {
+    return NextResponse.json({ error: "Invalid ticker" }, { status: 400 });
   }
 
   let result: Awaited<ReturnType<typeof fetchYahooCandles>>;

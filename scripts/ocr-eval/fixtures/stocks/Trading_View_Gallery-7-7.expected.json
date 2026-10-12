@@ -4,6 +4,7 @@
     "ticker": "SPY",
     "direction": "long",
     "entry_price": 2.62,
-    "shares": 1
+    "shares": 1,
+    "order_type": "limit"
   }
 }

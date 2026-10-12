@@ -23,6 +23,10 @@ export function RMultipleHistogram({ data }: { data: RMultipleBucket[] }) {
           tick={TICK}
           axisLine={{ stroke: CHART.axis, strokeWidth: 1 }}
           tickLine={false}
+          interval={0}
+          // "-3 to -2" is wider than a bar's slot on a phone, and the labels
+          // ran together. The tooltip still shows the full "-3 to -2".
+          tickFormatter={(v) => String(v).replace(" to ", "…")}
         />
         <YAxis tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
         <Tooltip

@@ -114,6 +114,11 @@ export default function CookiesPage() {
                 purpose="Remembers that you closed the announcement bar on the homepage, so it stays closed. A new announcement shows again."
               />
               <Row
+                name="tl-waitlist-joined"
+                type="Local storage (preference)"
+                purpose="Remembers that you joined the paid-plan waitlist from this browser, so the page keeps saying so after a refresh. It holds no email address."
+              />
+              <Row
                 name="tl-tour"
                 type="Local storage (functional)"
                 purpose="Saves your place in a guided tour, so reloading the page picks up where you left off. Removed when the tour ends."
@@ -136,7 +141,7 @@ export default function CookiesPage() {
               <Row
                 name="tl-design"
                 type="Local storage (preference)"
-                purpose="A preview switch for a design experiment. Only ever set if you open a link that turns it on; otherwise it is never written."
+                purpose="A preview switch for a design experiment that older versions of the app saved. Nothing is written to it any more; if your browser still has it, it is deleted on your next visit."
               />
               <Row
                 name="tz-synced"

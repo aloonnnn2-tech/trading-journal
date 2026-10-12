@@ -58,7 +58,7 @@ describe("validateKey", () => {
   it("returns true when the provider accepts the credentials", async () => {
     for (const name of AI_PROVIDERS) {
       stubFetch({ status: 200, body: { data: [] } });
-      await expect(getProvider(name).validateKey("test-key")).resolves.toBe(true);
+      await expect(getProvider(name).validateKey("test-key")).resolves.toEqual({ valid: true, models: [] });
     }
   });
 
@@ -67,7 +67,7 @@ describe("validateKey", () => {
     // answer with a clear 400 instead of a 500.
     for (const name of AI_PROVIDERS) {
       stubFetch({ status: 401, text: "unauthorized" });
-      await expect(getProvider(name).validateKey("bad-key")).resolves.toBe(false);
+      await expect(getProvider(name).validateKey("bad-key")).resolves.toEqual({ valid: false });
     }
   });
 
@@ -85,7 +85,7 @@ describe("validateKey", () => {
   it("treats Google's 400 API_KEY_INVALID as a rejected key", async () => {
     // Google reports a bad key as 400, unlike the 401 the other two use.
     stubFetch({ status: 400, text: '{"error":{"message":"API key not valid"}}' });
-    await expect(getProvider("google").validateKey("bad")).resolves.toBe(false);
+    await expect(getProvider("google").validateKey("bad")).resolves.toEqual({ valid: false });
   });
 
   it("does not treat an unrelated Google 400 as a rejected key", async () => {
@@ -116,18 +116,31 @@ describe("validateKey", () => {
       };
     }) as unknown as typeof fetch;
 
-    await expect(getProvider("github").validateKey("ghp_token")).resolves.toBe(true);
+    await expect(getProvider("github").validateKey("ghp_token")).resolves.toEqual({
+      valid: true,
+      models: ["openai/gpt-4o-mini", "openai/gpt-4o"],
+    });
     expect(seen).toHaveLength(1);
     expect(seen[0]).toContain("models.github.ai/catalog/models");
   });
 
-  it("flags a GitHub model missing from the catalog as model_missing", async () => {
-    // The configured id isn't in the bare-array catalog -- the same stale-model
-    // guard the other providers get, reading GitHub's shape.
-    stubFetch({ status: 200, body: [{ id: "meta/llama-3.1-8b" }] });
-    await expect(getProvider("github").validateKey("ghp_token")).rejects.toMatchObject({
-      failure: "model_missing",
-    });
+  it("returns each provider's live model list in its own response shape", async () => {
+    stubFetch({ status: 200, body: { models: [{ name: "models/gemini-3.8-flash" }] } });
+    await expect(getProvider("google").validateKey("k")).resolves.toEqual({ valid: true, models: ["gemini-3.8-flash"] });
+    stubFetch({ status: 200, body: { data: [{ id: "gpt-oss-120b" }] } });
+    await expect(getProvider("cerebras").validateKey("k")).resolves.toEqual({ valid: true, models: ["gpt-oss-120b"] });
+  });
+
+  it("asks Anthropic and Google for their whole paged model list", async () => {
+    const seen: string[] = [];
+    globalThis.fetch = vi.fn(async (url: unknown) => {
+      seen.push(String(url));
+      return { ok: true, status: 200, json: async () => ({}), text: async () => "" };
+    }) as unknown as typeof fetch;
+    await getProvider("anthropic").validateKey("k");
+    await getProvider("google").validateKey("k");
+    expect(seen[0]).toContain("limit=1000");
+    expect(seen[1]).toContain("pageSize=1000");
   });
 });
 

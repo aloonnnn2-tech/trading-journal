@@ -44,6 +44,11 @@ export interface Trade {
   /** The limit leg of a stop-limit: the stop triggers, then it rests here. */
   limit_price: number | null;
   time_in_force: TradeTimeInForce;
+  /** False: a resting order filled and the trade card asks for the real fill
+   *  price. Null: nothing to ask. Absent until migration 0063 is applied. */
+  fill_price_confirmed?: boolean | null;
+  /** The resting order's own price when it filled (a stop-limit's stop). 0063. */
+  order_price?: number | null;
 
   entry_price: number | null;
   exit_price: number | null;
@@ -64,6 +69,9 @@ export interface Trade {
   /** True when the user typed a commission by hand, pinning it against the
    *  automatic per-rule recalculation. */
   commission_manual: boolean;
+  /** A fee the user chose on this trade (0056); null = matched automatically.
+   *  Set through PUT /api/trades/[id]/fee, not the general PATCH. */
+  commission_rule_id?: string | null;
 
   /** Net of commission -- see src/lib/trades/compute.ts. */
   dollar_pl: number | null;

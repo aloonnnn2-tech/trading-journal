@@ -208,9 +208,16 @@ export function AccountCashCard({
                 >
                   {/* formatDate, not toLocaleDateString: the latter renders
                       differently under Node's locale and the browser's. */}
-                  <span className="text-zinc-500">{mounted ? formatDate(tx.created_at) : "…"}</span>
+                  <span className="shrink-0 text-zinc-500">{mounted ? formatDate(tx.created_at) : "…"}</span>
+                  {/* The note says where an entry came from -- a monthly
+                      cost's withdrawal otherwise reads as an unexplained loss. */}
+                  {tx.note && (
+                    <span className="min-w-0 truncate text-zinc-600 dark:text-zinc-400" title={tx.note}>
+                      {tx.note}
+                    </span>
+                  )}
                   <span
-                    className={`tnum ml-auto font-mono ${
+                    className={`tnum ml-auto shrink-0 font-mono ${
                       tx.amount < 0 ? "text-loss" : "text-profit"
                     }`}
                   >

@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getTrade } from "@/lib/trades/queries";
 import sharp from "sharp";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
+import { detectImageKind, MIME_BY_KIND } from "@/lib/images/magic";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 const BUCKET = "trade-images";
@@ -34,7 +35,12 @@ const MAX_PIXELS = 50_000_000;
  */
 async function stripMetadata(buffer: Buffer, mime: string): Promise<Buffer> {
   if (mime === "image/gif") {
-    await sharp(buffer, { limitInputPixels: MAX_PIXELS, animated: true }).metadata();
+    // Decoding alone proved only that sharp could read SOMETHING: its
+    // prebuilt binaries also decode SVG, so an SVG (scriptable when opened
+    // directly) labelled image/gif would decode fine and then be stored as
+    // its original bytes. The decoded format must actually be GIF.
+    const meta = await sharp(buffer, { limitInputPixels: MAX_PIXELS, animated: true }).metadata();
+    if (meta.format !== "gif") throw new Error("not a gif");
     return buffer;
   }
 
@@ -108,9 +114,22 @@ export async function POST(
     return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
   }
 
-  const ext = EXT_BY_MIME[file.type] ?? "jpg";
-  const storagePath = `${userId}/${id}/${crypto.randomUUID()}.${ext}`;
   const arrayBuffer = await file.arrayBuffer();
+
+  // The declared type is the client's claim (browsers guess it from the file
+  // name); the first bytes are the file. Everything below -- extension,
+  // re-encode, stored content type -- follows the bytes. A PNG saved as
+  // .jpg still works; an SVG or HTML page labelled image/gif does not.
+  const kind = detectImageKind(new Uint8Array(arrayBuffer));
+  if (!kind) {
+    return NextResponse.json(
+      { error: "That file isn't a JPEG, PNG, WebP or GIF image." },
+      { status: 400 },
+    );
+  }
+  const mime = MIME_BY_KIND[kind];
+  const ext = EXT_BY_MIME[mime] ?? "jpg";
+  const storagePath = `${userId}/${id}/${crypto.randomUUID()}.${ext}`;
 
   // A decode failure here means the bytes are not the image the declared MIME
   // type claims -- the type check above reads the client's header, which is
@@ -118,7 +137,7 @@ export async function POST(
   // reaches storage to be served back later.
   let buffer: Buffer;
   try {
-    buffer = await stripMetadata(Buffer.from(arrayBuffer), file.type);
+    buffer = await stripMetadata(Buffer.from(arrayBuffer), mime);
   } catch {
     return NextResponse.json(
       { error: "That image couldn't be processed. It may be corrupt or too large." },
@@ -128,7 +147,7 @@ export async function POST(
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(storagePath, buffer, { contentType: file.type });
+    .upload(storagePath, buffer, { contentType: mime });
 
   if (uploadError) {
     console.error("[images] upload failed:", uploadError);

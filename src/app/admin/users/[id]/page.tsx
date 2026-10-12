@@ -5,61 +5,24 @@ import { Activity, Clock, MousePointerClick, Sparkles, TrendingUp } from "lucide
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
 import { getUserDetail, getUserDirectory, isAdmin } from "@/lib/tracking/admin-queries";
-import { formatDate, formatDateTime } from "@/lib/dates/format";
+import { formatDate } from "@/lib/dates/format";
+import { buildActivity, getActivityRows, type ActivityRow } from "@/lib/tracking/activity";
+import { countLabelFor } from "@/lib/tracking/events";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
 import { AdminTabs } from "../../admin-tabs";
 import { formatActive, formatRelative } from "../format";
+import { ClicksPanel, ExitsPanel, FeedTable, SessionsTable } from "../../activity/activity-parts";
 
 export const metadata: Metadata = {
   title: "User — Admin",
   robots: { index: false },
 };
 
-// Plain-language names for the event vocabulary, so the feature list reads
-// "Trades created" rather than "trade_created". Anything unlisted falls back
-// to the raw name, so a new event shows up rather than vanishing.
-const EVENT_LABELS: Record<string, string> = {
-  trade_created: "Trades created",
-  trade_edited: "Trades edited",
-  trade_deleted: "Trades deleted",
-  import_used: "Imports",
-  export_used: "Exports",
-  ai_question_answered: "AI questions answered",
-  ai_review_generated: "AI reviews generated",
-  ai_key_added: "AI keys added",
-  screenshot_parsed: "Screenshots scanned",
-  account_transaction_added: "Cash entries added",
-  account_transaction_deleted: "Cash entries deleted",
-  commissions_recalculated: "Commission recalculations",
-  login: "Logins",
-  signup_completed: "Signed up",
-  session_start: "Sessions started",
-  page_view: "Page views",
-  click: "Clicks",
-};
-
-// The raw plumbing events are shown in their own sections, not in the
-// feature list, where they would drown the meaningful actions.
-const PLUMBING = new Set(["click", "page_view", "session_start"]);
-
-function labelFor(eventName: string): string {
-  return EVENT_LABELS[eventName] ?? eventName;
-}
-
-// A compact, safe rendering of event props for the timeline. These are ids,
-// paths and click labels by construction; still, cap the length so one odd
-// row can't stretch the table.
-function describeProps(props: Record<string, unknown>): string {
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(props)) {
-    if (v === null || v === undefined || v === "") continue;
-    parts.push(`${k}: ${String(v)}`);
-  }
-  const s = parts.join(" · ");
-  return s.length > 90 ? `${s.slice(0, 87)}…` : s;
-}
+// Plumbing events are shown in their own sections (sessions, feed, pages),
+// not in the feature list, where they would drown the meaningful actions.
+const PLUMBING = new Set(["click", "page_view", "page_exit", "session_start"]);
 
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -75,10 +38,31 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   const user = directory.find((u) => u.id === id);
   if (!user) notFound();
 
+  // The same readable feed as the Activity tab (src/lib/tracking/events.ts).
+  // Before migration 0062 the activity query doesn't exist; the detail
+  // RPC's recent events still render through the same names then.
+  let rows: ActivityRow[];
+  let sessionsAvailable = true;
+  try {
+    rows = await getActivityRows(supabase, { days: 90, userId: id, limit: 2000 });
+  } catch {
+    sessionsAvailable = false;
+    rows = detail.recentEvents.map((e) => ({
+      createdAt: e.createdAt,
+      userId: id,
+      email: user.email,
+      excluded: user.excluded,
+      sessionId: "",
+      eventName: e.eventName,
+      props: e.props,
+    }));
+  }
+  const activity = buildActivity(rows, new Date(), { feedLimit: 100 });
+
   const features = detail.eventCounts.filter((e) => !PLUMBING.has(e.eventName));
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <AdminTabs active="users" />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -148,7 +132,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-subtle">
               {features.map((e) => (
                 <li key={e.eventName} className="flex items-center justify-between gap-3 py-1.5 text-sm">
-                  <span className="text-zinc-700 dark:text-zinc-300">{labelFor(e.eventName)}</span>
+                  <span className="text-zinc-700 dark:text-zinc-300">{countLabelFor(e.eventName)}</span>
                   <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">{e.count}</span>
                 </li>
               ))}
@@ -156,23 +140,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           )}
         </Card>
 
-        <Card hoverable={false} className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Most clicked</h2>
-          {detail.topClicks.length === 0 ? (
-            <p className="text-sm text-zinc-500">No clicks recorded yet.</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-zinc-100 dark:divide-subtle">
-              {detail.topClicks.map((c) => (
-                <li key={c.label} className="flex items-center justify-between gap-3 py-1.5 text-sm">
-                  <span className="min-w-0 truncate font-mono text-xs text-zinc-700 dark:text-zinc-300" title={c.label}>
-                    {c.label}
-                  </span>
-                  <span className="shrink-0 tabular-nums font-medium text-zinc-900 dark:text-zinc-100">{c.count}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        <ClicksPanel clicks={activity.clicks} showRaw={false} />
 
         <Card hoverable={false} className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Most visited pages</h2>
@@ -193,29 +161,19 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         </Card>
       </div>
 
+      {sessionsAvailable && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <ExitsPanel exits={activity.exits} />
+          <Card hoverable={false} className="flex flex-col gap-3 lg:col-span-2">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Sessions</h2>
+            <SessionsTable sessions={activity.sessions.slice(0, 20)} showUser={false} />
+          </Card>
+        </div>
+      )}
+
       <Card hoverable={false} className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Recent activity</h2>
-        {detail.recentEvents.length === 0 ? (
-          <p className="text-sm text-zinc-500">Nothing recorded yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-sm">
-              <tbody>
-                {detail.recentEvents.map((e, i) => (
-                  <tr key={`${e.createdAt}-${i}`} className="border-b border-zinc-100 last:border-0 dark:border-subtle">
-                    <td className="whitespace-nowrap py-1.5 pr-4 text-xs tabular-nums text-zinc-500">
-                      {formatDateTime(e.createdAt)}
-                    </td>
-                    <td className="whitespace-nowrap py-1.5 pr-4 text-zinc-900 dark:text-zinc-100">
-                      {labelFor(e.eventName)}
-                    </td>
-                    <td className="py-1.5 font-mono text-xs text-zinc-500">{describeProps(e.props)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <FeedTable items={activity.feed} showUser={false} showRaw={false} />
       </Card>
     </div>
   );

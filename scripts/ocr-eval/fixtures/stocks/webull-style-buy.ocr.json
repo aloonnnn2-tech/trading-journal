@@ -1,0 +1,97 @@
+{
+ "lines": [
+  {
+   "text": "NYSE:MSFT",
+   "confidence": 0.9817671047316657,
+   "box": {
+    "x0": 59,
+    "y0": 53,
+    "x1": 368,
+    "y1": 99
+   },
+   "cx": 213.5,
+   "cy": 76,
+   "height": 46
+  },
+  {
+   "text": "Buy Price 412.50",
+   "confidence": 0.9789794944226742,
+   "box": {
+    "x0": 59,
+    "y0": 153,
+    "x1": 388,
+    "y1": 194
+   },
+   "cx": 223.5,
+   "cy": 173.5,
+   "height": 41
+  },
+  {
+   "text": "Protective Stop 398.00",
+   "confidence": 0.9984738230705261,
+   "box": {
+    "x0": 58,
+    "y0": 237,
+    "x1": 496,
+    "y1": 276
+   },
+   "cx": 277,
+   "cy": 256.5,
+   "height": 39
+  },
+  {
+   "text": "Profit Target 440.00",
+   "confidence": 0.977144330739975,
+   "box": {
+    "x0": 56,
+    "y0": 317,
+    "x1": 437,
+    "y1": 361
+   },
+   "cx": 246.5,
+   "cy": 339,
+   "height": 44
+  },
+  {
+   "text": "Filled Qty 25",
+   "confidence": 0.964490661254296,
+   "box": {
+    "x0": 58,
+    "y0": 400,
+    "x1": 302,
+    "y1": 442
+   },
+   "cx": 180,
+   "cy": 421,
+   "height": 42
+  },
+  {
+   "text": "Notional 10312.50",
+   "confidence": 0.9992165530429167,
+   "box": {
+    "x0": 57,
+    "y0": 483,
+    "x1": 409,
+    "y1": 520
+   },
+   "cx": 233,
+   "cy": 501.5,
+   "height": 37
+  },
+  {
+   "text": "Position Opened 2026-06-01",
+   "confidence": 0.9980833186553075,
+   "box": {
+    "x0": 58,
+    "y0": 565,
+    "x1": 614,
+    "y1": 605
+   },
+   "cx": 336,
+   "cy": 585,
+   "height": 40
+  }
+ ],
+ "roiLines": [],
+ "rawText": "NYSE:MSFT\nBuy Price 412.50\nProtective Stop 398.00\nProfit Target 440.00\nFilled Qty 25\nNotional 10312.50\nPosition Opened 2026-06-01"
+}

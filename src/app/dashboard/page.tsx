@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { takeDueMonthlyCosts } from "@/lib/monthly-costs/queries";
 import { getDashboardStats, getPerformanceSeries, getRecentNotes, getRecentTrades } from "@/lib/dashboard/queries";
 import { getEmotionHistory, type EmotionHistoryEntry } from "@/lib/emotions/queries";
 import type { RecentNote, SetupStats } from "@/lib/dashboard/queries";
@@ -25,6 +26,9 @@ import { formatMoney } from "@/lib/format/money";
 export default async function DashboardPage() {
   const userId = await requireUserId();
   const supabase = await createClient();
+  // Monthly costs (0057) that have come due are taken from cash before
+  // the balance is read, so it is right the moment it is shown.
+  await takeDueMonthlyCosts(supabase, userId);
 
   const now = new Date();
   // The stats RPC buckets "today" and "this month" in the user's own timezone,
@@ -57,7 +61,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <TrackPageView event="dashboard_viewed" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -76,7 +80,10 @@ export default async function DashboardPage() {
         <ImportFirstTrade accountBalance={accountBalance.hasTransactions ? accountBalance.balance : null} />
       )}
 
-      <StaggerGrid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Phones: two columns (seven cards one-per-row was a screen and a half
+          of scrolling), with the cash card -- the one with buttons -- across
+          both. */}
+      <StaggerGrid className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
         <AccountCashCard
           initialBalance={accountBalance}
           initialTransactions={accountTransactions}

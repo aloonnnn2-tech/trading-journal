@@ -35,6 +35,8 @@
  *   analytics_events    -> analytics_sessions
  *   ai_conversations    -> user_api_keys  (key_id, on delete set null)
  *   ai_messages         -> ai_conversations
+ *   trades.commission_rule_id -> commission_rules (0056, on delete set null)
+ *   monthly_cost_postings -> monthly_costs, account_transactions (0057)
  * Inserting a child before its parent fails the foreign key, so the parents
  * come first and `trades` sits after `strategies`.
  *
@@ -49,6 +51,7 @@ export const TABLES = [
   "folders",
   "strategies",
   "commission_rules",
+  "monthly_costs",
   "ai_provider_consents",
   // Encrypted with AI_KEY_ENCRYPTION_SECRET (see src/lib/ai-keys/crypto.ts),
   // so a dump alone yields no usable provider key -- but it is still the most
@@ -56,6 +59,8 @@ export const TABLES = [
   // anywhere readable. See .github/workflows/backup.yml, which encrypts.
   "user_api_keys",
   "goals",
+  // Your review of Trading Lens (0064). Depends only on auth.users.
+  "app_reviews",
   "analytics_sessions",
 
   // --- Depends on user_api_keys (0047) ----------------------------------
@@ -79,6 +84,11 @@ export const TABLES = [
   // --- Depends on auth.users / analytics_sessions ----------------------
   "account_transactions",
   "analytics_events",
+
+  // --- Depends on monthly_costs and account_transactions (0057) --------
+  // Which months each cost has been taken for: without it a restore would
+  // take every cost again for the last twelve months.
+  "monthly_cost_postings",
 ] as const;
 
 export type BackupTable = (typeof TABLES)[number];

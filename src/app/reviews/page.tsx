@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -9,6 +8,7 @@ import { listPeriodReviews, stalePeriodReviewIds } from "@/lib/ai-reviews/querie
 import { Card } from "@/components/ui/Card";
 import { ReviewsManager } from "./reviews-manager";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 export default async function ReviewsPage() {
   const userId = await requireUserId();
   const supabase = await createClient();
@@ -16,7 +16,7 @@ export default async function ReviewsPage() {
 
   if (!isPaidUser(settings)) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
         <div>
           <h1
             data-tour-id="tour-reviews"
@@ -37,9 +37,7 @@ export default async function ReviewsPage() {
             your biggest leak, the behaviours behind them, and up to three priorities for
             next time. Runs on your own API key. Free options available.
           </p>
-          <Link href="/#pricing" className="text-sm text-primary hover:underline">
-            See plans
-          </Link>
+          <SeePlansButton feature="period-review" />
         </Card>
       </div>
     );
@@ -60,7 +58,7 @@ export default async function ReviewsPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div>
         <h1
             data-tour-id="tour-reviews"

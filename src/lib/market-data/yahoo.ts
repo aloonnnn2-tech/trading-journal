@@ -1,3 +1,5 @@
+import { isCalendarInterval, type BarInterval } from "./trade-window";
+
 /**
  * Best-effort guess at the symbol Yahoo's chart endpoint expects.
  *
@@ -201,7 +203,7 @@ export interface YahooBarsResult {
  */
 export async function fetchYahooBars(
   symbol: string,
-  request: { interval: "5m" | "60m" | "1d"; period1: number; period2: number },
+  request: { interval: BarInterval; period1: number; period2: number },
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<YahooBarsResult | null> {
   const { interval, period1, period2 } = request;
@@ -210,7 +212,7 @@ export async function fetchYahooBars(
     `?period1=${period1}&period2=${period2}&interval=${interval}` +
     // Pre- and after-market bars for intraday views: plenty of fills happen
     // outside regular hours, and without them those trades have no bar.
-    (interval === "1d" ? "" : "&includePrePost=true");
+    (isCalendarInterval(interval) ? "" : "&includePrePost=true");
   const settled = period2 < nowSeconds - 86_400;
   const res = await fetchWithRetry(url, {
     headers: { "User-Agent": "Mozilla/5.0" },
@@ -230,6 +232,9 @@ export async function fetchYahooBars(
   const bars: YahooBarsResult["bars"] = [];
   for (let i = 0; i < timestamps.length; i++) {
     if (open[i] == null || high[i] == null || low[i] == null || close[i] == null) continue;
+    // Weekly and monthly answers can end with the live period stamped at or
+    // before the last full one; the chart needs strictly rising times.
+    if (bars.length > 0 && timestamps[i] <= bars[bars.length - 1].time) continue;
     bars.push({ time: timestamps[i], open: open[i]!, high: high[i]!, low: low[i]!, close: close[i]! });
   }
   return { bars, timeZone };

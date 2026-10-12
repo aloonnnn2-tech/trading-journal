@@ -4,6 +4,7 @@
     "ticker": "AAPL",
     "direction": "long",
     "entry_price": 278.0,
-    "shares": 10
+    "shares": 10,
+    "order_type": "limit"
   }
 }

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { markApiKeyInvalid } from "./queries";
-import { providerModel, ProviderError } from "./providers";
+import { ProviderError } from "./providers";
 import type { AIProviderName } from "./types";
+import { logError } from "@/lib/observability/scrub";
 
 /**
  * Turns a failed provider call into the right HTTP response, for every route
@@ -53,7 +54,7 @@ export async function providerErrorResponse(
   // revoked key retrying forever.
   const failure = err instanceof ProviderError ? err.failure : "failed";
   const detail = err instanceof ProviderError ? err.detail : String(err);
-  console.error(`[${ctx.logPrefix}] ${ctx.provider} ${failure}:`, detail);
+  logError(`[${ctx.logPrefix}] ${ctx.provider} ${failure}:`, detail);
 
   if (failure === "invalid_key") {
     await markApiKeyInvalid(ctx.supabase, ctx.keyId);
@@ -68,7 +69,7 @@ export async function providerErrorResponse(
   if (failure === "model_missing") {
     return NextResponse.json(
       {
-        error: `${ctx.provider} no longer offers the model this app asks for (${providerModel(ctx.provider)}). Your key is fine — this needs updating in the app.`,
+        error: `${ctx.provider} no longer offers the model this key uses. Your key is fine — press Test on it under Ask → Your keys and it will switch to a model ${ctx.provider} still offers.`,
       },
       { status: 502 },
     );

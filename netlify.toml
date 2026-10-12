@@ -14,9 +14,13 @@
   #   .netlify/.next/cache/turbopack/v16.3.3-<hash>/00000001.sst
   #
   # That is Turbopack's compilation cache. Turbopack records the build
-  # environment in it, and Netlify persists it between builds -- the log says
-  # so directly, "Next.js cache restored" before the build and "Next.js cache
-  # saved" after. It is not served: the same log shows only
+  # environment in it (all of it, whatever the code reads), and Netlify
+  # persists it between builds -- the log says so directly, "Next.js cache
+  # restored" before the build and "Next.js cache saved" after. Since
+  # 2026-10-01 that cache is switched off for builds in next.config.ts, so new
+  # builds write no such file; this omission stays for caches saved before
+  # then (clear Netlify's build cache once to drop them). It is not served:
+  # the same log shows only
   # .netlify/functions-internal/___netlify-server-handler is packaged into the
   # deployed function.
   #

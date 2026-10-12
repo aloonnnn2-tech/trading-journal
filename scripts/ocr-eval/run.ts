@@ -8,13 +8,16 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runOcrPipeline } from "../../src/lib/ocr/pipeline";
-import { AUTOFILL_CONFIDENCE } from "../../src/lib/ocr/types";
+import { AUTOFILL_CONFIDENCE, shouldAutofill } from "../../src/lib/ocr/types";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(ROOT, "fixtures");
 
 interface Expected {
   core: Record<string, unknown>;
+  /** Which broker/platform the screenshot is from, for the per-broker table.
+   *  Set it on every real screenshot Alon supplies. */
+  broker?: string;
 }
 interface FieldReport {
   accuracy: number;
@@ -23,6 +26,18 @@ interface FieldReport {
   missing: number;
   avgConfidenceCorrect: number;
   avgConfidenceWrong: number;
+  /** Of the correct reads, how many the form fills in by itself (the rest
+   *  are suggestions the user has to accept). */
+  autofilledCorrect: number;
+  /** Wrong values the form would have filled in -- the dangerous kind. */
+  autofilledWrong: number;
+}
+interface BrokerReport {
+  images: number;
+  correct: number;
+  total: number;
+  accuracy: number;
+  falsePositives: number;
 }
 interface Report {
   generatedAt: string;
@@ -35,6 +50,7 @@ interface Report {
   avgProcessingMs: number;
   perField: Record<string, FieldReport>;
   perImage: { name: string; correct: number; total: number; falsePos: number; ms: number; engine: string }[];
+  perBroker: Record<string, BrokerReport>;
 }
 interface FieldStat {
   correct: number;
@@ -42,6 +58,8 @@ interface FieldStat {
   missing: number;
   confSumCorrect: number;
   confSumWrong: number;
+  autofilledCorrect: number;
+  autofilledWrong: number;
 }
 
 function valuesMatch(expected: unknown, actual: unknown): boolean {
@@ -84,6 +102,7 @@ async function main() {
     ms: number;
     engine: string;
   }[] = [];
+  const perBroker: Record<string, BrokerReport> = {};
   let totalExpected = 0;
   let totalCorrect = 0;
   let totalDetected = 0;
@@ -93,7 +112,7 @@ async function main() {
   const stat = (k: string): FieldStat => {
     let s = fieldStats.get(k);
     if (!s) {
-      s = { correct: 0, wrong: 0, missing: 0, confSumCorrect: 0, confSumWrong: 0 };
+      s = { correct: 0, wrong: 0, missing: 0, confSumCorrect: 0, confSumWrong: 0, autofilledCorrect: 0, autofilledWrong: 0 };
       fieldStats.set(k, s);
     }
     return s;
@@ -118,9 +137,13 @@ async function main() {
     const expectedCore = expected.core ?? {};
     // A field is "detected" whether it landed in a trade column (core) or was
     // surfaced as an extra (current_price, PnL, ...) — evaluate both.
-    const detected = new Map<string, { value: unknown; confidence: number }>();
-    for (const [k, v] of Object.entries(result.core)) detected.set(k, { value: v!.value, confidence: v!.confidence });
-    for (const e of result.extra) if (!detected.has(e.key)) detected.set(e.key, { value: e.value, confidence: e.confidence });
+    const detected = new Map<string, { value: unknown; confidence: number; autofill: boolean }>();
+    for (const [k, v] of Object.entries(result.core)) {
+      detected.set(k, { value: v!.value, confidence: v!.confidence, autofill: shouldAutofill(v) });
+    }
+    for (const e of result.extra) {
+      if (!detected.has(e.key)) detected.set(e.key, { value: e.value, confidence: e.confidence, autofill: false });
+    }
 
     let correct = 0;
     let wrong = 0;
@@ -137,11 +160,13 @@ async function main() {
       if (valuesMatch(expectedCore[key], det.value)) {
         s.correct++;
         s.confSumCorrect += det.confidence;
+        if (det.autofill) s.autofilledCorrect++;
         correct++;
         totalCorrect++;
       } else {
         s.wrong++;
         s.confSumWrong += det.confidence;
+        if (det.autofill) s.autofilledWrong++;
         wrong++;
       }
     }
@@ -154,12 +179,19 @@ async function main() {
     // isn't counted as a false positive here — it never silently corrupts data.
     let falsePos = 0;
     for (const key of Object.keys(result.core)) {
-      if (!(key in expectedCore) && result.core[key as keyof typeof result.core]!.confidence >= AUTOFILL_CONFIDENCE) {
+      if (!(key in expectedCore) && shouldAutofill(result.core[key as keyof typeof result.core])) {
         falsePos++;
       }
     }
     totalFalsePos += falsePos;
     totalDetected += correct + wrong + falsePos;
+
+    const broker = expected.broker ?? "(not labelled)";
+    const b = (perBroker[broker] ??= { images: 0, correct: 0, total: 0, accuracy: 0, falsePositives: 0 });
+    b.images++;
+    b.correct += correct;
+    b.total += expKeys.length;
+    b.falsePositives += falsePos;
 
     perImage.push({
       name: path.relative(FIXTURES, img).replace(/\\/g, "/"),
@@ -197,11 +229,16 @@ async function main() {
             missing: s.missing,
             avgConfidenceCorrect: round(s.correct ? s.confSumCorrect / s.correct : 0),
             avgConfidenceWrong: round(s.wrong ? s.confSumWrong / s.wrong : 0),
+            autofilledCorrect: s.autofilledCorrect,
+            autofilledWrong: s.autofilledWrong,
           },
         ];
       }),
     ),
     perImage,
+    perBroker: Object.fromEntries(
+      Object.entries(perBroker).map(([k, b]) => [k, { ...b, accuracy: round(b.total ? b.correct / b.total : 0) }]),
+    ),
   };
 
   const jsonPath = path.join(ROOT, "report.json");
@@ -216,6 +253,18 @@ async function main() {
   console.log(`False positives:   ${report.falsePositives}`);
   console.log(`Avg time:          ${report.avgProcessingMs} ms`);
   console.log(`\nReport: ${path.relative(process.cwd(), mdPath)}`);
+
+  // --min=0.95: fail (exit 1) when overall accuracy drops below the bar, or
+  // when any wrong value would be auto-filled. That is the agreed check.
+  const minArg = process.argv.find((a) => a.startsWith("--min="));
+  if (minArg) {
+    const min = Number(minArg.slice(6));
+    const wrongFilled = Object.values(report.perField).reduce((n, f) => n + f.autofilledWrong, 0);
+    if (report.overallAccuracy < min || wrongFilled > 0) {
+      console.error(`FAIL: accuracy ${(report.overallAccuracy * 100).toFixed(1)}% (min ${(min * 100).toFixed(1)}%), wrong values auto-filled: ${wrongFilled}`);
+      process.exitCode = 1;
+    }
+  }
 }
 
 function round(n: number): number {
@@ -227,8 +276,11 @@ function toMarkdown(r: Report): string {
   const fieldRows = Object.entries(r.perField)
     .map(
       ([k, s]) =>
-        `| ${k} | ${pct(s.accuracy)} | ${s.correct} | ${s.wrong} | ${s.missing} | ${s.avgConfidenceCorrect} | ${s.avgConfidenceWrong} |`,
+        `| ${k} | ${pct(s.accuracy)} | ${s.correct} | ${s.autofilledCorrect} | ${s.wrong} | ${s.autofilledWrong} | ${s.missing} | ${s.avgConfidenceCorrect} | ${s.avgConfidenceWrong} |`,
     )
+    .join("\n");
+  const brokerRows = Object.entries(r.perBroker)
+    .map(([k, b]) => `| ${k} | ${b.images} | ${b.correct}/${b.total} | ${pct(b.accuracy)} | ${b.falsePositives} |`)
     .join("\n");
   const imageRows = r.perImage
     .map((i) => `| ${i.name} | ${i.correct}/${i.total} | ${i.falsePos} | ${i.ms} | ${i.engine} |`)
@@ -247,9 +299,21 @@ Generated: ${r.generatedAt}
 
 ## Per-field accuracy
 
-| Field | Accuracy | Correct | Wrong | Missing | Avg conf (correct) | Avg conf (wrong) |
-|---|---|---|---|---|---|---|
+"Filled" counts what the form fills in by itself; the rest of the correct
+reads are suggestions the user accepts. "Wrong, filled" is the number that
+must stay at zero: a wrong value typed into the form for the user.
+
+| Field | Accuracy | Correct | Filled | Wrong | Wrong, filled | Missing | Avg conf (correct) | Avg conf (wrong) |
+|---|---|---|---|---|---|---|---|---|
 ${fieldRows}
+
+## Per broker
+
+Set \`"broker"\` in each fixture's .expected.json (see fixtures/BROKERS.md).
+
+| Broker | Images | Correct | Accuracy | False+ |
+|---|---|---|---|---|
+${brokerRows}
 
 ## Per-image
 
@@ -259,7 +323,11 @@ ${imageRows}
 `;
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Exit explicitly: the OCR worker child process keeps the event loop alive,
+// so without this the script never ends -- which would hang a CI check.
+main()
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

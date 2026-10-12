@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { devServerEnv, loadDevProject } from "./src/lib/env/dev-project";
 
 /**
  * End-to-end tests for the three flows unit tests cannot reach.
@@ -10,17 +11,20 @@ import { defineConfig, devices } from "@playwright/test";
  * data, so they are what these cover. See e2e/README.md.
  */
 
-// Node 20.12+ builtin -- no dotenv dependency. The tests need
-// SUPABASE_SERVICE_ROLE_KEY (to mint and clean up their own throwaway user);
-// `next dev` loads .env.local itself, but this config process does not.
-try {
-  process.loadEnvFile(".env.local");
-} catch {
-  // Absent in CI, where the values come from the environment directly.
-}
+// The suite creates and deletes users, so it runs against the DEV Supabase
+// project only (.env.test.local), never production -- loadDevProject throws
+// if it would. Nothing from .env.local enters this process except
+// production's URL, read only to be refused. See docs/dev-accounts.md.
+const dev = loadDevProject(process.cwd());
 
-const PORT = Number(process.env.E2E_PORT ?? 3000);
-const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
+// Dev keys, Cloudflare's always-pass Turnstile test key, a throwaway
+// encryption secret (src/lib/env/dev-project.ts).
+const serverEnv = devServerEnv(dev);
+// The fixtures (createTestUser etc.) read these from this process.
+Object.assign(process.env, serverEnv);
+
+const PORT = Number(process.env.E2E_PORT ?? 3100);
+const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -28,7 +32,7 @@ export default defineConfig({
   // adding projects here; the specs contain nothing engine-specific.
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 
-  // **Serial, deliberately.** These tests write to a real Supabase project.
+  // **Serial, deliberately.** These tests write to a real (dev) Supabase project.
   // Parallel workers would interleave trade creation and deletion against one
   // database, and a flake caused by another worker's row is the kind of thing
   // that gets a whole suite disabled rather than debugged.
@@ -57,10 +61,15 @@ export default defineConfig({
     video: "off",
   },
 
+  // Always its own server, never one already running: a running `next dev`
+  // reads .env.local, so it talks to PRODUCTION, and the sign-up test would
+  // create a real account there. Next 16 locks .next/dev, so stop your own
+  // dev server before a run (the error says so if you forget).
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    env: serverEnv,
+    reuseExistingServer: false,
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",

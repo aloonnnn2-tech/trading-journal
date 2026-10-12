@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
@@ -8,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { buildTradingReport, resolveReportPeriod, REPORT_PRESETS, type ReportPreset } from "@/lib/report/build";
 import { ReportView } from "./report-view";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 function isPreset(value: string | undefined): value is ReportPreset {
   return value !== undefined && (REPORT_PRESETS as readonly string[]).includes(value);
 }
@@ -24,7 +24,7 @@ export default async function ReportsPage({
 
   if (!isPaidUser(settings)) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
         <div>
           <h1
             data-tour-id="tour-reports"
@@ -45,9 +45,7 @@ export default async function ReportsPage({
             strategy, most frequent mistake, best and worst trade, and your risk profile. Every
             number computed by the app from your own trades. No API key needed.
           </p>
-          <Link href="/#pricing" className="text-sm text-primary hover:underline">
-            See plans
-          </Link>
+          <SeePlansButton feature="reports" />
         </Card>
       </div>
     );
@@ -67,7 +65,7 @@ export default async function ReportsPage({
     : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8 print:max-w-none print:p-0">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8 print:max-w-none print:p-0">
       <div className="print:hidden">
         <h1
             data-tour-id="tour-reports"

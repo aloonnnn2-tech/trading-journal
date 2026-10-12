@@ -5,9 +5,14 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { useAccountThemeToggle } from "@/components/preferences/preferences-provider";
 
 export function LandingHeader() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
+  // Account-aware: a signed-in visitor on a public page saves the choice, as
+  // the app's own toggle does; otherwise the saved theme flips it back on
+  // the next app page.
+  const toggleTheme = useAccountThemeToggle();
   const [mounted, setMounted] = useState(false);
 
   // Standard next-themes hydration guard: resolvedTheme is unknown on the
@@ -50,7 +55,7 @@ export function LandingHeader() {
       </nav>
       <div className="flex items-center gap-3">
         <button
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          onClick={() => void toggleTheme()}
           title="Toggle theme"
           className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         >

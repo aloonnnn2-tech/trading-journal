@@ -7,6 +7,7 @@ import type { WaitlistEntry } from "@/lib/waitlist/admin-queries";
 
 const SOURCE_LABEL: Record<string, string> = {
   "home-paid-card": "Homepage paid card",
+  "app-plans-panel": "In the app (Plans panel)",
 };
 
 export function WaitlistTable({ initialEntries }: { initialEntries: WaitlistEntry[] }) {

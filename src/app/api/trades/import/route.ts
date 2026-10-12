@@ -8,11 +8,13 @@ import {
   deriveStatusAndResult,
   withDerivedFields,
   type ImportTarget,
+  importedFeeSign,
 } from "@/lib/trades/import";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 
 const BATCH_SIZE = 500;
 
@@ -56,6 +58,8 @@ export async function POST(request: Request) {
     "Too many imports in a row. Wait a minute, then try again -- rows already imported were saved.",
   );
   if (limited) return limited;
+  const daily = await enforceDailyCap("import", userId);
+  if (daily) return daily;
 
   const supabase = await createClient();
 
@@ -112,8 +116,11 @@ export async function POST(request: Request) {
   const toInsert: Record<string, unknown>[] = [];
   const rowErrors: { row: number; message: string }[] = [];
 
-  rows.forEach((row, index) => {
-    const result = buildRowFromMapping(row, mapping, fieldDefinitionsById);
+  const built = rows.map((row) => buildRowFromMapping(row, mapping, fieldDefinitionsById));
+  const feeSign = importedFeeSign(built.map((b) => b.core.commission));
+
+  rows.forEach((_row, index) => {
+    const result = built[index];
     if (result.error) {
       if (!result.core.ticker) {
         // No ticker to anchor the row to -- skipped entirely, not inserted.
@@ -141,8 +148,9 @@ export async function POST(request: Request) {
     // rules -- it's the broker's own number for this specific fill.
     const mapped = result.core.commission;
     const isMapped = mapped != null && Number.isFinite(Number(mapped));
+    // In the journal's own sign: see importedFeeSign.
     const commission = isMapped
-      ? Number(mapped)
+      ? Number(mapped) * feeSign
       : resolveCommission(commissionRules, {
           mode: (result.core.mode as string) ?? "trade",
           asset_type: (result.core.asset_type as string) ?? null,
@@ -152,6 +160,7 @@ export async function POST(request: Request) {
           entry_price: (result.core.entry_price as number) ?? null,
           exit_price: (result.core.exit_price as number) ?? null,
           shares: (result.core.shares as number) ?? null,
+          order_type: (result.core.order_type as string) ?? null,
         });
 
     const withDerived = withDerivedFields(result.core, commission);

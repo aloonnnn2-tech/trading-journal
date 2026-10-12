@@ -9,12 +9,12 @@
 //
 // Nothing here reads or writes application state. It only sets an attribute.
 
-/** localStorage key holding the chosen mode. */
+/** localStorage key an older build saved the mode under; now only ever deleted. */
 export const DESIGN_KEY = "tl-design";
 
 export type DesignMode = "v1" | "v2";
 
-// Runs before first paint, so a V2 session never flashes V1 chrome first.
+// Runs before first paint, so a V2 preview never flashes V1 chrome first.
 //
 // Three things matter here and each one is load-bearing:
 //
@@ -26,12 +26,16 @@ export type DesignMode = "v1" | "v2";
 //  - For V1 it *removes* the attribute rather than writing "v1". That keeps
 //    the V1 DOM byte-identical to the default branch, so the flag mechanism
 //    itself cannot show up as a diff when comparing the two.
+//
+// The choice is NOT remembered. It used to be saved to localStorage, and once
+// the dev-only toggle button was deleted (71f3972) a browser that had ever
+// opened V2 stayed warm-brown with no way back -- the same dev server looked
+// different in Chrome and in VS Code's browser. So `?design=v2` now previews
+// V2 for that page load only, and any value an older build saved is deleted.
 const SCRIPT = `(function(){try{
-var k=${JSON.stringify(DESIGN_KEY)},d=document.documentElement,v=null;
-var m=/[?&]design=(v1|v2)/.exec(location.search);
-if(m){v=m[1];try{localStorage.setItem(k,v)}catch(e){}}
-else{try{v=localStorage.getItem(k)}catch(e){}}
-if(v==="v2"){d.dataset.design="v2"}else{d.removeAttribute("data-design")}
+var d=document.documentElement;
+try{localStorage.removeItem(${JSON.stringify(DESIGN_KEY)})}catch(e){}
+if(/[?&]design=v2(&|$)/.test(location.search)){d.dataset.design="v2"}else{d.removeAttribute("data-design")}
 }catch(e){}})()`;
 
 /**

@@ -80,7 +80,10 @@ export type FieldKey =
   | "exchange"
   | "currency"
   | "order_id"
-  | "order_type";
+  | "order_type"
+  | "limit_price"
+  | "stop_price"
+  | "time_in_force";
 
 export type FieldValue = string | number;
 
@@ -93,6 +96,9 @@ export interface DetectedField {
   source: string;
   /** The raw OCR text this value came from (for debugging). */
   raw?: string;
+  /** Found by a pattern or an ambiguous word, not beside its own label.
+   *  Never auto-filled: offered as a suggestion the user accepts. */
+  heuristic?: boolean;
   /** Bounding box of the value's OCR line, in variant-space pixels (see
    * Preprocessed.meta.scale). Used to sample source pixels for disabled/greyed
    * field detection; never sent to the client. */
@@ -132,6 +138,9 @@ export const OCR_CORE_FIELDS = [
   "risk_percent",
   "entry_date",
   "exit_date",
+  "order_type",
+  "limit_price",
+  "time_in_force",
 ] as const satisfies readonly EditableCoreField[];
 
 export type OcrCoreField = (typeof OCR_CORE_FIELDS)[number];
@@ -141,6 +150,10 @@ export interface CoreFieldResult {
   value: FieldValue;
   confidence: number;
   source: string;
+  /** The exact text the reader saw for this value, shown on hover. */
+  raw?: string;
+  /** See DetectedField.heuristic: a suggestion, never auto-filled. */
+  heuristic?: boolean;
 }
 
 /** A validation observation, kept in the debug log. */
@@ -175,6 +188,12 @@ export interface ParseResult {
   extra: { key: FieldKey; label: string; value: FieldValue; confidence: number }[];
   screenshotType: ScreenshotType;
   broker: string | null;
+  /** Plain sentences for the review screen: failed checks, a cancelled
+   *  order, anything the user should look at before saving. */
+  warnings: string[];
+  /** Trades already in the journal that look like this one (same ticker,
+   *  and price/shares when read). Filled in by the API route. */
+  duplicates?: { id: string; entryDate: string | null; status: string }[];
   log: OcrLog;
 }
 
@@ -184,6 +203,13 @@ export interface ParseResult {
  * left blank on the form. The spec's rule: never guess.
  */
 export const AUTOFILL_CONFIDENCE = 0.55;
+
+/** Pre-fill a field only when it is confident AND was read beside its own
+ *  label. A pattern match ("100 @ 94.20") or an ambiguous word ("Sell") is
+ *  offered as a suggestion instead -- never typed into the form for you. */
+export function shouldAutofill(f: { confidence: number; heuristic?: boolean } | undefined): boolean {
+  return !!f && f.confidence >= AUTOFILL_CONFIDENCE && !f.heuristic;
+}
 
 export const FIELD_LABELS: Record<FieldKey, string> = {
   ticker: "Ticker",
@@ -214,6 +240,9 @@ export const FIELD_LABELS: Record<FieldKey, string> = {
   currency: "Currency",
   order_id: "Order ID",
   order_type: "Order Type",
+  limit_price: "Limit Price",
+  stop_price: "Stop Price",
+  time_in_force: "Time in Force",
 };
 
 /** Keys that are numeric (for normalization + validation). */
@@ -232,6 +261,8 @@ export const NUMERIC_FIELDS = new Set<FieldKey>([
   "risk_reward_ratio",
   "current_price",
   "average_price",
+  "limit_price",
+  "stop_price",
 ]);
 
 /** Keys that are ISO dates. */
@@ -241,15 +272,12 @@ export const DATE_FIELDS = new Set<FieldKey>(["entry_date", "exit_date"]);
 export type ApplyCoreFields = Partial<Record<OcrCoreField, FieldValue>>;
 
 /**
- * Client helper: the detected core fields worth auto-filling (confidence at or
- * above the threshold), as [column, value] pairs ready for updateCoreField.
+ * Client helper: the detected core fields worth auto-filling (see
+ * shouldAutofill), as [column, value] pairs ready for updateCoreField.
  */
-export function autofillableCore(
-  result: Pick<ParseResult, "core">,
-  min = AUTOFILL_CONFIDENCE,
-): [OcrCoreField, FieldValue][] {
+export function autofillableCore(result: Pick<ParseResult, "core">): [OcrCoreField, FieldValue][] {
   return (Object.keys(result.core) as OcrCoreField[])
-    .filter((k) => (result.core[k]?.confidence ?? 0) >= min)
+    .filter((k) => shouldAutofill(result.core[k]))
     .map((k) => [k, result.core[k]!.value]);
 }
 

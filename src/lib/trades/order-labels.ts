@@ -37,3 +37,21 @@ export function entryPriceLabels(
       return { entry: "Entry Price", entryTip: "The price the order is waiting at. Becomes the entry price when it fills." };
   }
 }
+
+/** Order types as a person names them. One list for the trade list label and
+ *  its filter, so the two never disagree. */
+export const ORDER_TYPE_LABELS: Record<NonNullable<Trade["order_type"]>, string> = {
+  market: "Market",
+  limit: "Limit",
+  stop: "Stop",
+  stop_limit: "Stop limit",
+  trailing_stop: "Trailing stop",
+  other: "Other",
+};
+
+/** "Limit", "Market on open" (for Other with its own words), or null. */
+export function orderTypeLabel(trade: Pick<Trade, "order_type" | "order_type_other">): string | null {
+  if (!trade.order_type) return null;
+  if (trade.order_type === "other" && trade.order_type_other) return trade.order_type_other;
+  return ORDER_TYPE_LABELS[trade.order_type];
+}

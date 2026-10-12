@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -27,6 +28,8 @@ function isMissingFunction(error: { code?: string } | null): boolean {
   return error?.code === "PGRST202" || error?.code === "42883";
 }
 
+const bodySchema = z.object({ action: z.enum(["start", "decline", "finish"]) }).strict();
+
 export async function POST(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
@@ -38,11 +41,11 @@ export async function POST(request: Request) {
   const limited = await enforceRateLimit(`demo:${userId}`, 10, 60_000, "Too many requests. Wait a moment and try again.");
   if (limited) return limited;
 
-  const body = (await request.json().catch(() => null)) as { action?: unknown } | null;
-  const action = body?.action;
-  if (action !== "start" && action !== "decline" && action !== "finish") {
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
+  const { action } = parsed.data;
 
   const supabase = await createClient();
 

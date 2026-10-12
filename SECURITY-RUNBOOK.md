@@ -20,15 +20,16 @@ code (see `SECURITY.md §1`).
 
 | Limit | Set to |
 | --- | --- |
-| Sign-in / token grants (per IP, 5 min) | 30 |
+| Sign-in / token grants (per IP, 5 min) | **5** (was 30; hardening brief 2026-10-09 asks for 5 per 15 min, and 5 per 5 min is the closest Supabase allows) |
 | Sign-ups (per IP, hour) | 10 |
 | Password recovery emails (per hour) | 10 |
 | Confirmation / magic-link emails (per hour) | 10 |
 | Verification attempts (per 5 min) | 30 |
 | Token refreshes | leave default |
 
-**Confirm:** attempt ~35 quick failed sign-ins from one browser → you should
-start getting rate-limited (the UI shows a "wait and try again" message, which
+**Confirm:** attempt 6 quick failed sign-ins from one browser (wrong password,
+solving the security check each time) → the 6th should be refused and you
+should start getting rate-limited (the UI shows a "wait and try again" message, which
 `src/lib/auth/error-messages.ts` already maps).
 
 ## 2. Minimum password length  → lifts §1 · DONE
@@ -99,6 +100,50 @@ global ceiling you want.
 tell me once it's applied and I'll run a live check that the counter allows N
 requests then blocks the N+1 with a sane `Retry-After`, the same way I verified
 0041.
+
+---
+
+## 6. Lock down users' API keys (after the 2026-09-30 security pass deploys)
+
+Four steps, **in this order**. Order matters because your local app and the
+live site share one database: each step needs the code before it to be live
+first, or the live site stops being able to save or use keys.
+
+1. **Deploy** the branch with `src/lib/ai-keys/vault.ts` in it.
+   - Netlify needs `SUPABASE_SERVICE_ROLE_KEY` set (it already is: admin
+     pages and the cron use it).
+   - *Confirm:* on the live site, ask one question on /ask with a saved key.
+2. **Apply `supabase/migrations/0058_lock_down_api_keys.sql`** in the
+   Supabase SQL editor.
+   - *Confirm:* `npm run migrations:status` shows nothing pending, and /ask
+     still answers on the live site.
+3. **Turn on the bound (`v3`) format.** Set `AI_KEY_WRITE_V3` to `true`:
+   - in Netlify (Site configuration → Environment variables), then redeploy;
+   - in your local `.env.local`, then restart `npm run dev`.
+4. **Upgrade every stored key now:** run `npm run rotate:ai-keys` (dry run,
+   prints counts only), then `npm run rotate:ai-keys -- --apply`.
+   - *Confirm:* a second dry run says every key is already current.
+
+### Recommended once: rotate the encryption secret
+
+`AI_KEY_ENCRYPTION_SECRET` sat in Netlify's saved build cache until the
+build cache was switched off (`next.config.ts`). Nothing shows it was read,
+but rotating makes that cache worthless:
+
+1. In Netlify, open **Deploys → Trigger deploy → Clear cache and deploy site**
+   once, to drop the old saved cache.
+2. Generate a new secret: `openssl rand -base64 32`.
+3. Set `AI_KEY_ENCRYPTION_SECRET_PREVIOUS` to the **old** value and
+   `AI_KEY_ENCRYPTION_SECRET` to the new one, in Netlify **and** in
+   `.env.local` (they must match, byte for byte).
+4. Redeploy, then run `npm run verify:ai-secret` and
+   `npm run rotate:ai-keys -- --apply`.
+5. When a dry run says every key is current, delete
+   `AI_KEY_ENCRYPTION_SECRET_PREVIOUS` from both places.
+
+Rotating `CRON_SECRET` at the same time is cheap (it was in the same cache):
+set a new value in Netlify and redeploy. Its only caller is
+`netlify/functions/auto-execute-cron.mts`, which reads the same variable.
 
 ---
 

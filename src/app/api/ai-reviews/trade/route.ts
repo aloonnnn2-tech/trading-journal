@@ -1,9 +1,12 @@
+import { logError } from "@/lib/observability/scrub";
 import { NextResponse } from "next/server";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { providerErrorResponse } from "@/lib/ai-keys/provider-error-response";
 import { getProvider } from "@/lib/ai-keys/providers";
+import { withRetiredModelRetry } from "@/lib/ai-keys/repick-model";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { getTrade } from "@/lib/trades/queries";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -56,6 +59,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const daily = await enforceDailyCap("ai-review", gate.userId);
+  if (daily) return daily;
+
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -106,22 +112,43 @@ export async function POST(request: Request) {
   const provider = getProvider(ready.provider);
 
   let content;
+  // The model that actually wrote the review, saved with it.
+  let usedModel = ready.model;
   try {
-    content = await generateStructured({
-      provider,
-      apiKey: ready.key,
-      systemPrompt: TRADE_REVIEW_SYSTEM_PROMPT,
-      userPrompt: `${context}\n\nReview this trade now. Reply with the JSON object only.`,
-      schema: tradeReviewContentSchema,
-      schemaHint: TRADE_REVIEW_SCHEMA_HINT,
-      maxTokens: TRADE_REVIEW_MAX_TOKENS,
-      deadlineAt: startedAt + PROVIDER_BUDGET_MS,
-    });
+    // A model the provider has since retired is re-picked and tried once
+    // more, as the chat does, instead of failing until the key is re-tested.
+    content = await withRetiredModelRetry(
+      (model) => {
+        usedModel = model;
+        return generateStructured({
+          provider,
+          apiKey: ready.key,
+          model,
+          systemPrompt: TRADE_REVIEW_SYSTEM_PROMPT,
+          userPrompt: `${context}\n\nReview this trade now. Reply with the JSON object only.`,
+          schema: tradeReviewContentSchema,
+          schemaHint: TRADE_REVIEW_SCHEMA_HINT,
+          maxTokens: TRADE_REVIEW_MAX_TOKENS,
+          deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+        });
+      },
+      {
+        supabase: gate.supabase,
+        userId: gate.userId,
+        keyId: parsed.data.keyId,
+        providerName: ready.provider,
+        provider,
+        key: ready.key,
+        model: ready.model,
+        logPrefix: "ai-review",
+        deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+      },
+    );
   } catch (err) {
     if (err instanceof StructuredOutputError) {
       // Logged, not returned: the detail quotes the model's reply, which was
       // written from this user's journal.
-      console.error(`[ai-review] ${ready.provider} unusable output:`, err.detail);
+      logError(`[ai-review] ${ready.provider} unusable output:`, err.detail);
       return NextResponse.json(
         {
           error:
@@ -147,7 +174,7 @@ export async function POST(request: Request) {
     const review = await saveTradeReview(gate.supabase, gate.userId, {
       tradeId: trade.id,
       provider: ready.provider,
-      model: provider.model,
+      model: usedModel,
       content,
       // What the review was generated against. A later edit moves the trade's
       // updated_at past this, which is how the card knows it is out of date.

@@ -8,6 +8,7 @@ import {
   type ToolDef,
 } from "@/lib/ai-keys/providers/types";
 import { MAX_ROUNDS_PER_MESSAGE, type TierPolicy } from "@/lib/ai-keys/tier";
+import type { KeyInput } from "@/lib/ai-keys/secret";
 import { buildModelMessages } from "./trim";
 import { labelForTool } from "./labels";
 import {
@@ -45,7 +46,22 @@ export interface TurnContext {
   userId: string;
   conversationId: string;
   provider: AIProvider;
-  apiKey: string;
+  apiKey: KeyInput;
+  /** The model the key asks (user_api_keys.model, else the first choice). */
+  model: string;
+  /**
+   * Called once when the provider answers "no such model": re-picks from the
+   * provider's live list and stores the pick. Returns the new model, or null
+   * when nothing better is on offer. The round is retried once with it, so a
+   * model retired since the key was saved costs the user nothing.
+   */
+  healModel?: () => Promise<string | null>;
+  /**
+   * Called when the provider rejects the key itself, to park it -- the review
+   * routes always did this; the chat didn't, so a revoked key stayed listed
+   * as working and failed every question the same way.
+   */
+  onKeyRejected?: () => Promise<void>;
   policy: TierPolicy;
   /** System prompt (overview + instructions), built by the route per turn. */
   system: string;
@@ -204,21 +220,33 @@ export async function runTurn(ctx: TurnContext, emit: Emit): Promise<void> {
   let result: ChatResult;
   try {
     const call = ctx.provider.chatStream ?? adaptOnce(ctx.provider);
-    result = await call(
-      ctx.apiKey,
-      {
-        system: ctx.system,
-        messages: modelMessages,
-        tools: offerTools ? ctx.tools : [],
-        maxTokens: ctx.maxTokens,
-        timeoutMs: Math.min(20_000, remaining),
-      },
-      (delta) => {
-        streamed += delta;
-        emit({ type: "text_delta", messageId: assistantRow.id, text: delta });
-      },
-      ctx.signal,
-    );
+    const ask = (model: string) =>
+      call(
+        ctx.apiKey,
+        {
+          model,
+          system: ctx.system,
+          messages: modelMessages,
+          tools: offerTools ? ctx.tools : [],
+          maxTokens: ctx.maxTokens,
+          timeoutMs: Math.max(1_000, Math.min(20_000, ctx.deadline - Date.now())),
+        },
+        (delta) => {
+          streamed += delta;
+          emit({ type: "text_delta", messageId: assistantRow.id, text: delta });
+        },
+        ctx.signal,
+      );
+    try {
+      result = await ask(ctx.model);
+    } catch (err) {
+      // A retired model is refused before any text, so nothing has been
+      // shown yet: re-pick and ask again, once, if there is time left.
+      const retired = err instanceof ProviderError && err.failure === "model_missing";
+      const healed = retired && streamed === "" && ctx.healModel ? await ctx.healModel() : null;
+      if (!healed || healed === ctx.model || ctx.deadline - Date.now() < 3_000) throw err;
+      result = await ask(healed);
+    }
   } catch (err) {
     // Keep whatever text arrived, marked so it is never mistaken for done.
     // The row was inserted as "interrupted", so even if this update fails
@@ -226,6 +254,7 @@ export async function runTurn(ctx: TurnContext, emit: Emit): Promise<void> {
     await updateMessage(supabase, assistantRow.id, { content: streamed, status: "interrupted" }).catch(() => undefined);
     emit({ type: "message_end", messageId: assistantRow.id, stopReason: "interrupted" });
     const failure = err instanceof ProviderError ? err.failure : "failed";
+    if (failure === "invalid_key") await ctx.onKeyRejected?.().catch(() => undefined);
     emit({
       type: "error",
       code: failure,
@@ -404,7 +433,7 @@ function titleFor(rows: MessageRow[]): string | null {
 /** Non-streaming providers: deliver the text as one delta. */
 function adaptOnce(provider: AIProvider) {
   return async (
-    apiKey: string,
+    apiKey: KeyInput,
     input: Parameters<NonNullable<AIProvider["chatOnce"]>>[1],
     onText: (delta: string) => void,
   ): Promise<ChatResult> => {
@@ -458,9 +487,9 @@ function summarise(output: string): string {
 function messageForFailure(failure: string, err: unknown): string {
   switch (failure) {
     case "invalid_key":
-      return "That provider rejected your API key. Remove it and add a fresh one.";
+      return "That provider rejected your API key, so it's been switched off. Remove it and add a fresh one.";
     case "model_missing":
-      return "That provider no longer offers the model this app asks for.";
+      return "That provider no longer offers the model this key uses. Open “Your keys” and press Test to switch it to one they still offer.";
     case "truncated":
       return "The model ran out of room before it finished. Try a shorter, more specific question.";
     case "unavailable": {

@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { Waves } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { MIN_SEGMENT_TRADES } from "@/lib/segments/engine";
 import { VOL_WINDOW, type RegimeReport } from "@/lib/regime/queries";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Performance split by the market volatility each trade closed in.
 //
 // **Volatility only, deliberately.** The trend axis (bull / bear / sideways
@@ -136,9 +136,7 @@ export function RegimeUpsell() {
         See whether you trade better in calm or volatile markets, measured against the S&amp;P and
         matched to the day you closed each trade. Available on the paid plan.
       </p>
-      <Link href="/#pricing" className="text-sm text-primary hover:underline">
-        See plans
-      </Link>
+      <SeePlansButton feature="analysis-panels" />
     </Card>
   );
 }

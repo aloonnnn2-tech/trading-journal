@@ -4,6 +4,8 @@ import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { buildToolOverview, buildToolSystemPrompt } from "@/lib/ai-keys/context";
 import { getProvider, MAX_ANSWER_TOKENS } from "@/lib/ai-keys/providers";
+import { repickRetiredModel } from "@/lib/ai-keys/repick-model";
+import { markApiKeyInvalid } from "@/lib/ai-keys/queries";
 import { TradeStore, makeToolExecutor, toolDefsFor } from "@/lib/ai-keys/tools";
 import { tierPolicyFor } from "@/lib/ai-keys/tier";
 import { claimTurn, getConversation, releaseTurn } from "@/lib/chat/queries";
@@ -11,7 +13,9 @@ import { encodeEvent, type ChatStreamEvent } from "@/lib/chat/protocol";
 import { runTurn } from "@/lib/chat/turn";
 import { getUserSettings } from "@/lib/settings/queries";
 import { rateLimit } from "@/lib/rate-limit";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { logError } from "@/lib/observability/scrub";
 
 // One turn of a conversation, streamed back as newline-delimited JSON.
 //
@@ -56,6 +60,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const turnLimit = await rateLimit(`chat-turn:${gate.userId}`, TURN_LIMIT, WINDOW_MS);
   if (!turnLimit.ok) return tooMany(turnLimit.retryAfterSeconds);
+  const daily = await enforceDailyCap("chat-turn", gate.userId);
+  if (daily) return daily;
 
   let rawBody: unknown;
   try {
@@ -105,6 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const policy = tierPolicyFor(ready.provider);
+  const keyId = conversation.key_id;
   const userId = gate.userId;
   const supabase = gate.supabase;
 
@@ -152,6 +159,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             conversationId: id,
             provider,
             apiKey: ready.key,
+            model: ready.model,
+            healModel: () =>
+              repickRetiredModel({
+                supabase,
+                userId,
+                keyId,
+                providerName: ready.provider,
+                provider,
+                key: ready.key,
+                model: ready.model,
+                logPrefix: "chat/turn",
+              }),
+            onKeyRejected: () => markApiKeyInvalid(supabase, keyId),
             policy,
             system: buildToolSystemPrompt(overview),
             tools: toolDefsFor(policy),
@@ -171,7 +191,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           });
         }
       } catch (err) {
-        console.error("[chat/turn] failed:", err instanceof Error ? err.message : err);
+        logError("[chat/turn] failed:", err);
         emit({ type: "error", code: "failed", message: "Something went wrong on our side. Try again." });
       } finally {
         await releaseTurn(supabase, id);
@@ -195,7 +215,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       "Content-Type": "application/x-ndjson; charset=utf-8",
       // Every layer between here and the browser is told not to buffer,
       // which is what makes text appear as it is written.
-      "Cache-Control": "no-cache, no-transform",
+      "Cache-Control": "private, no-store, no-transform",
       "X-Accel-Buffering": "no",
     },
   });

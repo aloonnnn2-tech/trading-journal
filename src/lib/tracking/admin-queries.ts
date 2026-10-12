@@ -236,16 +236,6 @@ export async function setUserExcluded(
   if (error) throw error;
 }
 
-// Fails closed: any error (including the is_admin column not existing yet,
-// pre-migration) is treated as "not admin" rather than surfacing a 500 on
-// what should just look like an ordinary access-denied redirect.
-export async function isAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("user_settings")
-    .select("is_admin")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) return false;
-  return data?.is_admin ?? false;
-}
+// The admin check lives with the other roles; re-exported so existing
+// imports keep working. See src/lib/auth/roles.ts.
+export { isAdmin } from "@/lib/auth/roles";

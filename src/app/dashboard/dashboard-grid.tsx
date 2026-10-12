@@ -20,6 +20,8 @@ const SIZE_ICON: Record<WidgetSize, typeof Square> = {
   md: Columns2,
   lg: RectangleHorizontal,
 };
+/** Widgets shown on a phone before "Show all widgets". */
+const PHONE_VISIBLE = 3;
 const SIZE_NAME: Record<WidgetSize, string> = { sm: "Small", md: "Medium", lg: "Large" };
 const NEXT_SIZE: Record<WidgetSize, WidgetSize> = { sm: "md", md: "lg", lg: "sm" };
 const SIZE_SPAN: Record<WidgetSize, string> = {
@@ -64,6 +66,8 @@ export function DashboardGrid({
     [],
   );
 
+  const [showAllOnPhone, setShowAllOnPhone] = useState(false);
+
   function persist(next: DashboardLayout) {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
@@ -106,8 +110,11 @@ export function DashboardGrid({
           Layout changes couldn&apos;t be saved. They&apos;ll revert on reload. Check your connection and move a widget again to retry.
         </p>
       )}
-      {layout.order.map((id) => {
+      {layout.order.map((id, index) => {
         const size = layout.sizes[id] ?? "md";
+        // Phones show the first few widgets in the user's own order; the rest
+        // wait behind "Show all widgets" below, instead of a long scroll.
+        const foldedOnPhone = !showAllOnPhone && index >= PHONE_VISIBLE;
         return (
           <motion.div
             key={id}
@@ -119,7 +126,7 @@ export function DashboardGrid({
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => reorder(id)}
             whileDrag={{ scale: 1.01, boxShadow: "0 16px 40px -16px rgba(0,0,0,0.4)" }}
-            className={`${SIZE_SPAN[size]} rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-5 shadow-[0_1px_2px_rgba(28,27,24,0.05)] ${
+            className={`${SIZE_SPAN[size]} ${foldedOnPhone ? "hidden sm:block" : ""} rounded-xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-4 sm:p-5 shadow-[0_1px_2px_rgba(28,27,24,0.05)] ${
               draggingId === id ? "opacity-50" : ""
             }`}
           >
@@ -131,7 +138,8 @@ export function DashboardGrid({
                 onClick={() => cycleSize(id)}
                 title={`Width: ${SIZE_NAME[size]}. Click for ${SIZE_NAME[NEXT_SIZE[size]]}.`}
                 aria-label={`${WIDGET_TITLES[id]} width: ${SIZE_NAME[size]}. Click for ${SIZE_NAME[NEXT_SIZE[size]]}.`}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                // Width is a desktop idea: every widget is full width on a phone.
+                className="hidden h-6 w-6 items-center justify-center rounded-md text-zinc-400 sm:flex hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
                 {(() => {
                   const Icon = SIZE_ICON[size];
@@ -143,6 +151,15 @@ export function DashboardGrid({
           </motion.div>
         );
       })}
+      {!showAllOnPhone && layout.order.length > PHONE_VISIBLE && (
+        <button
+          type="button"
+          onClick={() => setShowAllOnPhone(true)}
+          className="rounded-lg border border-zinc-300 py-2.5 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-200 sm:hidden"
+        >
+          Show all widgets ({layout.order.length - PHONE_VISIBLE} more)
+        </button>
+      )}
     </div>
   );
 }

@@ -6,9 +6,11 @@ import Link from "next/link";
 // read from usePathname() so this stays a server component.
 const TABS = [
   { href: "/admin/analytics", label: "Analytics", key: "analytics" },
+  { href: "/admin/activity", label: "Activity", key: "activity" },
   { href: "/admin/users", label: "Users", key: "users" },
   { href: "/admin/plans", label: "Plans", key: "plans" },
   { href: "/admin/waitlist", label: "Waitlist", key: "waitlist" },
+  { href: "/admin/reviews", label: "Reviews", key: "reviews" },
 ] as const;
 
 export function AdminTabs({ active }: { active: (typeof TABS)[number]["key"] }) {

@@ -1,0 +1,71 @@
+{
+ "lines": [
+  {
+   "text": "BINANCE:BTCUSDT Long",
+   "confidence": 0.9980324476957321,
+   "box": {
+    "x0": 59,
+    "y0": 45,
+    "x1": 663,
+    "y1": 103
+   },
+   "cx": 361,
+   "cy": 74,
+   "height": 58
+  },
+  {
+   "text": "Entry Price 61250.00",
+   "confidence": 0.9949042946100235,
+   "box": {
+    "x0": 61,
+    "y0": 147,
+    "x1": 464,
+    "y1": 188
+   },
+   "cx": 262.5,
+   "cy": 167.5,
+   "height": 41
+  },
+  {
+   "text": "Stop L0ss 59800.00",
+   "confidence": 0.976415365934372,
+   "box": {
+    "x0": 61,
+    "y0": 229,
+    "x1": 446,
+    "y1": 270
+   },
+   "cx": 253.5,
+   "cy": 249.5,
+   "height": 41
+  },
+  {
+   "text": "Take Profit 64200.00",
+   "confidence": 0.9952117681503296,
+   "box": {
+    "x0": 61,
+    "y0": 313,
+    "x1": 455,
+    "y1": 347
+   },
+   "cx": 258,
+   "cy": 330,
+   "height": 34
+  },
+  {
+   "text": "Size 0.25",
+   "confidence": 0.9998589820331998,
+   "box": {
+    "x0": 60,
+    "y0": 392,
+    "x1": 241,
+    "y1": 432
+   },
+   "cx": 150.5,
+   "cy": 412,
+   "height": 40
+  }
+ ],
+ "roiLines": [],
+ "rawText": "BINANCE:BTCUSDT Long\nEntry Price 61250.00\nStop L0ss 59800.00\nTake Profit 64200.00\nSize 0.25"
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import type { DailyPL } from "@/lib/dashboard/queries";
 import { useMounted } from "@/lib/use-mounted";
@@ -34,6 +35,9 @@ export function MonthlyCalendar({
   const today = new Date();
   const isThisMonth = mounted && today.getFullYear() === year && today.getMonth() === month;
   const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+  // A tapped day. The tooltip (title) is mouse-only; on a phone this line
+  // under the grid is the only way to read a day's exact figure.
+  const [picked, setPicked] = useState<number | null>(null);
 
   const cells: (number | null)[] = [
     ...Array.from({ length: firstWeekday }, () => null),
@@ -78,9 +82,12 @@ export function MonthlyCalendar({
                   ? `color-mix(in srgb, var(--chart-neg) ${Math.round(strength * 100)}%, transparent)`
                   : "color-mix(in srgb, var(--chart-muted) 20%, transparent)";
           return (
-            <motion.div
+            <motion.button
+              type="button"
               key={i}
               whileHover={{ scale: 1.06 }}
+              onClick={() => setPicked(pl !== undefined ? day : null)}
+              aria-label={pl !== undefined ? `${MONTH_NAMES[month]} ${day}: ${formatMoney(pl, { sign: "always" })}` : undefined}
               className={`tnum cursor-default rounded-md py-1.5 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 ${
                 isToday ? "ring-1 ring-primary" : ""
               }`}
@@ -88,10 +95,18 @@ export function MonthlyCalendar({
               title={pl !== undefined ? formatMoney(pl, { sign: "always" }) : undefined}
             >
               {day}
-            </motion.div>
+            </motion.button>
           );
         })}
       </div>
+      {picked !== null && byDay.has(picked) && (
+        <p role="status" className="mt-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
+          {MONTH_NAMES[month]} {picked}:{" "}
+          <span className={`tnum font-mono ${(byDay.get(picked) ?? 0) >= 0 ? "text-profit" : "text-loss"}`}>
+            {formatMoney(byDay.get(picked), { sign: "always" })}
+          </span>
+        </p>
+      )}
     </div>
   );
 }

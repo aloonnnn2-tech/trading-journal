@@ -1,0 +1,227 @@
+{
+ "lines": [
+  {
+   "text": "AAPL$110",
+   "confidence": 0.9961821064352989,
+   "box": {
+    "x0": 39,
+    "y0": 67,
+    "x1": 140,
+    "y1": 88
+   },
+   "cx": 89.5,
+   "cy": 77.5,
+   "height": 21
+  },
+  {
+   "text": "09 Sep 22 (W) Call 100",
+   "confidence": 0.9869046238335696,
+   "box": {
+    "x0": 36,
+    "y0": 91,
+    "x1": 168,
+    "y1": 108
+   },
+   "cx": 102,
+   "cy": 99.5,
+   "height": 17
+  },
+  {
+   "text": "MarketValue(USD)",
+   "confidence": 0.9865027517080307,
+   "box": {
+    "x0": 4,
+    "y0": 131,
+    "x1": 137,
+    "y1": 148
+   },
+   "cx": 70.5,
+   "cy": 139.5,
+   "height": 17
+  },
+  {
+   "text": "OpenP&L",
+   "confidence": 0.9884143642016819,
+   "box": {
+    "x0": 394,
+    "y0": 141,
+    "x1": 464,
+    "y1": 158
+   },
+   "cx": 429,
+   "cy": 149.5,
+   "height": 17
+  },
+  {
+   "text": "667.50 -332.50-33.25%",
+   "confidence": 0.9988731429690406,
+   "box": {
+    "x0": 5,
+    "y0": 156,
+    "x1": 465,
+    "y1": 184
+   },
+   "cx": 235,
+   "cy": 170,
+   "height": 28
+  },
+  {
+   "text": "Quantity Average Price Total Cost",
+   "confidence": 0.997345860531697,
+   "box": {
+    "x0": 4,
+    "y0": 207,
+    "x1": 466,
+    "y1": 225
+   },
+   "cx": 235,
+   "cy": 216,
+   "height": 18
+  },
+  {
+   "text": "1 9.70 1,000.00",
+   "confidence": 0.9972127924362818,
+   "box": {
+    "x0": 4,
+    "y0": 230,
+    "x1": 465,
+    "y1": 248
+   },
+   "cx": 234.5,
+   "cy": 239,
+   "height": 18
+  },
+  {
+   "text": "Mid Price: 7.45 +2.95 +65.56%",
+   "confidence": 0.9658393900969933,
+   "box": {
+    "x0": 6,
+    "y0": 271,
+    "x1": 216,
+    "y1": 285
+   },
+   "cx": 111,
+   "cy": 278,
+   "height": 14
+  },
+  {
+   "text": "XBXO 30 10.00 10.10 35 XBXO",
+   "confidence": 0.9975251644849777,
+   "box": {
+    "x0": 11,
+    "y0": 313,
+    "x1": 459,
+    "y1": 331
+   },
+   "cx": 235,
+   "cy": 322,
+   "height": 18
+  },
+  {
+   "text": "Take-Profit Order",
+   "confidence": 0.9554323156674703,
+   "box": {
+    "x0": 5,
+    "y0": 404,
+    "x1": 188,
+    "y1": 426
+   },
+   "cx": 96.5,
+   "cy": 415,
+   "height": 22
+  },
+  {
+   "text": "Limit Price 10.50",
+   "confidence": 0.9945772279392588,
+   "box": {
+    "x0": 5,
+    "y0": 454,
+    "x1": 280,
+    "y1": 473
+   },
+   "cx": 142.5,
+   "cy": 463.5,
+   "height": 19
+  },
+  {
+   "text": "Stop-Loss Order ①",
+   "confidence": 0.9383800801108865,
+   "box": {
+    "x0": 6,
+    "y0": 518,
+    "x1": 177,
+    "y1": 541
+   },
+   "cx": 91.5,
+   "cy": 529.5,
+   "height": 23
+  },
+  {
+   "text": "Stop Price 9.50",
+   "confidence": 0.9961216747760773,
+   "box": {
+    "x0": 5,
+    "y0": 566,
+    "x1": 277,
+    "y1": 589
+   },
+   "cx": 141,
+   "cy": 577.5,
+   "height": 23
+  },
+  {
+   "text": "Time-in-Force Day",
+   "confidence": 0.998535652955373,
+   "box": {
+    "x0": 4,
+    "y0": 638,
+    "x1": 280,
+    "y1": 663
+   },
+   "cx": 142,
+   "cy": 650.5,
+   "height": 25
+  },
+  {
+   "text": "Contracts",
+   "confidence": 0.9976908564567566,
+   "box": {
+    "x0": 6,
+    "y0": 683,
+    "x1": 90,
+    "y1": 701
+   },
+   "cx": 48,
+   "cy": 692,
+   "height": 18
+  },
+  {
+   "text": "x100 Shares",
+   "confidence": 0.9725275364789095,
+   "box": {
+    "x0": 8,
+    "y0": 710,
+    "x1": 90,
+    "y1": 727
+   },
+   "cx": 49,
+   "cy": 718.5,
+   "height": 17
+  },
+  {
+   "text": "Place Order",
+   "confidence": 0.9970827861265703,
+   "box": {
+    "x0": 186,
+    "y0": 972,
+    "x1": 283,
+    "y1": 995
+   },
+   "cx": 234.5,
+   "cy": 983.5,
+   "height": 23
+  }
+ ],
+ "roiLines": [],
+ "rawText": "AAPL$110\n09 Sep 22 (W) Call 100\nMarketValue(USD)\nOpenP&L\n667.50 -332.50-33.25%\nQuantity Average Price Total Cost\n1 9.70 1,000.00\nMid Price: 7.45 +2.95 +65.56%\nXBXO 30 10.00 10.10 35 XBXO\nTake-Profit Order\nLimit Price 10.50\nStop-Loss Order ①\nStop Price 9.50\nTime-in-Force Day\nContracts\nx100 Shares\nPlace Order"
+}

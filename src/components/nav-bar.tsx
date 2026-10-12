@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useAccountThemeToggle } from "@/components/preferences/preferences-provider";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sun, Moon, HelpCircle, UserCircle, ShieldCheck, ChevronDown } from "lucide-react";
@@ -11,55 +12,9 @@ import { endSession } from "@/lib/tracking/useAnalytics";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { startTour } from "@/components/tour/tour-overlay";
+import { ACCOUNT_MENU_GROUP, NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId, type NavLink } from "@/lib/nav/links";
 
-// Twelve flat links became six top-level items.
-//
-// The old list was every page in the app, side by side, in the order they
-// happened to be built -- so Goals, Reports and AI Reviews arrived as equal
-// peers to Commissions, and a new user met twelve choices before doing
-// anything. These three stay direct because they are the daily path; the rest
-// group by the question they answer.
-
-interface NavLink {
-  href: string;
-  label: string;
-  /** Shown under the label in a dropdown, so a group is browsable without
-   *  having to already know what each page is. */
-  hint?: string;
-}
-
-const PRIMARY_LINKS: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/trades", label: "Trades" },
-  { href: "/strategies", label: "Strategies" },
-];
-
-const NAV_GROUPS: { label: string; links: NavLink[] }[] = [
-  {
-    label: "Analysis",
-    links: [
-      { href: "/analytics", label: "Analytics", hint: "Equity, drawdown, risk, market conditions" },
-      { href: "/insights", label: "Insights", hint: "Patterns and recurring mistakes" },
-      { href: "/goals", label: "Goals", hint: "Commitments scored from your trades" },
-      { href: "/reports", label: "Reports", hint: "A printable weekly or monthly summary" },
-      { href: "/emotions", label: "Emotions", hint: "How your mood tracks your results" },
-    ],
-  },
-  {
-    label: "AI",
-    links: [
-      { href: "/ask", label: "Ask", hint: "Questions about your own journal" },
-      { href: "/reviews", label: "AI Reviews", hint: "Your week or month, critiqued" },
-    ],
-  },
-  {
-    label: "Setup",
-    links: [
-      { href: "/fields", label: "Fields", hint: "Track anything the app doesn't already" },
-      { href: "/commissions", label: "Commissions", hint: "Broker fees, so P/L is always net" },
-    ],
-  },
-];
+// The menu's links live in src/lib/nav/links.ts, shared with the guided tour.
 
 /** The guided tours, shared by the help menu (>=1000px) and the account menu
  *  (below it), so the two cannot drift apart. */
@@ -124,7 +79,7 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
   return (
     <Link
       href={link.href}
-      data-tour-id={`nav-${link.href.slice(1)}`}
+      data-tour-id={navLinkTourId(link.href)}
       className={`relative shrink-0 px-3 py-3.5 text-[13px] transition-colors ${
         active
           ? "font-medium text-zinc-900 dark:text-zinc-50"
@@ -146,7 +101,9 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
   const pathname = usePathname();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
+  // Saves to the account too, so every browser signed in matches.
+  const toggleTheme = useAccountThemeToggle();
   const [accountOpen, setAccountOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -234,7 +191,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
     // chrome, and it appears on every page, so hiding it here covers all of
     // them rather than only /reports.
     <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-subtle bg-white/85 dark:bg-background/85 backdrop-blur-md print:hidden">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 sm:flex-nowrap sm:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 sm:flex-nowrap sm:px-8">
         <Link
           href="/dashboard"
           className="order-1 flex shrink-0 items-center gap-2.5 py-3.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
@@ -242,12 +199,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
           <BrandMark className="h-6 w-6" />
           <span className="hidden sm:inline">Trading Lens</span>
         </Link>
-        {/* Below `sm`, this wraps onto its own full-width row instead of the
-            horizontal-scroll-with-no-affordance it used to be -- every other
-            multi-item row in this app (status/folder/strategy tabs on
-            /trades) already wraps the same way, this just brings the primary
-            nav in line with that pattern. */}
-        <nav className="order-3 flex w-full flex-wrap items-center gap-1 sm:order-2 sm:w-auto sm:min-w-0 sm:flex-nowrap">
+        {/* Below `sm` (phones) these links live in the bottom tab bar and
+            its More sheet (components/mobile/mobile-tab-bar.tsx) instead: here
+            they wrapped onto two rows and took ~155px off every screen. */}
+        <nav className="order-3 hidden w-full items-center gap-1 sm:order-2 sm:flex sm:w-auto sm:min-w-0 sm:flex-nowrap">
           {PRIMARY_LINKS.map((link) => (
             <NavItem key={link.href} link={link} active={isActive(pathname, link.href)} />
           ))}
@@ -261,7 +216,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                 data-nav-group
                 // Setup folds into the account menu below 1000px: it is the
                 // least-used of the three groups and the one that collided.
-                className={`relative shrink-0 ${group.label === "Setup" ? "hidden nav:block" : ""}`}
+                className={`relative shrink-0 ${group.label === ACCOUNT_MENU_GROUP ? "hidden nav:block" : ""}`}
               >
                 <button
                   type="button"
@@ -269,6 +224,9 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                   // pointer merely crosses the bar on its way somewhere else,
                   // and is unreachable by touch.
                   onClick={() => setOpenGroup(open ? null : group.label)}
+                  // The tour points here when its next stop is inside this
+                  // menu (src/lib/tour/nav-target.ts).
+                  data-tour-id={navGroupTourId(group.label)}
                   aria-expanded={open}
                   aria-haspopup="true"
                   className={`relative flex items-center gap-1 px-3 py-3.5 text-[13px] transition-colors ${
@@ -299,7 +257,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                       <Link
                         key={link.href}
                         href={link.href}
-                        data-tour-id={`nav-${link.href.slice(1)}`}
+                        data-tour-id={navLinkTourId(link.href)}
                         // Closed here rather than in an effect watching the
                         // pathname: clicking a link to the page you are
                         // already on produces no navigation, so an effect
@@ -364,7 +322,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
             )}
           </div>
           <button
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            onClick={() => void toggleTheme()}
             title="Toggle theme"
             className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >
@@ -376,7 +334,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
               running "Setup" through the help icon at 850px (issue 1 of
               docs/design-audit.md). Above 1000px the menu holds only account
               settings and sign-out, and everything else stays in the bar. */}
-          <div data-nav-group className="relative">
+          {/* nav-account: the tour points here for a Setup page below the
+              nav breakpoint (src/lib/tour/nav-target.ts). On the wrapper, as
+              the button itself already carries nav-help. */}
+          <div data-nav-group data-tour-id="nav-account" className="relative">
             <button
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
@@ -413,17 +374,28 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                     Plan, AI keys, data export, deletion
                   </span>
                 </Link>
+                <Link
+                  href="/review?from=account_menu"
+                  data-track="nav-review"
+                  onClick={() => setAccountOpen(false)}
+                  className="block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+                    Rate Trading Lens
+                  </span>
+                  <span className="block text-[11px] text-zinc-500">1–5 stars and a comment, any time</span>
+                </Link>
 
                 {/* Only below the nav breakpoint, where these are not in the
                     bar. Hidden with CSS rather than a width check in JS so
                     the server and the client render the same markup. */}
                 <div className="nav:hidden">
                   <div className="my-1 border-t border-zinc-200 dark:border-subtle" />
-                  {NAV_GROUPS.filter((g) => g.label === "Setup").flatMap((g) => g.links).map((link) => (
+                  {NAV_GROUPS.filter((g) => g.label === ACCOUNT_MENU_GROUP).flatMap((g) => g.links).map((link) => (
                     <Link
                       key={link.href}
                       href={link.href}
-                      data-tour-id={`nav-${link.href.slice(1)}`}
+                      data-tour-id={navLinkTourId(link.href)}
                       onClick={() => setAccountOpen(false)}
                       className={`block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
                         isActive(pathname, link.href)

@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
+import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-offer";
 import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
+import { navDirections, type NavDirections } from "@/lib/tour/nav-target";
+import { nextStep, openerOf, placeStep, prevStep, resumeStep, type EngineContext } from "@/lib/tour/engine";
+import { QUICK_TRADE_CLOSED_EVENT, TRADE_CREATED_EVENT } from "@/lib/tour/signals";
 import { WelcomeModal } from "./welcome-modal";
+import { usePreferences } from "@/components/preferences/preferences-provider";
 import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
 
 // The guided tour.
@@ -26,6 +32,12 @@ import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
 // instead of rendering nothing until the target appears.
 //
 // **Progress is saved.** A reload resumes the step you were on.
+//
+// **It never changes the page, and never guesses** (2026-10-07). Next, Back,
+// Resume and starting a tour all point the way -- the menu item, or a link
+// to the trade it created -- and the user clicks. Tasks finish on a signal
+// from the form (src/lib/tour/signals.ts), not on a timer. Which step comes
+// next is decided by src/lib/tour/engine.ts, which is tested on its own.
 
 const REPLAY_EVENT = "trading-lens:replay-tour";
 const STORAGE_KEY = "tl-tour";
@@ -151,6 +163,10 @@ type Phase = "idle" | "demo-offer" | "welcome" | "paid-offer" | "touring";
 interface Saved {
   tour: TourName;
   step: number;
+  /** Task steps already done, so Back and Resume never ask for them again. */
+  done?: number[];
+  /** The trade created during the tour; its page's steps link to it. */
+  tradePath?: string | null;
 }
 
 function readSaved(): Saved | null {
@@ -159,32 +175,26 @@ function readSaved(): Saved | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Saved>;
     if (!isTourName(parsed.tour) || typeof parsed.step !== "number") return null;
-    return { tour: parsed.tour, step: parsed.step };
+    // Older saves have neither field; both default to "nothing done yet".
+    const done = Array.isArray(parsed.done) ? parsed.done.filter((n): n is number => typeof n === "number") : [];
+    const tradePath = typeof parsed.tradePath === "string" && parsed.tradePath.startsWith("/trades/") ? parsed.tradePath : null;
+    return { tour: parsed.tour, step: parsed.step, done, tradePath };
   } catch {
     return null;
   }
 }
 
-// How long a task step's target may be gone before we decide the form was
-// closed rather than submitted. Creating a trade closes the modal first and
-// lands on the trade page a moment later; if that moment runs past this, the
-// route change still carries the tour forward to the trade-page step, so the
-// only cost of guessing wrong is a brief flash of the previous card.
-const RETREAT_MS = 1500;
 // How long an ordinary step's target may be missing before the card says so.
 // Counted only while the page is actually there -- see pageStillLoading().
 const MISSING_MS = 2000;
 
 /**
- * Is the page still on its way, as opposed to loaded and missing the target?
+ * Is the page still loading, as opposed to loaded and missing the target?
  *
  * "Can't find this on the page right now" used to flash for a second on
  * ordinary steps and then clear, because the 2s clock above ran through two
  * windows where the target cannot exist yet:
  *
- *  - a navigation the tour started, still in flight. The previous page is
- *    still on screen, and the next step's target is on the page being loaded.
- *    /dashboard took 4s on a cold server, so any slow load tripped it.
  *  - a route loading skeleton (a loading.tsx). The URL has already switched
  *    and the tour thinks it has arrived, but the skeleton has no targets; they
  *    appear when the real page streams in. /analytics gained one in Phase 1B
@@ -193,23 +203,32 @@ const MISSING_MS = 2000;
  * Every loading.tsx marks its root with data-route-loading for this. A new
  * one that forgets will bring the flash back on its route, and nothing else.
  */
-function pageStillLoading(navInFlight: boolean): boolean {
-  return navInFlight || document.querySelector("[data-route-loading]") !== null;
+function pageStillLoading(): boolean {
+  return document.querySelector("[data-route-loading]") !== null;
 }
-// A navigation the tour started that has not landed yet. Cleared on arrival
-// or after this long, so a failed push cannot leave the tour waiting forever.
-const PENDING_NAV_MS = 8000;
+
+/** On screen with a box -- a hidden duplicate (see findTarget) doesn't count. */
+function isShown(targetId: string): boolean {
+  const m = measure(targetId);
+  return !!m && m.width > 0 && m.height > 0;
+}
 
 const CARD_W = 340;
 const CARD_H = 230; // an estimate, used only to pick a side
 const GAP = 16;
 const PAD = 8; // spotlight padding around the target
 
-const spring = { type: "spring", stiffness: 320, damping: 32 } as const;
+// The spotlight, ring and card glide between targets in 0.2s. A spring took
+// about half a second to settle, which read as lag (2026-09-29 follow-up).
+const GLIDE = { type: "tween", ease: "easeOut", duration: 0.2 } as const;
+const NO_GLIDE = { duration: 0 } as const;
 
 export function TourOverlay() {
   const pathname = usePathname();
   const router = useRouter();
+  // Setup -> Settings "Tour offers": off hides the paid-tour nudge card. A
+  // tour the user starts themselves (help menu) is unaffected.
+  const { prefs } = usePreferences();
 
   const [tour, setTour] = useState<TourName>("basics");
   const steps = TOURS[tour];
@@ -219,14 +238,47 @@ export function TourOverlay() {
 
   const [rect, setRect] = useState<Rect | null>(null);
   const [offRoute, setOffRoute] = useState(false);
+  // The next stop is on another page, and the tour is waiting for the user to
+  // go there through the menu (Alon, 2026-09-29: the tour used to move them
+  // itself, so fast they couldn't follow where they were). `navInfo` says what
+  // to point at and how to word it; see src/lib/tour/nav-target.ts.
+  const [navPending, setNavPending] = useState(false);
+  const [navInfo, setNavInfo] = useState<NavDirections | null>(null);
+  // The user has clicked the menu item and the page is on its way: the card
+  // says "Opening…" straight away rather than repeating "Click …".
+  const [navClicked, setNavClicked] = useState(false);
+  // Pointing the way back rather than forward: the card says "Back: …".
+  const [goingBack, setGoingBack] = useState(false);
+  // Task steps done in this run, and the trade the tour created.
+  const [doneTasks, setDoneTasks] = useState<number[]>([]);
+  const [tradePath, setTradePath] = useState<string | null>(null);
+  // Quick trade said "created": its page is on its way, however long it takes.
+  const [awaitingTrade, setAwaitingTrade] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
+  const glide = reduceMotion ? NO_GLIDE : GLIDE;
   const [missing, setMissing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
 
   const checkedRef = useRef(false);
   const pathnameRef = useRef(pathname);
-  const pendingPathRef = useRef<string | null>(null);
   const rectRef = useRef<Rect | null>(null);
+  // A target that must disappear before it counts as "shown" again. Set when
+  // Quick trade signals it was closed: the form fades out for a moment, and
+  // its still-visible field would otherwise complete "Click Quick trade" in
+  // the next frame and jump straight back into the closed form's step.
+  const leavingRef = useRef<string | null>(null);
+
+  // What the engine needs to know about right now.
+  const engineContext = useCallback(
+    (): EngineContext => ({
+      pathname: pathnameRef.current,
+      isShown,
+      doneTasks: new Set(doneTasks),
+      tradePath,
+    }),
+    [doneTasks, tradePath],
+  );
 
   useEffect(() => {
     const read = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -235,111 +287,123 @@ export function TourOverlay() {
     return () => window.removeEventListener("resize", read);
   }, []);
 
-  const navigateTo = useCallback(
-    (path: string) => {
-      if (path === pathnameRef.current) return;
-      pendingPathRef.current = path;
-      router.push(path);
-      setTimeout(() => {
-        if (pendingPathRef.current === path) pendingPathRef.current = null;
-      }, PENDING_NAV_MS);
-    },
-    [router],
-  );
+  // One analytics event per tour instead of a click-by-click trail (Alon,
+  // 2026-09-29): while the tour or its questions are on screen, <html> carries
+  // data-tour="active" and click capture and page views stand down (see
+  // isTourActive in lib/tracking/click-capture.ts). Not while paused -- the
+  // user has wandered off to do their own thing -- and not for the paid-tour
+  // offer, a corner card the user works around rather than a tour: flagging
+  // it muted all their ordinary use while it sat there.
+  const { track } = useAnalytics();
+  useEffect(() => {
+    const root = document.documentElement;
+    const inTour = phase === "demo-offer" || phase === "welcome" || phase === "touring";
+    if (inTour && !offRoute) root.dataset.tour = "active";
+    else delete root.dataset.tour;
+    return () => {
+      delete root.dataset.tour;
+    };
+  }, [phase, offRoute]);
 
-  const finish = useCallback(() => {
+  const finish = useCallback((outcome: "completed" | "skipped") => {
+    if (phase === "touring" || phase === "welcome") {
+      track(outcome === "completed" ? "tour_completed" : "tour_skipped", {
+        tour,
+        ...(outcome === "completed" ? { steps: steps.length } : { atStep: phase === "welcome" ? 0 : stepIndex + 1 }),
+      });
+    }
     setPhase("idle");
     setOffRoute(false);
     setMissing(false);
+    setAwaitingTrade(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
     fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {});
+  }, [phase, tour, steps.length, stepIndex, track]);
+
+  // Show a step: on this page, or pointing the way to it ("go"). Never a
+  // navigation -- see the header.
+  const show = useCallback((index: number, mode: "here" | "go", back = false) => {
+    setStepIndex(index);
+    setNavPending(mode === "go");
+    setGoingBack(back && mode === "go");
+    setOffRoute(false);
   }, []);
 
-  // The next step that can actually be shown from here: one the tour can
-  // navigate to, one that lives on this route, or a route-less one whose
-  // target is on screen. Steps that only exist inside a closed modal, or on a
-  // trade page we are not on, are passed over.
+  const markDone = useCallback((...indexes: (number | null)[]) => {
+    setDoneTasks((prev) => {
+      const add = indexes.filter((i): i is number => i !== null && !prev.includes(i));
+      return add.length ? [...prev, ...add] : prev;
+    });
+  }, []);
+
   const goForward = useCallback(
-    (from: number) => {
-      const here = pathnameRef.current;
-      for (let j = from + 1; j < steps.length; j++) {
-        const s = steps[j];
-        if (s.path) {
-          setStepIndex(j);
-          navigateTo(s.path);
-          return;
-        }
-        if (s.pathPrefix) {
-          if (here.startsWith(s.pathPrefix)) {
-            setStepIndex(j);
-            return;
-          }
-          continue;
-        }
-        if (measure(s.targetId)) {
-          setStepIndex(j);
-          return;
-        }
-      }
-      finish();
+    (from: number, ctx: EngineContext = engineContext()) => {
+      const m = nextStep(steps, from, ctx);
+      if (m) show(m.index, m.mode);
+      else finish("completed");
     },
-    [steps, navigateTo, finish],
+    [steps, engineContext, show, finish],
   );
 
   const goBack = useCallback(
     (from: number) => {
-      const here = pathnameRef.current;
-      for (let j = from - 1; j >= 0; j--) {
-        const s = steps[j];
-        if (s.path) {
-          setStepIndex(j);
-          navigateTo(s.path);
-          return;
-        }
-        if (s.pathPrefix) {
-          if (here.startsWith(s.pathPrefix)) {
-            setStepIndex(j);
-            return;
-          }
-          continue;
-        }
-        if (measure(s.targetId)) {
-          setStepIndex(j);
-          return;
-        }
-      }
+      const m = prevStep(steps, from, engineContext());
+      if (m) show(m.index, m.mode, true);
     },
-    [steps, navigateTo],
+    [steps, engineContext, show],
   );
 
   const begin = useCallback(
     (which: TourName) => {
-      const first = TOURS[which][0];
       setTour(which);
-      setStepIndex(0);
-      setOffRoute(false);
+      setDoneTasks([]);
+      setTradePath(null);
+      setAwaitingTrade(null);
       setMissing(false);
       setPhase("touring");
-      if (first.path) navigateTo(first.path);
+      // From the ? menu on any page: point the way to the first stop.
+      const first = placeStep(TOURS[which], 0, { pathname: pathnameRef.current, isShown, doneTasks: new Set(), tradePath: null });
+      show(0, first?.mode ?? "here");
     },
-    [navigateTo],
+    [show],
   );
 
-  // Resume from the paused pill: the current step if the tour can navigate
-  // to it, otherwise the next one it can.
+  // Resume from the paused pill: this step, or the next one that can be shown.
   const resume = useCallback(() => {
-    for (let j = stepIndex; j < steps.length; j++) {
-      if (steps[j].path) {
-        setStepIndex(j);
-        setOffRoute(false);
-        navigateTo(steps[j].path!);
-        return;
-      }
-    }
-    finish();
-  }, [stepIndex, steps, navigateTo, finish]);
+    const m = resumeStep(steps, stepIndex, engineContext());
+    if (m) show(m.index, m.mode);
+    else finish("completed");
+  }, [stepIndex, steps, engineContext, show, finish]);
+
+  // Quick trade's signals: a trade was created (its page is on its way), or
+  // the form was closed without one (back to the step that opened it).
+  useEffect(() => {
+    if (phase !== "touring" || !step) return;
+    const onCreated = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: unknown }>).detail?.path;
+      if (typeof path !== "string" || !step.done || !("route" in step.done) || !path.startsWith(step.done.route)) return;
+      markDone(stepIndex, openerOf(steps, stepIndex));
+      setTradePath(path);
+      setAwaitingTrade(path);
+    };
+    const onClosed = () => {
+      const opener = openerOf(steps, stepIndex);
+      if (opener === null) return;
+      const openerDone = steps[opener].done;
+      leavingRef.current = openerDone && "target" in openerDone ? openerDone.target : null;
+      setDoneTasks((prev) => prev.filter((i) => i !== opener));
+      const m = placeStep(steps, opener, { ...engineContext(), doneTasks: new Set() });
+      show(opener, m?.mode ?? "here", true);
+    };
+    window.addEventListener(TRADE_CREATED_EVENT, onCreated);
+    window.addEventListener(QUICK_TRADE_CLOSED_EVENT, onClosed);
+    return () => {
+      window.removeEventListener(TRADE_CREATED_EVENT, onCreated);
+      window.removeEventListener(QUICK_TRADE_CLOSED_EVENT, onClosed);
+    };
+  }, [phase, step, stepIndex, steps, engineContext, markDone, show]);
 
   // Replay requests from the "?" menu.
   useEffect(() => {
@@ -366,6 +430,8 @@ export function TourOverlay() {
       setTimeout(() => {
         setTour(saved.tour);
         setStepIndex(saved.step);
+        setDoneTasks(saved.done ?? []);
+        setTradePath(saved.tradePath ?? null);
         setPhase("touring");
       }, 0);
       return;
@@ -409,49 +475,84 @@ export function TourOverlay() {
       .catch(() => {});
   }, [pathname]);
 
+  // While pointing the way, load that page in the background, so the click
+  // shows it (or its skeleton) almost at once. A no-op on the dev server.
+  useEffect(() => {
+    if (navPending && step?.path) router.prefetch(step.path);
+  }, [navPending, step, router]);
+
+  // A click on the item the tour is pointing at: the page is on its way.
+  useEffect(() => {
+    if (!navPending || !step?.path) return;
+    const linkSelector = `[data-tour-id="nav-${step.path.slice(1)}"]`;
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.(linkSelector)) setNavClicked(true);
+    };
+    document.addEventListener("click", onClick, { capture: true });
+    return () => {
+      document.removeEventListener("click", onClick, { capture: true });
+      setNavClicked(false);
+    };
+  }, [navPending, step]);
+
   // Save progress on every change.
   useEffect(() => {
     if (phase !== "touring") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ tour, step: stepIndex } satisfies Saved));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ tour, step: stepIndex, done: doneTasks, tradePath } satisfies Saved));
     } catch {}
-  }, [phase, tour, stepIndex]);
+  }, [phase, tour, stepIndex, doneTasks, tradePath]);
 
   // Route changes: a signal, never an exit. Decided on the next tick so the
   // state changes are not made synchronously inside the effect.
   useEffect(() => {
     pathnameRef.current = pathname;
-    if (pendingPathRef.current) {
-      if (pathname !== pendingPathRef.current) return; // still in flight
-      pendingPathRef.current = null;
-    }
     if (phase !== "touring" || !step) return;
 
     const id = setTimeout(() => {
+      // Waiting for the user to open the next page: arriving there resumes
+      // the step; anywhere else, the card keeps pointing the way.
+      if (navPending) {
+        if ((step.path || step.pathPrefix) && stepMatchesPath(step, pathname)) {
+          // Drop the menu item's spotlight on arrival, so the step can't show
+          // for a frame against it before the page's own target is measured.
+          rectRef.current = null;
+          setRect(null);
+          setNavPending(false);
+        }
+        setOffRoute(false);
+        return;
+      }
       if (step.done && "route" in step.done && pathname.startsWith(step.done.route)) {
-        goForward(stepIndex);
+        // However the task was done (Quick trade, the screenshot importer...),
+        // it is done: remember it, and the trade it led to.
+        const done = new Set([...doneTasks, stepIndex, openerOf(steps, stepIndex) ?? stepIndex]);
+        markDone(stepIndex, openerOf(steps, stepIndex));
+        if (pathname.startsWith("/trades/")) setTradePath(pathname);
+        setAwaitingTrade(null);
+        goForward(stepIndex, { pathname, isShown, doneTasks: done, tradePath: pathname });
         return;
       }
       if (stepMatchesPath(step, pathname)) {
         setOffRoute(false);
         return;
       }
+      // A later step lives on the page the user went to: carry on from it.
       for (let j = stepIndex + 1; j < steps.length; j++) {
         const c = steps[j];
-        if ((c.path && c.path === pathname) || (c.pathPrefix && pathname.startsWith(c.pathPrefix))) {
-          setStepIndex(j);
-          setOffRoute(false);
+        if (!c.path && !c.pathPrefix) continue;
+        if (placeStep(steps, j, engineContext())?.mode === "here") {
+          show(j, "here");
           return;
         }
       }
       setOffRoute(true);
     }, 0);
     return () => clearTimeout(id);
-  }, [pathname, phase, step, stepIndex, steps, goForward]);
+  }, [pathname, phase, step, stepIndex, steps, goForward, navPending, doneTasks, markDone, engineContext, show]);
 
   // Track the target every frame: position, presence, the app's dialogs, and
-  // the two conditions that move a step on its own (a task completing, a
-  // closed form retreating).
+  // a task completing (which moves the step on by itself).
   useEffect(() => {
     if (phase !== "touring" || !step || offRoute) {
       rectRef.current = null;
@@ -471,6 +572,39 @@ export function TourOverlay() {
       const dlg = dialogIsOpen();
       setDialogOpen((prev) => (prev === dlg ? prev : dlg));
 
+      if (navPending && step.path) {
+        // Pointing the way: the menu item, or the dropdown holding it, found
+        // afresh each frame so the spotlight moves to the item the moment its
+        // menu opens.
+        const d = navDirections(step.path, (id) => measure(id) !== null && measure(id)!.width > 0);
+        setNavInfo((prev) =>
+          prev && prev.kind === d.kind && prev.targetId === d.targetId ? prev : d,
+        );
+        const nm = d.targetId ? measure(d.targetId) : null;
+        if (nm && d.targetId && !scrolled) {
+          // A phone's menu scrolls sideways: bring the item into view once.
+          scrolled = true;
+          findTarget(d.targetId)?.scrollIntoView({ block: "nearest", inline: "center" });
+        }
+        if (!sameRect(rectRef.current, nm)) {
+          rectRef.current = nm;
+          setRect(nm);
+        }
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      if (navPending || awaitingTrade) {
+        // Pointing at a trade page (no menu item: the card holds the link), or
+        // waiting for the created trade's page: nothing to spotlight yet.
+        setNavInfo((prev) => (prev === null ? prev : null));
+        if (rectRef.current) {
+          rectRef.current = null;
+          setRect(null);
+        }
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
       const m = measure(step.targetId);
       if (m) {
         missingSince = null;
@@ -485,13 +619,15 @@ export function TourOverlay() {
           rectRef.current = m;
           setRect(m);
         }
-        if (step.done && "target" in step.done && measure(step.done.target)) {
-          goForward(stepIndex);
+        if (leavingRef.current && !isShown(leavingRef.current)) leavingRef.current = null;
+        if (step.done && "target" in step.done && step.done.target !== leavingRef.current && isShown(step.done.target)) {
+          markDone(stepIndex);
+          goForward(stepIndex, { ...engineContext(), doneTasks: new Set([...doneTasks, stepIndex]) });
           return;
         }
-      } else if (pageStillLoading(pendingPathRef.current !== null)) {
+      } else if (pageStillLoading()) {
         // Not missing, just not here yet: hold the clock at zero so it starts
-        // fresh when the page lands, and do not treat it as a retreat either.
+        // fresh when the page lands.
         missingSince = null;
         if (rectRef.current) {
           rectRef.current = null;
@@ -504,11 +640,7 @@ export function TourOverlay() {
           rectRef.current = null;
           setRect(null);
         }
-        if (step.retreat && gone > RETREAT_MS && !pendingPathRef.current) {
-          goBack(stepIndex);
-          return;
-        }
-        if (!step.retreat && !step.action && gone > MISSING_MS) setMissing(true);
+        if (!step.action && gone > MISSING_MS) setMissing(true);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -517,7 +649,7 @@ export function TourOverlay() {
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [phase, step, stepIndex, offRoute, goForward, goBack]);
+  }, [phase, step, stepIndex, offRoute, goForward, navPending, awaitingTrade, markDone, engineContext, doneTasks]);
 
   // Keys: Escape ends the tour only when no dialog is open (the dialog's own
   // Escape closes it); arrows step, from anywhere -- including inside a focus
@@ -527,13 +659,15 @@ export function TourOverlay() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (dialogIsOpen()) return;
-        finish();
+        finish("skipped");
         return;
       }
       if (isTyping(e.target)) return;
+      // While pointing the way, the next step is the page the user opens.
+      if (e.key === "ArrowRight" && navPending) return;
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        if (stepIndex >= steps.length - 1) finish();
+        if (stepIndex >= steps.length - 1) finish("completed");
         else goForward(stepIndex);
       } else if (e.key === "ArrowLeft" && stepIndex > 0) {
         e.preventDefault();
@@ -542,15 +676,15 @@ export function TourOverlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, stepIndex, steps.length, finish, goForward, goBack]);
+  }, [phase, stepIndex, steps.length, finish, goForward, goBack, navPending]);
 
   if (phase === "demo-offer") {
     return <DemoOfferModal onDone={() => setPhase("welcome")} />;
   }
   if (phase === "welcome") {
-    return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={finish} />;
+    return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={() => finish("skipped")} />;
   }
-  if (phase === "paid-offer") {
+  if (phase === "paid-offer" && prefs.tourOffers) {
     // Both answers write locally first and tell the server second. The local
     // write is what makes this work before 0049 is applied, and it also means
     // a failed request cannot resurrect a card the reader has just declined.
@@ -574,9 +708,9 @@ export function TourOverlay() {
         // whatever was on the page -- a trade table, the performance chart --
         // and stayed there until answered (issue 2 of docs/design-audit.md).
         // A corner is the one place a card this size covers nothing that is
-        // being read. Still full-width on a phone, where there is no corner
-        // to sit in.
-        className="fixed bottom-4 right-4 z-[102] flex w-[calc(100vw-2rem)] max-w-sm items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md sm:w-auto dark:bg-card/95"
+        // being read. Not shown on phones at all: there it covered the tab
+        // bar, and every tour is still one tap away in the account menu.
+        className="fixed bottom-4 right-4 z-[102] hidden w-[calc(100vw-2rem)] sm:flex max-w-sm items-center gap-3 rounded-2xl border border-primary/40 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md sm:w-auto dark:bg-card/95"
       >
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">Paid plan</p>
@@ -615,7 +749,7 @@ export function TourOverlay() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-5 left-1/2 z-[102] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-md dark:border-subtle dark:bg-card/95"
+        className="fixed bottom-[calc(var(--tabbar-h)+1.25rem)] left-1/2 z-[102] flex -translate-x-1/2 items-center gap-3 rounded-full border border-zinc-200 bg-white/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur-md dark:border-subtle dark:bg-card/95"
       >
         <span className="text-xs text-zinc-500">
           Tour paused · step {stepIndex + 1} of {steps.length}
@@ -627,7 +761,7 @@ export function TourOverlay() {
           Resume
         </button>
         <button
-          onClick={finish}
+          onClick={() => finish("skipped")}
           aria-label="End tour"
           className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
         >
@@ -667,12 +801,33 @@ export function TourOverlay() {
   }
 
   const cardStyle: React.CSSProperties = phone
-    ? { position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 102 }
+    ? // Above the phone tab bar, which several steps point at.
+      { position: "fixed", left: 12, right: 12, bottom: "calc(var(--tabbar-h) + 12px)", zIndex: 102 }
     : placement === "float"
       ? { position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", width: CARD_W, zIndex: 102 }
       : { position: "fixed", width: CARD_W, zIndex: 102 };
 
   const primaryLabel = isLast ? "Finish" : step.action ? "I'll do this later" : "Next";
+  // "go": pointing the way to the next page. "loading": arrived, but the
+  // step's target isn't on the page yet -- say so, rather than show this
+  // step's text over a page that hasn't loaded (it used to, for up to half a
+  // second on a production build). "step": the step itself.
+  const cardMode: "go" | "loading" | "step" = awaitingTrade
+    ? "loading"
+    : navPending
+      ? navClicked
+        ? "loading"
+        : "go"
+      : !rect && !missing && step.path && !step.action
+        ? "loading"
+        : "step";
+  // A trade page has no menu item: the card links to the trade instead.
+  const goToTrade = navPending && !step.path && step.pathPrefix && tradePath ? tradePath : null;
+  // Only page-bound steps decide this (no DOM reads during render): a step
+  // inside the Quick trade form is never a Back target once the form is shut.
+  const canGoBack =
+    stepIndex > 0 &&
+    prevStep(steps, stepIndex, { pathname, isShown: () => false, doneTasks: new Set(doneTasks), tradePath }) !== null;
 
   return (
     <>
@@ -697,7 +852,7 @@ export function TourOverlay() {
                   rx="12"
                   fill="#000"
                   animate={{ x: rect.left - PAD, y: rect.top - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }}
-                  transition={spring}
+                  transition={glide}
                 />
               </mask>
             </defs>
@@ -715,7 +870,7 @@ export function TourOverlay() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }}
             exit={{ opacity: 0 }}
-            transition={{ ...spring, opacity: { duration: 0.2 } }}
+            transition={{ ...glide, opacity: { duration: reduceMotion ? 0 : 0.2 } }}
             style={{ position: "fixed", zIndex: 101, pointerEvents: "none" }}
             className="rounded-xl border-2 border-primary"
           >
@@ -730,7 +885,7 @@ export function TourOverlay() {
         aria-label="Guided tour"
         style={cardStyle}
         animate={placement === "float" || phone ? undefined : { top: cardTop, left: cardLeft }}
-        transition={spring}
+        transition={glide}
         className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] dark:border-subtle dark:bg-card"
       >
         {placement !== "float" && !phone && (
@@ -746,40 +901,80 @@ export function TourOverlay() {
           />
         )}
 
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={`${tour}-${stepIndex}`}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
-                Step {stepIndex + 1} of {steps.length} · {step.where}
-              </p>
-              <button
-                onClick={finish}
-                aria-label="Skip tour"
-                className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">{step.title}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{step.body}</p>
+        {/* No fade-out: the old step used to fade for 180ms before the new
+            one appeared, on top of the page change -- part of what read as
+            lag. The new content simply settles in. */}
+        <motion.div
+          key={`${tour}-${stepIndex}-${cardMode}`}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.12 }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
+              Step {stepIndex + 1} of {steps.length} · {step.where}
+            </p>
+            <button
+              onClick={() => finish("skipped")}
+              aria-label="Skip tour"
+              className="-mr-1 -mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
-            {step.action && (
+          {cardMode === "go" ? (
+            <>
+              <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
+                {goingBack ? "Back" : "Next"}: {step.where}
+              </h3>
               <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                 <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{step.action}</span>
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  {goToTrade ? (
+                    <>Open the trade you just created.</>
+                  ) : navInfo?.kind === "group" ? (
+                    <>
+                      Open <b>{navInfo.groupLabel}</b> in the menu, then click <b>{navInfo.label}</b>.
+                    </>
+                  ) : navInfo?.kind === "account" ? (
+                    <>
+                      Open the <b>account menu</b> (top right), then click <b>{navInfo.label}</b>.
+                    </>
+                  ) : navInfo?.kind === "link" ? (
+                    <>
+                      Click <b>{navInfo.label}</b> in the menu.
+                    </>
+                  ) : (
+                    <>
+                      Open <b>{navInfo?.label ?? step.where}</b> from the menu to carry on.
+                    </>
+                  )}
+                </span>
               </div>
-            )}
-            {missing && (
-              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Can&rsquo;t find this on the page right now.</p>
-            )}
-          </motion.div>
-        </AnimatePresence>
+            </>
+          ) : cardMode === "loading" ? (
+            <p className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400" role="status">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary" aria-hidden />
+              {awaitingTrade ? "Opening your trade…" : <>Opening {step.where}…</>}
+            </p>
+          ) : (
+            <>
+              <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">{step.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{step.body}</p>
+
+              {step.action && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                  <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{step.action}</span>
+                </div>
+              )}
+              {missing && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Can&rsquo;t find this on the page right now.</p>
+              )}
+            </>
+          )}
+        </motion.div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1" aria-hidden>
@@ -793,7 +988,7 @@ export function TourOverlay() {
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            {stepIndex > 0 && (
+            {canGoBack && (
               <button
                 onClick={() => goBack(stepIndex)}
                 className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -801,8 +996,21 @@ export function TourOverlay() {
                 Back
               </button>
             )}
+            {cardMode === "go" ? (
+              // The only link on the card: a trade page has no menu item.
+              // The user clicks it; the tour itself never navigates.
+              goToTrade && (
+                <Link
+                  href={goToTrade}
+                  onClick={() => setNavClicked(true)}
+                  className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+                >
+                  Open your trade
+                </Link>
+              )
+            ) : cardMode === "loading" ? null : (
             <button
-              onClick={() => (isLast ? finish() : goForward(stepIndex))}
+              onClick={() => (isLast ? finish("completed") : goForward(stepIndex))}
               className={`rounded-lg px-3.5 py-1.5 text-xs font-medium ${
                 step.action && !isLast
                   ? "border border-zinc-300 text-zinc-600 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
@@ -811,6 +1019,7 @@ export function TourOverlay() {
             >
               {primaryLabel}
             </button>
+            )}
           </div>
         </div>
       </motion.div>

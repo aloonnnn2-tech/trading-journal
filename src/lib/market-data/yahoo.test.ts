@@ -242,6 +242,26 @@ describe("fetchYahooBars", () => {
     expect(String(fetchMock.mock.calls[0][0])).not.toContain("includePrePost");
   });
 
+  it("asks for regular hours on weekly and monthly bars too, and drops a repeated live period", async () => {
+    const monthly = {
+      chart: {
+        result: [
+          {
+            // The live month comes back stamped before the last full one.
+            timestamp: [1_788_000_000, 1_790_600_000, 1_790_000_000],
+            indicators: { quote: [{ open: [1, 2, 3], high: [1, 2, 3], low: [1, 2, 3], close: [1, 2, 3] }] },
+            meta: { exchangeTimezoneName: "America/New_York" },
+          },
+        ],
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse(200, monthly));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await fetchYahooBars("TSLA", { interval: "1mo", period1: 1, period2: 2 });
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain("includePrePost");
+    expect(result?.bars.map((b) => b.time)).toEqual([1_788_000_000, 1_790_600_000]);
+  });
+
   it("is null for an unknown symbol", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(404)));
     expect(await fetchYahooBars("NOPE", { interval: "1d", period1: 0, period2: 1 })).toBeNull();

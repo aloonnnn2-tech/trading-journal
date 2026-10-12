@@ -10,7 +10,7 @@ import { SELECTABLE_PROVIDERS } from "@/lib/ai-keys/types";
 // is: nothing could ever be sent to it.
 const consentSchema = z.object({
   provider: z.enum(SELECTABLE_PROVIDERS),
-  scope: z.enum(["journal_v1", "chat_v2"]).default("journal_v1"),
+  scope: z.enum(["journal_v1", "chat_v2", "screenshot_v1"]).default("journal_v1"),
 });
 
 // Records that the user agreed to send their journal to one named provider.

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serverSecret } from "@/lib/server-env";
 import { isMissingColumnError } from "@/lib/supabase/errors";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -55,7 +56,7 @@ function secretMatches(provided: string, expected: string): boolean {
 }
 
 function authorize(request: Request): { ok: true } | { ok: false; status: number; error: string } {
-  const expected = process.env.CRON_SECRET;
+  const expected = serverSecret("CRON_SECRET");
   if (!expected) {
     // Fail closed. An unset secret must never mean "open to everyone" --
     // this endpoint can modify every user's trades.
@@ -111,6 +112,9 @@ export async function POST(request: Request) {
   const LEGACY_COLUMNS =
     "id, user_id, mode, ticker, asset_type, market, status, direction, entry_price, exit_price, stop_loss, take_profit, shares, dollar_amount, risk_amount, entry_date, commission, commission_manual";
   const ORDER_COLUMNS = `${LEGACY_COLUMNS}, order_type, limit_price, time_in_force, created_at`;
+  // The fee chosen on a trade (0056). Without it a background fill or close
+  // was re-priced by automatic matching, silently replacing the user's choice.
+  const FEE_COLUMNS = `${ORDER_COLUMNS}, commission_rule_id`;
 
   const loadTrades = (columns: string) =>
     fetchAllRows<WatchedTrade>((from, to) =>
@@ -126,22 +130,20 @@ export async function POST(request: Request) {
       }>,
     );
 
-  let data: WatchedTrade[];
-  try {
-    data = await loadTrades(ORDER_COLUMNS);
-  } catch (error) {
-    if (isMissingColumnError(error)) {
-      try {
-        data = await loadTrades(LEGACY_COLUMNS);
-      } catch (fallbackError) {
-        const message = (fallbackError as { message?: string }).message ?? "unknown";
-        return NextResponse.json({ error: `Could not load trades: ${message}` }, { status: 500 });
-      }
-    } else {
+  // Fullest column list first, then one migration fewer at a time, so a
+  // pending 0056 doesn't also cost the order-type columns of 0039.
+  let data: WatchedTrade[] | null = null;
+  for (const columns of [FEE_COLUMNS, ORDER_COLUMNS, LEGACY_COLUMNS]) {
+    try {
+      data = await loadTrades(columns);
+      break;
+    } catch (error) {
+      if (isMissingColumnError(error) && columns !== LEGACY_COLUMNS) continue;
       const message = (error as { message?: string }).message ?? "unknown";
       return NextResponse.json({ error: `Could not load trades: ${message}` }, { status: 500 });
     }
   }
+  if (!data) return NextResponse.json({ error: "Could not load trades" }, { status: 500 });
 
   // ---- Day orders that outlived their session --------------------------
   //
@@ -296,6 +298,8 @@ export async function POST(request: Request) {
               entry_price: merged.entry_price,
               exit_price: merged.exit_price,
               shares: merged.shares,
+              order_type: merged.order_type,
+              commission_rule_id: (merged as { commission_rule_id?: string | null }).commission_rule_id ?? null,
             });
 
         const derived = computeDerivedFields({

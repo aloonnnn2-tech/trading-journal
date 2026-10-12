@@ -1,0 +1,84 @@
+{
+ "lines": [
+  {
+   "text": "TSLA Short",
+   "confidence": 0.9712002873420715,
+   "box": {
+    "x0": 67,
+    "y0": 49,
+    "x1": 342,
+    "y1": 92
+   },
+   "cx": 204.5,
+   "cy": 70.5,
+   "height": 43
+  },
+  {
+   "text": "Avg Entry 242.10",
+   "confidence": 0.9989299289882183,
+   "box": {
+    "x0": 67,
+    "y0": 146,
+    "x1": 391,
+    "y1": 187
+   },
+   "cx": 229,
+   "cy": 166.5,
+   "height": 41
+  },
+  {
+   "text": "Mark Price 238.65",
+   "confidence": 0.9817938699441797,
+   "box": {
+    "x0": 68,
+    "y0": 228,
+    "x1": 412,
+    "y1": 262
+   },
+   "cx": 240,
+   "cy": 245,
+   "height": 34
+  },
+  {
+   "text": "Qty 50 shares",
+   "confidence": 0.980318023608281,
+   "box": {
+    "x0": 69,
+    "y0": 307,
+    "x1": 334,
+    "y1": 348
+   },
+   "cx": 201.5,
+   "cy": 327.5,
+   "height": 41
+  },
+  {
+   "text": "Unrealized PnL 172.50",
+   "confidence": 0.9978559386162531,
+   "box": {
+    "x0": 69,
+    "y0": 389,
+    "x1": 498,
+    "y1": 423
+   },
+   "cx": 283.5,
+   "cy": 406,
+   "height": 34
+  },
+  {
+   "text": "Status Open",
+   "confidence": 0.9966747814958746,
+   "box": {
+    "x0": 67,
+    "y0": 468,
+    "x1": 305,
+    "y1": 511
+   },
+   "cx": 186,
+   "cy": 489.5,
+   "height": 43
+  }
+ ],
+ "roiLines": [],
+ "rawText": "TSLA Short\nAvg Entry 242.10\nMark Price 238.65\nQty 50 shares\nUnrealized PnL 172.50\nStatus Open"
+}

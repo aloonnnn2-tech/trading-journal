@@ -17,7 +17,7 @@ function fakeProvider(replies: string[]): AIProvider & { calls: { prompt: string
     name: "groq",
     model: "test-model",
     calls,
-    validateKey: async () => true,
+    validateKey: async () => ({ valid: true as const, models: [] }),
     askQuestion: async (_key, _system, question) => {
       calls.push({ prompt: question });
       return replies[i++] ?? "";
@@ -171,7 +171,7 @@ describe("generateStructured", () => {
     const provider = {
       name: "groq",
       model: "m",
-      validateKey: async () => true,
+      validateKey: async () => ({ valid: true as const, models: [] }),
       askQuestion,
     } as unknown as AIProvider;
 

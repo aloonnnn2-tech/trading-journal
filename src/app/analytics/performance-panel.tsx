@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   Area,
   AreaChart,
@@ -15,6 +14,7 @@ import { Card } from "@/components/ui/Card";
 import type { EquityCurve } from "@/lib/equity/build";
 import { formatMoney } from "@/lib/format/money";
 
+import { SeePlansButton } from "@/components/plans/SeePlansButton";
 // Trading performance against account growth.
 //
 // The two lines answer different questions and are deliberately on different
@@ -188,9 +188,7 @@ export function PerformanceUpsell() {
         cumulative R side by side, with drawdown measured so a withdrawal never looks like a
         losing streak. Available on the paid plan.
       </p>
-      <Link href="/#pricing" className="text-sm text-primary hover:underline">
-        See plans
-      </Link>
+      <SeePlansButton feature="analysis-panels" />
     </Card>
   );
 }

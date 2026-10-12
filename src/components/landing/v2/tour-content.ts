@@ -66,7 +66,7 @@ export const TOUR_TABS: TourTab[] = [
     headline: "Get a trade in without retyping it",
     bullets: [
       "Screenshot import, confirmed for Interactive Brokers stock trades.",
-      "The app’s own reader parses it, and nothing goes to a third-party AI service.",
+      "The app’s own reader parses it; nothing goes to an AI service unless you choose to.",
       "Manual entry for any broker or market, and export to Excel (XLSX).",
     ],
     paid: false,

@@ -8,7 +8,8 @@ export const MAX_EMAIL_LENGTH = 254;
 
 /** Every form that may write to the waitlist. A fixed list, so a bot cannot
  *  put free text into the `source` column. */
-export const WAITLIST_SOURCES = ["home-paid-card"] as const;
+// "app-plans-panel": a signed-in free user, from a "See plans" button.
+export const WAITLIST_SOURCES = ["home-paid-card", "app-plans-panel"] as const;
 export type WaitlistSource = (typeof WAITLIST_SOURCES)[number];
 
 /** The hidden honeypot field's name. Something a bot's autofill wants to answer. */

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import {
@@ -11,6 +12,23 @@ import {
 import { isPaidUser } from "@/lib/settings/plan";
 import { getDemoState, hasAnyTrades } from "@/lib/demo/queries";
 import { shouldOfferDemo } from "@/lib/demo/state";
+
+// A snooze hides the offer until a real instant, never absurdly far off (the
+// client snoozes for days, not years).
+const UNTIL = z
+  .string()
+  .max(40)
+  .refine((v) => {
+    const t = Date.parse(v);
+    return Number.isFinite(t) && t < Date.now() + 400 * 24 * 60 * 60 * 1000;
+  }, "Bad until");
+
+const bodySchema = z
+  .discriminatedUnion("paidOffer", [
+    z.object({ paidOffer: z.literal("dismissed"), until: z.unknown().optional() }).strict(),
+    z.object({ paidOffer: z.literal("snoozed"), until: UNTIL }).strict(),
+  ])
+  .nullable();
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -54,19 +72,28 @@ export async function PATCH(request: Request) {
 
   // No body: the original meaning of this route, "the welcome tour is done".
   // Kept exactly as it was so the existing caller needs no change.
-  const body = (await request.json().catch(() => null)) as { paidOffer?: unknown } | null;
-  const action = body?.paidOffer;
-
-  if (action === "dismissed" || action === "snoozed") {
+  // An empty body is the original call: "the welcome tour is done".
+  const text = await request.text().catch(() => "");
+  let rawBody: unknown = null;
+  if (text.trim()) {
     try {
-      if (action === "dismissed") {
+      rawBody = JSON.parse(text);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+  }
+  const parsed = bodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Expected no body, or { paidOffer, until }" }, { status: 400 });
+  }
+  const body = parsed.data;
+
+  if (body) {
+    try {
+      if (body.paidOffer === "dismissed") {
         await setPaidTourDismissed(supabase, userId);
       } else {
-        const until = (body as { until?: unknown }).until;
-        if (typeof until !== "string" || Number.isNaN(Date.parse(until))) {
-          return NextResponse.json({ error: "Bad until" }, { status: 400 });
-        }
-        await setPaidTourSnoozed(supabase, userId, until);
+        await setPaidTourSnoozed(supabase, userId, body.until);
       }
     } catch (error) {
       // The columns are not there yet (0049 unapplied). The client has already

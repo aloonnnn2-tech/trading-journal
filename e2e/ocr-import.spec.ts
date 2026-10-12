@@ -41,6 +41,8 @@ const PARSE_RESULT = {
     shares: { value: 10, confidence: 0.86, source: "layout" },
   },
   extra: [],
+  warnings: [],
+  duplicates: [],
   screenshotType: "position",
   broker: "TradingView",
   log: { passes: [], notes: [] },
@@ -66,6 +68,12 @@ test.beforeEach(async ({ page }) => {
 
 async function openScreenshotImport(page: import("@playwright/test").Page) {
   await page.goto("/trades");
+  // First visit asks about a demo journal, then offers the tour; both
+  // overlays swallow clicks (same as trade-autosave.spec.ts).
+  await page
+    .getByRole("button", { name: /no thanks, start empty/i })
+    .click({ timeout: 8_000 })
+    .catch(() => {});
   await page
     .getByRole("button", { name: /explore on my own/i })
     .click({ timeout: 5_000 })

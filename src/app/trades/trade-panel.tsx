@@ -9,6 +9,7 @@ import { formatPrice, formatSigned, holdTime, neighbours, type TradePanelData } 
 import { AdherenceBlock } from "@/components/trade-card/plan-adherence-panel";
 import { isTypingTarget } from "@/components/keyboard-shortcuts";
 import { ResultBadge } from "./result-badge";
+import { usePreferences } from "@/components/preferences/preferences-provider";
 
 // The trade side panel (Phase 4A). A read-only summary of one trade: the
 // figures, plan adherence from the same helper as the trade page, its
@@ -46,6 +47,10 @@ export function TradePanel({
   onNavigate: (id: string) => void;
   onClose: () => void;
 }) {
+  // ←/→ are keyboard shortcuts, so Settings can turn them off; Esc to
+  // close stays -- that is how a dialog is dismissed, not a shortcut.
+  const { prefs } = usePreferences();
+  const arrowKeys = prefs.keyboardShortcuts;
   // One request per trade per visit to the list, shared by the open and the
   // prefetch, so arrowing onto a prefetched trade is instant.
   const cache = useRef(new Map<string, Promise<TradePanelData | "missing">>());
@@ -93,7 +98,7 @@ export function TradePanel({
         onClose();
         return;
       }
-      if (isTypingTarget(e.target)) return;
+      if (isTypingTarget(e.target) || !arrowKeys) return;
       if (e.key === "ArrowLeft" && prev) {
         e.preventDefault();
         onNavigate(prev);
@@ -104,7 +109,7 @@ export function TradePanel({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [prev, next, onNavigate, onClose]);
+  }, [prev, next, onNavigate, onClose, arrowKeys]);
 
   // Focus moves into the panel when it opens, so the keys and a screen reader
   // both start there; the list hands it back to the row on close.
@@ -139,7 +144,9 @@ export function TradePanel({
       aria-label={`Trade ${title}`}
       data-trade-panel
       style={{ top }}
-      className="fixed bottom-0 right-0 z-30 flex w-full flex-col border-l border-zinc-200 bg-white shadow-[-24px_0_48px_-24px_rgba(0,0,0,0.35)] outline-none dark:border-subtle dark:bg-card sm:w-[560px]"
+      // bottom: the phone tab bar's height (0 elsewhere) -- the panel sits
+      // below it in the stack, so its footer would otherwise be hidden.
+      className="fixed bottom-[var(--tabbar-h)] right-0 z-30 flex w-full flex-col border-l border-zinc-200 bg-white shadow-[-24px_0_48px_-24px_rgba(0,0,0,0.35)] outline-none dark:border-subtle dark:bg-card sm:w-[560px]"
     >
       {/* Header: where you are, how to move, how to leave. */}
       <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3 dark:border-subtle">

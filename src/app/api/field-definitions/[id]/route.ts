@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { deleteFieldDefinition, updateFieldDefinition } from "@/lib/fields/definitions";
-import { FIELD_TYPES } from "@/lib/fields/types";
+import { fieldDefinitionPatchSchema } from "@/lib/fields/definition-schema";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,28 +13,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const supabase = await createClient();
 
-  let body;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (body.field_type !== undefined && !FIELD_TYPES.includes(body.field_type)) {
-    return NextResponse.json({ error: "Invalid field_type" }, { status: 400 });
+  const parsed = fieldDefinitionPatchSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid field" }, { status: 400 });
   }
-  if (body.label !== undefined && (typeof body.label !== "string" || body.label.trim().length === 0)) {
-    return NextResponse.json({ error: "Invalid label" }, { status: 400 });
-  }
-  if (
-    body.options !== undefined &&
-    body.options !== null &&
-    !(Array.isArray(body.options) && body.options.every((o: unknown) => typeof o === "string"))
-  ) {
-    return NextResponse.json({ error: "Invalid options" }, { status: 400 });
-  }
-  if (body.sort_order !== undefined && !Number.isFinite(body.sort_order)) {
-    return NextResponse.json({ error: "Invalid sort_order" }, { status: 400 });
-  }
+  const body = parsed.data;
 
   const updated = await updateFieldDefinition(supabase, id, {
     label: body.label,

@@ -10,7 +10,9 @@ import type {
   DetectedFields,
   FieldKey,
   OcrCoreField,
+  OcrLine,
   ParseResult,
+  ValidationNote,
 } from "./types";
 import { FIELD_LABELS, OCR_CORE_FIELDS } from "./types";
 import { preprocessImage, type Preprocessed } from "./preprocess";
@@ -23,6 +25,7 @@ import { dedupe } from "./dedupe";
 import { demoteDisabledFields } from "./disabled";
 import { validate } from "./validate";
 import { buildLog } from "./logging";
+import { resolveOrderFields, warningsFor } from "./resolve";
 
 const CORE_SET = new Set<FieldKey>(OCR_CORE_FIELDS);
 
@@ -55,7 +58,13 @@ function mapFields(fields: DetectedFields): Pick<ParseResult, "core" | "extra"> 
   for (const key of Object.keys(fields) as FieldKey[]) {
     const f = fields[key]!;
     if (CORE_SET.has(key)) {
-      core[key as OcrCoreField] = { value: f.value, confidence: round(f.confidence), source: f.source };
+      core[key as OcrCoreField] = {
+        value: f.value,
+        confidence: round(f.confidence),
+        source: f.source,
+        ...(f.raw ? { raw: f.raw.slice(0, 120) } : {}),
+        ...(f.heuristic ? { heuristic: true } : {}),
+      };
     } else {
       extra.push({ key, label: FIELD_LABELS[key], value: f.value, confidence: round(f.confidence) });
     }
@@ -79,34 +88,29 @@ export async function runOcrPipeline(buffer: Buffer): Promise<ParseResult> {
     const screenshotType = classifyScreenshot(layout);
     const broker = detectBroker(layout);
 
-    const candidatesFull = await stage(timings, "semantic", async () => parseSemantic(pass.lines));
-
     // Focused second pass over the panel region — cleaner, sharper text with the
     // chart noise cropped out. It contributes only panel value fields; ticker /
     // direction / status stay from the full pass (they live in the header, often
-    // outside the cropped panel). ROI candidates go first so their sharper reads
-    // win confidence ties.
+    // outside the cropped panel).
     const roiLines = await stage(timings, "roi", () => ocrRoi(pass.variantPath, pass.lines).catch(() => []));
-    const candidatesRoi = roiLines.length
-      ? parseSemantic(roiLines).filter((c) => ROI_FIELDS.has(c.key))
-      : [];
 
-    const deduped = dedupe([...candidatesRoi, ...candidatesFull]);
-
-    // Demote fields that look like greyed/disabled placeholder inputs (e.g. an
-    // unchecked "Take Profit" price box) before cross-validation runs, so those
-    // checks see the already-discounted confidence.
-    const disabled = await stage(timings, "disabled", () => demoteDisabledFields(buffer, deduped, pre!.meta.scale));
-
-    const { fields, notes, rejected } = validate(disabled.fields);
-    notes.push(...disabled.notes);
-
-    const { core, extra } = mapFields(fields);
+    const analysed = await stage(timings, "semantic", () =>
+      analyseLines({
+        lines: pass.lines,
+        roiLines,
+        rawText: pass.rawText,
+        // Demote fields that look like greyed/disabled placeholder inputs (e.g.
+        // an unchecked "Take Profit" price box) before cross-validation runs,
+        // so those checks see the already-discounted confidence.
+        demote: (deduped) => demoteDisabledFields(buffer, deduped, pre!.meta.scale),
+      }),
+    );
     timings.total = Date.now() - started;
 
+    const { fields, notes, rejected, core, extra, warnings } = analysed;
     const log = buildLog({ pass, screenshotType, broker, fields, notes, rejected, timings });
     const ok = Object.keys(core).length > 0 || extra.length > 0;
-    return { ok, core, extra, screenshotType, broker, log };
+    return { ok, core, extra, screenshotType, broker, warnings, log };
   } catch (err) {
     // Total failure: return an empty-but-valid partial result. Never throw.
     timings.total = Date.now() - started;
@@ -114,6 +118,53 @@ export async function runOcrPipeline(buffer: Buffer): Promise<ParseResult> {
   } finally {
     await pre?.cleanup();
   }
+}
+
+/**
+ * Everything after OCR: read fields from the recognised lines, check them,
+ * resolve what order prices mean, and map them onto trade columns. Split out
+ * so the recorded-OCR regression test (src/lib/ocr/regression.test.ts) runs
+ * exactly these rules without the OCR engine. `demote` is the pixel-based
+ * greyed-out check, which needs the image and so only runs live.
+ */
+export async function analyseLines(input: {
+  lines: OcrLine[];
+  roiLines: OcrLine[];
+  rawText: string;
+  demote?: (fields: DetectedFields) => Promise<{ fields: DetectedFields; notes: ValidationNote[] }>;
+}): Promise<{
+  fields: DetectedFields;
+  notes: ValidationNote[];
+  rejected: ReturnType<typeof validate>["rejected"];
+  core: ParseResult["core"];
+  extra: ParseResult["extra"];
+  warnings: string[];
+}> {
+  const candidatesFull = parseSemantic(input.lines);
+  // ROI candidates go first so their sharper reads win confidence ties.
+  const candidatesRoi = input.roiLines.length
+    ? parseSemantic(input.roiLines).filter((c) => ROI_FIELDS.has(c.key))
+    : [];
+  const deduped = dedupe([...candidatesRoi, ...candidatesFull]);
+  const demoted = input.demote ? await input.demote(deduped) : { fields: deduped, notes: [] };
+
+  const validated = validate(demoted.fields);
+  const notes = [...validated.notes, ...demoted.notes];
+
+  // What an order's own prices mean depends on its type; see resolve.ts.
+  const resolved = resolveOrderFields(validated.fields, input.rawText);
+  notes.push(...resolved.notes);
+
+  const mapped = mapFields(resolved.fields);
+  const extra = [...mapped.extra, ...resolved.extra].sort((a, b) => b.confidence - a.confidence);
+  return {
+    fields: resolved.fields,
+    notes,
+    rejected: validated.rejected,
+    core: mapped.core,
+    extra,
+    warnings: warningsFor(notes, input.rawText),
+  };
 }
 
 async function stage<T>(timings: Record<string, number>, name: string, fn: () => Promise<T>): Promise<T> {
@@ -133,6 +184,7 @@ function emptyResult(err: unknown, timings: Record<string, number>): ParseResult
     extra: [],
     screenshotType: "unknown",
     broker: null,
+    warnings: [],
     log: {
       screenshotType: "unknown",
       broker: null,

@@ -1,0 +1,84 @@
+{
+ "lines": [
+  {
+   "text": "CME:ESSell",
+   "confidence": 0.9643475890159607,
+   "box": {
+    "x0": 68,
+    "y0": 53,
+    "x1": 352,
+    "y1": 91
+   },
+   "cx": 210,
+   "cy": 72,
+   "height": 38
+  },
+  {
+   "text": "Exec Price 5320.25",
+   "confidence": 0.9681727588176727,
+   "box": {
+    "x0": 66,
+    "y0": 148,
+    "x1": 434,
+    "y1": 182
+   },
+   "cx": 250,
+   "cy": 165,
+   "height": 34
+  },
+  {
+   "text": "Hard Stop 5335.50",
+   "confidence": 0.9877511929063236,
+   "box": {
+    "x0": 64,
+    "y0": 229,
+    "x1": 422,
+    "y1": 266
+   },
+   "cx": 243,
+   "cy": 247.5,
+   "height": 37
+  },
+  {
+   "text": "Reward Target 5290.00",
+   "confidence": 0.9880457889466059,
+   "box": {
+    "x0": 64,
+    "y0": 310,
+    "x1": 508,
+    "y1": 349
+   },
+   "cx": 286,
+   "cy": 329.5,
+   "height": 39
+  },
+  {
+   "text": "Contracts 2",
+   "confidence": 0.9993313334204934,
+   "box": {
+    "x0": 66,
+    "y0": 392,
+    "x1": 283,
+    "y1": 427
+   },
+   "cx": 174.5,
+   "cy": 409.5,
+   "height": 35
+  },
+  {
+   "text": "Floating P/L 200.00",
+   "confidence": 0.9932298377940529,
+   "box": {
+    "x0": 64,
+    "y0": 471,
+    "x1": 433,
+    "y1": 512
+   },
+   "cx": 248.5,
+   "cy": 491.5,
+   "height": 41
+  }
+ ],
+ "roiLines": [],
+ "rawText": "CME:ESSell\nExec Price 5320.25\nHard Stop 5335.50\nReward Target 5290.00\nContracts 2\nFloating P/L 200.00"
+}

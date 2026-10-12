@@ -7,6 +7,7 @@ import {
   startClickCapture,
   type ClickEvent,
 } from "./click-capture";
+import { isTourActive } from "./click-capture";
 
 // The label rule is the privacy control for "every click" analytics, so it is
 // pinned down here against fake elements: precedence, the length cap, and the
@@ -351,5 +352,16 @@ describe("startClickCapture: label double-count", () => {
     stop();
 
     expect(sent.flat()).toHaveLength(2);
+  });
+});
+
+describe("isTourActive", () => {
+  // During a guided tour, clicks and page views are the tour's, not the
+  // user's; the tour sends one tour_completed / tour_skipped event instead.
+  it("is true only while the tour flag is set on <html>", () => {
+    expect(isTourActive({ documentElement: { dataset: { tour: "active" } } })).toBe(true);
+    expect(isTourActive({ documentElement: { dataset: {} } })).toBe(false);
+    expect(isTourActive({ documentElement: { dataset: { tour: "paused" } } })).toBe(false);
+    expect(isTourActive(undefined)).toBe(false);
   });
 });

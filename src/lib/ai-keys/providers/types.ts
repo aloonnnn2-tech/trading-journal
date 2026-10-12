@@ -1,4 +1,6 @@
 import type { AIProviderName } from "../types";
+import { redactKey, type KeyInput } from "../secret";
+import { scrubString } from "@/lib/observability/scrub";
 
 /**
  * What went wrong when talking to a provider.
@@ -39,7 +41,10 @@ export class ProviderError extends Error {
     super(`Provider request failed: ${failure}`);
     this.name = "ProviderError";
     this.failure = failure;
-    this.detail = detail;
+    // Scrubbed on the way in, so no code path can later log or report an
+    // unscrubbed provider body through this error -- a backstop behind the
+    // exact-key redaction errorDetail() already applies.
+    this.detail = scrubString(detail);
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
@@ -90,7 +95,16 @@ export interface ChatOnceInput {
   tools: ToolDef[];
   maxTokens?: number;
   timeoutMs?: number;
+  /** The model to ask. Defaults to the provider's first choice. */
+  model?: string;
 }
+
+/**
+ * What a key check learned. `models` is the provider's live model list, read
+ * from the same zero-token /models call that tested the credentials; `[]`
+ * means it couldn't be read, not that there are none (see model-check.ts).
+ */
+export type KeyCheck = { valid: false } | { valid: true; models: string[] };
 
 /**
  * The outcome of one model round-trip: either the model produced its final
@@ -105,24 +119,29 @@ export type ChatResult =
 export interface AIProvider {
   name: AIProviderName;
 
-  /** The model this provider asks by default, surfaced in the UI. */
+  /**
+   * The provider's first-choice model: what a key asks until it has been
+   * checked against the live list. A key's own model (user_api_keys.model)
+   * overrides it per call -- see `model` on ChatOnceInput and AskOptions.
+   */
   readonly model: string;
 
   /**
-   * Cheap liveness check used to test a key before it is ever stored.
-   * Returns false for "the provider says these credentials are bad" and
-   * throws ProviderError("unavailable") when we couldn't get an answer at
-   * all -- the difference matters, because refusing to save a good key
-   * because the provider was briefly down would be its own bad experience.
+   * Cheap liveness check used to test a key before it is ever stored, which
+   * also returns the provider's live model list.
+   * Returns `{valid: false}` for "the provider says these credentials are
+   * bad" and throws ProviderError("unavailable") when we couldn't get an
+   * answer at all -- the difference matters, because refusing to save a good
+   * key because the provider was briefly down would be its own bad experience.
    */
-  validateKey(apiKey: string): Promise<boolean>;
+  validateKey(apiKey: KeyInput): Promise<KeyCheck>;
 
   /**
    * One single-shot question with no conversation: what the AI review
    * routes use. Throws ProviderError on any failure.
    */
   askQuestion(
-    apiKey: string,
+    apiKey: KeyInput,
     systemPrompt: string,
     question: string,
     options?: AskOptions,
@@ -133,7 +152,7 @@ export interface AIProvider {
    * function calling; the turn route refuses to start a conversation on a
    * provider that has neither this nor `chatStream`.
    */
-  chatOnce?(apiKey: string, input: ChatOnceInput): Promise<ChatResult>;
+  chatOnce?(apiKey: KeyInput, input: ChatOnceInput): Promise<ChatResult>;
 
   /**
    * The streaming form of `chatOnce`. Text arrives through `onText` as the
@@ -151,7 +170,7 @@ export interface AIProvider {
    * reached `onText` is the caller's to keep or discard.
    */
   chatStream?(
-    apiKey: string,
+    apiKey: KeyInput,
     input: ChatOnceInput,
     onText: (delta: string) => void,
     signal?: AbortSignal,
@@ -180,6 +199,20 @@ export interface AskOptions {
    * platform's limit and replace a specific error with a generic one.
    */
   timeoutMs?: number;
+  /** The model to ask. Defaults to the provider's first choice. */
+  model?: string;
+  /**
+   * Images sent with the question (screenshot import's "Read with AI").
+   * Base64, already resized and re-encoded server-side. Only providers in
+   * SCREENSHOT_AI_PROVIDERS (src/lib/ocr/ai-extract.ts) are ever given any.
+   */
+  images?: AskImage[];
+}
+
+export interface AskImage {
+  /** image/jpeg, image/png or image/webp. */
+  mime: string;
+  base64: string;
 }
 
 // A provider that hangs would hold a serverless function open until the
@@ -293,9 +326,11 @@ export async function providerFetch(
 
 /** Reads an error body for logging, bounded so a huge HTML error page can't
  *  flood the logs. Never returned to the client. */
-export async function errorDetail(res: Response): Promise<string> {
+export async function errorDetail(res: Response, key?: KeyInput): Promise<string> {
   try {
-    const text = await res.text();
+    // The key's exact text is removed before this string exists anywhere --
+    // some providers echo part of a rejected credential back.
+    const text = redactKey(await res.text(), key);
     return `HTTP ${res.status}: ${text.slice(0, 500)}`;
   } catch {
     return `HTTP ${res.status}`;

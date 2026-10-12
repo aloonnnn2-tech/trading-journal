@@ -49,7 +49,7 @@ export function StatCard({
             {tooltip && <InfoTip text={tooltip} />}
           </p>
           <p
-            className={`tnum mt-1.5 flex items-baseline gap-1.5 text-[22px] font-semibold leading-tight tracking-tight ${valueColor}`}
+            className={`tnum mt-1.5 flex items-baseline gap-1.5 text-lg sm:text-[22px] font-semibold leading-tight tracking-tight ${valueColor}`}
           >
             {!colorValue && tone !== "neutral" && (
               <span className={`text-sm ${tone === "positive" ? "text-profit" : "text-loss"}`}>
@@ -61,7 +61,8 @@ export function StatCard({
           {hint && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
         </div>
         {Icon && (
-          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconClass}`}>
+          // Hidden on phones, where cards sit two to a row and the value needs the width.
+          <span className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:flex ${iconClass}`}>
             <Icon className="h-4 w-4" strokeWidth={2} />
           </span>
         )}

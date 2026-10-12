@@ -45,6 +45,15 @@ describe("rateLimit", () => {
     expect(r.retryAfterSeconds).toBe(12);
   });
 
+  it("never answers a refusal with retry-after 0 -- falls back to the whole window", async () => {
+    rpc.mockResolvedValue(block(0));
+    const r = await rateLimit("k", 3, 90_000);
+    expect(r.ok).toBe(false);
+    expect(r.retryAfterSeconds).toBe(90);
+    rpc.mockResolvedValue({ data: { allowed: false }, error: null });
+    expect((await rateLimit("k", 3, 60_000)).retryAfterSeconds).toBe(60);
+  });
+
   it("rounds a sub-second window up to at least one second", async () => {
     rpc.mockResolvedValue(allow);
     await rateLimit("k", 1, 1500);

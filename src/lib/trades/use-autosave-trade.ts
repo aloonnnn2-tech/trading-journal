@@ -15,8 +15,35 @@ function strategyFieldOwnerKey(strategyId: string, fieldKey: string): string {
   return `${strategyId}\x00${fieldKey}`;
 }
 
+// Server response -> local state, keeping anything typed while the request
+// was in flight (those keys are still pending, so the response is stale for
+// them). Shared by autosave and by applyServerTrade.
+function mergeServerTrade(
+  prev: Trade,
+  updated: Trade,
+  pendingCore: Partial<Record<EditableCoreField, unknown>>,
+  pendingCustom: Record<string, unknown>,
+  pendingStrategy: Record<string, Record<string, unknown>>,
+): Trade {
+  const merged = { ...updated } as Record<string, unknown>;
+  for (const key of Object.keys(pendingCore) as EditableCoreField[]) {
+    merged[key] = (prev as unknown as Record<string, unknown>)[key];
+  }
+  merged.custom_fields = { ...updated.custom_fields, ...pendingCustom };
+  const mergedStrategyFieldValues = { ...updated.strategy_field_values };
+  for (const strategyId of Object.keys(pendingStrategy)) {
+    mergedStrategyFieldValues[strategyId] = {
+      ...updated.strategy_field_values[strategyId],
+      ...pendingStrategy[strategyId],
+    };
+  }
+  merged.strategy_field_values = mergedStrategyFieldValues;
+  return merged as unknown as Trade;
+}
+
 export function useAutosaveTrade(initialTrade: Trade) {
   const [trade, setTrade] = useState<Trade>(initialTrade);
+
   const [status, setStatus] = useState<SaveStatus>("idle");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCoreRef = useRef<Partial<Record<EditableCoreField, unknown>>>({});
@@ -94,22 +121,7 @@ export function useAutosaveTrade(initialTrade: Trade) {
       // request, so `updated` (computed from the pre-keystroke value) is
       // stale for it -- keep the local value (already in `prev`) instead
       // of letting the server response clobber what the user just typed.
-      setTrade((prev) => {
-        const merged = { ...updated } as Record<string, unknown>;
-        for (const key of Object.keys(pendingCoreRef.current) as EditableCoreField[]) {
-          merged[key] = (prev as unknown as Record<string, unknown>)[key];
-        }
-        merged.custom_fields = { ...updated.custom_fields, ...pendingCustomRef.current };
-        const mergedStrategyFieldValues = { ...updated.strategy_field_values };
-        for (const strategyId of Object.keys(pendingStrategyFieldsRef.current)) {
-          mergedStrategyFieldValues[strategyId] = {
-            ...updated.strategy_field_values[strategyId],
-            ...pendingStrategyFieldsRef.current[strategyId],
-          };
-        }
-        merged.strategy_field_values = mergedStrategyFieldValues;
-        return merged as unknown as Trade;
-      });
+      setTrade((prev) => mergeServerTrade(prev, updated, pendingCoreRef.current, pendingCustomRef.current, pendingStrategyFieldsRef.current));
       setStatus("saved");
       retryCountRef.current = 0;
     } catch {
@@ -316,5 +328,9 @@ export function useAutosaveTrade(initialTrade: Trade) {
     return () => window.removeEventListener("online", handleOnline);
   }, [status]);
 
-  return { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow };
+  // A trade saved through another route (e.g. choosing its fee) comes back
+  // through the same merge, so nothing being typed is lost.
+  const applyServerTrade = useCallback((updated: Trade) => setTrade((prev) => mergeServerTrade(prev, updated, pendingCoreRef.current, pendingCustomRef.current, pendingStrategyFieldsRef.current)), []);
+
+  return { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade };
 }

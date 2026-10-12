@@ -1,0 +1,331 @@
+{
+ "lines": [
+  {
+   "text": "VEEV",
+   "confidence": 0.9849004298448563,
+   "box": {
+    "x0": 43,
+    "y0": 21,
+    "x1": 87,
+    "y1": 39
+   },
+   "cx": 65,
+   "cy": 30,
+   "height": 18
+  },
+  {
+   "text": "Order DOM",
+   "confidence": 0.9990029791990915,
+   "box": {
+    "x0": 69,
+    "y0": 65,
+    "x1": 260,
+    "y1": 85
+   },
+   "cx": 164.5,
+   "cy": 75,
+   "height": 20
+  },
+  {
+   "text": "Sell Buy",
+   "confidence": 0.9850916763146718,
+   "box": {
+    "x0": 22,
+    "y0": 115,
+    "x1": 310,
+    "y1": 139
+   },
+   "cx": 166,
+   "cy": 127,
+   "height": 24
+  },
+  {
+   "text": "296.13 0.00 296.13",
+   "confidence": 0.997973824540774,
+   "box": {
+    "x0": 23,
+    "y0": 137,
+    "x1": 310,
+    "y1": 158
+   },
+   "cx": 166.5,
+   "cy": 147.5,
+   "height": 21
+  },
+  {
+   "text": "Market Limit Stop Stop Limit",
+   "confidence": 0.9988270021975041,
+   "box": {
+    "x0": 25,
+    "y0": 185,
+    "x1": 317,
+    "y1": 204
+   },
+   "cx": 171,
+   "cy": 194.5,
+   "height": 19
+  },
+  {
+   "text": "Stop price",
+   "confidence": 0.9976806819438935,
+   "box": {
+    "x0": 13,
+    "y0": 230,
+    "x1": 86,
+    "y1": 248
+   },
+   "cx": 49.5,
+   "cy": 239,
+   "height": 18
+  },
+  {
+   "text": "313.53 n Ask + 1740",
+   "confidence": 0.983628382285436,
+   "box": {
+    "x0": 19,
+    "y0": 262,
+    "x1": 310,
+    "y1": 280
+   },
+   "cx": 164.5,
+   "cy": 271,
+   "height": 18
+  },
+  {
+   "text": "Limit price",
+   "confidence": 0.9971459453756158,
+   "box": {
+    "x0": 13,
+    "y0": 304,
+    "x1": 90,
+    "y1": 322
+   },
+   "cx": 51.5,
+   "cy": 313,
+   "height": 18
+  },
+  {
+   "text": "316.21 n Stop +268",
+   "confidence": 0.9776833962511132,
+   "box": {
+    "x0": 19,
+    "y0": 336,
+    "x1": 309,
+    "y1": 355
+   },
+   "cx": 164,
+   "cy": 345.5,
+   "height": 19
+  },
+  {
+   "text": "Shares",
+   "confidence": 0.9614241889544896,
+   "box": {
+    "x0": 12,
+    "y0": 382,
+    "x1": 77,
+    "y1": 402
+   },
+   "cx": 44.5,
+   "cy": 392,
+   "height": 20
+  },
+  {
+   "text": "0.524 n 165.69 USD",
+   "confidence": 0.983540406371608,
+   "box": {
+    "x0": 18,
+    "y0": 414,
+    "x1": 308,
+    "y1": 433
+   },
+   "cx": 163,
+   "cy": 423.5,
+   "height": 19
+  },
+  {
+   "text": "Tick value 0.005 usD",
+   "confidence": 0.9795235769616233,
+   "box": {
+    "x0": 13,
+    "y0": 455,
+    "x1": 318,
+    "y1": 473
+   },
+   "cx": 165.5,
+   "cy": 464,
+   "height": 18
+  },
+  {
+   "text": "Exits",
+   "confidence": 0.9966694831848144,
+   "box": {
+    "x0": 12,
+    "y0": 497,
+    "x1": 52,
+    "y1": 517
+   },
+   "cx": 32,
+   "cy": 507,
+   "height": 20
+  },
+  {
+   "text": "Take profit price",
+   "confidence": 0.9660573391353383,
+   "box": {
+    "x0": 13,
+    "y0": 536,
+    "x1": 145,
+    "y1": 557
+   },
+   "cx": 79,
+   "cy": 546.5,
+   "height": 21
+  },
+  {
+   "text": "377.95 n 6174 ticks",
+   "confidence": 0.9878464751773409,
+   "box": {
+    "x0": 19,
+    "y0": 577,
+    "x1": 308,
+    "y1": 595
+   },
+   "cx": 163.5,
+   "cy": 586,
+   "height": 18
+  },
+  {
+   "text": "Stop loss price",
+   "confidence": 0.9379917502403259,
+   "box": {
+    "x0": 13,
+    "y0": 628,
+    "x1": 131,
+    "y1": 645
+   },
+   "cx": 72,
+   "cy": 636.5,
+   "height": 17
+  },
+  {
+   "text": "283.38 n 3283 ticks",
+   "confidence": 0.969648152589798,
+   "box": {
+    "x0": 18,
+    "y0": 666,
+    "x1": 308,
+    "y1": 687
+   },
+   "cx": 163,
+   "cy": 676.5,
+   "height": 21
+  },
+  {
+   "text": "Risk / Reward 1.88",
+   "confidence": 0.9876630294781465,
+   "box": {
+    "x0": 13,
+    "y0": 708,
+    "x1": 319,
+    "y1": 725
+   },
+   "cx": 166,
+   "cy": 716.5,
+   "height": 17
+  },
+  {
+   "text": "Extra settings",
+   "confidence": 0.9972633591720036,
+   "box": {
+    "x0": 13,
+    "y0": 756,
+    "x1": 112,
+    "y1": 777
+   },
+   "cx": 62.5,
+   "cy": 766.5,
+   "height": 21
+  },
+  {
+   "text": "Time in force",
+   "confidence": 0.9589468194888189,
+   "box": {
+    "x0": 13,
+    "y0": 792,
+    "x1": 107,
+    "y1": 810
+   },
+   "cx": 60,
+   "cy": 801,
+   "height": 18
+  },
+  {
+   "text": "Good Till Cancel",
+   "confidence": 0.9743155986070633,
+   "box": {
+    "x0": 23,
+    "y0": 825,
+    "x1": 135,
+    "y1": 842
+   },
+   "cx": 79,
+   "cy": 833.5,
+   "height": 17
+  },
+  {
+   "text": "Routing",
+   "confidence": 0.9995715192386082,
+   "box": {
+    "x0": 12,
+    "y0": 870,
+    "x1": 70,
+    "y1": 892
+   },
+   "cx": 41,
+   "cy": 881,
+   "height": 22
+  },
+  {
+   "text": "SMART",
+   "confidence": 0.9981624245643616,
+   "box": {
+    "x0": 21,
+    "y0": 901,
+    "x1": 69,
+    "y1": 919
+   },
+   "cx": 45,
+   "cy": 910,
+   "height": 18
+  },
+  {
+   "text": "Buy",
+   "confidence": 0.9986491600672404,
+   "box": {
+    "x0": 147,
+    "y0": 961,
+    "x1": 185,
+    "y1": 986
+   },
+   "cx": 166,
+   "cy": 973.5,
+   "height": 25
+  },
+  {
+   "text": "0.524 VEEV @ 313.53 STOP 316.21 LIMIT",
+   "confidence": 0.9709399004240293,
+   "box": {
+    "x0": 40,
+    "y0": 987,
+    "x1": 292,
+    "y1": 1004
+   },
+   "cx": 166,
+   "cy": 995.5,
+   "height": 17
+  }
+ ],
+ "roiLines": [],
+ "rawText": "VEEV\nOrder DOM\nSell Buy\n296.13 0.00 296.13\nMarket Limit Stop Stop Limit\nStop price\n313.53 n Ask + 1740\nLimit price\n316.21 n Stop +268\nShares\n0.524 n 165.69 USD\nTick value 0.005 usD\nExits\nTake profit price\n377.95 n 6174 ticks\nStop loss price\n283.38 n 3283 ticks\nRisk / Reward 1.88\nExtra settings\nTime in force\nGood Till Cancel\nRouting\nSMART\nBuy\n0.524 VEEV @ 313.53 STOP 316.21 LIMIT"
+}

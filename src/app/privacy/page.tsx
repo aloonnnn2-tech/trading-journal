@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 const SECTION_HEADING = "mt-8 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
 const BODY = "mt-3 leading-relaxed text-zinc-600 dark:text-zinc-400";
-const LAST_UPDATED = "September 2026";
+const LAST_UPDATED = "October 2026";
 
 export default function PrivacyPage() {
   return (
@@ -46,8 +46,14 @@ export default function PrivacyPage() {
         <p className={BODY}>
           <strong className="text-zinc-800 dark:text-zinc-200">Screenshots you upload:</strong> if
           you use the screenshot import feature, the image is processed to automatically read
-          trade details off it (an on-device OCR step, described below) and is then stored as an
-          attachment on that trade so you can refer back to it.
+          trade details off it (by text-recognition software running on our own servers,
+          described below) and is then stored as an attachment on that trade so you can refer
+          back to it.
+        </p>
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Your sign-up agreement:</strong> when you
+          create an account we record that you confirmed you are 18 or older and accepted these
+          terms, which version you accepted, and when.
         </p>
         {/* Added with the waitlist (Phase 2B of docs/design-audit.md): the
             form collects addresses from people with no account, which the
@@ -66,13 +72,24 @@ export default function PrivacyPage() {
           </a>
           .
         </p>
+        {/* Added with reviews (0064, 2026-10-11). Every clause is a promise. */}
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Reviews of Trading Lens:</strong> if you rate
+          Trading Lens, we store your stars, your comment, the name you chose to show (if any), whether you
+          allowed it to be shown publicly, and where you were asked. A review appears on our homepage only if
+          you allowed it and we chose it, and then only the stars, the comment, the name you chose and the
+          month &mdash; never your email. You can change or remove your review any time from the account menu
+          (Rate Trading Lens), and it is deleted with your account.
+        </p>
 
         <h2 className={SECTION_HEADING}>How screenshot processing works</h2>
         <p className={BODY}>
           Screenshot text extraction runs entirely on our own servers using offline OCR software.
-          Your screenshots are never sent to a third-party AI or OCR API to be read. The
+          By default your screenshots are never sent to a third-party AI or OCR API to be read. On
+          the paid plan you can choose &ldquo;Read with AI&rdquo; for a screenshot: that one image is then
+          sent to the AI provider of your own key, only after you agree for that provider. The
           recognition model runs locally as part of our infrastructure, and the image itself is
-          stored in your account&apos;s private storage, not shared externally.
+          stored in your account&apos;s private storage.
         </p>
 
         <h2 className={SECTION_HEADING}>Where your data is stored</h2>
@@ -81,6 +98,26 @@ export default function PrivacyPage() {
           authentication. Supabase acts as our infrastructure provider (a data processor) and
           does not use your data for its own purposes. Data is protected by access rules that
           restrict every account to seeing only its own data.
+        </p>
+
+        <h2 className={SECTION_HEADING}>Other services that receive data</h2>
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Netlify</strong> hosts the app: the
+          pages and the server functions your browser talks to run on Netlify. Like any web host,
+          it receives your IP address and the requests your browser makes in order to serve them.
+        </p>
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Cloudflare Turnstile</strong> is the
+          security check on the sign-in, sign-up and password-reset pages, and only runs on
+          those pages. To tell people from automated sign-in attempts, Cloudflare receives
+          technical information such as your IP address and details of your browser.
+          Cloudflare&apos;s own privacy policy applies to that check.
+        </p>
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Yahoo Finance</strong> is where our
+          server gets the price history behind charts and excursion figures. Only a ticker symbol
+          and a date range are sent, from our server &mdash; never your name, email, account or
+          any trade details.
         </p>
 
         <h2 className={SECTION_HEADING}>Cookies and browser storage</h2>
@@ -104,6 +141,15 @@ export default function PrivacyPage() {
           pages. The contents of your trades, notes, and journal entries are never recorded in
           analytics — a button press is recorded by the button&apos;s own label, never by
           anything you typed.
+        </p>
+        <p className={BODY}>
+          Exactly what is recorded, with the time: the pages you open; the buttons you press, by
+          their label; when you leave the app or switch away from it, and on which page; signing
+          in and creating your account; how far you got in a product tour; and that you created,
+          edited, deleted, imported or exported trades, added a cash entry, or used an AI feature
+          (with the provider&apos;s name), but never what those trades or entries contain. While
+          the app is open, a timer also counts how long you spend in it. Usage events are
+          included when you download your data from the Account page.
         </p>
         <p className={BODY}>
           Separately, we keep an anonymous tally of how many times the home page and pricing
@@ -136,14 +182,21 @@ export default function PrivacyPage() {
 
         <h2 className={SECTION_HEADING}>Your data, your control</h2>
         <p className={BODY}>
-          You can export your trade data at any time from within the app. If you&apos;d like your
-          account and all associated data permanently deleted, contact us (see below) and we
-          will process the request.
+          You can download everything we store about your account as one file from the Account
+          page: your trades and their edit history, notes, strategies and rules, folders, goals,
+          settings, cash entries, fees, AI reviews and conversations, a list of your screenshots
+          with download links, and the usage events recorded for your account. Your trades can
+          also be exported as CSV, Excel or JSON from the Trades page.
+        </p>
+        <p className={BODY}>
+          You can permanently delete your account and all of its data yourself, from the Account
+          page. Deletion can&apos;t be undone. You can also ask us to do it by email (see below).
         </p>
 
         <h2 className={SECTION_HEADING}>Children&apos;s privacy</h2>
         <p className={BODY}>
-          Trading Lens is not directed at, or intended for use by, anyone under 18.
+          Trading Lens is not directed at, or intended for use by, anyone under 18. Creating an
+          account requires confirming that you are 18 or older.
         </p>
 
         <h2 className={SECTION_HEADING}>Changes to this policy</h2>

@@ -34,7 +34,18 @@ export interface DisabledResult {
   notes: ValidationNote[];
 }
 
-async function boxContrast(buffer: Buffer, box: Box, scale: number, imgW: number, imgH: number): Promise<number | null> {
+interface Contrast {
+  /** Strongest per-channel standard deviation inside the box. */
+  stdev: number;
+  /** Brightest minus darkest pixel across channels: how far the text's
+   *  colour gets from the background. A greyed placeholder never reaches
+   *  full contrast -- on the 2026-10-09 order tickets, real values spanned
+   *  207-251 and the switched-off take-profit 133-137 -- while its stdev
+   *  stayed close enough to the others to pass the stdev test alone. */
+  spread: number;
+}
+
+async function boxContrast(buffer: Buffer, box: Box, scale: number, imgW: number, imgH: number): Promise<Contrast | null> {
   const pad = 3;
   const x0 = Math.max(0, Math.floor(box.x0 / scale) - pad);
   const y0 = Math.max(0, Math.floor(box.y0 / scale) - pad);
@@ -57,8 +68,12 @@ async function boxContrast(buffer: Buffer, box: Box, scale: number, imgW: number
     // text does — only genuinely washed-out/greyed text scores low on every
     // channel at once.
     const stats = await sharp(cropped).stats();
-    const channelStdevs = stats.channels.slice(0, 3).map((c) => c.stdev);
-    return channelStdevs.length ? Math.max(...channelStdevs) : null;
+    const channels = stats.channels.slice(0, 3);
+    if (!channels.length) return null;
+    return {
+      stdev: Math.max(...channels.map((c) => c.stdev)),
+      spread: Math.max(...channels.map((c) => c.max)) - Math.min(...channels.map((c) => c.min)),
+    };
   } catch {
     return null;
   }
@@ -80,25 +95,41 @@ export async function demoteDisabledFields(buffer: Buffer, fields: DetectedField
   const imgH = meta.height ?? 0;
   if (!imgW || !imgH) return { fields, notes };
 
-  const samples: { key: FieldKey; contrast: number }[] = [];
+  const samples: { key: FieldKey; contrast: number; spread: number }[] = [];
   for (const key of keys) {
     const box = fields[key]!.box!;
     const c = await boxContrast(buffer, box, scale, imgW, imgH);
-    if (c !== null) samples.push({ key, contrast: c });
+    if (c !== null) samples.push({ key, contrast: c.stdev, spread: c.spread });
   }
   if (samples.length < 3) return { fields, notes };
 
   const sorted = [...samples].sort((a, b) => a.contrast - b.contrast);
   const median = sorted[Math.floor(sorted.length / 2)].contrast;
+  const spreads = samples.map((s) => s.spread).sort((a, b) => a - b);
+  const medianSpread = spreads[Math.floor(spreads.length / 2)];
   // If the whole image is inherently low-contrast (e.g. a soft screenshot),
   // relative comparison isn't a reliable signal — skip rather than guess.
   if (median < 10) return { fields, notes };
 
   const next: DetectedFields = { ...fields };
-  for (const { key, contrast } of samples) {
-    if (contrast < median * 0.4) {
-      next[key] = { ...next[key]!, confidence: adjust(next[key]!.confidence, CONF.softFail) };
-      notes.push({ field: key, ok: false, message: `looks greyed/disabled (contrast ${contrast.toFixed(1)} vs median ${median.toFixed(1)}) — confidence reduced` });
+  for (const { key, contrast, spread } of samples) {
+    const faintShades = contrast < median * 0.4;
+    const neverFullContrast = medianSpread >= 120 && spread < medianSpread * 0.7;
+    if (faintShades || neverFullContrast) {
+      // A switched-off box's placeholder is not a value the trade was placed
+      // with. It is offered as a suggestion, never filled in -- lowering its
+      // confidence alone still left it above the auto-fill bar.
+      next[key] = {
+        ...next[key]!,
+        confidence: adjust(next[key]!.confidence, CONF.softFail),
+        heuristic: true,
+        source: `${next[key]!.source} (looks greyed out: may be an unused placeholder)`,
+      };
+      notes.push({
+        field: key,
+        ok: false,
+        message: `looks greyed out (contrast ${contrast.toFixed(1)} vs ${median.toFixed(1)}, range ${spread} vs ${medianSpread}): may be an unused placeholder`,
+      });
     }
   }
   return { fields: next, notes };

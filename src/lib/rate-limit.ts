@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { serverSecret } from "@/lib/server-env";
 
 // Global rate limiter, backed by a shared Postgres counter (see
 // supabase/migrations/0042_rate_limit_counters.sql). It replaced an in-memory
@@ -28,7 +29,7 @@ let cachedClient: SupabaseClient | null = null;
 function rpcClient(): SupabaseClient {
   if (cachedClient) return cachedClient;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = serverSecret("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) {
     throw new Error("rate-limit: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set");
   }
@@ -52,12 +53,18 @@ export interface RateLimitResult {
  * @param key      Caller-scoped identity/bucket, e.g. `ocr:<userId>`.
  * @param limit    Max requests allowed inside the window.
  * @param windowMs Window length in milliseconds.
+ * @param options.failClosed Refuse instead of allow when the limiter itself
+ *   is broken. ONLY for limits whose absence is a security problem rather
+ *   than an inconvenience -- the key-check buckets, where an unlimited
+ *   limiter turns the app into a free checker for stolen API keys.
  */
 export async function rateLimit(
   key: string,
   limit: number,
   windowMs: number,
+  options: { failClosed?: boolean } = {},
 ): Promise<RateLimitResult> {
+  const broken: RateLimitResult = options.failClosed ? { ok: false, retryAfterSeconds: 60 } : { ok: true, retryAfterSeconds: 0 };
   try {
     const { data, error } = await rpcClient().rpc("rate_limit_hit", {
       p_bucket: key,
@@ -65,17 +72,22 @@ export async function rateLimit(
       p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
     });
     if (error || !data || typeof data !== "object") {
-      return { ok: true, retryAfterSeconds: 0 };
+      return broken;
     }
     const allowed = (data as { allowed?: unknown }).allowed;
     const retry = (data as { retry_after_seconds?: unknown }).retry_after_seconds;
+    // Only an explicit `false` blocks; any unexpected shape fails open.
+    const ok = allowed !== false;
     return {
-      // Only an explicit `false` blocks; any unexpected shape fails open.
-      ok: allowed !== false,
-      retryAfterSeconds: typeof retry === "number" && retry > 0 ? retry : 0,
+      ok,
+      // A refusal must never say "retry after 0": clients that honour the
+      // header would retry at once and be refused again. If the counter gave
+      // no usable wait, the whole window is the safe answer.
+      retryAfterSeconds:
+        typeof retry === "number" && retry > 0 ? retry : ok ? 0 : Math.max(1, Math.ceil(windowMs / 1000)),
     };
   } catch {
-    return { ok: true, retryAfterSeconds: 0 };
+    return broken;
   }
 }
 

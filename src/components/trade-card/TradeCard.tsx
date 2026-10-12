@@ -36,10 +36,14 @@ import {
   matchCommissionRule,
   computeCommission,
   computeBreakevenPrice,
+  computeEntryCoverPrice,
+  feeLines,
 } from "@/lib/commissions/calculate";
 import type { CommissionRule } from "@/lib/commissions/types";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
 import { formatMoney } from "@/lib/format/money";
+import { fillQuestion } from "@/lib/trades/fill-check";
+import { FillPricePrompt } from "./FillPricePrompt";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -80,8 +84,33 @@ export function TradeCard({
   accountBalance?: number | null;
 }) {
   const router = useRouter();
-  const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow } =
+  const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade } =
     useAutosaveTrade(initialTrade);
+  const [feeSaving, setFeeSaving] = useState(false);
+  const [feeError, setFeeError] = useState<string | null>(null);
+
+  // Which fee this trade pays: automatic, a chosen one, or none. Pending
+  // edits are saved first, so the fee is worked out from what's on screen.
+  async function chooseFee(fee: string) {
+    setFeeError(null);
+    setFeeSaving(true);
+    try {
+      await flushNow();
+      const res = await fetch(`/api/trades/${trade.id}/fee`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fee }),
+      });
+      const body = (await res.json().catch(() => null)) as (Trade & { error?: string }) | null;
+      if (!res.ok || !body) throw new Error(body?.error ?? "Couldn't change the fee. Try again.");
+      applyServerTrade(body);
+    } catch (err) {
+      setFeeError(err instanceof Error ? err.message : "Couldn't change the fee. Try again.");
+    } finally {
+      setFeeSaving(false);
+    }
+  }
+  const feeChoice = trade.commission_rule_id ?? (trade.commission_manual && trade.commission === 0 ? "none" : "auto");
   const [folderIds, setFolderIds] = useState(new Set(initialFolderIds));
   const [strategyIds, setStrategyIds] = useState(new Set(initialStrategyIds));
   const [imageCount, setImageCount] = useState(initialImages.length);
@@ -175,9 +204,34 @@ export function TradeCard({
   // lagging a 600ms autosave round trip behind it. The server recomputes and
   // persists the authoritative value on save -- this is purely the live
   // preview of the same calculation.
-  const commissionRule = isInvestment ? null : matchCommissionRule(commissionRules, trade);
+  // "No fee" chosen on this trade means no fee anywhere: not in the total and
+  // not in a fee-based break-even line on the chart either.
+  const commissionRule = isInvestment || feeChoice === "none" ? null : matchCommissionRule(commissionRules, trade);
   const commissionPreview = computeCommission(commissionRule, trade);
   const breakevenPrice = isInvestment ? null : computeBreakevenPrice(commissionRule, trade);
+  // The price that covers only the fee already paid to get in ($82.50 for one
+  // share bought at $80 with a $2.50 fee) -- shown beside the full break-even
+  // ($85.00, which also covers the exit fee still to come).
+  const entryCoverPrice = isInvestment ? null : computeEntryCoverPrice(commissionRule, trade);
+  // Per-line fees for a multi-line rule (commission, SEC fee, TAF...), so the
+  // total isn't a black box.
+  const feeBreakdown =
+    commissionRule?.components && commissionRule.components.length > 1
+      ? [
+          ...feeLines(commissionRule, "entry", trade.entry_price, trade.shares, trade.direction, trade.order_type),
+          ...(trade.status === "closed"
+            ? feeLines(commissionRule, "exit", trade.exit_price, trade.shares, trade.direction, trade.order_type)
+            : []),
+        ]
+          .reduce<{ label: string; fee: number }[]>((acc, l) => {
+            const hit = acc.find((a) => a.label === l.label);
+            if (hit) hit.fee += l.fee;
+            else acc.push({ ...l });
+            return acc;
+          }, [])
+          // Sub-cent lines (the CAT fee) would print as "$0.00" -- a false zero.
+          .filter((l) => l.fee >= 0.005)
+      : [];
 
   const pendingInputs = {
     entry_price: trade.entry_price,
@@ -284,8 +338,21 @@ export function TradeCard({
 
   const pl = trade.dollar_pl;
 
+  // A resting order filled: ask at what price (src/lib/trades/fill-check.ts).
+  // A new price goes through the normal edit path (P/L and R recomputed);
+  // the answer is recorded on its own route so it is asked only once.
+  const fill = fillQuestion(trade);
+  async function answerFill(price: number | null) {
+    if (price != null) applyMoneyFieldEdits([["entry_price", price]]);
+    await flushNow();
+    const res = await fetch(`/api/trades/${trade.id}/fill-confirmed`, { method: "POST" });
+    if (!res.ok) throw new Error("fill-confirmed failed");
+    applyServerTrade((await res.json()) as Trade);
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      {fill && <FillPricePrompt key={`${trade.id}-${fill.assumed}`} question={fill} onAnswer={answerFill} />}
       {autoExecutionMessage && (
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2 text-sm text-primary">
           <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />
@@ -329,7 +396,10 @@ export function TradeCard({
           data-tour-id="trade-detail-hero"
           className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4"
         >
-          <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Two columns even on a phone: one field per row made the form four
+              screens long. The P/L block moves above the fields there (below),
+              instead of taking the right 40% of every row. */}
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
             <Field label="Ticker">
               <input
                 type="text"
@@ -444,7 +514,7 @@ export function TradeCard({
             )}
           </div>
           {!isInvestment && (
-            <div className="shrink-0 text-right">
+            <div className="shrink-0 text-right max-sm:order-first max-sm:w-full max-sm:text-left">
               <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-zinc-500">
                 Dollar P/L
               </p>
@@ -507,7 +577,7 @@ export function TradeCard({
         hoverable={false}
         className={activeExtra === null ? "hidden" : "border-primary/30"}
       >
-        <div className={activeExtra === "details" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "hidden"}>
+        <div className={activeExtra === "details" ? "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" : "hidden"}>
           <Field label="Mode">
             <select
               className={inputClass}
@@ -550,7 +620,7 @@ export function TradeCard({
           )}
         </div>
 
-        <div className={activeExtra === "dates" ? "grid gap-4 sm:grid-cols-2" : "hidden"}>
+        <div className={activeExtra === "dates" ? "grid grid-cols-2 gap-3 sm:gap-4" : "hidden"}>
           {!isHidden("entry_date") &&
             (isPending && !trade.entry_date ? (
               // Not asked for yet: the order has not entered. The fill stamps
@@ -683,7 +753,7 @@ export function TradeCard({
                 </>
               )}
             </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <ReadOnlyField
               label="Dollar P/L"
               tooltip="Net of commission. This is what actually landed in your account."
@@ -719,6 +789,12 @@ export function TradeCard({
               }
               value={trade.commission}
               pending={pendingReason("commission", pendingInputs)}
+            />
+            <ReadOnlyField
+              label={trade.direction === "short" ? "Covers Entry Fee At" : "Covers Buy Fee At"}
+              tooltip="The price that pays back only the fee you paid to get in. Past it the trade is no longer underwater for what it has cost so far -- but the exit fee is still to come, so the full break-even is the next figure."
+              value={entryCoverPrice}
+              pending={pendingReason("breakeven_price", pendingInputs)}
             />
             <ReadOnlyField
               label="Breakeven Price"
@@ -775,7 +851,7 @@ export function TradeCard({
           <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
             Entry information
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
             {!isHidden("entry_price") && (
               <NumberField
                 label={priceLabels.entry}
@@ -873,11 +949,44 @@ export function TradeCard({
               />
             )}
           </div>
+          {commissionRules.length > 0 && !isHidden("commission") && (
+            // Pick the fee: for someone with two brokers or accounts, or a
+            // trade the automatic match gets wrong.
+            <div className="mt-4 flex flex-col gap-1.5">
+              <label className="flex flex-wrap items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                Fee for this trade
+                <select
+                  value={feeChoice}
+                  disabled={feeSaving}
+                  onChange={(e) => void chooseFee(e.target.value)}
+                  className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-primary disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                >
+                  <option value="auto">Automatic{commissionRule && !trade.commission_rule_id ? ` (${commissionRule.name})` : ""}</option>
+                  {/* A specific fee needs the column from migration 0056; until
+                      it's applied the trade row simply hasn't got it. */}
+                  {"commission_rule_id" in trade && commissionRules.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                      {r.enabled ? "" : " (off)"}
+                    </option>
+                  ))}
+                  <option value="none">No fee</option>
+                </select>
+                {feeSaving && <span className="text-xs text-zinc-500">Saving…</span>}
+              </label>
+              {feeError && <p className="text-xs text-loss">{feeError}</p>}
+            </div>
+          )}
           {commissionRule && !trade.commission_manual && (
             <p className="mt-3 text-xs text-zinc-500">
               Commission is applied automatically from your{" "}
               <span className="text-zinc-700 dark:text-zinc-300">{commissionRule.name}</span> rule.
               P/L above is net of it.
+              {feeBreakdown.length > 0 && (
+                <span className="mt-1 block">
+                  {feeBreakdown.map((l) => `${l.label} ${formatMoney(l.fee)}`).join(" · ")}
+                </span>
+              )}
             </p>
           )}
         </Card>

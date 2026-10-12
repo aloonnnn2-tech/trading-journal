@@ -44,15 +44,13 @@ The protections that do work are all configured in the Supabase dashboard:
 
 **Authentication → Attack Protection**
 
-- **Enable CAPTCHA** (hCaptcha or Cloudflare Turnstile). This is the single
-  most effective control available for these endpoints, because it applies at
-  Supabase's edge where the requests actually land.
-  After enabling it, the four auth screens listed above must each pass the
-  resulting token through as `options.captchaToken` — **they do not do this
-  today**, so enabling CAPTCHA without that code change will break sign-in.
-  Treat it as one task, not two.
-- **Enable leaked-password protection** (checks new passwords against Have I
-  Been Pwned). The app currently enforces only `minLength=6`.
+- **CAPTCHA: done.** Cloudflare Turnstile has been live since 2026-09-08 on
+  sign-in, sign-up and forgot-password (`src/components/turnstile.tsx`); the
+  screens pass the token as `options.captchaToken`, and Supabase rejects auth
+  calls without one. This is the most effective control here, because it
+  applies at Supabase's edge, where the requests actually land.
+- **Leaked-password protection** (Have I Been Pwned): blocked by the plan
+  tier, see `SECURITY-RUNBOOK.md` §2. The minimum length is now 8.
 
 **Consider also**
 
@@ -63,6 +61,21 @@ The protections that do work are all configured in the Supabase dashboard:
   sign-up no longer requires confirmation while `src/app/sign-up/page.tsx`
   still handles the awaiting-confirmation path; whichever is intended, the
   other should follow.
+
+### "5 attempts per 15 minutes" (hardening brief, 2026-10-09)
+
+The brief asks for at most 5 login attempts per 15 minutes, per IP **and** per
+account. Supabase's auth limits are per IP only, over a 5-minute window, so
+neither half can be expressed exactly:
+
+- **Per IP:** the runbook sets sign-in to 5 per 5 minutes, which is the
+  closest setting (up to 15 per 15 minutes). Going lower locks out someone
+  who mistypes a password twice. Every attempt also needs a fresh Turnstile
+  token, which is what actually stops a script.
+- **Per account:** not possible without proxying auth through our own routes,
+  which this file's §8 records as deliberately not done. Alon confirmed that
+  choice on 2026-10-09. It is listed as an open item in
+  `docs/security/99-audit-report.md`.
 
 ### What the app does do
 
@@ -101,6 +114,23 @@ genuinely expensive or destructive:
 | `GET /api/trades/export` | 20/min | Serialises the whole account |
 | `DELETE /api/account/delete` | 5/hour | Irreversible, partially-completing |
 | `POST /api/admin/plan` | 60/min | Limits a leaked admin session |
+
+**Daily caps — `src/lib/rate-limits/daily.ts`** (2026-10-09). The per-minute
+limits stop a burst. A script making one call every few seconds all day stays
+under every one of them and still runs up the bill, so the expensive routes
+also carry a per-user daily cap. All the caps are in one table and sit far
+above a person's real use: 200 screenshot reads, 100 AI reviews, 500 Ask
+messages, 100 imports, 200 exports, 50 excursion recalculations and 3,000
+price lookups per day.
+
+**Yahoo ceiling.** The market-data routes also share one app-wide bucket of
+600 calls a minute (`upstream:yahoo`). The unofficial endpoint can block this
+server's IP for everyone, so this bounds the app as a whole, not just one
+account.
+
+**Request size — `src/lib/http/body-limits.ts`.** The proxy refuses (413) any
+non-GET `/api` request whose `Content-Length` is over 1 MB, or over 6 MB for
+the upload and import routes, before a handler buffers it.
 
 **Why the remaining routes have no individual limit.** Settings, folders,
 strategies, goals, field definitions and commission rules are all
@@ -265,6 +295,24 @@ The unbound `v1` format, kept for a while so keys stored before the binding
 kept working, is **refused** since 2026-09-21: no v1 row remained, and
 accepting the format was only a door for exactly this attack.
 
+Since 2026-09-30 the binding is tighter, in two layers:
+
+- **The `v3` format** binds each ciphertext to its owner, **its own row id and
+  its provider**. Swapping ciphertext between two of a user's own rows, or
+  changing a row's `provider` so the key is sent to a different company's
+  servers, now makes it undecryptable instead of silently working. `v2` still
+  reads; it is rewritten as `v3` on next use, or all at once with
+  `npm run rotate:ai-keys`. Writing `v3` is switched on by
+  `AI_KEY_WRITE_V3=true` (SECURITY-RUNBOOK.md §6), because code already
+  deployed can't read it.
+- **Migration 0058** takes the table away from the user's own session. A
+  signed-in user (or anyone holding their session, or an XSS) can see a key's
+  public columns and change only its label and on/off state. Reading the
+  ciphertext, storing a key and changing its model go through
+  `src/lib/ai-keys/vault.ts` only: the service role, always filtered by the
+  verified user id. A unit test fails if any other file names
+  `encrypted_key`.
+
 ### If the encryption secret itself leaks
 
 Recoverable, provided it is noticed. Rotation is supported:
@@ -276,8 +324,10 @@ Recoverable, provided it is noticed. Rotation is supported:
 4. Deploy, then run `npm run verify:ai-secret` to confirm both are readable
 
 Stored keys keep working immediately and are re-encrypted under the new secret
-the next time each one is used. Once every active key has been used at least
-once, drop `AI_KEY_ENCRYPTION_SECRET_PREVIOUS`.
+the next time each one is used. To finish at once rather than waiting on idle
+keys, run `npm run rotate:ai-keys` (a dry run) and then
+`npm run rotate:ai-keys -- --apply`; it prints counts and row ids only. Then
+drop `AI_KEY_ENCRYPTION_SECRET_PREVIOUS`.
 
 Before this, a leaked secret meant permanent compromise: there was no way to
 change it that did not require every user to re-paste their key.
@@ -287,19 +337,47 @@ secret is known to have leaked, tell users to revoke and reissue their provider
 keys — rotation protects the ciphertext going forward, not keys an attacker
 already decrypted.
 
-### Keys in logs and error reports
+### Keys in logs, error reports and caches
 
+- **The decrypted key is not a string.** It is a `SecretKey` (`secret.ts`):
+  printing it, `JSON.stringify`-ing it, or capturing it in an error shows
+  `[redacted]`. Only `reveal()` returns the text, and the providers call it in
+  one place each: building the auth header.
 - Providers are given the key in a **header**, never a URL query parameter, so
   it cannot land in request logs, proxy logs, or an error that quotes the URL.
   `providers/google.ts` documents this explicitly — Google's API accepts both,
   and the wrong choice would put a live key in every access log hop.
 - `ProviderError` carries a generic message; provider-side detail lives in a
-  separate field that is never serialized into an HTTP response.
-- Everything sent to Sentry is scrubbed first (`src/lib/observability/scrub.ts`,
-  wired into `beforeSend` on server, edge and browser). It redacts values
-  matching every supported provider's key format, our own ciphertext envelope,
-  and JWT-shaped tokens, plus any field named like a credential. An event that
+  separate field that is never serialized into an HTTP response. That detail
+  has the exact key text cut out (`redactKey`) and is scrubbed again on
+  construction, so a provider that echoes the key back can't put it in a log.
+- Every log line on the AI paths goes through `logError`, which scrubs.
+- Sentry is scrubbed (`scrub.ts`, wired into events, transactions,
+  breadcrumbs and spans) with its privacy options pinned in code
+  (`sentry-options.ts`): no default PII, no local variables. An event that
   cannot be scrubbed is dropped rather than sent.
+- **Correction (2026-09-30):** this section used to say the scrubber matched
+  "every supported provider's key format". It didn't: Mistral, SambaNova and
+  GitHub keys have no fixed prefix and slipped through. It now also catches
+  GitHub token formats, long mixed-case random strings, and any value after
+  a word like key/token/secret/password. Pattern matching is still the
+  backstop, not the defence; the defence is the two layers above it.
+- `/api/*` responses are `Cache-Control: private, no-store` (set in
+  `src/proxy.ts`), so no shared cache keeps an AI answer or key list.
+- **The build cache.** Next 16.3's Turbopack build cache stored a snapshot
+  of the whole build environment, `AI_KEY_ENCRYPTION_SECRET` included, and
+  Netlify kept it between builds. It is switched off (`next.config.ts`), and
+  `npm run check:cache-secrets` proves a build leaves no secret in `.next`.
+  The secret did sit in Netlify's saved cache before that, so rotating it is
+  recommended (SECURITY-RUNBOOK.md §6).
+
+### Abuse limits
+
+Checking a key against its provider is capped per user per day and fails
+**closed**: if the limiter itself is down, checks are refused rather than
+unlimited, so the app can't be used to test stolen keys in bulk. The chat's
+model re-check counts against the same cap. Key routes refuse bodies over 4 KB.
+Each key shows when it was last used, so use the owner didn't make stands out.
 
 ### The limit, stated plainly
 

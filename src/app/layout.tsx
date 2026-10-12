@@ -17,13 +17,21 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getUserSettings } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
+import { rolesFrom } from "@/lib/auth/roles";
+import { needsConsent } from "@/lib/legal/consent";
+import { ConsentGate } from "@/components/legal/consent-gate";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
+import { ReviewPrompt } from "@/components/reviews/ReviewPrompt";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { getDemoState } from "@/lib/demo/queries";
+import { getPreferences } from "@/lib/settings/preferences-queries";
+import { PreferencesProvider } from "@/components/preferences/preferences-provider";
+import { MobileTabBar } from "@/components/mobile/mobile-tab-bar";
 import { DesignFlagScript } from "@/components/design/design-flag";
+import { HostCommentCleanupScript } from "@/components/host-comment-cleanup";
 import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
@@ -106,13 +114,19 @@ export default async function RootLayout({
   const settings = userId
     ? await getUserSettings(await createClient(), userId).catch(() => null)
     : null;
-  const admin = settings?.is_admin ?? false;
+  const admin = rolesFrom(settings).admin;
   const paid = settings ? isPaidUser(settings) : false;
   // Phase 4D: while the demo journal is in the account, every page says so.
   // Fails quiet: an error (or 0051 unapplied) just means no banner.
   const demoActive = userId
     ? (await getDemoState(await createClient(), userId).catch(() => null)) === "active"
     : false;
+  // Setup -> Settings switches, handed to every client component through
+  // PreferencesProvider. null (signed out, or 0054 unapplied) = defaults.
+  const preferences = userId ? await getPreferences(await createClient(), userId).catch(() => null) : null;
+  // Accounts with no recorded age/Terms agreement (made before the sign-up
+  // checkbox) confirm once. Fails open -- see src/lib/legal/consent.ts.
+  const consentNeeded = userId ? await needsConsent(await createClient(), userId) : false;
 
   return (
     <html
@@ -125,9 +139,13 @@ export default async function RootLayout({
             flashes V1 chrome. See src/components/design/design-flag.tsx --
             with the flag off this writes no attribute at all. */}
         <DesignFlagScript nonce={nonce} />
+        {/* Netlify writes a comment into <head>; left there it breaks
+            hydration and flashes the wrong theme. See the component. */}
+        <HostCommentCleanupScript nonce={nonce} />
       </head>
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
+          <PreferencesProvider initial={preferences}>
           {/* First thing in the tab order, invisible until focused. Every page
               in the app starts with the same nav bar, so without this a
               keyboard or screen-reader user tabs through the whole navigation
@@ -145,6 +163,8 @@ export default async function RootLayout({
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />
+          {userId && <ReviewPrompt />}
+          {consentNeeded && <ConsentGate />}
           {/* The app's pages had no <main> at all -- only the three legal pages
               did -- so assistive tech had no "main landmark" to jump to and the
               skip link above would have had nothing to point at. tabIndex={-1}
@@ -163,6 +183,8 @@ export default async function RootLayout({
           >
             <PageTransition>{children}</PageTransition>
           </main>
+          <MobileTabBar />
+          </PreferencesProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { ShowMoreOnPhone } from "@/components/mobile/show-more-on-phone";
 import { MIN_COMPARISON_SAMPLE, type MistakeSource, type MistakeSummary } from "@/lib/mistakes/analyze";
 
 // The mistake tracker section of /insights.
@@ -129,9 +130,11 @@ export function MistakeTracker({
         </Card>
       ) : (
         <Card hoverable={false} className="flex flex-col">
-          {summaries.map((summary) => (
-            <MistakeRow key={summary.label} summary={summary} />
-          ))}
+          <ShowMoreOnPhone count={summaries.length} noun="mistakes" className="flex flex-col">
+            {summaries.map((summary) => (
+              <MistakeRow key={summary.label} summary={summary} />
+            ))}
+          </ShowMoreOnPhone>
 
           <p className="mt-3 border-t border-zinc-200 pt-3 text-xs text-zinc-500 dark:border-subtle">
             These are two groups of trades compared side by side, not a cost attributed to the

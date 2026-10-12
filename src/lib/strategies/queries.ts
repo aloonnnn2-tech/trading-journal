@@ -36,19 +36,22 @@ export async function createStrategy(
   return data as Strategy;
 }
 
+// Null when no row matched -- missing, or another user's and filtered out by
+// RLS -- so the route can answer 404. `.single()` here used to turn that into
+// an error the route reported as "a strategy with that name already exists".
 export async function updateStrategy(
   supabase: SupabaseClient,
   id: string,
   changes: Partial<Pick<Strategy, "name" | "description" | "color" | "sort_order">>,
-): Promise<Strategy> {
+): Promise<Strategy | null> {
   const { data, error } = await supabase
     .from("strategies")
     .update(changes)
     .eq("id", id)
     .select()
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  return data as Strategy;
+  return (data as Strategy | null) ?? null;
 }
 
 // Returns whether a row was actually deleted, so the route can 404 rather

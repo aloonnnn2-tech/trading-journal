@@ -1,20 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decryptWithMeta, encrypt, lastFour } from "./crypto";
-import type { AIProviderName, StoredApiKey } from "./types";
+import { isMissingColumnError } from "@/lib/supabase/errors";
+import { PROVIDER_MODELS, type AIProviderName, type StoredApiKey } from "./types";
+import type { SecretKey } from "./secret";
+import { insertKey, readKey, writeKeyModel } from "./vault";
 
-// All reads and writes here go through the RLS-scoped client
-// (src/lib/supabase/server.ts), so "user_api_keys owner access" from 0029
-// already restricts every statement to the signed-in user's own rows. Nothing
-// in this module needs -- or should get -- the service-role client: a bug that
-// leaked one user's key to another would be a credential disclosure, and RLS
-// is the safety net that makes that impossible rather than merely unlikely.
+// Public-column reads and the owner's own label/on-off/delete go through the
+// RLS-scoped client, so "user_api_keys owner access" (0029) confines them to
+// the signed-in user. Anything touching the ciphertext -- storing a key,
+// decrypting one, recording its model -- goes through vault.ts, the one
+// module allowed near encrypted_key (see its header for why).
 
 // Every select lists columns explicitly and `encrypted_key` is absent from
 // this list on purpose. A `select("*")` here would pull ciphertext into the
 // route's response object, one careless `NextResponse.json(key)` away from
 // shipping it to the browser. The one function that needs it below asks for
 // it by name.
-const PUBLIC_COLUMNS = "id, provider, label, last_four, is_active, created_at, last_validated_at";
+const BASE_COLUMNS = "id, provider, label, last_four, is_active, created_at, last_validated_at";
+const PUBLIC_COLUMNS = `${BASE_COLUMNS}, model`;
+// last_used_at arrives with 0058; model with 0053. Each select tries the
+// fullest list first and falls back one migration at a time.
+const COLUMN_SETS = [`${PUBLIC_COLUMNS}, last_used_at`, PUBLIC_COLUMNS, BASE_COLUMNS];
+
 
 /**
  * Upper bound on stored keys per account. Generous -- six providers plus a
@@ -32,42 +38,22 @@ export async function countApiKeys(supabase: SupabaseClient): Promise<number> {
 }
 
 export async function listApiKeys(supabase: SupabaseClient): Promise<StoredApiKey[]> {
-  const { data, error } = await supabase
-    .from("user_api_keys")
-    .select(PUBLIC_COLUMNS)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []) as unknown as StoredApiKey[];
+  for (const columns of COLUMN_SETS) {
+    const { data, error } = await supabase.from("user_api_keys").select(columns).order("created_at", { ascending: true });
+    if (error && isMissingColumnError(error)) continue;
+    if (error) throw error;
+    return (data ?? []).map((r) => ({ model: null, last_used_at: null, ...(r as object) })) as unknown as StoredApiKey[];
+  }
+  return [];
 }
 
 export async function createApiKey(
   supabase: SupabaseClient,
   userId: string,
-  input: { provider: AIProviderName; key: string; label: string | null },
+  input: { provider: AIProviderName; key: string; label: string | null; model: string | null },
 ): Promise<StoredApiKey> {
-  const { data, error } = await supabase
-    .from("user_api_keys")
-    .insert({
-      user_id: userId,
-      provider: input.provider,
-      label: input.label,
-      // Bound to the owner, so this ciphertext is undecryptable in any
-      // other user's row -- see crypto.ts.
-      encrypted_key: encrypt(input.key, userId),
-      last_four: lastFour(input.key),
-      // Callers must have just test-called the provider with this key -- see
-      // the POST route. Stamping it here rather than leaving it null is what
-      // lets the UI say "verified just now" instead of "never checked".
-      last_validated_at: new Date().toISOString(),
-    })
-    // Returning only the public columns means the freshly-inserted ciphertext
-    // never even enters the response object.
-    .select(PUBLIC_COLUMNS)
-    .single();
-
-  if (error) throw error;
-  return data as unknown as StoredApiKey;
+  const row = await insertKey(userId, input);
+  return { model: null, last_used_at: null, ...row } as unknown as StoredApiKey;
 }
 
 /**
@@ -114,47 +100,10 @@ export async function getDecryptedKey(
    * calls the provider's model-list endpoint and sends no journal data.
    */
   { includeInactive = false }: { includeInactive?: boolean } = {},
-): Promise<{ provider: AIProviderName; key: string } | null> {
-  let query = supabase
-    .from("user_api_keys")
-    .select("provider, encrypted_key")
-    .eq("id", id);
-  if (!includeInactive) query = query.eq("is_active", true);
-
-  const { data, error } = await query.maybeSingle();
-
-  if (error) throw error;
-  if (!data) return null;
-
-  // `userId` is the additional authenticated data. RLS has already confined
-  // this row to the caller, so passing it here is not a second ownership
-  // check against a hostile *client* -- it is what makes the ciphertext
-  // itself refuse to decrypt if it was ever moved between rows in the
-  // database, which is the one path RLS cannot see.
-  const { plaintext, stale } = decryptWithMeta(data.encrypted_key as string, userId);
-
-  // Opportunistic migration: rewrite anything still in the v1 format or still
-  // encrypted under a retired secret. This is what turns a key rotation into
-  // something that actually completes -- otherwise the old secret can never
-  // be dropped, because there is no way to know when the last value using it
-  // has gone. Deliberately not awaited and deliberately swallowing failures:
-  // the user asked a question, and a failed background rewrite must not turn
-  // that into an error. It will simply be retried on the next use.
-  if (stale) {
-    void supabase
-      .from("user_api_keys")
-      .update({ encrypted_key: encrypt(plaintext, userId) })
-      .eq("id", id)
-      .then(
-        () => undefined,
-        () => undefined,
-      );
-  }
-
-  return {
-    provider: data.provider as AIProviderName,
-    key: plaintext,
-  };
+): Promise<{ provider: AIProviderName; key: SecretKey; model: string | null } | null> {
+  // Through the vault: decryption is bound to this user, this row and its
+  // provider, and a v2 / retired-secret value is upgraded on the way.
+  return readKey(userId, id, { includeInactive });
 }
 
 /**
@@ -172,14 +121,33 @@ export async function setApiKeyActive(
   id: string,
   isActive: boolean,
 ): Promise<StoredApiKey | null> {
-  const { data, error } = await supabase
-    .from("user_api_keys")
-    .update({ is_active: isActive })
-    .eq("id", id)
-    .select(PUBLIC_COLUMNS);
+  for (const columns of COLUMN_SETS) {
+    const { data, error } = await supabase.from("user_api_keys").update({ is_active: isActive }).eq("id", id).select(columns);
+    if (error && isMissingColumnError(error)) continue;
+    if (error) throw error;
+    const row = data?.[0];
+    return row ? ({ model: null, last_used_at: null, ...(row as object) } as unknown as StoredApiKey) : null;
+  }
+  return null;
+}
 
-  if (error) throw error;
-  return (data?.[0] as unknown as StoredApiKey) ?? null;
+/**
+ * Records the model a key asks (and, when `validated`, that the provider just
+ * accepted it). Returns false when nothing matched -- RLS makes another
+ * user's key match nothing, reported as 404 like the other writes.
+ *
+ * Returns "unsupported" while 0053 isn't applied, so the caller can say a
+ * migration is pending instead of failing with a database error.
+ */
+export async function setApiKeyModel(
+  supabase: SupabaseClient,
+  id: string,
+  model: string,
+  { validated = false, userId }: { validated?: boolean; userId: string },
+): Promise<StoredApiKey | null | "unsupported"> {
+  const row = await writeKeyModel(userId, id, model, validated);
+  if (row === "unsupported" || row === null) return row;
+  return { last_used_at: null, ...row } as unknown as StoredApiKey;
 }
 
 /**
@@ -197,4 +165,29 @@ export async function markApiKeyInvalid(supabase: SupabaseClient, id: string): P
   } catch {
     // Intentionally swallowed; see above.
   }
+}
+
+/**
+ * Provider and model of one ACTIVE key, without decrypting it -- for routes
+ * that only need to label a conversation. Null when the id doesn't resolve
+ * (someone else's key under RLS, or a parked one).
+ */
+export async function getActiveKeyMeta(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<{ provider: AIProviderName; model: string } | null> {
+  const select = (columns: string) =>
+    supabase
+      .from("user_api_keys")
+      .select(columns)
+      .eq("id", id)
+      .eq("is_active", true)
+      .maybeSingle<{ provider: string; model?: string | null }>();
+
+  let { data, error } = await select("provider, model");
+  if (error && isMissingColumnError(error)) ({ data, error } = await select("provider"));
+  if (error) throw error;
+  if (!data) return null;
+  const provider = data.provider as AIProviderName;
+  return { provider, model: data.model ?? PROVIDER_MODELS[provider] };
 }

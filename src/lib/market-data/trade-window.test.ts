@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   barIndexAt,
   chooseBars,
+  DEFAULT_TIMEFRAME,
+  timeframeAvailability,
+  TIMEFRAME_LABELS,
+  TIMEFRAMES,
   fitRange,
   formatBarTime,
   formatQuote,
@@ -27,40 +31,67 @@ function bars(start: number, step: number, n: number, price = 100): Bar[] {
 }
 
 describe("chooseBars", () => {
-  it("uses 5-minute bars for a recent day trade", () => {
+  it("opens on daily bars around the holding period", () => {
     // The spec's example: TSLA, 2 Sep 2026, held 17 minutes.
     const req = chooseBars(at(2026, 9, 2, 13, 53), at(2026, 9, 2, 14, 10), NOW);
+    expect(req.interval).toBe("1d");
+    expect(req.period1).toBe(at(2026, 9, 2, 13, 53) - 150 * DAY);
+    expect(req.period2).toBe(NOW);
+  });
+
+  it("fetches the size asked for, with that size's context either side", () => {
+    const req = chooseBars(at(2026, 9, 2, 13, 53), at(2026, 9, 2, 14, 10), NOW, "5m");
     expect(req.interval).toBe("5m");
     expect(req.period1).toBe(at(2026, 8, 29, 13, 53));
     expect(req.period2).toBe(at(2026, 9, 4, 14, 10));
-  });
-
-  it("uses hourly bars for a swing trade, or a day trade too old for 5-minute data", () => {
-    expect(chooseBars(at(2026, 9, 1), at(2026, 9, 8), NOW).interval).toBe("60m");
-    expect(chooseBars(at(2026, 6, 1, 14), at(2026, 6, 1, 15), NOW).interval).toBe("60m");
-  });
-
-  it("uses daily bars for a long hold or an old trade", () => {
-    expect(chooseBars(at(2026, 5, 1), at(2026, 7, 1), NOW).interval).toBe("1d");
-    expect(chooseBars(at(2024, 5, 1, 14), at(2024, 5, 1, 15), NOW).interval).toBe("1d");
+    expect(chooseBars(at(2026, 9, 1), at(2026, 9, 8), NOW, "60m").interval).toBe("60m");
+    expect(chooseBars(at(2026, 9, 1), at(2026, 9, 8), NOW, "1wk").period1).toBe(at(2026, 9, 1) - 2 * 365 * DAY);
   });
 
   it("never asks for intraday bars older than Yahoo keeps", () => {
     // Entered 58 days ago: 5m is allowed, but the context before entry would
     // reach past the 60-day limit.
-    const req = chooseBars(NOW - 58 * DAY, NOW - 58 * DAY + 3600, NOW);
-    expect(req.interval).toBe("5m");
+    const req = chooseBars(NOW - 58 * DAY, NOW - 58 * DAY + 3600, NOW, "5m");
     expect(req.period1).toBeGreaterThanOrEqual(NOW - 59 * DAY);
   });
 
-  it("runs an open trade's hold, and the range, up to now", () => {
-    const req = chooseBars(NOW - 3 * DAY, null, NOW);
-    expect(req.interval).toBe("60m");
-    expect(req.period2).toBe(NOW);
+  it("asks for at most a week of 1-minute bars, from just before the entry", () => {
+    const entry = NOW - 20 * DAY;
+    const req = chooseBars(entry, NOW - 2 * DAY, NOW, "1m");
+    expect(req.period1).toBe(entry - DAY);
+    expect(req.period2 - req.period1).toBe(7 * DAY);
   });
 
-  it("can be forced to daily bars as a fallback", () => {
-    expect(chooseBars(at(2026, 9, 2, 13), at(2026, 9, 2, 14), NOW, "1d").interval).toBe("1d");
+  it("stays inside the ten years the bars route allows", () => {
+    const req = chooseBars(at(2010, 1, 1), at(2020, 1, 1), NOW, "1mo");
+    expect(req.period2 - req.period1).toBeLessThanOrEqual(10 * 365 * DAY);
+  });
+
+  it("runs an open trade's hold, and the range, up to now", () => {
+    const req = chooseBars(NOW - 3 * DAY, null, NOW, "60m");
+    expect(req.period2).toBe(NOW);
+  });
+});
+
+describe("timeframeAvailability", () => {
+  it("offers every size for a recent trade", () => {
+    for (const interval of TIMEFRAMES) expect(timeframeAvailability(interval, NOW - 2 * DAY, NOW).ok).toBe(true);
+  });
+
+  it("says why an older trade can't be shown in short bars", () => {
+    const entry = NOW - 90 * DAY;
+    const fiveMin = timeframeAvailability("5m", entry, NOW);
+    expect(fiveMin).toEqual({ ok: false, reason: "Yahoo keeps 5-minute bars for 60 days; this trade is older." });
+    expect(timeframeAvailability("1m", NOW - 40 * DAY, NOW).ok).toBe(false);
+    expect(timeframeAvailability("60m", entry, NOW).ok).toBe(true);
+    expect(timeframeAvailability("60m", NOW - 3 * 365 * DAY, NOW).ok).toBe(false);
+    expect(timeframeAvailability("1d", NOW - 20 * 365 * DAY, NOW).ok).toBe(true);
+    expect(timeframeAvailability("1mo", NOW - 20 * 365 * DAY, NOW).ok).toBe(true);
+  });
+
+  it("opens on daily, and labels every size", () => {
+    expect(DEFAULT_TIMEFRAME).toBe("1d");
+    expect(TIMEFRAMES.map((t) => TIMEFRAME_LABELS[t].short)).toEqual(["1m", "5m", "15m", "1h", "1D", "1W", "1M"]);
   });
 });
 
@@ -228,6 +259,32 @@ describe("locate", () => {
     // Saturday: no bar that day, so the next one, and nothing to judge.
     expect(locate(daily, at(2025, 11, 8, 15), "1d", NY)).toEqual({ index: -1, inside: false });
   });
+
+  it("puts a moment on the weekly bar whose seven days hold it", () => {
+    // Yahoo stamps a weekly bar at its Monday: 3, 10 and 17 Nov 2025.
+    const weekly = [at(2025, 11, 3, 5), at(2025, 11, 10, 5), at(2025, 11, 17, 5)].map((time) => ({
+      time,
+      open: 1,
+      high: 1,
+      low: 1,
+      close: 1,
+    }));
+    expect(locate(weekly, at(2025, 11, 13, 15), "1wk", NY)).toEqual({ index: 1, inside: true });
+    expect(locate(weekly, at(2025, 11, 16, 15), "1wk", NY)).toEqual({ index: 1, inside: true });
+    expect(locate(weekly, at(2025, 11, 17, 15), "1wk", NY)).toEqual({ index: 2, inside: true });
+  });
+
+  it("puts a moment on its calendar month's bar", () => {
+    const monthly = [at(2025, 9, 1, 4), at(2025, 10, 1, 4), at(2025, 11, 1, 4)].map((time) => ({
+      time,
+      open: 1,
+      high: 1,
+      low: 1,
+      close: 1,
+    }));
+    expect(locate(monthly, at(2025, 10, 31, 20), "1mo", NY)).toEqual({ index: 1, inside: true });
+    expect(locate(monthly, at(2025, 11, 2, 15), "1mo", NY)).toEqual({ index: 2, inside: true });
+  });
 });
 
 describe("formatBarTime", () => {
@@ -235,6 +292,8 @@ describe("formatBarTime", () => {
     // 13:50 UTC is 09:50 in New York during daylight time (UTC-4).
     expect(formatBarTime(at(2026, 9, 2, 13, 50), NY, "5m")).toBe("2 Sep 2026, 09:50");
     expect(formatBarTime(at(2026, 9, 2, 13, 30), NY, "1d")).toBe("2 Sep 2026");
+    expect(formatBarTime(at(2026, 8, 31, 4), NY, "1wk")).toBe("week of 31 Aug 2026");
+    expect(formatBarTime(at(2026, 9, 1, 4), NY, "1mo")).toBe("Sep 2026");
   });
 
   it("uses the offset of the bar's own date, not today's", () => {
