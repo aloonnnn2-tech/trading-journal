@@ -15,6 +15,7 @@ import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField, Trade } from "@/lib/trades/types";
 import { entryPriceLabels } from "@/lib/trades/order-labels";
 import { AiReadPanel } from "./ai-read-panel";
+import { signalReviewWow } from "@/lib/reviews/signals";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -286,6 +287,9 @@ export function ScreenshotTradeButton({
         await fetch(`/api/trades/${trade.id}/images`, { method: "POST", body: formData }).catch(() => {});
       }
 
+      // A screenshot just became a trade: a good moment to ask for a review
+      // (the card waits until this dialog is gone).
+      signalReviewWow("wow_import");
       router.push(`/trades/${trade.id}`);
     } catch {
       setError("Failed to create the trade. Check your connection and try again.");

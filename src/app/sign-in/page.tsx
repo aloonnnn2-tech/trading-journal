@@ -3,6 +3,7 @@
 import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { afterSignIn } from "@/lib/auth/next-path";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
@@ -92,7 +93,7 @@ function SignInForm() {
     // a fresh one for this account before the first event.
     endSession();
     track("login");
-    window.location.href = "/dashboard";
+    window.location.href = afterSignIn(searchParams.get("next"));
   }
 
   async function handleResend() {

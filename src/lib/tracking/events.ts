@@ -1,3 +1,4 @@
+import { REVIEW_SOURCES, SOURCE_LABELS } from "@/lib/reviews/types";
 import { z } from "zod";
 import { NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId } from "@/lib/nav/links";
 
@@ -22,7 +23,7 @@ import { NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId } from "@/lib/
  * typed text, trade values or notes (see the label rule in click-capture.ts).
  */
 
-export type EventCategory = "navigation" | "click" | "session" | "tour" | "trades" | "ai" | "data" | "account";
+export type EventCategory = "navigation" | "click" | "session" | "tour" | "trades" | "ai" | "data" | "account" | "feedback";
 
 export const CATEGORY_LABELS: Record<EventCategory, string> = {
   navigation: "Pages",
@@ -33,6 +34,7 @@ export const CATEGORY_LABELS: Record<EventCategory, string> = {
   ai: "AI",
   data: "Import / export",
   account: "Account",
+  feedback: "Reviews",
 };
 
 // ---------------------------------------------------------------- pages ---
@@ -117,6 +119,14 @@ export const CLICK_LABELS: Record<string, string> = {
   "conversation-open": "Opened a **conversation** in Ask",
   "conversation-delete": "Deleted a **conversation** in Ask",
 
+  // Reviews of Trading Lens.
+  "review-submit": "Sent or updated their **review** of Trading Lens",
+  "review-remove": "Removed their **review** of Trading Lens",
+  "review-prompt-not-now": "Said **Not now** to a review request",
+  "review-prompt-never": "Said **Don't ask again** to review requests",
+  "review-cta": "Clicked **Leave a review** on the homepage",
+  "nav-review": "Opened **Rate Trading Lens** from the account menu",
+
   // Paid plan.
   "see-plans": "Opened **Plans** from a paid feature",
   "plans-details": "Opened **how every paid feature works** from Plans",
@@ -174,6 +184,9 @@ const PATH = z.string().min(1).max(300).regex(/^\//);
 const UUID_LIKE = z.string().max(64);
 const TOUR = z.enum(["basics", "features", "paid"]);
 const NONE = z.object({}).strict();
+const REVIEW_SOURCE = z.enum(REVIEW_SOURCES);
+const reviewSourceName = (v: unknown): string =>
+  (SOURCE_LABELS as Record<string, string>)[String(v)]?.toLowerCase() ?? "unknown moment";
 
 type Props = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" ? v : "");
@@ -238,6 +251,14 @@ export const CLIENT_EVENTS = {
         ? `Skipped the **${tourName(p.tour)}** tour before starting`
         : `Left the **${tourName(p.tour)}** tour at step ${num(p.atStep) ?? "?"}`,
   },
+  review_prompt_shown: {
+    category: "feedback",
+    countLabel: "Review requests shown",
+    props: z.object({ source: REVIEW_SOURCE }).strict(),
+    sentence: (p) => `Was asked for a **review** (${reviewSourceName(p.source)})`,
+  },
+  review_prompt_snoozed: { category: "feedback", countLabel: "Review requests put off", props: NONE, sentence: () => "Said **Not now** to a review request" },
+  review_prompt_dismissed: { category: "feedback", countLabel: "Review requests declined", props: NONE, sentence: () => "Said **Don't ask again** to review requests" },
   dashboard_viewed: { category: "navigation", countLabel: "Dashboard views", props: NONE, sentence: () => "Viewed the **Dashboard**" },
   analytics_panel_viewed: { category: "navigation", countLabel: "Analytics views", props: NONE, sentence: () => "Viewed **Analytics**" },
   settings_viewed: { category: "navigation", countLabel: "Settings views", props: NONE, sentence: () => "Viewed **Settings**" },
@@ -245,6 +266,13 @@ export const CLIENT_EVENTS = {
 } satisfies Record<string, EventDef>;
 
 export const SERVER_EVENTS = {
+  review_submitted: {
+    category: "feedback",
+    countLabel: "Reviews written or edited",
+    props: z.object({ rating: z.number().int().min(1).max(5), allowPublic: z.boolean(), source: REVIEW_SOURCE }).strict(),
+    sentence: (p) =>
+      `Rated Trading Lens **${"★".repeat(num(p.rating) ?? 0) || "?"}**` + (p.allowPublic === true ? " (may be shown publicly)" : ""),
+  },
   trade_created: {
     category: "trades",
     countLabel: "Trades created",

@@ -14,6 +14,7 @@ import type { TradeReviewContent } from "@/lib/ai-reviews/schema";
 import type { StoredReview } from "@/lib/ai-reviews/types";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
+import { signalReviewWow } from "@/lib/reviews/signals";
 // The AI Trade Review entry point, rendered as a sibling of the trade card
 // rather than inside it. TradeCard is a 900-line form with its own autosave
 // lifecycle; a panel that only reads the trade id has no business being
@@ -101,6 +102,7 @@ export function AiReviewPanel({
 
     const body = (await res.json()) as { review: StoredReview<TradeReviewContent> };
     setReview(body.review);
+    signalReviewWow("wow_ai_review");
     // Freshly generated against the trade as it is right now.
     setStale(false);
     // Regenerating swaps the card's prose for new prose, which on its own is

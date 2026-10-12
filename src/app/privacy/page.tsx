@@ -72,6 +72,15 @@ export default function PrivacyPage() {
           </a>
           .
         </p>
+        {/* Added with reviews (0064, 2026-10-11). Every clause is a promise. */}
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Reviews of Trading Lens:</strong> if you rate
+          Trading Lens, we store your stars, your comment, the name you chose to show (if any), whether you
+          allowed it to be shown publicly, and where you were asked. A review appears on our homepage only if
+          you allowed it and we chose it, and then only the stars, the comment, the name you chose and the
+          month &mdash; never your email. You can change or remove your review any time from the account menu
+          (Rate Trading Lens), and it is deleted with your account.
+        </p>
 
         <h2 className={SECTION_HEADING}>How screenshot processing works</h2>
         <p className={BODY}>

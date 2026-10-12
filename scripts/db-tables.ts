@@ -59,6 +59,8 @@ export const TABLES = [
   // anywhere readable. See .github/workflows/backup.yml, which encrypts.
   "user_api_keys",
   "goals",
+  // Your review of Trading Lens (0064). Depends only on auth.users.
+  "app_reviews",
   "analytics_sessions",
 
   // --- Depends on user_api_keys (0047) ----------------------------------

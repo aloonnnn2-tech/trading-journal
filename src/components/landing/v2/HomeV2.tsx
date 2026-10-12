@@ -22,6 +22,9 @@ import { AnnouncementBar } from "@/components/landing/v2/AnnouncementBar";
 import { ANNOUNCEMENT_SCRIPT } from "@/components/landing/v2/announcement";
 import { ImportStrip } from "@/components/landing/v2/ImportStrip";
 import { Faq } from "@/components/landing/v2/Faq";
+import { Reviews } from "@/components/landing/v2/Reviews";
+import { createClient } from "@/lib/supabase/server";
+import { listFeaturedReviews } from "@/lib/reviews/queries";
 
 // The /home-v2 candidate. / is unchanged.
 //
@@ -84,6 +87,9 @@ export async function HomeV2({ background }: { background: BgVariant }) {
   // with a per-request nonce and no 'unsafe-inline', so an inline script
   // without it is blocked. Same source as layout.tsx's.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // Reviews Alon picked (0064). Signed out, so the anonymous client: the
+  // function returns only what a homepage card shows. Never throws.
+  const reviews = await listFeaturedReviews(await createClient());
 
   return (
     <MotionConfig reducedMotion="user">
@@ -126,6 +132,7 @@ export async function HomeV2({ background }: { background: BgVariant }) {
           </Band>
           <Band tone="raised">
             <TrustTrio />
+            <Reviews reviews={reviews} />
           </Band>
           <Band tone="base">
             <PricingTeaser />

@@ -374,6 +374,17 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                     Plan, AI keys, data export, deletion
                   </span>
                 </Link>
+                <Link
+                  href="/review?from=account_menu"
+                  data-track="nav-review"
+                  onClick={() => setAccountOpen(false)}
+                  className="block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
+                    Rate Trading Lens
+                  </span>
+                  <span className="block text-[11px] text-zinc-500">1–5 stars and a comment, any time</span>
+                </Link>
 
                 {/* Only below the nav breakpoint, where these are not in the
                     bar. Hidden with CSS rather than a width check in JS so

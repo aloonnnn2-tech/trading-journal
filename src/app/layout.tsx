@@ -24,6 +24,7 @@ import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { TourOverlay } from "@/components/tour/tour-overlay";
+import { ReviewPrompt } from "@/components/reviews/ReviewPrompt";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { getDemoState } from "@/lib/demo/queries";
 import { getPreferences } from "@/lib/settings/preferences-queries";
@@ -162,6 +163,7 @@ export default async function RootLayout({
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <TourOverlay />
+          {userId && <ReviewPrompt />}
           {consentNeeded && <ConsentGate />}
           {/* The app's pages had no <main> at all -- only the three legal pages
               did -- so assistive tech had no "main landmark" to jump to and the

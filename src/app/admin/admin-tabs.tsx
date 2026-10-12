@@ -10,6 +10,7 @@ const TABS = [
   { href: "/admin/users", label: "Users", key: "users" },
   { href: "/admin/plans", label: "Plans", key: "plans" },
   { href: "/admin/waitlist", label: "Waitlist", key: "waitlist" },
+  { href: "/admin/reviews", label: "Reviews", key: "reviews" },
 ] as const;
 
 export function AdminTabs({ active }: { active: (typeof TABS)[number]["key"] }) {

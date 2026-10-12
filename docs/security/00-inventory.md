@@ -53,6 +53,7 @@ applies to that route.
 | `/api/admin/analytics-exclusion` | POST | admin | user (RLS) | yes | zod | user_settings, admin_* RPCs |
 | `/api/admin/plan` | POST | admin | user + **service-role** | yes | zod | user_settings, admin_* RPCs |
 | `/api/admin/waitlist` | GET DELETE | admin | user + **service-role** | yes | zod | user_settings, waitlist, admin_* RPCs |
+| `/api/admin/reviews/[id]` | PATCH | admin | user (RLS) + `admin_set_review_featured` (checks is_admin) | yes | zod | app_reviews (2026-10-11) |
 | `/api/ai-keys/[id]` | PATCH DELETE | paid | user (RLS) + vault | yes | zod | user_api_keys, user_settings |
 | `/api/ai-keys/[id]/test` | POST | paid | user (RLS) + vault | yes | manual / none | user_api_keys, user_settings |
 | `/api/ai-keys/consent` | POST | paid | user (RLS) | proxy only | zod | ai_provider_consents, user_settings |
@@ -86,6 +87,8 @@ applies to that route.
 | `/api/monthly-costs` | GET POST | user | user (RLS) | yes | zod | account_transactions, monthly_cost_postings, monthly_costs |
 | `/api/ocr/parse` | POST | user | user (RLS) | yes | manual / none | analytics_events, trade_images |
 | `/api/ocr/ai` | POST | paid + consent `screenshot_v1` | user (RLS) + vault | 10/min + daily | zod key id, image bytes, size | user_api_keys (vault), trades (duplicate check); sends the image to the user's own AI provider |
+| `/api/reviews/mine` | GET PUT DELETE | user (not the shared demo) | user (RLS), own row only | 10/min | zod | app_reviews, analytics_events (2026-10-11) |
+| `/api/reviews/prompt` | GET PATCH | user | user (RLS) + **service-role** (analytics_sessions count, filtered by header id) | PATCH 20/min | zod | app_reviews, user_settings, trades, analytics_sessions (2026-10-11) |
 | `/api/settings/core-fields` | PATCH | user | user (RLS) | proxy only | manual / none | user_settings |
 | `/api/settings/dashboard-layout` | PUT | user | user (RLS) | proxy only | manual / none | user_settings |
 | `/api/settings/preferences` | PATCH | user | user (RLS) | yes | zod | user_settings |
