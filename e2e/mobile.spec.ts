@@ -26,6 +26,7 @@ const ROUTES = [
   "/emotions",
   "/ask",
   "/reviews",
+  "/review",
   "/fields",
   "/commissions",
   "/settings",
