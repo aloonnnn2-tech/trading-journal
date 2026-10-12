@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PREFERENCES, parsePreferences, preferencesPatchSchema } from "./preferences";
+import { DEFAULT_PREFERENCES } from "./preferences";
+import { parsePreferences, preferencesPatchSchema } from "./preferences-schema";
 
 describe("parsePreferences", () => {
   it("fills every field with its default when nothing is stored", () => {

@@ -204,7 +204,7 @@ export interface AskOptions {
   /**
    * Images sent with the question (screenshot import's "Read with AI").
    * Base64, already resized and re-encoded server-side. Only providers in
-   * SCREENSHOT_AI_PROVIDERS (src/lib/ocr/ai-extract.ts) are ever given any.
+   * SCREENSHOT_AI_PROVIDERS (src/lib/ocr/ai-providers.ts) are ever given any.
    */
   images?: AskImage[];
 }

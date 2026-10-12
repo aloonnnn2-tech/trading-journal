@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingColumnError } from "@/lib/supabase/errors";
-import { parsePreferences, type Preferences, type PreferencesPatch } from "./preferences";
+import { parsePreferences } from "./preferences-schema";
+import type { Preferences, PreferencesPatch } from "./preferences";
 
 // Reads and writes user_settings.preferences (0054). Kept out of
 // getUserSettings for the same reason as show_trade_summary: that loader

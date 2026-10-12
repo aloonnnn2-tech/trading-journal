@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { ParseResult } from "@/lib/ocr/types";
 import type { AiRowView } from "@/lib/ocr/ai-extract";
-import { SCREENSHOT_AI_PROVIDERS } from "@/lib/ocr/ai-extract";
+import { SCREENSHOT_AI_PROVIDERS } from "@/lib/ocr/ai-providers";
 import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/ai-keys/types";
 import { ProviderConsentCard } from "@/components/ai/provider-consent-card";
 

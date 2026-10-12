@@ -5,7 +5,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { isMissingColumnError } from "@/lib/settings/queries";
 import { setShowTradeSummary } from "@/lib/settings/trade-summary";
-import { preferencesPatchSchema } from "@/lib/settings/preferences";
+import { preferencesPatchSchema } from "@/lib/settings/preferences-schema";
 import { savePreferences } from "@/lib/settings/preferences-queries";
 
 // Setup -> Settings. Two stores behind one route:
