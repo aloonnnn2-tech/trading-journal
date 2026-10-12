@@ -45,7 +45,10 @@ const rise = (ms: number) => ({ animationDelay: `${ms}ms` });
 export function Hero() {
   return (
     <section className="relative px-6 pt-16 pb-8 sm:px-10 lg:pt-24 lg:pb-16">
-      <div className="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+      {/* grid-cols-1 is minmax(0, 1fr): without it the one phone column grew to
+          its widest child (the no-wrap marquee) -- 512px on a 390px phone --
+          and the headline and buttons were clipped at the screen edge. */}
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
         <div className="flex flex-col items-start gap-6 text-left">
           <span className="animate-rise-left font-mono text-xs uppercase tracking-[0.2em] text-primary sm:text-sm">
             Free · No credit card
