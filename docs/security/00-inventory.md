@@ -62,7 +62,7 @@ applies to that route.
 | `/api/ai-reviews/period` | GET POST | paid | user (RLS) | yes | zod | ai_reviews, analytics_events, field_definitions, strategies, trade_images, trades, user_api_keys, user_settings |
 | `/api/ai-reviews/trade` | POST | paid | user (RLS) | yes | zod | ai_reviews, analytics_events, commission_rules, field_definitions, strategies, trade_history, trade_images, trade_strategies, trades, user_api_keys, user_settings |
 | `/api/analytics/heartbeat` | POST | user | user (RLS) | yes | zod | analytics_events |
-| `/api/analytics/public-view` | POST | **public** | anon / none | proxy only | zod | rpc:record_public_view |
+| `/api/analytics/public-view` | POST | **public** | **service-role** RPC (0068) | 60/hr/IP + proxy | zod | rpc:record_public_view |
 | `/api/analytics/track` | POST | user | user (RLS) | yes | zod | analytics_events |
 | `/api/chat/conversations/[id]` | GET PATCH DELETE | paid | user (RLS) | proxy only | zod | ai_conversations, ai_messages, user_api_keys, user_settings |
 | `/api/chat/conversations/[id]/turn` | POST | paid | user (RLS) | yes | zod | ai_conversations, ai_messages, analytics_events, field_definitions, strategies, trade_images, trades, user_api_keys, user_settings |
@@ -132,6 +132,7 @@ what keeps it safe.
 | `api/cron/auto-execute/route.ts` | Nightly jobs across all users | `CRON_SECRET` bearer compared with `timingSafeEqual`. Not reachable from the proxy matcher. |
 | `lib/ai-keys/vault.ts:92,109,119,145` | Reads and writes encrypted keys | Every query is `.eq("user_id", userId)` with the header-derived id. Migration 0058 revoked the `authenticated` grants on `user_api_keys`. |
 | `lib/rate-limit.ts` | Calls the `rate_limit_hit` RPC | Service-role only grant (0042), so the anon key cannot drain another user's bucket. |
+| `api/analytics/public-view/route.ts` | Calls `record_public_view` | Takes only an allowlisted path, never an id; limited to 60/hr per IP. Since 0068 (2026-10-12) the function is service-role only, so the public anon key cannot call it directly. |
 | `lib/tracking/log.ts` (`logEvent`, `logEvents`) | Inserts analytics events for every route that logs one | `userId` is always the proxy-header id, passed by a route that already authenticated the caller; client events pass the track route's registry check first. Since 0066 (2026-10-12) users can no longer insert events themselves, so this is the only way in. |
 
 No service-role call ever takes a record id from the request without an admin gate.
