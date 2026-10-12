@@ -125,7 +125,7 @@ export async function POST() {
     }
   }
 
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "commissions_recalculated", {
+  void logEvent(userId, SERVER_SESSION_ID, "commissions_recalculated", {
     updated,
     skipped,
     failed: failures.length,

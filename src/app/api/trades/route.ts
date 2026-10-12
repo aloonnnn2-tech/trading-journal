@@ -36,7 +36,7 @@ export async function POST() {
       : null;
 
   const trade = await createBlankTrade(supabase, userId, positionSize);
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "trade_created", { tradeId: trade.id });
+  void logEvent(userId, SERVER_SESSION_ID, "trade_created", { tradeId: trade.id });
 
   return NextResponse.json(trade, { status: 201 });
 }

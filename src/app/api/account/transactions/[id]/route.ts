@@ -22,7 +22,7 @@ export async function DELETE(
   }
 
   const balance = await getAccountBalance(supabase);
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "account_transaction_deleted", {
+  void logEvent(userId, SERVER_SESSION_ID, "account_transaction_deleted", {
     transactionId: id,
   });
 

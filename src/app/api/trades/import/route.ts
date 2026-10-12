@@ -187,7 +187,7 @@ export async function POST(request: Request) {
     imported += count ?? batch.length;
   }
 
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "import_used", {
+  void logEvent(userId, SERVER_SESSION_ID, "import_used", {
     imported,
     errors: rowErrors.length,
   });

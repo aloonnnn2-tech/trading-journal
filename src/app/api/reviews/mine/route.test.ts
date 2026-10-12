@@ -64,7 +64,7 @@ describe("PUT /api/reviews/mine", () => {
       displayName: "Dan K.",
       source: "closed_trades",
     });
-    expect(logEvent).toHaveBeenCalledWith(expect.anything(), USER, "server", "review_submitted", {
+    expect(logEvent).toHaveBeenCalledWith(USER, "server", "review_submitted", {
       rating: 5,
       allowPublic: true,
       source: "closed_trades",

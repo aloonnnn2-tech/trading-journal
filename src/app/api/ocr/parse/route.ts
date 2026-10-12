@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     result.duplicates = await findPossibleDuplicates(supabase, result).catch(() => []);
     console.info("[ocr] read", accuracyLogLine(result));
-    void logEvent(supabase, userId, SERVER_SESSION_ID, "screenshot_parsed", {});
+    void logEvent(userId, SERVER_SESSION_ID, "screenshot_parsed", {});
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "OCR failed";

@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     parsed.data.note,
   );
   const balance = await getAccountBalance(supabase);
-  void logEvent(supabase, userId, SERVER_SESSION_ID, "account_transaction_added", {
+  void logEvent(userId, SERVER_SESSION_ID, "account_transaction_added", {
     transactionId: transaction.id,
   });
 

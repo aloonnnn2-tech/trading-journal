@@ -43,14 +43,16 @@ export async function PUT(request: Request) {
   }
 
   const supabase = await createClient();
-  // The shared demo account (and test accounts) can't review: anyone can
-  // sign into the demo, so its reviews wouldn't be a real user's.
+  // The demo account and test accounts (excluded_from_analytics, 0044) can't
+  // review: they're ours, not real users, so a review from one would be one
+  // we wrote ourselves. (The demo's password is no longer public -- new
+  // accounts get their own demo journal -- but it's still not a real user.)
   if ((await getPromptState(supabase, userId).catch(() => null))?.excluded_from_analytics) {
     return NextResponse.json({ error: "Reviews can't be left from the shared demo account." }, { status: 403 });
   }
   try {
     const review = await saveMyReview(supabase, userId, parsed.data);
-    void logEvent(supabase, userId, SERVER_SESSION_ID, "review_submitted", {
+    void logEvent(userId, SERVER_SESSION_ID, "review_submitted", {
       rating: parsed.data.rating,
       allowPublic: parsed.data.allowPublic,
       source: parsed.data.source,

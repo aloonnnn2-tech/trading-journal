@@ -102,7 +102,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.error("accept suggestion failed", { tradeId: id, error });
       return NextResponse.json({ error: "Failed to add the tag" }, { status: 400 });
     }
-    void logEvent(supabase, userId, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
+    void logEvent(userId, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
     return NextResponse.json({ ok: true, labels });
   }
 

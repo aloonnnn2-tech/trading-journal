@@ -1,5 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventName } from "@/lib/tracking/events";
+
+// Events are written with the service-role client, never the user's own
+// (migration 0066). While users could insert into analytics_events
+// themselves, anyone signed in could skip /api/analytics/track -- and the
+// event registry it enforces -- by writing to the table straight through
+// Supabase with the key every browser holds, putting made-up activity in
+// the admin feed. Now only this server code can write, and only after a
+// route has authenticated the caller: `userId` always comes from the proxy's
+// verified session (getUserIdFromHeader), never from a request body.
 
 // Sentinel session_id for events logged from API route handlers rather than
 // the browser tracker (trade CRUD, import) -- these fire from several
@@ -13,7 +23,6 @@ export const SERVER_SESSION_ID = "server";
 // that blocks the response (use `void logEvent(...)`). A logging failure
 // must never fail the real mutation it's attached to.
 export async function logEvent(
-  supabase: SupabaseClient,
   userId: string,
   sessionId: string,
   // Only names listed in src/lib/tracking/events.ts compile.
@@ -21,7 +30,7 @@ export async function logEvent(
   props: Record<string, unknown> = {},
 ): Promise<void> {
   try {
-    await supabase.from("analytics_events").insert({
+    await createAdminClient().from("analytics_events").insert({
       user_id: userId,
       session_id: sessionId,
       event_name: eventName,
@@ -35,14 +44,13 @@ export async function logEvent(
 // A batch in one insert -- what click autocapture sends. Same best-effort
 // contract as logEvent: never let analytics fail the request it rode in on.
 export async function logEvents(
-  supabase: SupabaseClient,
   userId: string,
   sessionId: string,
   events: { eventName: EventName; props?: Record<string, unknown> }[],
 ): Promise<void> {
   if (events.length === 0) return;
   try {
-    await supabase.from("analytics_events").insert(
+    await createAdminClient().from("analytics_events").insert(
       events.map((e) => ({
         user_id: userId,
         session_id: sessionId,
