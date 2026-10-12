@@ -225,6 +225,10 @@ by a lawyer before being relied upon, particularly for EU/EEA/UK users.
   browser storage. Nothing is stored on or read from the device, and nothing
   can be linked to a person, so it stays outside the ePrivacy consent
   requirement. The moment that counter grows an identifier, this trigger fires.
+  (Since 0068, 2026-10-12, only the server may call `record_public_view`, and
+  the route limits each IP to 60 views an hour. The IP is a short-lived
+  rate-limit bucket key, the same as the proxy's limit for every anonymous
+  API call, and is never stored with the count.)
 - Per-account analytics now also record which buttons a signed-in user
   presses (click autocapture, `src/lib/tracking/click-capture.ts`). This is
   still first-party, signed-in-only, and the label rule there keeps trade
