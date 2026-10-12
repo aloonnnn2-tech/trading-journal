@@ -141,6 +141,14 @@ No service-role call ever takes a record id from the request without an admin ga
 RLS is **enabled on all 27**. No policy uses `USING (true)`. Every owner
 policy is `FOR ALL` with both `USING` and `WITH CHECK`.
 
+**Size and row limits in the database (0067, 2026-10-12).** A user can write
+straight to these tables with the anon key, past the API routes' zod checks
+and the proxy's 1 MB body limit. So the database enforces its own limits:
+- every user-writable text and JSON column has a size check at or above the
+  app's own limit (`trades.custom_fields` 1 MB);
+- 13 tables cap rows per account, counted once per INSERT statement (`trades`
+  100,000), refused with SQLSTATE 54000.
+
 | Table | Policy | Notes |
 |---|---|---|
 | trades, field_definitions, user_settings, folders, trade_history, trade_images, account_transactions, strategies, commission_rules, user_api_keys, ai_provider_consents, ai_reviews, strategy_rules, trade_excursions, goals, ai_conversations, monthly_costs, monthly_cost_postings | `auth.uid() = user_id` (all, using + check) | `user_settings.plan` / `is_admin` have no column grant for `authenticated` (0024/0029/0052/0054), so a user cannot write them. `user_api_keys` grants were narrowed in 0058. |
