@@ -106,11 +106,11 @@ export function KeyboardShortcuts() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={() => setHelpOpen(false)}
     >
       <div
-        className="w-80 rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-5"
+        className="dialog-panel w-80 max-w-full rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">

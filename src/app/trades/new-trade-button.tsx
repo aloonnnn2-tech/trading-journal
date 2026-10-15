@@ -237,7 +237,7 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
             onClick={() => !submitting && closeWithoutCreating()}
           >
             <motion.div
@@ -245,7 +245,7 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.15 }}
-              className="w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
+              className="dialog-panel w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
               onClick={(e) => e.stopPropagation()}
               ref={dialogRef}
               role="dialog"
@@ -380,7 +380,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                 {error}
               </FormError>
 
-              <div className="mt-5 flex items-center justify-between">
+              {/* Pinned to the bottom of the panel, which scrolls on a short
+                  phone screen: Create trade stays in reach without scrolling. */}
+              <div className="sticky -bottom-6 -mx-6 -mb-6 mt-2 flex items-center justify-between bg-white px-6 pt-3 pb-6 dark:bg-card">
                 <button
                   onClick={() => handleCreate(true)}
                   disabled={submitting}
