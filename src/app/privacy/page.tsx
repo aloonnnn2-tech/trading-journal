@@ -36,7 +36,10 @@ export default function PrivacyPage() {
         <p className={BODY}>
           <strong className="text-zinc-800 dark:text-zinc-200">Account information:</strong> the
           email address and password you sign up with. Passwords are handled by our
-          authentication provider (Supabase Auth) and are never visible to us in plain text.
+          authentication provider (Supabase Auth) and are never visible to us in plain text. If
+          you sign in with Google instead, Google confirms who you are and shares your email
+          address, name and profile picture with Supabase Auth, which stores them with your
+          account; we never see your Google password.
         </p>
         <p className={BODY}>
           <strong className="text-zinc-800 dark:text-zinc-200">Trade journal data:</strong>{" "}

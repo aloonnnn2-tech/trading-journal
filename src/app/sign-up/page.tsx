@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
 import { ResendConfirmation } from "@/components/auth/resend-confirmation";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 import { MINIMUM_AGE, TERMS_VERSION } from "@/lib/legal/terms";
@@ -173,6 +174,7 @@ export default function SignUpPage() {
             <p className="mt-0.5 text-sm text-zinc-500">Free forever. No credit card.</p>
           </div>
         </div>
+        <OAuthButtons onError={setError} />
         <label className="flex flex-col gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
           Email
           <input

@@ -7,6 +7,7 @@ import { afterSignIn } from "@/lib/auth/next-path";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { ResendConfirmation } from "@/components/auth/resend-confirmation";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
 import { endSession, useAnalytics } from "@/lib/tracking/useAnalytics";
@@ -48,7 +49,11 @@ function SignInForm() {
       ? searchParams.get("kind") === "recovery"
         ? "That password reset link was already used or has expired. Use Forgot password? below to get a new one."
         : "That link was already used or has expired. You may already be confirmed: sign in below. If not, we'll offer to send a new link."
-      : null,
+      : searchParams.get("error") === "oauth_cancelled"
+        ? "Google sign-in was cancelled. Try again, or sign in with your email below."
+        : searchParams.get("error") === "oauth_failed"
+          ? "Couldn't finish signing in with Google. Try again, or sign in with your email below."
+          : null,
   );
   const [loading, setLoading] = useState(false);
   // Supabase rejects a sign-in from an account that never clicked its
@@ -116,6 +121,7 @@ function SignInForm() {
             <p className="mt-0.5 text-sm text-zinc-500">Sign in to your journal.</p>
           </div>
         </div>
+        <OAuthButtons next={searchParams.get("next")} onError={setError} />
         <label className="flex flex-col gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
           Email
           <input
