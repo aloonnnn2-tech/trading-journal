@@ -22,7 +22,17 @@ export interface TourStep {
   action?: string;
   /** When a task counts as done: a route the user lands on, or an element that appears. */
   done?: { route: string } | { target: string };
+  /**
+   * Phones only: the target is not on the page there but inside one of the
+   * tab bar's sheets (src/components/mobile/mobile-tab-bar.tsx) -- the Trades
+   * page hides its header buttons below 640px. The tour points at the button
+   * that opens the sheet, then at `item` inside it.
+   */
+  phoneVia?: { opener: PhoneOpener; item: string };
 }
+
+/** The tab bar buttons that open a sheet (data-tour-id in mobile-tab-bar.tsx). */
+export type PhoneOpener = "nav-add" | "nav-more";
 
 // The core tour. Nine stops, one sentence each, in the order a new account
 // meets them: log a trade, see where it lives, meet the rules that grade it,
@@ -75,6 +85,7 @@ export const TOUR_STEPS: TourStep[] = [
     where: "Trades",
     title: "Or skip the typing",
     body: "Drop in a broker screenshot and the app reads ticker, price and size itself. Import takes CSV and Excel.",
+    phoneVia: { opener: "nav-add", item: "From a screenshot" },
   },
   {
     path: "/insights",
@@ -109,6 +120,7 @@ export const FEATURE_TOUR_STEPS: TourStep[] = [
     where: "Trades",
     title: "Bring your history in",
     body: "A CSV, Excel or JSON export from your broker loads in one sitting.",
+    phoneVia: { opener: "nav-add", item: "From a file" },
   },
   {
     path: "/trades",
@@ -116,6 +128,7 @@ export const FEATURE_TOUR_STEPS: TourStep[] = [
     where: "Trades",
     title: "And take it out again",
     body: "Every trade exports to CSV, Excel or JSON whenever you want it; nothing is locked in.",
+    phoneVia: { opener: "nav-more", item: "Export your trades" },
   },
   {
     path: "/dashboard",

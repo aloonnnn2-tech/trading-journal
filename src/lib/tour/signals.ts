@@ -19,3 +19,12 @@ export function signalTradeCreated(path: string) {
 export function signalQuickTradeClosed() {
   window.dispatchEvent(new CustomEvent(QUICK_TRADE_CLOSED_EVENT));
 }
+
+// And one the tour sends: it is pointing somewhere new, so the phone tab
+// bar's + and More sheets close. Left open, the + sheet sat over the More
+// button the very next step asked the user to tap (2026-10-15).
+export const TOUR_CLOSE_SHEETS_EVENT = "trading-lens:tour-close-sheets";
+
+export function signalCloseSheets() {
+  window.dispatchEvent(new CustomEvent(TOUR_CLOSE_SHEETS_EVENT));
+}

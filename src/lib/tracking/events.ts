@@ -85,6 +85,7 @@ export const CLICK_LABELS: Record<string, string> = {
   "nav-account": "Opened the **account** menu",
   "nav-help": "Opened **Help** (the tours)",
   "nav-more": "Opened **More** on the phone tab bar",
+  "nav-add": "Opened **+ Add a trade** on the phone tab bar",
 
   // Dashboard and trades.
   "dashboard-quick-trade": "Clicked **Quick trade**",

@@ -8,10 +8,11 @@ import { X } from "lucide-react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { SNOOZE_DAYS, shouldShowPaidOffer, snoozeUntil } from "@/lib/tour/paid-offer";
-import { TOURS, isTourName, stepMatchesPath, type TourName, type TourStep } from "@/lib/tour/steps";
+import { TOURS, isTourName, stepMatchesPath, type PhoneOpener, type TourName, type TourStep } from "@/lib/tour/steps";
+import { PHONE_EDGE, phoneDock, phoneScrollDelta } from "@/lib/tour/phone-placement";
 import { navDirections, type NavDirections } from "@/lib/tour/nav-target";
 import { nextStep, openerOf, placeStep, prevStep, resumeStep, type EngineContext } from "@/lib/tour/engine";
-import { QUICK_TRADE_CLOSED_EVENT, TRADE_CREATED_EVENT } from "@/lib/tour/signals";
+import { QUICK_TRADE_CLOSED_EVENT, TRADE_CREATED_EVENT, signalCloseSheets } from "@/lib/tour/signals";
 import { WelcomeModal } from "./welcome-modal";
 import { usePreferences } from "@/components/preferences/preferences-provider";
 import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
@@ -129,11 +130,47 @@ function findTarget(targetId: string): Element | null {
   return all[0] ?? null;
 }
 
+// A target with no box (display:none -- the Trades page's header buttons on
+// a phone) is not there. It used to measure as 0x0 and put the spotlight in
+// the top-left corner of the screen.
 function measure(targetId: string): Rect | null {
   const el = findTarget(targetId);
   if (!el) return null;
   const r = el.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return null;
   return { top: r.top, left: r.left, width: r.width, height: r.height };
+}
+
+/** Below `sm`, where the tab bar replaces the top menu. */
+function isPhone(): boolean {
+  return window.innerWidth < 640;
+}
+
+/** What the tab bar's sheet openers are called on screen. */
+const OPENER_LABEL: Record<PhoneOpener, string> = { "nav-add": "+", "nav-more": "More" };
+
+/**
+ * On a phone, bring the target where the card is not (phone-placement.ts),
+ * instead of to the middle of the screen, where the card covered its lower
+ * half. Things that don't scroll with the page are left alone.
+ */
+function scrollIntoPhoneView(el: Element, cardH: number) {
+  if (el.closest('[role="dialog"]')) {
+    el.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  if (el.closest("header, [data-mobile-tabbar]")) return;
+  const r = el.getBoundingClientRect();
+  const delta = phoneScrollDelta(
+    { top: r.top, height: r.height },
+    {
+      viewportH: window.innerHeight,
+      tabBarH: document.querySelector("[data-mobile-tabbar]")?.getBoundingClientRect().height ?? 0,
+      cardH,
+      headerH: document.querySelector("header")?.getBoundingClientRect().bottom ?? 0,
+    },
+  );
+  if (delta !== 0) window.scrollBy({ top: delta, behavior: "smooth" });
 }
 
 function sameRect(a: Rect | null, b: Rect | null): boolean {
@@ -258,7 +295,14 @@ export function TourOverlay() {
   const glide = reduceMotion ? NO_GLIDE : GLIDE;
   const [missing, setMissing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const [viewport, setViewport] = useState({ w: 0, h: 0, tabBar: 0 });
+  // Phones: the step's target lives in a tab bar sheet that isn't open, and
+  // the spotlight is on the button that opens it (TourStep.phoneVia).
+  const [viaOpener, setViaOpener] = useState(false);
+  // The card's real height, which decides which end of a phone it goes to.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardH, setCardH] = useState(0);
+  const cardHRef = useRef(0);
 
   const checkedRef = useRef(false);
   const pathnameRef = useRef(pathname);
@@ -281,7 +325,12 @@ export function TourOverlay() {
   );
 
   useEffect(() => {
-    const read = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    const read = () =>
+      setViewport({
+        w: window.innerWidth,
+        h: window.innerHeight,
+        tabBar: document.querySelector("[data-mobile-tabbar]")?.getBoundingClientRect().height ?? 0,
+      });
     read();
     window.addEventListener("resize", read);
     return () => window.removeEventListener("resize", read);
@@ -495,6 +544,15 @@ export function TourOverlay() {
     };
   }, [navPending, step]);
 
+  // A step that points somewhere else -- another page, or a different tab bar
+  // sheet -- closes the phone's + and More sheets, which would otherwise sit
+  // over the very button it asks for. Not for other steps: Quick trade opened
+  // from the + sheet lives inside it, and closing it would shut the form.
+  const stepPointsElsewhere = phase === "touring" && (navPending || !!step?.phoneVia);
+  useEffect(() => {
+    if (stepPointsElsewhere) signalCloseSheets();
+  }, [stepPointsElsewhere, tour, stepIndex]);
+
   // Save progress on every change.
   useEffect(() => {
     if (phase !== "touring") return;
@@ -566,6 +624,7 @@ export function TourOverlay() {
     let cancelled = false;
     let missingSince: number | null = null;
     let scrolled = false;
+    let scrolledFor: string | null = null;
 
     const tick = () => {
       if (cancelled) return;
@@ -578,7 +637,10 @@ export function TourOverlay() {
         // menu opens.
         const d = navDirections(step.path, (id) => measure(id) !== null && measure(id)!.width > 0);
         setNavInfo((prev) =>
-          prev && prev.kind === d.kind && prev.targetId === d.targetId ? prev : d,
+          // The label counts too: Goals and Emotions sit behind the same More
+          // button (Insights and Goals behind the same Analysis menu), and
+          // comparing only where it pointed kept the previous page's name.
+          prev && prev.kind === d.kind && prev.targetId === d.targetId && prev.label === d.label ? prev : d,
         );
         const nm = d.targetId ? measure(d.targetId) : null;
         if (nm && d.targetId && !scrolled) {
@@ -605,15 +667,31 @@ export function TourOverlay() {
         return;
       }
 
-      const m = measure(step.targetId);
+      // On a phone a target can live in a tab bar sheet that isn't open:
+      // point at the button that opens it until it is.
+      let shownId = step.targetId;
+      let m = measure(shownId);
+      if (!m && step.phoneVia && isPhone()) {
+        const opener = measure(step.phoneVia.opener);
+        if (opener) {
+          shownId = step.phoneVia.opener;
+          m = opener;
+        }
+      }
+      const via = shownId !== step.targetId;
+      setViaOpener((prev) => (prev === via ? prev : via));
       if (m) {
         missingSince = null;
         setMissing(false);
-        if (!scrolled) {
-          scrolled = true;
-          const el = findTarget(step.targetId);
-          const out = m.top < 80 || m.top + m.height > window.innerHeight - 80;
-          if (el && out) el.scrollIntoView({ block: "center", behavior: "smooth" });
+        // Once per thing pointed at: the opener, then the item in its sheet.
+        if (scrolledFor !== shownId) {
+          scrolledFor = shownId;
+          const el = findTarget(shownId);
+          if (el && isPhone()) {
+            scrollIntoPhoneView(el, cardHRef.current || 230);
+          } else if (el && (m.top < 80 || m.top + m.height > window.innerHeight - 80)) {
+            el.scrollIntoView({ block: "center", behavior: "smooth" });
+          }
         }
         if (!sameRect(rectRef.current, m)) {
           rectRef.current = m;
@@ -677,6 +755,35 @@ export function TourOverlay() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [phase, stepIndex, steps.length, finish, goForward, goBack, navPending]);
+
+  // The card's height, measured rather than guessed: it decides which end of
+  // a phone the card goes to, and how much room the strip asks dialogs for.
+  const cardShown = phase === "touring" && !!step && !offRoute;
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!cardShown || !el) return;
+    const ro = new ResizeObserver(() => {
+      const h = Math.round(el.getBoundingClientRect().height);
+      cardHRef.current = h;
+      setCardH((prev) => (prev === h ? prev : h));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cardShown]);
+
+  // Phone + an open dialog = the card is a strip across the top. Dialogs
+  // and sheets leave that much room above themselves (--tour-top in
+  // globals.css), so the strip never covers the form the tour is asking
+  // the user to fill in.
+  const stripH = cardShown && dialogOpen && viewport.w > 0 && viewport.w < 640 ? cardH : 0;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (stripH > 0) root.style.setProperty("--tour-top", `${stripH + PHONE_EDGE * 2}px`);
+    else root.style.removeProperty("--tour-top");
+    return () => {
+      root.style.removeProperty("--tour-top");
+    };
+  }, [stripH]);
 
   if (phase === "demo-offer") {
     return <DemoOfferModal onDone={() => setPhase("welcome")} />;
@@ -800,9 +907,30 @@ export function TourOverlay() {
     }
   }
 
+  // Phones: never on top of the target (src/lib/tour/phone-placement.ts).
+  const dock = phone
+    ? phoneDock({
+        viewportH: viewport.h,
+        tabBarH: viewport.tabBar,
+        cardH: cardH || 230,
+        target: rect,
+        dialogOpen,
+      })
+    : null;
+  const strip = dock === "strip";
+  const phoneEdge = `calc(env(safe-area-inset-top) + ${PHONE_EDGE}px)`;
+
   const cardStyle: React.CSSProperties = phone
-    ? // Above the phone tab bar, which several steps point at.
-      { position: "fixed", left: 12, right: 12, bottom: "calc(var(--tabbar-h) + 12px)", zIndex: 102 }
+    ? {
+        position: "fixed",
+        left: PHONE_EDGE,
+        right: PHONE_EDGE,
+        zIndex: 102,
+        // A long step on a short screen scrolls inside rather than off it.
+        maxHeight: `calc(100dvh - var(--tabbar-h) - ${PHONE_EDGE * 2}px)`,
+        overflowY: "auto",
+        ...(dock === "bottom" ? { bottom: `calc(var(--tabbar-h) + ${PHONE_EDGE}px)` } : { top: phoneEdge }),
+      }
     : placement === "float"
       ? { position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", width: CARD_W, zIndex: 102 }
       : { position: "fixed", width: CARD_W, zIndex: 102 };
@@ -823,6 +951,33 @@ export function TourOverlay() {
         : "step";
   // A trade page has no menu item: the card links to the trade instead.
   const goToTrade = navPending && !step.path && step.pathPrefix && tradePath ? tradePath : null;
+  // Where to go next, in words. A phone has no menu bar: its pages are on
+  // the tab bar at the bottom, or in its More sheet.
+  const tap = phone ? "Tap" : "Click";
+  const goInstruction = goToTrade ? (
+    <>Open the trade you just created.</>
+  ) : navInfo?.kind === "group" && phone && navInfo.groupLabel === "More" ? (
+    <>
+      Tap <b>More</b> at the bottom, then <b>{navInfo.label}</b>.
+    </>
+  ) : navInfo?.kind === "group" ? (
+    <>
+      Open <b>{navInfo.groupLabel}</b> in the menu, then click <b>{navInfo.label}</b>.
+    </>
+  ) : navInfo?.kind === "account" ? (
+    <>
+      Open the <b>account menu</b> (top right), then {tap.toLowerCase()} <b>{navInfo.label}</b>.
+    </>
+  ) : navInfo?.kind === "link" ? (
+    <>
+      {tap} <b>{navInfo.label}</b> {phone && !dialogOpen && rect && rect.top > viewport.h / 2 ? "at the bottom" : "in the menu"}.
+    </>
+  ) : (
+    <>
+      Open <b>{navInfo?.label ?? step.where}</b> from the menu to carry on.
+    </>
+  );
+  const loadingText = awaitingTrade ? "Opening your trade…" : <>Opening {step.where}…</>;
   // Only page-bound steps decide this (no DOM reads during render): a step
   // inside the Quick trade form is never a Back target once the form is shut.
   const canGoBack =
@@ -881,12 +1036,16 @@ export function TourOverlay() {
 
       {/* The card. */}
       <motion.div
+        ref={cardRef}
         role="region"
         aria-label="Guided tour"
+        data-dock={dock ?? undefined}
         style={cardStyle}
         animate={placement === "float" || phone ? undefined : { top: cardTop, left: cardLeft }}
         transition={glide}
-        className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] dark:border-subtle dark:bg-card"
+        className={`rounded-2xl border border-zinc-200 bg-white shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] dark:border-subtle dark:bg-card ${
+          strip ? "flex items-end gap-3 px-4 py-3" : phone ? "p-4" : "p-5"
+        }`}
       >
         {placement !== "float" && !phone && (
           <span
@@ -909,6 +1068,7 @@ export function TourOverlay() {
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.12 }}
+          className={strip ? "min-w-0 flex-1" : undefined}
         >
           <div className="flex items-start justify-between gap-3">
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
@@ -923,50 +1083,44 @@ export function TourOverlay() {
             </button>
           </div>
 
-          {cardMode === "go" ? (
+          {strip ? (
+            // Phone, over an open dialog or sheet: what to do, in one line,
+            // and the dialog keeps the rest of the screen.
+            <p className="mt-1 text-sm font-medium leading-snug text-zinc-800 dark:text-zinc-100" role="status">
+              {cardMode === "go" ? goInstruction : cardMode === "loading" ? loadingText : (step.action ?? step.title)}
+            </p>
+          ) : cardMode === "go" ? (
             <>
               <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
                 {goingBack ? "Back" : "Next"}: {step.where}
               </h3>
               <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                 <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                  {goToTrade ? (
-                    <>Open the trade you just created.</>
-                  ) : navInfo?.kind === "group" ? (
-                    <>
-                      Open <b>{navInfo.groupLabel}</b> in the menu, then click <b>{navInfo.label}</b>.
-                    </>
-                  ) : navInfo?.kind === "account" ? (
-                    <>
-                      Open the <b>account menu</b> (top right), then click <b>{navInfo.label}</b>.
-                    </>
-                  ) : navInfo?.kind === "link" ? (
-                    <>
-                      Click <b>{navInfo.label}</b> in the menu.
-                    </>
-                  ) : (
-                    <>
-                      Open <b>{navInfo?.label ?? step.where}</b> from the menu to carry on.
-                    </>
-                  )}
-                </span>
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{goInstruction}</span>
               </div>
             </>
           ) : cardMode === "loading" ? (
             <p className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400" role="status">
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-primary" aria-hidden />
-              {awaitingTrade ? "Opening your trade…" : <>Opening {step.where}…</>}
+              {loadingText}
             </p>
           ) : (
             <>
               <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-50">{step.title}</h3>
               <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{step.body}</p>
 
-              {step.action && (
+              {(step.action || (viaOpener && step.phoneVia)) && (
                 <div className="mt-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                   <span className="pt-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">Your turn</span>
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{step.action}</span>
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                    {viaOpener && step.phoneVia ? (
+                      <>
+                        Tap <b>{OPENER_LABEL[step.phoneVia.opener]}</b> at the bottom, then <b>{step.phoneVia.item}</b>.
+                      </>
+                    ) : (
+                      step.action
+                    )}
+                  </span>
                 </div>
               )}
               {missing && (
@@ -976,19 +1130,20 @@ export function TourOverlay() {
           )}
         </motion.div>
 
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className={strip ? "flex shrink-0 items-center gap-1.5" : "mt-4 flex items-center justify-between gap-3"}>
           <div className="flex items-center gap-1" aria-hidden>
-            {steps.map((s, i) => (
-              <span
-                key={s.targetId + i}
-                className={`h-1 rounded-full transition-all duration-300 ${
-                  i === stepIndex ? "w-4 bg-primary" : i < stepIndex ? "w-1.5 bg-primary/40" : "w-1.5 bg-zinc-300 dark:bg-zinc-700"
-                }`}
-              />
-            ))}
+            {!strip &&
+              steps.map((s, i) => (
+                <span
+                  key={s.targetId + i}
+                  className={`h-1 rounded-full transition-all duration-300 ${
+                    i === stepIndex ? "w-4 bg-primary" : i < stepIndex ? "w-1.5 bg-primary/40" : "w-1.5 bg-zinc-300 dark:bg-zinc-700"
+                  }`}
+                />
+              ))}
           </div>
           <div className="flex items-center gap-1.5">
-            {canGoBack && (
+            {canGoBack && !strip && (
               <button
                 onClick={() => goBack(stepIndex)}
                 className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
