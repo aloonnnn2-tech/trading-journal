@@ -5,7 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
-import { authErrorMessage } from "@/lib/auth/error-messages";
+import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
+import { ResendConfirmation } from "@/components/auth/resend-confirmation";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 import { MINIMUM_AGE, TERMS_VERSION } from "@/lib/legal/terms";
@@ -30,7 +31,9 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [resent, setResent] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+  // When sign-up sent the first email: the resend counts down from it.
+  const [sentAt, setSentAt] = useState<number | null>(null);
   const captcha = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -83,33 +86,38 @@ export default function SignUpPage() {
     // auth check and dump them back on /sign-in with nothing explaining
     // why, so tell them to go and check their inbox instead.
     if (!data.session) {
+      setSentAt(Date.now());
       setAwaitingConfirmation(true);
       return;
     }
     window.location.href = "/dashboard";
   }
 
-  async function handleResend() {
+  // "Already confirmed": sign in with what they just typed. This is the way
+  // out when the link said "expired" because something else opened it first
+  // -- the account is confirmed, and a resend would send nothing (Supabase
+  // sends no confirmation to a confirmed address, and still answers "sent").
+  async function handleContinue() {
     setError(null);
+    setContinuing(true);
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
       setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
+      setContinuing(false);
       return;
     }
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
-        captchaToken,
-      },
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
     captcha.current?.reset();
+    setContinuing(false);
     if (error) {
-      setError(authErrorMessage(error));
+      setError(
+        isEmailNotConfirmed(error)
+          ? "Your email isn't confirmed yet. Open the link in the newest email, or send a new one below."
+          : authErrorMessage(error),
+      );
       return;
     }
-    setResent(true);
+    window.location.href = "/dashboard";
   }
 
   if (awaitingConfirmation) {
@@ -125,23 +133,20 @@ export default function SignUpPage() {
           </h1>
           <p className="text-sm text-zinc-500">
             We sent a link to{" "}
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">{email}</span>. Click it
-            and you&apos;ll be signed straight in.
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{email}</span>. Open it
+            and press &ldquo;Confirm my email&rdquo; to sign straight in.
           </p>
           <Turnstile ref={captcha} />
           <FormError>{error}</FormError>
-          {resent ? (
-            <p role="status" className="text-sm text-zinc-500">
-              Sent again. It can take a minute to arrive.
-            </p>
-          ) : (
-            <button
-              onClick={handleResend}
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Didn&apos;t get it? Send it again
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={continuing}
+            className="w-full rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-800 hover:border-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-100"
+          >
+            {continuing ? "Checking…" : "I've confirmed it, continue"}
+          </button>
+          <ResendConfirmation email={email} captcha={captcha} onError={setError} sentAt={sentAt} />
           <Link href="/sign-in" className="text-sm font-medium text-primary hover:underline">
             Back to sign in
           </Link>

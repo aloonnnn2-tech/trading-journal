@@ -60,6 +60,9 @@ async function newPage(vw = NARROW, theme = "light") {
   const p = await ctx.newPage();
   await p.goto(`${BASE}/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/dashboard`,
     { waitUntil: "domcontentloaded", timeout: 60000 });
+  // Opening the link spends nothing; the button does (src/app/auth/confirm).
+  await p.getByRole("button", { name: "Confirm my email" }).click();
+  await p.waitForURL(/\/dashboard/, { timeout: 60000 });
   return { ctx, p };
 }
 
