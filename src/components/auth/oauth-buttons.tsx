@@ -49,6 +49,16 @@ export function OAuthButtons({ next, onError }: { next?: string | null; onError:
     };
   }, []);
 
+  // Back from Google's screen restores this page from the browser's memory
+  // (bfcache) as it was left: "Opening…", disabled. Wake it up again.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setGoing(null);
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
+
   if (enabled.length === 0) return null;
 
   async function go(provider: Provider) {

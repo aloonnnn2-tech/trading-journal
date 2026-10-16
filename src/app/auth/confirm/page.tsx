@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { BrandMark } from "@/components/brand-mark";
 import { otpType } from "@/lib/auth/confirm-link";
@@ -17,9 +18,21 @@ export const metadata: Metadata = {
 export default async function ConfirmPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token_hash?: string; type?: string; next?: string }>;
+  searchParams: Promise<{ token_hash?: string; type?: string; next?: string; code?: string; error?: string }>;
 }) {
-  const { token_hash, type: rawType, next } = await searchParams;
+  const { token_hash, type: rawType, next, code, error } = await searchParams;
+
+  // An email template that uses Supabase's own {{ .ConfirmationURL }}
+  // instead of token_hash: Supabase has already checked the link and sends
+  // either a one-time `code` (exchanged like a Google sign-in's) or an
+  // error. Neither should end on "This link is incomplete".
+  if (!token_hash && code) {
+    const forward = new URLSearchParams({ code });
+    if (next) forward.set("next", next);
+    redirect(`/auth/callback?${forward}`);
+  }
+  if (!token_hash && error) redirect("/sign-in?error=confirmation_failed");
+
   const type = otpType(rawType);
   const recovery = type === "recovery";
 

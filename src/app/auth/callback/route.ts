@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { afterSignIn } from "@/lib/auth/next-path";
+import { SERVER_SESSION_ID, logEvent } from "@/lib/tracking/log";
+
+// An account this young was made by this very sign-in: Google sign-up and
+// sign-in are the same click, so the account's age is the only tell.
+const NEW_ACCOUNT_MS = 2 * 60 * 1000;
 
 // Where Google (and any later sign-in provider) sends people back. Supabase
 // appends a one-time `code`; exchanging it here sets the cookie session
@@ -18,8 +23,20 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(destination);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      // Password sign-in and sign-up record these from the browser; this
+      // path never runs that code, so record them here or Google users
+      // vanish from the admin counts. The user id comes from the session
+      // just made, not from anything the request said. Awaited: on a
+      // serverless host, work left running after the response can be cut.
+      const user = data.user;
+      if (user) {
+        const isNew = Date.now() - new Date(user.created_at).getTime() < NEW_ACCOUNT_MS;
+        await logEvent(user.id, SERVER_SESSION_ID, isNew ? "signup_completed" : "login");
+      }
+      return NextResponse.redirect(destination);
+    }
   }
 
   // Cancelled at Google's screen (?error=access_denied), or a code that

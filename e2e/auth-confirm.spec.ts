@@ -59,6 +59,16 @@ test("a link that really was used says the account may already be confirmed", as
   await second.close();
 });
 
+test("a link in Supabase's other format is handed on, not called incomplete", async ({ page }) => {
+  // {{ .ConfirmationURL }} sends a code (or an error) instead of token_hash.
+  await page.goto("/auth/confirm?code=not-a-real-code&next=/reset-password");
+  await expect(page).toHaveURL(/\/sign-in\?error=oauth_failed/);
+
+  await page.goto("/auth/confirm?error=access_denied&error_description=Email+link+is+invalid+or+has+expired");
+  await expect(page).toHaveURL(/\/sign-in\?error=confirmation_failed/);
+  await expect(page.getByText(/already used or has expired/)).toBeVisible();
+});
+
 test("only this site's own page can use a link", async ({ request }) => {
   const res = await request.post("/auth/confirm/verify", {
     headers: { origin: "https://evil.example" },
