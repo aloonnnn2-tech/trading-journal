@@ -36,6 +36,7 @@ import {
   getReviews,
   getReviewsSchema,
 } from "./reports";
+import { calculate, calculateSchema, getMarketData, getMarketDataSchema } from "./general";
 
 // The read-only tools the chat can call to reach the trader's own data and
 // get EXACT numbers computed here rather than guessed from a text dump.
@@ -204,6 +205,27 @@ const DEFS: Def[] = [
     parameters: { type: "object", properties: { kind: { type: "string", enum: [...REPORT_KINDS] } }, required: ["kind"] },
   },
   {
+    name: "get_market_data",
+    compactSet: true,
+    full: "Live-ish market data for any ticker (not only ones in the journal): current quote with its time, and daily price history over a range with high, low and % change. Yahoo symbols: stocks AAPL, crypto BTC-USD, forex EURUSD=X, indices ^GSPC / ^IXIC. Quotes may be delayed -- say when the quote is from.",
+    compact: "Quote + daily prices, any ticker (BTC-USD, EURUSD=X, ^GSPC).",
+    parameters: {
+      type: "object",
+      properties: {
+        symbol: { type: "string" },
+        range: { type: "string", enum: ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"] },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "calculate",
+    compactSet: true,
+    full: "Exact arithmetic: + - * / ^ %, parentheses, sqrt, abs, round(x, digits), floor, ceil, min, max, log, ln, exp, pow, pi. Use it for any calculation (position size, R multiple, what-if P/L, compounding) instead of doing the maths yourself.",
+    compact: "Exact maths: +-*/^%, sqrt, round(x,d), min, max, pow.",
+    parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"] },
+  },
+  {
     name: "get_reviews",
     full: "Past AI reviews the trader generated: the review for one trade (by trade_id), or recent weekly/monthly reviews. Useful for 'what did the last review say' or to avoid repeating advice already given.",
     parameters: {
@@ -229,6 +251,9 @@ export function toolDefsFor(policy: TierPolicy): ToolDef[] {
 export const TOOL_DEFS: ToolDef[] = DEFS.map((d) => toToolDef(d, false));
 
 // ---- executor ---------------------------------------------------------------
+
+/** Market-data lookups one executor (one model round) will make. */
+const MAX_MARKET_LOOKUPS = 6;
 
 /** Output ceiling when the caller names none: the paid tier's. */
 const DEFAULT_OUTPUT_BUDGET = 24_000;
@@ -257,6 +282,8 @@ export function makeToolExecutor(
     store: store ?? new TradeStore(supabase, timezone),
     outputBudget: maxOutputChars,
   };
+
+  let marketLookups = 0;
 
   return async function execute(call: ToolCall): Promise<string> {
     try {
@@ -300,6 +327,19 @@ export function makeToolExecutor(
           break;
         case "get_reviews":
           result = await getReviews(ctx, getReviewsSchema.parse(call.args ?? {}));
+          break;
+        case "get_market_data":
+          // Each lookup is a request to Yahoo from this app's address: a
+          // handful per answer is plenty, and a looping model can't run up
+          // the app-wide ceiling everyone shares.
+          if (++marketLookups > MAX_MARKET_LOOKUPS) {
+            result = { error: `At most ${MAX_MARKET_LOOKUPS} market lookups per answer. Answer with what you have.` };
+            break;
+          }
+          result = await getMarketData(getMarketDataSchema.parse(call.args));
+          break;
+        case "calculate":
+          result = calculate(calculateSchema.parse(call.args));
           break;
         default:
           return JSON.stringify({ error: `Unknown tool "${call.name}".` });

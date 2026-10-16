@@ -79,8 +79,8 @@ export default async function AskPage({
           Ask Your Journal
         </h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          Ask questions about your own trading in plain English, answered by the AI provider you
-          connect.
+          Ask anything: your own trading, a ticker, the market, or something else entirely. Answered
+          by the AI provider you connect, with your journal and live prices to hand.
         </p>
       </div>
 

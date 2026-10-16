@@ -9,6 +9,7 @@ import type { Conversation } from "@/lib/chat/queries";
 import type { TurnView } from "@/lib/chat/fold";
 import { Card } from "@/components/ui/Card";
 import { ProviderConsentCard } from "@/components/ai/provider-consent-card";
+import { ModelPicker } from "./model-picker";
 import { KeyForm } from "./key-form";
 import { KeyManager } from "./key-manager";
 import { ConversationList } from "./conversation-list";
@@ -70,6 +71,9 @@ export function ChatShell({
   const usableKeys = keys.filter((k) => k.is_active);
   const selected = usableKeys.find((k) => k.id === selectedKeyId) ?? usableKeys[0];
   const provider = active?.provider ?? selected?.provider;
+  // The key whose model the picker shows: the conversation's own key once
+  // one exists (it is fixed for that conversation), else the selected one.
+  const pickerKey = active ? keys.find((k) => k.id === active.key_id) : selected;
   const policy = provider ? tierPolicyFor(provider) : tierPolicyFor("groq");
 
   const refreshList = useCallback(async () => {
@@ -361,7 +365,7 @@ export function ChatShell({
             placeholder={
               chat.turns.length > 0
                 ? "Ask a follow-up. It remembers this conversation."
-                : "Ask anything about your trading. Which setup is actually losing me money?"
+                : "Ask anything. Which setup is losing me money? What do you think of NVDA here?"
             }
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
@@ -414,6 +418,12 @@ export function ChatShell({
               </select>
             )}
             {active && <span className="text-xs text-zinc-500">{PROVIDER_LABELS[active.provider]}</span>}
+            {pickerKey && (
+              <ModelPicker
+                apiKey={pickerKey}
+                onKeyChange={(updated) => setKeys((prev) => prev.map((k) => (k.id === updated.id ? updated : k)))}
+              />
+            )}
 
             <button
               type="button"

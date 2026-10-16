@@ -229,7 +229,9 @@ export async function runTurn(ctx: TurnContext, emit: Emit): Promise<void> {
           messages: modelMessages,
           tools: offerTools ? ctx.tools : [],
           maxTokens: ctx.maxTokens,
-          timeoutMs: Math.max(1_000, Math.min(20_000, ctx.deadline - Date.now())),
+          // Up to 50 s for one model call: a long, reasoned answer streams
+          // for a while, and the turn's own deadline still bounds it.
+          timeoutMs: Math.max(1_000, Math.min(50_000, ctx.deadline - Date.now())),
         },
         (delta) => {
           streamed += delta;
