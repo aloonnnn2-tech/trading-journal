@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clientIpKey, enforceRateLimit } from "@/lib/rate-limit";
+import { log } from "@/lib/observability/log";
 
 // Anonymous page-view counter for the public pages. This is the ONE piece of
 // analytics that runs for logged-out visitors, and it is built to store
@@ -54,9 +55,9 @@ export async function POST(request: Request) {
   // quietly. It must never surface as an error on a marketing page.
   try {
     const { error } = await createAdminClient().rpc("record_public_view", { p_path: parsed.data.path });
-    if (error) console.warn("public-view: record failed:", error.message);
+    if (error) log.warn("public_view.record_failed", { error });
   } catch (err) {
-    console.warn("public-view: record failed:", err instanceof Error ? err.message : err);
+    log.warn("public_view.record_failed", { error: err });
   }
 
   return new NextResponse(null, { status: 204 });

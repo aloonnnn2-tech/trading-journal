@@ -7,6 +7,7 @@ import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { detectImageKind, MIME_BY_KIND } from "@/lib/images/magic";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
+import { log } from "@/lib/observability/log";
 
 const BUCKET = "trade-images";
 const MAX_BYTES = MAX_UPLOAD_BYTES;
@@ -151,7 +152,7 @@ export async function POST(
     .upload(storagePath, buffer, { contentType: mime });
 
   if (uploadError) {
-    console.error("[images] upload failed:", uploadError);
+    log.error("images.upload_failed", { error: uploadError });
     return NextResponse.json({ error: "Could not store the image." }, { status: 500 });
   }
 
@@ -164,7 +165,7 @@ export async function POST(
   if (insertError) {
     // Clean up orphaned storage file
     await supabase.storage.from(BUCKET).remove([storagePath]);
-    console.error("[images] row insert failed:", insertError);
+    log.error("images.row_insert_failed", { error: insertError });
     return NextResponse.json({ error: "Could not save the image." }, { status: 500 });
   }
 

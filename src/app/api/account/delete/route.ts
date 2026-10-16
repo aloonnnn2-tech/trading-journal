@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { log } from "@/lib/observability/log";
 
 const IMAGE_BUCKET = "trade-images";
 
@@ -49,7 +50,7 @@ export async function DELETE() {
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
   if (deleteError) {
-    console.error("[account] deleteUser failed:", deleteError);
+    log.error("account.delete_failed", { error: deleteError });
     return NextResponse.json({ error: "Could not delete the account." }, { status: 500 });
   }
 

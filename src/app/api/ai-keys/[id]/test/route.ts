@@ -6,7 +6,7 @@ import { chooseModel, pickerModels } from "@/lib/ai-keys/providers/model-check";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
 import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { rateLimit } from "@/lib/rate-limit";
-import { scrubString } from "@/lib/observability/scrub";
+import { log } from "@/lib/observability/log";
 
 // Re-checks a stored key against its provider, on demand.
 //
@@ -84,7 +84,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   } catch (err) {
     const failure = err instanceof ProviderError ? err.failure : "failed";
     const detail = err instanceof ProviderError ? err.detail : String(err);
-    console.error(`[ai-keys/test] ${stored.provider} ${failure}:`, scrubString(detail));
+    log.error("ai_keys.test_failed", { provider: stored.provider, failure, detail });
 
     return NextResponse.json({
       ok: false,

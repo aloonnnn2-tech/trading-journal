@@ -9,6 +9,7 @@ import { deleteTrade, getTrade, TradeConflictError, updateTrade } from "@/lib/tr
 import { pickEditableCore } from "@/lib/trades/pick-core";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { log } from "@/lib/observability/log";
 
 const patchEnvelopeSchema = z
   .object({
@@ -134,7 +135,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // it's an identifier, not data). Previously every cause collapsed into
     // one generic message, making a schema-drift failure indistinguishable
     // from bad input on both sides of the wire.
-    console.error("updateTrade failed", { tradeId: id, err });
+    log.error("trades.update_failed", { tradeId: id, error: err });
     const code = (err as { code?: string }).code;
     return NextResponse.json({ error: "Failed to update trade", code: code ?? null }, { status: 400 });
   }

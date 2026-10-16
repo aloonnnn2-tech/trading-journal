@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { clientIpKey, enforceRateLimit } from "@/lib/rate-limit";
 import { parseWaitlistRequest } from "@/lib/waitlist/validate";
+import { log } from "@/lib/observability/log";
 
 // The paid-plan waitlist's only writer (Phase 2B of docs/design-audit.md).
 // Anonymous by design: the people joining do not have accounts.
@@ -64,10 +65,10 @@ export async function POST(request: Request) {
   if (!error || error.code === UNIQUE_VIOLATION) return NextResponse.json({ ok: true });
 
   if (MISSING_TABLE.has(error.code)) {
-    console.error("waitlist: table missing -- apply migration 0050_waitlist.sql");
+    log.error("waitlist.table_missing", { fix: "apply migration 0050_waitlist.sql" });
     return NextResponse.json({ error: "Waitlist unavailable" }, { status: 503 });
   }
 
-  console.error("waitlist: insert failed:", error.code, error.message);
+  log.error("waitlist.insert_failed", { error });
   return NextResponse.json({ error: "Could not save" }, { status: 500 });
 }

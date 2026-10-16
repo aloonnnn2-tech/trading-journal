@@ -31,6 +31,7 @@ import { logError } from "@/lib/observability/scrub";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
+import { log } from "@/lib/observability/log";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -157,6 +158,6 @@ export async function POST(request: Request) {
 
   const result = aiReplyToResult(reply, ready.provider, usedModel);
   result.duplicates = await findPossibleDuplicates(gate.supabase, result).catch(() => []);
-  console.info("[screenshot-ai] read", { provider: ready.provider, rows: result.rows.length, ...accuracyLogLine(result) });
+  log.info("screenshot_ai.read", { provider: ready.provider, rowCount: result.rows.length, ...accuracyLogLine(result) });
   return NextResponse.json(result);
 }

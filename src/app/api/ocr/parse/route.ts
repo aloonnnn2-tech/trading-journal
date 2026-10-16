@@ -14,6 +14,7 @@ import { runOcrPipeline } from "@/lib/ocr/pipeline";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
+import { log } from "@/lib/observability/log";
 
 // Native modules (onnxruntime-node, sharp) require the Node.js runtime.
 export const runtime = "nodejs";
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     // their own that this one may duplicate (never anyone else's).
     const supabase = await createClient();
     result.duplicates = await findPossibleDuplicates(supabase, result).catch(() => []);
-    console.info("[ocr] read", accuracyLogLine(result));
+    log.info("ocr.read", accuracyLogLine(result));
     void logEvent(userId, SERVER_SESSION_ID, "screenshot_parsed", {});
     return NextResponse.json(result);
   } catch (err) {

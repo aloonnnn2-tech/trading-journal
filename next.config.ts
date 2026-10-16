@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { BUILD_REQUIRED, missingEnv, missingEnvMessage } from "./src/lib/env/required";
+
+// `next build` stops here, naming the variable, rather than shipping an app
+// whose browser bundle has no Supabase address (src/lib/env/required.ts).
+// Only the build: `next dev` and tests load this file too.
+if (process.argv.includes("build")) {
+  const missing = missingEnv(BUILD_REQUIRED, process.env);
+  if (missing.length > 0) throw new Error(missingEnvMessage(missing, "next build"));
+}
 
 const nextConfig: NextConfig = {
   experimental: {

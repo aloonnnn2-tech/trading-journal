@@ -5,6 +5,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { EXPORT_SECTIONS } from "@/lib/account/data-export";
+import { log } from "@/lib/observability/log";
 
 // "Download all my data" (security hardening, Part B). Everything stored
 // about the signed-in account as one JSON file. See src/lib/account/
@@ -68,7 +69,7 @@ export async function GET() {
       } catch (error) {
         // Headers are already sent, so the honest failure is a truncated
         // file that does not parse -- never a file that looks complete.
-        console.error("[account-export] failed part way", { userId, error });
+        log.error("account.export_failed", { userId, error });
         controller.error(error);
       }
     },

@@ -11,6 +11,7 @@ import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 // the resolved id downstream via this header so nothing else has to ask
 // again. See src/lib/supabase/auth.ts for the reading side.
 const USER_ID_HEADER = "x-user-id";
+const REQUEST_ID_HEADER = "x-request-id";
 
 // --- Content Security Policy -------------------------------------------
 //
@@ -268,6 +269,11 @@ export async function proxy(request: NextRequest) {
   // once getUser() has actually verified the session.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete(USER_ID_HEADER);
+  // One id per request, for every log line it writes (src/lib/observability
+  // /log.ts) and on the response, so a failure a user reports can be found.
+  // Always ours: a client-sent x-request-id is replaced, never trusted.
+  const requestId = crypto.randomUUID();
+  requestHeaders.set(REQUEST_ID_HEADER, requestId);
   if (data.user) requestHeaders.set(USER_ID_HEADER, data.user.id);
 
   // Applied after getUser() so an authenticated caller is limited by user id
@@ -320,6 +326,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set(REQUEST_ID_HEADER, requestId);
   pendingCookies.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
 
   // **Enforced by default**, reversible via the CSP_REPORT_ONLY env flag (see

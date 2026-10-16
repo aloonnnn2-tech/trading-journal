@@ -16,6 +16,7 @@ import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { log } from "@/lib/observability/log";
 
 const BATCH_SIZE = 500;
 
@@ -192,7 +193,7 @@ async function runImport(request: Request): Promise<Response> {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
     const { error, count } = await supabase.from("trades").insert(batch, { count: "exact" });
     if (error) {
-      console.error("[import] batch insert failed:", error);
+      log.error("import.batch_failed", { error });
       rowErrors.push({ row: -1, message: "batch insert failed" });
       continue;
     }

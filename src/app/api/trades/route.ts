@@ -8,6 +8,7 @@ import { getAccountBalance } from "@/lib/account/queries";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { withIdempotency } from "@/lib/http/idempotency";
+import { log } from "@/lib/observability/log";
 
 export async function POST(request: Request) {
   const userId = await getUserIdFromHeader();
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
       } catch (err) {
         // All or nothing: a trade whose details didn't save is removed, so
         // a retry doesn't leave a blank one behind.
-        console.error("create with details failed", { err });
+        log.error("trades.create_with_details_failed", { error: err });
         await deleteTrade(supabase, trade.id).catch(() => {});
         return NextResponse.json(
           { error: "Couldn't save the trade's details. Nothing was created; try again." },
