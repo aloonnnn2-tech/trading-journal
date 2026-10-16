@@ -12,7 +12,7 @@ import { TOURS, isTourName, stepMatchesPath, type PhoneOpener, type TourName, ty
 import { PHONE_EDGE, phoneDock, phoneScrollDelta } from "@/lib/tour/phone-placement";
 import { navDirections, type NavDirections } from "@/lib/tour/nav-target";
 import { nextStep, openerOf, placeStep, prevStep, resumeStep, type EngineContext } from "@/lib/tour/engine";
-import { QUICK_TRADE_CLOSED_EVENT, TRADE_CREATED_EVENT, signalCloseSheets } from "@/lib/tour/signals";
+import { QUICK_TRADE_CLOSED_EVENT, QUICK_TRADE_OPENED_EVENT, TRADE_CREATED_EVENT, signalCloseSheets } from "@/lib/tour/signals";
 import { WelcomeModal } from "./welcome-modal";
 import { usePreferences } from "@/components/preferences/preferences-provider";
 import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
@@ -446,11 +446,19 @@ export function TourOverlay() {
       const m = placeStep(steps, opener, { ...engineContext(), doneTasks: new Set() });
       show(opener, m?.mode ?? "here", true);
     };
+    // Opened again: whatever was "leaving" is back on purpose, so the open
+    // form counts at once (it may never have disappeared -- reopened during
+    // its closing fade, it fades straight back in).
+    const onOpened = () => {
+      leavingRef.current = null;
+    };
     window.addEventListener(TRADE_CREATED_EVENT, onCreated);
     window.addEventListener(QUICK_TRADE_CLOSED_EVENT, onClosed);
+    window.addEventListener(QUICK_TRADE_OPENED_EVENT, onOpened);
     return () => {
       window.removeEventListener(TRADE_CREATED_EVENT, onCreated);
       window.removeEventListener(QUICK_TRADE_CLOSED_EVENT, onClosed);
+      window.removeEventListener(QUICK_TRADE_OPENED_EVENT, onOpened);
     };
   }, [phase, step, stepIndex, steps, engineContext, markDone, show]);
 

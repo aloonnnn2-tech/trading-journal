@@ -427,8 +427,9 @@ export function PaidPlanModal({ open, onClose }: { open: boolean; onClose: () =>
       {open && (
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          animate={{ opacity: 1, pointerEvents: "auto" }}
+          // Click-through while it fades out, so it can't swallow the next click.
+          exit={{ opacity: 0, pointerEvents: "none" }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
           role="dialog"

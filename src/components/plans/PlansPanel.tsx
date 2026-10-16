@@ -89,8 +89,9 @@ export function PlansPanel({
       {open && (
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          animate={{ opacity: 1, pointerEvents: "auto" }}
+          // Click-through while it fades out, so it can't swallow the next click.
+          exit={{ opacity: 0, pointerEvents: "none" }}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-4"
           onClick={onClose}
         >

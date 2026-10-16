@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FormError } from "@/components/form-error";
 import { failureMessage } from "@/lib/api/failure-message";
 import { useDialog } from "@/lib/a11y/use-dialog";
-import { signalQuickTradeClosed, signalTradeCreated } from "@/lib/tour/signals";
+import { signalQuickTradeClosed, signalQuickTradeOpened, signalTradeCreated } from "@/lib/tour/signals";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
 import { newIdempotencyKey } from "@/lib/http/idempotency-key";
@@ -234,7 +234,10 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
     <>
       <button
         data-tour-id="dashboard-quick-trade"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          signalQuickTradeOpened();
+          setOpen(true);
+        }}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 shadow-[0_1px_2px_rgba(28,27,24,0.2)] hover:brightness-110"
       >
         Quick trade
@@ -244,8 +247,11 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
         {open && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            // Click-through the moment it starts closing: the fading backdrop
+            // stayed on top for its exit animation and swallowed the next
+            // click -- "my click didn't register" (e2e/navigation-feedback).
+            exit={{ opacity: 0, pointerEvents: "none" }}
             className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
             onClick={() => !submitting && closeWithoutCreating()}
           >

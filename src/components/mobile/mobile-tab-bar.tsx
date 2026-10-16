@@ -11,6 +11,7 @@ import { AddTradeButton, QuickTradeButton } from "@/app/trades/new-trade-button"
 import { ScreenshotTradeButton } from "@/app/trades/screenshot-trade-button";
 import { useAccountThemeToggle } from "@/components/preferences/preferences-provider";
 import { TOUR_CLOSE_SHEETS_EVENT } from "@/lib/tour/signals";
+import { PendingLinkHint } from "@/components/nav/pending-link-hint";
 
 // The phone navigation (below `sm`, 640px): a bar fixed to the bottom of the
 // screen, where a thumb reaches, in place of the top bar's six items that
@@ -152,12 +153,13 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
         href={href}
         data-tour-id={navLinkTourId(href)}
         aria-current={active ? "page" : undefined}
-        className={`flex h-full w-full flex-col items-center justify-center gap-0.5 text-[11px] ${
+        className={`relative flex h-full w-full flex-col items-center justify-center gap-0.5 text-[11px] ${
           active ? "text-primary" : "text-zinc-500 dark:text-zinc-400"
         }`}
       >
         {icon}
         {label}
+        <PendingLinkHint className="rounded-lg" />
       </Link>
     </li>
   );
@@ -184,13 +186,14 @@ function MoreLinks({ pathname }: { pathname: string }) {
                 href={l.href}
                 data-tour-id={navLinkTourId(l.href)}
                 aria-current={isActive(pathname, l.href) ? "page" : undefined}
-                className={`rounded-lg border px-3 py-2.5 text-sm ${
+                className={`relative rounded-lg border px-3 py-2.5 text-sm ${
                   isActive(pathname, l.href)
                     ? "border-primary/50 bg-primary/10 text-zinc-900 dark:text-zinc-50"
                     : "border-zinc-200 text-zinc-700 dark:border-subtle dark:text-zinc-200"
                 }`}
               >
                 {l.label}
+                <PendingLinkHint />
               </Link>
             ))}
           </div>

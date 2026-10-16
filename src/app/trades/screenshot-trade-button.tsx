@@ -438,8 +438,9 @@ export function ScreenshotTradeButton({
         {open && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            // Click-through while it fades out, so it can't swallow the next click.
+            exit={{ opacity: 0, pointerEvents: "none" }}
             className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
             onClick={close}
           >

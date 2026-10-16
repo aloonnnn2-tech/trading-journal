@@ -13,6 +13,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { startTour } from "@/components/tour/tour-overlay";
 import { ACCOUNT_MENU_GROUP, NAV_GROUPS, PRIMARY_LINKS, navGroupTourId, navLinkTourId, type NavLink } from "@/lib/nav/links";
+import { PendingLinkHint } from "@/components/nav/pending-link-hint";
 
 // The menu's links live in src/lib/nav/links.ts, shared with the guided tour.
 
@@ -87,6 +88,7 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
       }`}
     >
       {link.label}
+      <PendingLinkHint className="rounded-lg" />
       {active && (
         <motion.span
           layoutId="nav-underline"
@@ -106,6 +108,20 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
   const toggleTheme = useAccountThemeToggle();
   const [accountOpen, setAccountOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Menus close when the page you picked ARRIVES, not on the click. Closing
+  // on the click took the clicked item -- and its loading hint -- off the
+  // screen at once, so for the second or two the server took to build the
+  // page nothing said the click had worked, and people clicked again
+  // (measured on the live site, 2026-10-16). Clicking the page you are
+  // already on still closes at once: there is no navigation to wait for.
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setOpenGroup(null);
+    setAccountOpen(false);
+    setHelpOpen(false);
+  }
 
   // Standard next-themes hydration guard: resolvedTheme is unknown on the
   // server, so the theme icon only renders once mounted on the client.
@@ -258,12 +274,12 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                         key={link.href}
                         href={link.href}
                         data-tour-id={navLinkTourId(link.href)}
-                        // Closed here rather than in an effect watching the
-                        // pathname: clicking a link to the page you are
-                        // already on produces no navigation, so an effect
-                        // would leave the menu stuck open.
-                        onClick={() => setOpenGroup(null)}
-                        className={`block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                        // Another page: the menu stays open, this item
+                        // pulsing, until that page arrives (see lastPath
+                        // above). The page you are already on: no navigation
+                        // will come to close it, so close it here.
+                        onClick={() => link.href === pathname && setOpenGroup(null)}
+                        className={`relative block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
                           isActive(pathname, link.href)
                             ? "text-zinc-900 dark:text-zinc-50"
                             : "text-zinc-600 dark:text-zinc-400"
@@ -273,6 +289,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                         {link.hint && (
                           <span className="block text-[11px] text-zinc-500">{link.hint}</span>
                         )}
+                        <PendingLinkHint className="rounded-md" />
                       </Link>
                     ))}
                   </div>
@@ -364,9 +381,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
               <div className="absolute right-0 top-full z-50 mt-0.5 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-subtle dark:bg-card">
                 <Link
                   href="/account"
-                  onClick={() => setAccountOpen(false)}
-                  className="block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => pathname === "/account" && setAccountOpen(false)}
+                  className="relative block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
+                  <PendingLinkHint className="rounded-md" />
                   <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
                     Account
                   </span>
@@ -377,9 +395,10 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                 <Link
                   href="/review?from=account_menu"
                   data-track="nav-review"
-                  onClick={() => setAccountOpen(false)}
-                  className="block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={() => pathname === "/review" && setAccountOpen(false)}
+                  className="relative block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
+                  <PendingLinkHint className="rounded-md" />
                   <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
                     Rate Trading Lens
                   </span>
@@ -396,8 +415,8 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                       key={link.href}
                       href={link.href}
                       data-tour-id={navLinkTourId(link.href)}
-                      onClick={() => setAccountOpen(false)}
-                      className={`block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                      onClick={() => link.href === pathname && setAccountOpen(false)}
+                      className={`relative block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
                         isActive(pathname, link.href)
                           ? "text-zinc-900 dark:text-zinc-50"
                           : "text-zinc-600 dark:text-zinc-400"
@@ -407,6 +426,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                       {link.hint && (
                         <span className="block text-[11px] text-zinc-500">{link.hint}</span>
                       )}
+                      <PendingLinkHint className="rounded-md" />
                     </Link>
                   ))}
 

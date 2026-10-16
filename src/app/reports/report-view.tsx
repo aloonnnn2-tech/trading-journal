@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
 import { Printer } from "lucide-react";
 import { PRESET_LABELS, REPORT_PRESETS, type ReportPreset, type TradingReport } from "@/lib/report/build";
 import { formatDateTime } from "@/lib/dates/format";
@@ -86,10 +87,16 @@ export function ReportView({
   // The generated-at stamp is local time; see use-mounted.ts.
   const mounted = useMounted();
 
+  // The new report is built on the server, which took about a second on the
+  // live site with nothing on screen changing (2026-10-16): the pressed button
+  // now says it is working until the report arrives.
+  const [pending, startTransition] = useTransition();
+  const [choosing, setChoosing] = useState<ReportPreset | null>(null);
   function choose(next: ReportPreset) {
     const query = new URLSearchParams(params.toString());
     query.set("preset", next);
-    router.push(`/reports?${query}`);
+    setChoosing(next);
+    startTransition(() => router.push(`/reports?${query}`));
   }
 
   return (
@@ -100,7 +107,10 @@ export function ReportView({
           <button
             key={p}
             onClick={() => choose(p)}
+            aria-busy={pending && choosing === p}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              pending && choosing === p ? "animate-pulse ring-2 ring-primary/50 " : ""
+            }${
               preset === p
                 ? "bg-primary text-white dark:text-zinc-950"
                 : "border border-zinc-300 text-zinc-600 hover:border-primary dark:border-zinc-700 dark:text-zinc-400"
