@@ -38,3 +38,11 @@ export async function failureMessage(response: Response, fallback: string): Prom
 
   return trimmed;
 }
+
+/**
+ * For a fetch that never got an answer at all (offline, connection dropped).
+ * Callers catch it so a button that set "running" before the call always
+ * comes back: without the catch, a thrown fetch skipped the reset and left
+ * it disabled until the page was reloaded.
+ */
+export const NETWORK_FAILURE = "Couldn't reach Trading Lens. Check your connection and try again.";

@@ -30,11 +30,12 @@ import { accuracyLogLine, findPossibleDuplicates } from "@/lib/ocr/duplicates";
 import { logError } from "@/lib/observability/scrub";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
 
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 // Big enough to keep small print legible, small enough for every provider's
 // per-image limit once base64-encoded.
 const MAX_SIDE = 2000;
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Expected a screenshot and a key." }, { status: 400 });
   }
   if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: UPLOAD_TOO_LARGE }, { status: 400 });
   const parsedKey = keyIdSchema.safeParse(keyId);
   if (!parsedKey.success) return NextResponse.json({ error: "Pick which saved key to use." }, { status: 400 });
 
@@ -117,6 +118,7 @@ export async function POST(request: Request) {
           schemaHint: AI_SCHEMA_HINT,
           maxTokens: MAX_TOKENS,
           deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+          signal: request.signal,
           images: [{ mime: "image/jpeg", base64: jpeg.toString("base64") }],
         });
       },

@@ -159,6 +159,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
         `${baseUrl}/chat/completions`,
         {
           method: "POST",
+          signal: options?.signal,
           headers: { ...auth(apiKey), "Content-Type": "application/json" },
           body: JSON.stringify({
             model: options?.model ?? model,

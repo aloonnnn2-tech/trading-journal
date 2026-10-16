@@ -70,6 +70,15 @@ export async function enforceDailyCap(feature: DailyCapFeature, userId: string):
  */
 export const YAHOO_GLOBAL_PER_MINUTE = 600;
 
+/**
+ * One Yahoo request against the same app-wide ceiling, for loops that call
+ * Yahoo per symbol (excursions, the auto-execute sweep) rather than once per
+ * route call. False means skip this symbol for now.
+ */
+export async function takeYahooSlot(): Promise<boolean> {
+  return (await rateLimit("upstream:yahoo", YAHOO_GLOBAL_PER_MINUTE, 60_000)).ok;
+}
+
 export async function enforceYahooCeiling(): Promise<Response | null> {
   const result = await rateLimit("upstream:yahoo", YAHOO_GLOBAL_PER_MINUTE, 60_000);
   if (result.ok) return null;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   barIndexAt,
+  formatQuoteAge,
   chooseBars,
   DEFAULT_TIMEFRAME,
   timeframeAvailability,
@@ -307,5 +308,17 @@ describe("formatQuote", () => {
     expect(formatQuote(351.63000488)).toBe("351.63");
     expect(formatQuote(61500.5)).toBe("61,500.50");
     expect(formatQuote(0.0000123456789)).toBe("0.0000123457");
+  });
+});
+
+describe("formatQuoteAge", () => {
+  it("shows the time alone for a quote from today", () => {
+    const now = new Date(2026, 9, 16, 15, 30);
+    expect(formatQuoteAge(new Date(2026, 9, 16, 15, 58), now)).toBe("3:58 PM");
+  });
+
+  it("adds the date for an older quote, so a Friday close never reads as live", () => {
+    const monday = new Date(2026, 9, 19, 9, 0);
+    expect(formatQuoteAge(new Date(2026, 9, 16, 16, 0), monday)).toBe("Oct 16, 4:00 PM");
   });
 });

@@ -371,3 +371,14 @@ export function formatQuote(value: number): string {
   if (Math.abs(value) >= 1) return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return value.toLocaleString("en-US", { maximumSignificantDigits: 6 });
 }
+
+/**
+ * When a quote is from, for the "as of" beside the chart's price: the time
+ * alone for today, the date as well for anything older (a weekend, a
+ * holiday, a stale cache). In the viewer's own time zone.
+ */
+export function formatQuoteAge(quoteTime: Date, now: Date = new Date()): string {
+  const time = quoteTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (quoteTime.toDateString() === now.toDateString()) return time;
+  return `${quoteTime.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${time}`;
+}

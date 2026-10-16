@@ -155,6 +155,7 @@ export const anthropicProvider: AIProvider = {
       `${BASE}/messages`,
       {
         method: "POST",
+        signal: options?.signal,
         headers: {
           "x-api-key": reveal(apiKey),
           "anthropic-version": API_VERSION,

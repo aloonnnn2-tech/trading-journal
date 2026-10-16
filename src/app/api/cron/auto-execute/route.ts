@@ -4,6 +4,7 @@ import { isMissingColumnError } from "@/lib/supabase/errors";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchDayRange, guessYahooSymbol } from "@/lib/market-data/yahoo";
+import { takeYahooSlot } from "@/lib/rate-limits/daily";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import {
   decideAutoExecution,
@@ -208,6 +209,12 @@ export async function POST(request: Request) {
     const batch = symbols.slice(i, i + PRICE_CONCURRENCY);
     await Promise.all(
       batch.map(async (symbol) => {
+        // Same app-wide Yahoo ceiling as the chart: a busy minute skips the
+        // symbol until the next sweep (15 minutes) rather than piling on.
+        if (!(await takeYahooSlot())) {
+          failures.push(`${symbol}: Yahoo ceiling reached, retried next sweep`);
+          return;
+        }
         try {
           const range = await fetchDayRange(symbol);
           if (range) prices.set(symbol, range);

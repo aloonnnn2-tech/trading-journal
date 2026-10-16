@@ -8,6 +8,7 @@ import { failureMessage } from "@/lib/api/failure-message";
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { ImportTarget } from "@/lib/trades/import";
 import { TOGGLEABLE_CORE_FIELDS } from "@/lib/trades/types";
+import { MAX_UPLOAD_BYTES } from "@/lib/http/upload-limits";
 
 const CORE_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "ticker", label: "Ticker" },
@@ -20,7 +21,7 @@ const CORE_FIELD_OPTIONS: { key: string; label: string }[] = [
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
 
-// Matches the 5 MB cap the .xlsx route already enforces server-side, so all
+// Matches the cap the .xlsx route enforces server-side (upload-limits.ts), so all
 // three formats behave the same way rather than one of them silently being
 // the odd one out.
 //
@@ -29,7 +30,7 @@ const inputClass =
 // never reach a route that could bound them. Without this, picking a
 // multi-hundred-MB file reads the whole thing into a single JavaScript string
 // and hangs or crashes the tab, with no error and nothing to explain it.
-const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_BYTES = MAX_UPLOAD_BYTES;
 
 function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

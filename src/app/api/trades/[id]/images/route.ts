@@ -6,9 +6,10 @@ import sharp from "sharp";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { detectImageKind, MIME_BY_KIND } from "@/lib/images/magic";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
 
 const BUCKET = "trade-images";
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 
 // Same reasoning as the OCR route: the byte cap bounds the upload, not what
 // gets decoded. Re-encoding below decodes the image, so it needs its own
@@ -74,7 +75,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Each upload is 5 MB of decode-and-re-encode through sharp, which is CPU
+  // Each upload is up to 4 MB of decode-and-re-encode through sharp, which is CPU
   // the deploy is billed for. 30/min is far more than anyone attaches to a
   // trade by hand.
   const limited = await enforceRateLimit(
@@ -111,7 +112,7 @@ export async function POST(
   }
 
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
+    return NextResponse.json({ error: UPLOAD_TOO_LARGE }, { status: 400 });
   }
 
   const arrayBuffer = await file.arrayBuffer();

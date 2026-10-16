@@ -13,15 +13,16 @@ import { ALLOWED_IMAGE_TYPES } from "@/lib/images/queries";
 import { runOcrPipeline } from "@/lib/ocr/pipeline";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
 
 // Native modules (onnxruntime-node, sharp) require the Node.js runtime.
 export const runtime = "nodejs";
 // OCR can take a few seconds on a cold model load; allow headroom.
 export const maxDuration = 60;
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BYTES = MAX_UPLOAD_BYTES;
 
-// The most expensive route in the app by a wide margin: a 5 MB upload into a
+// The most expensive route in the app by a wide margin: a 4 MB upload into a
 // CPU-bound native OCR pipeline with a 60s budget, all of it billed Netlify
 // compute. 20/minute is far above real use (the UI scans one screenshot at a
 // time, taking seconds each) while capping what a looping client can spend.
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     );
   }
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
+    return NextResponse.json({ error: UPLOAD_TOO_LARGE }, { status: 400 });
   }
 
   // Covers both a corrupt/truncated upload stream failing to read here and

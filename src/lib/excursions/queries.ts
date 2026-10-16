@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { isMissingTableError } from "@/lib/supabase/errors";
 import { fetchYahooCandles, guessYahooSymbol, type Candle } from "@/lib/market-data/yahoo";
+import { takeYahooSlot } from "@/lib/rate-limits/daily";
 import {
   calculateExcursion,
   isDailyResolution,
@@ -191,6 +192,12 @@ export async function computeExcursions(
   for (const [symbol, symbolTrades] of bySymbol) {
     let candles: Candle[] = [];
     let coarse = false;
+    // Counted against the app-wide Yahoo ceiling like the chart routes; a
+    // full ceiling leaves this symbol for the next run instead of piling on.
+    if (!(await takeYahooSlot())) {
+      summary.symbolsFailed.push(`${symbol} (price data busy, try again shortly)`);
+      continue;
+    }
     try {
       const result = await fetchYahooCandles(symbol, { range: HISTORY_RANGE });
       candles = result?.candles ?? [];

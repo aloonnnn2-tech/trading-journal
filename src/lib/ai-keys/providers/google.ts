@@ -154,6 +154,7 @@ export const googleProvider: AIProvider = {
       modelUrl(options?.model, "generateContent"),
       {
         method: "POST",
+        signal: options?.signal,
         headers: { ...authHeaders(apiKey), "Content-Type": "application/json" },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },

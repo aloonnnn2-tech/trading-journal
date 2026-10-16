@@ -207,6 +207,12 @@ export interface AskOptions {
    * SCREENSHOT_AI_PROVIDERS (src/lib/ocr/ai-providers.ts) are ever given any.
    */
   images?: AskImage[];
+  /**
+   * The incoming request's signal: when the user closes the tab, the call
+   * to the provider stops too, instead of finishing a generation nobody will
+   * read on the user's own (billed) key.
+   */
+  signal?: AbortSignal;
 }
 
 export interface AskImage {
@@ -315,7 +321,11 @@ export async function providerFetch(
     // strips `Authorization` on a cross-origin redirect it does NOT strip
     // `x-api-key` or `x-goog-api-key`. A provider (or anything between us and
     // it) answering 30x to another host must never receive the credential.
-    return await fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
+    // The caller's own signal (the user closed the tab) aborts as well as the
+    // timeout: a generation nobody will read is still billed to their key.
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    return await fetch(url, { ...init, redirect: "error", signal });
   } catch (err) {
     // A timeout and a DNS/TLS failure are both "couldn't reach them", which is
     // the same advice to the user either way.

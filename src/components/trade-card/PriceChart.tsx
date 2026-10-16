@@ -23,6 +23,7 @@ import {
   fitRange,
   formatBarTime,
   formatQuote,
+  formatQuoteAge,
   isCalendarInterval,
   locate,
   priceMismatch,
@@ -118,7 +119,14 @@ export function PriceChart({
   const [draft, setDraft] = useState("");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
-  const [failed, setFailed] = useState(false);
+  // "not-found": Yahoo has no such symbol. "unavailable": Yahoo is down or
+  // slow (the route answers 503) -- not the symbol's fault, so the message
+  // must not tell the user to correct it.
+  const [failed, setFailed] = useState<false | "not-found" | "unavailable">(false);
+  // Yahoo's own time for the last price, shown beside it: a price can be
+  // minutes old (delayed quotes, the 5-minute server cache) and must never
+  // read as live when it isn't.
+  const [quoteTime, setQuoteTime] = useState<Date | null>(null);
 
   // Kept current via an effect (not read directly) so the polling effect
   // below doesn't need `onPriceUpdate` itself in its dependency array --
@@ -202,6 +210,7 @@ export function PriceChart({
             setCandles(data.candles);
           }
           setCurrentPrice(data.currentPrice);
+          setQuoteTime(data.quoteTime ? new Date(data.quoteTime) : null);
           setFailed(false);
           onPriceUpdateRef.current?.({
             currentPrice: data.currentPrice,
@@ -210,11 +219,15 @@ export function PriceChart({
             quoteTime: data.quoteTime ? new Date(data.quoteTime) : null,
           });
         })
-        .catch(() => {
+        .catch((err: unknown) => {
           // A failed poll leaves the last-known price/chart on screen
           // rather than blanking a working chart over a transient hiccup;
-          // only a fresh symbol's failed initial load surfaces "not found".
-          if (activeSymbolRef.current === symbol && !isPoll) setFailed(true);
+          // only a fresh symbol's failed initial load says so. A 503 is
+          // Yahoo being down, which a network error (no Response) also is.
+          if (activeSymbolRef.current === symbol && !isPoll) {
+            const status = err instanceof Response ? err.status : null;
+            setFailed(status === 404 ? "not-found" : "unavailable");
+          }
         });
     },
     [symbol],
@@ -230,6 +243,7 @@ export function PriceChart({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCandles(null);
     setCurrentPrice(null);
+    setQuoteTime(null);
     setFailed(false);
     load(false);
   }, [symbol, load]);
@@ -369,7 +383,11 @@ export function PriceChart({
   // interval.
   useEffect(() => {
     if (!symbol || !watchForAutoExecution) return;
-    const interval = setInterval(() => load(true), WATCH_POLL_MS);
+    // Not while the tab is hidden: nobody is looking, and each poll is a
+    // Yahoo request against this app's shared ceiling.
+    const interval = setInterval(() => {
+      if (!document.hidden) load(true);
+    }, WATCH_POLL_MS);
     return () => clearInterval(interval);
   }, [symbol, watchForAutoExecution, load]);
 
@@ -528,6 +546,11 @@ export function PriceChart({
                 </span>
               )}
               ${currentPrice.toLocaleString(undefined, { maximumFractionDigits: 8 })}
+              {quoteTime && (
+                <span className="text-zinc-400" title="When Yahoo last updated this price. Quotes can be delayed.">
+                  as of {formatQuoteAge(quoteTime)}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -595,7 +618,21 @@ export function PriceChart({
           won&apos;t line up. The chart is scaled to this trade&apos;s own levels.
         </p>
       )}
-      {failed && !useHolding ? (
+      {failed === "unavailable" && !useHolding ? (
+        <div className="flex flex-col items-center gap-3 px-5 py-16 text-center text-sm text-zinc-500" role="status">
+          <p>Market data is temporarily unavailable. Your trade is fine; only the chart is waiting.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setFailed(false);
+              load(false);
+            }}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-200"
+          >
+            Try again
+          </button>
+        </div>
+      ) : failed && !useHolding ? (
         <p className="px-5 py-16 text-center text-sm text-zinc-500">
           No price history found for &quot;{symbol}&quot;. Try correcting the symbol above.
         </p>

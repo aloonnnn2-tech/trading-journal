@@ -26,9 +26,15 @@ export default async function handler() {
   }
 
   try {
+    // Netlify stops a scheduled function at 30s (sync functions get 60s:
+    // https://docs.netlify.com/build/functions/configuration/). Give up
+    // waiting at 25s so the log says why, instead of the platform cutting
+    // the run off mid-line. The sweep itself is a separate function call
+    // and keeps going; only this trigger stops listening.
     const res = await fetch(`${baseUrl}/api/cron/auto-execute`, {
       method: "POST",
       headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(TRIGGER_WAIT_MS),
     });
     const body = await res.text();
 
@@ -41,10 +47,16 @@ export default async function handler() {
     console.log("auto-execute cron:", body);
     return new Response(body, { status: 200 });
   } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      console.warn(`auto-execute cron: no answer within ${TRIGGER_WAIT_MS}ms; the sweep may still be running`);
+      return new Response("Sweep still running", { status: 202 });
+    }
     console.error("auto-execute cron: request failed", err);
     return new Response("Request failed", { status: 500 });
   }
 }
+
+const TRIGGER_WAIT_MS = 25_000;
 
 export const config: Config = {
   // Every 15 minutes. Frequent enough that a touched level is noticed the

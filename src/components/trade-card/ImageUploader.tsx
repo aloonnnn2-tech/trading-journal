@@ -8,6 +8,7 @@ import { FIELD_LABELS, OCR_CORE_FIELDS, shouldAutofill } from "@/lib/ocr/types";
 import { ConfidenceBadge } from "@/components/ocr/ConfidenceBadge";
 import { FormError } from "@/components/form-error";
 import { useDialog } from "@/lib/a11y/use-dialog";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
 
 interface ImageItem {
   id: string;
@@ -111,8 +112,8 @@ export function ImageUploader({
           setError("Unsupported image type. Use JPEG, PNG, WebP, or GIF.");
           continue;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setError("File exceeds 5 MB limit.");
+        if (file.size > MAX_UPLOAD_BYTES) {
+          setError(UPLOAD_TOO_LARGE);
           continue;
         }
 

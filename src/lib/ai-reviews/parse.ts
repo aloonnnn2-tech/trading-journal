@@ -164,6 +164,7 @@ export async function generateStructured<T>({
   maxTokens,
   deadlineAt,
   images,
+  signal,
 }: {
   provider: AIProvider;
   apiKey: KeyInput;
@@ -180,6 +181,8 @@ export async function generateStructured<T>({
   /** Sent with the first request only. The repair step never resends them:
    *  fixing a JSON format needs the reply, not the screenshot. */
   images?: AskImage[];
+  /** The incoming request's signal: a closed tab stops the provider call and skips the repair. */
+  signal?: AbortSignal;
 }): Promise<T> {
   function remainingMs(): number {
     return deadlineAt - Date.now();
@@ -189,11 +192,15 @@ export async function generateStructured<T>({
     model,
     images,
     maxTokens,
+    signal,
     timeoutMs: Math.min(ASK_TIMEOUT_MS, Math.max(1_000, remainingMs())),
   });
 
   const first = parseStructured(schema, reply);
   if (first.ok) return first.value;
+
+  // Nobody is waiting for the answer: don't spend a second billed call on it.
+  if (signal?.aborted) throw new StructuredOutputError("client left before the repair");
 
   if (reply.length > REPAIR_MAX_REPLY_CHARS || remainingMs() < REPAIR_MIN_REMAINING_MS) {
     throw new StructuredOutputError(
@@ -215,6 +222,7 @@ export async function generateStructured<T>({
     ].join("\n"),
     {
       model,
+      signal,
       maxTokens: REPAIR_MAX_TOKENS,
       timeoutMs: Math.min(ASK_TIMEOUT_MS, Math.max(1_000, remainingMs())),
     },

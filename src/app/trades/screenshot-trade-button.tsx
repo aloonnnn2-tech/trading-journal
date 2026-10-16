@@ -16,6 +16,7 @@ import type { EditableCoreField, Trade } from "@/lib/trades/types";
 import { entryPriceLabels } from "@/lib/trades/order-labels";
 import { AiReadPanel } from "./ai-read-panel";
 import { signalReviewWow } from "@/lib/reviews/signals";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -172,8 +173,8 @@ export function ScreenshotTradeButton({
       setError("Unsupported image type. Use JPEG, PNG, WebP, or GIF.");
       return;
     }
-    if (selected.size > 5 * 1024 * 1024) {
-      setError("File exceeds 5 MB limit.");
+    if (selected.size > MAX_UPLOAD_BYTES) {
+      setError(UPLOAD_TOO_LARGE);
       return;
     }
 

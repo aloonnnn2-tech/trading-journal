@@ -3,6 +3,8 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { fetchYahooCandles, type Candle } from "@/lib/market-data/yahoo";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
+import { UpstreamUnavailableError } from "@/lib/http/resilient-fetch";
+import { marketDataUnavailable } from "@/lib/market-data/unavailable";
 
 // This route makes an outbound request to Yahoo on every call, from this
 // app's IP, with a symbol the caller chooses -- the same shape as the OCR and
@@ -59,7 +61,8 @@ export async function GET(request: Request) {
   let result: Awaited<ReturnType<typeof fetchYahooCandles>>;
   try {
     result = await fetchYahooCandles(ticker);
-  } catch {
+  } catch (err) {
+    if (err instanceof UpstreamUnavailableError) return marketDataUnavailable();
     result = null;
   }
 

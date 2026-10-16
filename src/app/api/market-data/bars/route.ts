@@ -4,6 +4,8 @@ import { fetchYahooBars, type YahooBarsResult } from "@/lib/market-data/yahoo";
 import { TIMEFRAMES, type BarInterval } from "@/lib/market-data/trade-window";
 import { rateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap, enforceYahooCeiling } from "@/lib/rate-limits/daily";
+import { UpstreamUnavailableError } from "@/lib/http/resilient-fetch";
+import { marketDataUnavailable } from "@/lib/market-data/unavailable";
 
 // The trade chart's holding-period bars (Phase 4C): one bar size over one
 // date range. The candles route next door still serves the two-year daily
@@ -67,7 +69,8 @@ export async function GET(request: Request) {
   let result: YahooBarsResult | null;
   try {
     result = await fetchYahooBars(ticker, { interval, period1, period2 });
-  } catch {
+  } catch (err) {
+    if (err instanceof UpstreamUnavailableError) return marketDataUnavailable();
     result = null;
   }
   if (!result || result.bars.length === 0) {
