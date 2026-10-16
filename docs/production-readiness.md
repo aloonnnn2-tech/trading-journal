@@ -31,7 +31,7 @@ Branches: `prod-ready/phase-1-security` … `prod-ready/phase-4-ops`, committed 
 
 | # | Item | Disposition | Evidence | Fix or reason |
 |---|---|---|---|---|
-| 14 | Migrations / versioning | VERIFY | `schema_migrations` ledger (0040), self-recorded by every migration since. `npm run migrations:status` (`scripts/migrations-status.ts`). Live ledger has **69 rows on 2026-10-16**, so 0000–0068 are applied. | New: `0069_idempotency_keys.sql`, **not applied yet** (apply by hand). Code fails open without it. |
+| 14 | Migrations / versioning | VERIFY | `schema_migrations` ledger (0040), self-recorded by every migration since. `npm run migrations:status` (`scripts/migrations-status.ts`). Live ledger has **69 rows on 2026-10-16**, so 0000–0068 are applied. | New: `0069_idempotency_keys.sql`, **applied 2026-10-16** (ledger row present; table refuses the public key). |
 | 15 | Indexing | VERIFY | `user_id` indexes on every user table. Perf indexes in `0065_perf_indexes.sql` (applied, per the ledger). Trigram indexes for search (0005). | No new index needed at current size (item 21 counts). |
 | 16 | Query optimization | VERIFY | Heaviest reads: `dashboard_stats` RPC, the trade list (`filteredTradesQuery`), analytics (`segments/engine.ts` over `fetchAllRows`), export. | No timings invented. To measure: run the query with `explain (analyze, buffers)` in the SQL editor, or read Sentry's traces (item 54). |
 | 17 | N+1 queries | VERIFY | Per-item loops: the cron sweep (per-user settings read, per-trade updates), `takeDueMonthlyCosts` (3–4 calls per due month), commission recalculate (per-trade update, 20 at a time), excursions (per symbol, Yahoo). | All bounded (one user's due months, one user's trades). Left as is at 11 accounts; noted for the PERF-2 RPC work. |
