@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { withIdempotency } from "@/lib/http/idempotency";
 import { deriveStatusAndResult, withDerivedFields } from "@/lib/trades/import";
 import { EDITABLE_CORE_FIELDS } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
@@ -25,7 +26,18 @@ const importJsonBodySchema = z.object({
 // Direct re-import of our own JSON export format: rows already use core
 // field names as keys, so no column-mapping step is needed -- just
 // whitelist known columns and recompute derived fields server-side.
+// A repeated submit (same Idempotency-Key -- a double click, a retried
+// request) gets the first import's answer back instead of importing the
+// whole file a second time. See src/lib/http/idempotency.ts.
 export async function POST(request: Request) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return withIdempotency(request, userId, "trades.import-json", () => runImport(request));
+}
+
+async function runImport(request: Request): Promise<Response> {
   const userId = await getUserIdFromHeader();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

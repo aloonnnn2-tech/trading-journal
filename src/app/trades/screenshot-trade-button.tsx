@@ -17,6 +17,8 @@ import { entryPriceLabels } from "@/lib/trades/order-labels";
 import { AiReadPanel } from "./ai-read-panel";
 import { signalReviewWow } from "@/lib/reviews/signals";
 import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
+import { newIdempotencyKey } from "@/lib/http/idempotency-key";
+import { failureMessage } from "@/lib/api/failure-message";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -111,6 +113,7 @@ export function ScreenshotTradeButton({
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const createBusy = useRef(false);
   const [showRaw, setShowRaw] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showExample, setShowExample] = useState(false);
@@ -223,13 +226,13 @@ export function ScreenshotTradeButton({
   }, [open, step]);
 
   async function handleCreate() {
+    // A ref, not `submitting`: a double click fires both handlers before
+    // the button re-renders as disabled.
+    if (createBusy.current) return;
+    createBusy.current = true;
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/trades", { method: "POST" });
-      if (!res.ok) throw new Error();
-      const trade = await res.json();
-
       // REQUIRED fields are checked before this can run (the button is
       // disabled until they are filled), so nothing here falls back to a
       // default value.
@@ -275,12 +278,21 @@ export function ScreenshotTradeButton({
         if (!(field in core)) core[field] = value;
       }
 
-      const patchRes = await fetch(`/api/trades/${trade.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      // One request with the details: a create followed by a separate PATCH
+      // left a blank trade behind whenever the PATCH failed. The server now
+      // saves both or neither.
+      const res = await fetch("/api/trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": newIdempotencyKey() },
         body: JSON.stringify({ core }),
       });
-      if (!patchRes.ok) throw new Error();
+      if (!res.ok) {
+        setError(await failureMessage(res, "Failed to create the trade. Try again."));
+        setSubmitting(false);
+        createBusy.current = false;
+        return;
+      }
+      const trade = (await res.json()) as { id: string };
 
       if (file) {
         const formData = new FormData();
@@ -294,6 +306,7 @@ export function ScreenshotTradeButton({
       router.push(`/trades/${trade.id}`);
     } catch {
       setError("Failed to create the trade. Check your connection and try again.");
+      createBusy.current = false;
       setSubmitting(false);
     }
   }
