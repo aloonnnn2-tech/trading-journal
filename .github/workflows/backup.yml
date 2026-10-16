@@ -40,6 +40,9 @@
 #   4. npm run restore:db -- --dir backups/<stamp>
 #      (dry run; add `-- --apply` once the output looks right, and read the
 #       header of scripts/restore-db.ts before pointing it at a fresh project)
+#   5. npm run restore:storage -- --dir backups/<stamp>
+#      (the screenshots, since 2026-10-16; dry run, then `-- --apply`. Never
+#       overwrites a file that is already there.)
 
 name: Backup database
 
@@ -80,7 +83,18 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      # Up to three tries. On 2026-10-16 this step failed on an unchanged
+      # commit that had installed fine the night before -- a registry or
+      # network blip -- and that one blip cost the whole night's backup.
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            npm ci && exit 0
+            echo "::warning::npm ci failed (attempt $attempt of 3), retrying in 30s"
+            sleep 30
+          done
+          echo "::error::npm ci failed three times"
+          exit 1
 
       # Fail loudly and immediately on a missing secret. Without this the
       # backup script exits non-zero anyway, but the run reads as "the backup

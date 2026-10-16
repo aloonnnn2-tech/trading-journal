@@ -44,8 +44,9 @@ normally safe.
 The project is on Supabase **Free**: Supabase keeps **no backups** of it. The only copies are the encrypted
 GitHub Actions backups (`.github/workflows/backup.yml`): daily, kept 30 days, and weekly, kept 90 days.
 
-**Not in any backup:** screenshots (Supabase Storage), sign-in accounts (`auth.users`), the schema, the
-waitlist, and page-view totals.
+**Included since 2026-10-16:** the screenshots (Supabase Storage, the `trade-images` bucket).
+
+**Not in any backup:** sign-in accounts (`auth.users`), the schema, the waitlist, and page-view totals.
 
 To restore (the steps the workflow header gives, verified in Git Bash on Windows):
 
@@ -53,6 +54,8 @@ To restore (the steps the workflow header gives, verified in Git Bash on Windows
 2. `printf '%s' '<BACKUP_PASSPHRASE>' | gpg --batch --yes --decrypt --passphrase-fd 0 trading-lens-backup-<stamp>.tar.gz.gpg > backup.tar.gz`
 3. `tar -xzf backup.tar.gz` gives `backups/<stamp>/*.json`.
 4. `npm run restore:db -- --dir backups/<stamp>` is a dry run. Read its output, then add `-- --apply`.
+5. Screenshots: `npm run restore:storage -- --dir backups/<stamp>`, then add `-- --apply`. It only uploads files
+   that are missing and never overwrites one that is there.
 
 Restore into the **same** project (bad migration, mass delete): the accounts still exist, so this just
 works. Into a **new** project: apply every migration first, and recreate the auth users with the same ids.

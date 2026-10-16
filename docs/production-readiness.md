@@ -37,7 +37,7 @@ Branches: `prod-ready/phase-1-security` … `prod-ready/phase-4-ops`, committed 
 | 17 | N+1 queries | VERIFY | Per-item loops: the cron sweep (per-user settings read, per-trade updates), `takeDueMonthlyCosts` (3–4 calls per due month), commission recalculate (per-trade update, 20 at a time), excursions (per symbol, Yahoo). | All bounded (one user's due months, one user's trades). Left as is at 11 accounts; noted for the PERF-2 RPC work. |
 | 18 | PostgREST row cap | SKIP | Covered by C1 (`fetchAllRows`). | — |
 | 19 | Connection pooling | VERIFY | No `pg`/`postgres`/ORM in `package.json`. Everything uses supabase-js over HTTP (pooled by Supabase). | — |
-| 20 | Backups / DR | VERIFY → doc | Nightly and weekly encrypted dumps of 24 tables (`.github/workflows/backup.yml`, `scripts/backup-db.ts`), restore with `scripts/restore-db.ts`. Supabase: daily backups only on Pro (7 days) and above; **Free gets none**; never includes Storage files (docs, checked 2026-10-16). | Not backed up anywhere: screenshots (Storage), `auth.users`, schema, waitlist, public_page_views. Restore steps in the runbook. The project is on the **Free plan** (`backup.yml` header), so the GitHub backup is the only copy. |
+| 20 | Backups / DR | VERIFY → doc | Nightly and weekly encrypted dumps of 24 tables (`.github/workflows/backup.yml`, `scripts/backup-db.ts`), restore with `scripts/restore-db.ts`. Supabase: daily backups only on Pro (7 days) and above; **Free gets none**; never includes Storage files (docs, checked 2026-10-16). | **Added 2026-10-16:** screenshots (the `trade-images` bucket) are in the backup, restored by `npm run restore:storage`. Not backed up: `auth.users`, schema, waitlist, public_page_views. Restore steps in the runbook. The project is on the **Free plan** (`backup.yml` header), so the GitHub backup is the only copy. |
 | 21 | Replicas, sharding, multi-region… | N/A | Live row counts 2026-10-16: analytics_events 6,557; trade_history 578; trades 472; 11 accounts. | One Postgres handles this many thousand times over. Revisit when the largest table passes ~10 million rows or queries slow down in Sentry traces. |
 
 ## Phase 3 — Outbound calls
@@ -119,8 +119,7 @@ Branches: `prod-ready/phase-1-security` … `prod-ready/phase-4-ops`, committed 
 
 ## Open questions for Alon
 
-1. **Screenshots have no backup anywhere.** The project is on Supabase Free (no Supabase backups), and the GitHub
-   backup covers the database only. Back up the `trade-images` bucket too, or accept the risk?
+1. ~~Screenshots have no backup~~ Added to the nightly backup 2026-10-16.
    protection relies on the button guards only.
 3. A fallback market-data source besides Yahoo? Default: no.
 4. A Dockerfile for local dev? Default: no.

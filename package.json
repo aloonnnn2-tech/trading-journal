@@ -16,6 +16,7 @@
     "ocr:eval-ai": "tsx scripts/ocr-eval/run-ai.ts",
     "backup:db": "tsx --env-file-if-exists=.env.local scripts/backup-db.ts",
     "restore:db": "tsx --env-file-if-exists=.env.local scripts/restore-db.ts",
+    "restore:storage": "tsx --env-file-if-exists=.env.local scripts/restore-storage.ts",
     "migrations:status": "tsx --env-file=.env.local scripts/migrations-status.ts",
     "dev-schema": "tsx scripts/build-dev-schema.ts",
     "verify:ai-secret": "tsx --conditions=react-server --env-file=.env.local scripts/verify-ai-key-secret.ts",
