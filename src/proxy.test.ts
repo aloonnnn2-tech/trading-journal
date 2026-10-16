@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCrossSite } from "./proxy";
+import { apiCacheControl, isCrossSite } from "./proxy";
 
 // The CSRF predicate for state-changing /api requests. It must refuse a
 // browser page on another site and let through everything that is not a
@@ -37,5 +37,22 @@ describe("isCrossSite", () => {
 
   it("refuses an Origin that does not parse", () => {
     expect(isCrossSite(req({ origin: "not a url", host: "app.example" }))).toBe(true);
+  });
+});
+
+describe("apiCacheControl", () => {
+  it("keeps every signed-in API read out of shared caches", () => {
+    for (const path of ["/api/trades", "/api/trades/abc/panel", "/api/account/export", "/api/market-data/bars", "/api/ai-keys"]) {
+      const value = apiCacheControl("GET", path);
+      expect(value, path).toContain("private");
+      expect(value, path).toContain("no-store");
+      expect(value, path).not.toMatch(/public|s-maxage|max-age=[1-9]/);
+    }
+  });
+
+  it("leaves writes and pages alone, and the chat stream to its own header", () => {
+    expect(apiCacheControl("POST", "/api/trades")).toBeNull();
+    expect(apiCacheControl("GET", "/dashboard")).toBeNull();
+    expect(apiCacheControl("GET", "/api/chat/conversations/x/turn")).toBeNull();
   });
 });

@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { serverSecret } from "@/lib/server-env";
 
@@ -24,7 +25,8 @@ let cachedClient: SupabaseClient | null = null;
 // anon would let anyone call it with `bucket = 'api:<victimUserId>'` and
 // pre-exhaust another user's limit -- a free denial of service. The counter is
 // therefore only ever touched by this server-side key. This module is imported
-// only by server code (the proxy and API routes); `npm run check:bundle` is the
+// only by server code (the proxy and API routes); `import "server-only"` above
+// makes a client import fail the build, and `npm run check:bundle` is the
 // standing guard that the service-role key can never reach a client bundle.
 function rpcClient(): SupabaseClient {
   if (cachedClient) return cachedClient;

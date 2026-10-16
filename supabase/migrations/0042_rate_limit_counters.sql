@@ -20,7 +20,8 @@ create table if not exists rate_limit_counters (
   bucket text primary key,
   -- Start of the current fixed window. A bucket's row is reused in place, so
   -- the table grows only with the number of distinct buckets seen, not with
-  -- request volume; the nightly prune below drops cold ones.
+  -- request volume; rate_limit_hit itself prunes cold ones (about 1 call in
+  -- 100 deletes rows whose window ended over a day ago) -- there is no cron.
   window_start timestamptz not null default now(),
   count int not null default 0
 );

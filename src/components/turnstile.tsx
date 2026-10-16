@@ -19,9 +19,9 @@
  * **CSP.** The injected script inherits trust from `strict-dynamic` (it is
  * added by already-trusted React code, so it needs no nonce), but the widget
  * renders in an IFRAME from challenges.cloudflare.com. src/proxy.ts must
- * therefore allow that origin in `frame-src` and `connect-src`. While the
- * policy is Report-Only this works either way; the day it is enforced without
- * those entries, this widget dies and takes sign-in with it.
+ * therefore allow that origin in `frame-src` and `connect-src`. The policy is
+ * enforced (since 2026-09-14), so without those entries this widget dies and
+ * takes sign-in with it.
  */
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";

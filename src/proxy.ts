@@ -358,15 +358,21 @@ export async function proxy(request: NextRequest) {
   // their response body, and without the HTTP cache draining it a no-store
   // response is never finished. Each held a connection open, and pages never
   // went network-idle (found by e2e/mobile.spec.ts, 2026-10-03).
-  if (
-    request.method === "GET" &&
-    request.nextUrl.pathname.startsWith("/api/") &&
-    !request.nextUrl.pathname.endsWith("/turn")
-  ) {
-    response.headers.set("Cache-Control", "private, no-store");
-  }
+  const cacheControl = apiCacheControl(request.method, request.nextUrl.pathname);
+  if (cacheControl) response.headers.set("Cache-Control", cacheControl);
 
   return response;
+}
+
+/**
+ * The Cache-Control the proxy forces on an API response, or null to leave it
+ * to the route. Every API GET answers for one signed-in user, so none may be
+ * stored by a shared cache (Netlify's CDN, a proxy) and served to someone
+ * else. The chat stream (/turn) sets its own `private, no-store, no-transform`.
+ */
+export function apiCacheControl(method: string, pathname: string): string | null {
+  if (method !== "GET" || !pathname.startsWith("/api/") || pathname.endsWith("/turn")) return null;
+  return "private, no-store";
 }
 
 export const config = {
