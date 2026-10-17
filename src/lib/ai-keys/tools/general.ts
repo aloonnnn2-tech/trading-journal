@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fetchYahooCandles, type Candle } from "@/lib/market-data/yahoo";
+import { fetchYahooCandles, fetchYahooNews, type Candle, type YahooNewsItem } from "@/lib/market-data/yahoo";
 import { UpstreamUnavailableError } from "@/lib/http/resilient-fetch";
 import { takeYahooSlot } from "@/lib/rate-limits/daily";
 
@@ -135,7 +135,35 @@ const MAX_BARS = 120;
 export const getMarketDataSchema = z.object({
   symbol: z.string().trim().min(1).max(20),
   range: z.enum(RANGES).optional(),
+  /** Also return recent headlines (titles only). */
+  news: z.boolean().optional(),
 });
+
+/** Headlines returned with news: true -- titles are short, so this is plenty. */
+const MAX_HEADLINES = 8;
+
+type News =
+  | { headlines: (YahooNewsItem & { about_this_symbol: boolean })[]; source: string; note: string }
+  | { unavailable: string };
+
+async function newsFor(symbol: string): Promise<News> {
+  if (!(await takeYahooSlot())) return { unavailable: "News lookups are busy right now." };
+  try {
+    const items = await fetchYahooNews(symbol, MAX_HEADLINES);
+    if (!items) return { unavailable: "News is unavailable right now." };
+    return {
+      headlines: items.map((i) => ({ ...i, about_this_symbol: i.related.includes(symbol) })),
+      source: "Yahoo Finance search (unofficial): headlines and links only, no article text",
+      note: items.length
+        ? "Only the titles are known -- say so rather than describing what an article says."
+        : "No recent headlines found.",
+    };
+  } catch {
+    // Never throws: it runs alongside the price fetch, and a failed price
+    // lookup returns before awaiting it.
+    return { unavailable: "News is temporarily unavailable." };
+  }
+}
 
 /** Every nth bar, always keeping the last one. */
 export function sampleBars<T>(bars: T[], max: number): T[] {
@@ -151,6 +179,10 @@ export function sampleBars<T>(bars: T[], max: number): T[] {
  * daily bars run past a free tier's, and an over-budget result reaches the
  * model as an error -- so "what do you think of NVDA?" failed outright on a
  * free key (found by the Ask benchmark, 2026-10-17). The bars thin out to fit.
+ *
+ * News rides along on the same call (`news: true`) rather than being its
+ * own tool: "what do you think of NVDA?" wants both, and a free key gets
+ * three lookups per question (Alon chose Yahoo headlines, 2026-10-17).
  */
 export async function getMarketData(args: z.infer<typeof getMarketDataSchema>, outputBudget = Infinity) {
   const symbol = args.symbol.toUpperCase();
@@ -158,6 +190,7 @@ export async function getMarketData(args: z.infer<typeof getMarketDataSchema>, o
   const range = args.range ?? "3mo";
   if (!(await takeYahooSlot())) return { error: "Market data is busy right now; try again in a minute." };
 
+  const news = args.news ? newsFor(symbol) : null;
   let result;
   try {
     result = await fetchYahooCandles(symbol, { range, revalidate: 300 });
@@ -191,12 +224,18 @@ export async function getMarketData(args: z.infer<typeof getMarketDataSchema>, o
     },
     daily_bars: sampleBars(candles, MAX_BARS),
     bars_sampled: candles.length > MAX_BARS,
+    ...(news ? { news: await news } : {}),
   };
   // Leave room for the envelope the executor wraps around a result.
-  for (let max = MAX_BARS; JSON.stringify(out).length > outputBudget * 0.9 && max > 8; ) {
+  const fits = () => JSON.stringify(out).length <= outputBudget * 0.9;
+  for (let max = MAX_BARS; !fits() && max > 8; ) {
     max = Math.floor(max / 2);
     out.daily_bars = sampleBars(candles, max);
     out.bars_sampled = candles.length > max;
+  }
+  // Still too big: fewer headlines, newest kept (Yahoo lists newest first).
+  while (!fits() && out.news && "headlines" in out.news && out.news.headlines.length > 2) {
+    out.news.headlines = out.news.headlines.slice(0, out.news.headlines.length - 2);
   }
   return out;
 }

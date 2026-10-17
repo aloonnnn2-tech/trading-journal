@@ -2,6 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/rate-limits/daily", () => ({ takeYahooSlot: async () => true }));
 vi.mock("@/lib/market-data/yahoo", () => ({
+  fetchYahooNews: async (symbol: string) =>
+    symbol === "LONG"
+      ? Array.from({ length: 8 }, (_, i) => ({
+          title: `Headline number ${i} `.repeat(14),
+          publisher: "Wire",
+          link: "https://finance.yahoo.com/x",
+          published: "2026-10-15T12:00:00.000Z",
+          related: ["LONG"],
+        }))
+      : symbol === "DOWN"
+        ? null
+        : [
+            { title: "Chipmaker beats estimates", publisher: "Reuters", link: "https://finance.yahoo.com/a", published: "2026-10-15T12:00:00.000Z", related: ["AAPL"] },
+            { title: "Stocks drift lower", publisher: "AP", link: null, published: null, related: ["^GSPC"] },
+          ],
   fetchYahooCandles: async (symbol: string) =>
     symbol === "NOPE"
       ? null
@@ -91,6 +106,32 @@ describe("getMarketData", () => {
     expect(out.quote.price).toBe(350);
     expect(out.daily_bars.at(-1)?.close).toBe(349.5);
     expect(out.bars_sampled).toBe(true);
+  });
+
+  it("adds headlines with news: true, marking which are about this symbol", async () => {
+    const out = (await getMarketData({ symbol: "AAPL", news: true })) as {
+      news: { headlines: { title: string; about_this_symbol: boolean }[]; note: string };
+    };
+    expect(out.news.headlines.map((h) => [h.title, h.about_this_symbol])).toEqual([
+      ["Chipmaker beats estimates", true],
+      ["Stocks drift lower", false],
+    ]);
+    expect(out.news.note).toMatch(/only the titles/i);
+    expect(await getMarketData({ symbol: "AAPL" })).not.toHaveProperty("news");
+  });
+
+  it("says news is unavailable instead of failing the price lookup", async () => {
+    const out = (await getMarketData({ symbol: "DOWN", news: true })) as { quote: unknown; news: unknown };
+    expect(out.quote).toBeTruthy();
+    expect(out.news).toEqual({ unavailable: expect.any(String) });
+  });
+
+  it("drops the oldest headlines when bars alone can't make it fit", async () => {
+    const out = (await getMarketData({ symbol: "LONG", range: "1y", news: true }, 6_000)) as {
+      news: { headlines: unknown[] };
+    };
+    expect(JSON.stringify(out).length).toBeLessThan(6_000);
+    expect(out.news.headlines.length).toBeGreaterThanOrEqual(2);
   });
 
   it("says so for an unknown or malformed symbol", async () => {

@@ -222,13 +222,14 @@ const DEFS: Def[] = [
   {
     name: "get_market_data",
     compactSet: true,
-    full: "Live-ish market data for any ticker (not only ones in the journal): current quote with its time, and daily price history over a range with high, low and % change. Yahoo symbols: stocks AAPL, crypto BTC-USD, forex EURUSD=X, indices ^GSPC / ^IXIC. Quotes may be delayed -- say when the quote is from.",
-    compact: "Quote + daily prices, any ticker (BTC-USD, EURUSD=X, ^GSPC).",
+    full: "Live-ish market data for any ticker (not only ones in the journal): current quote with its time, and daily price history over a range with high, low and % change. Yahoo symbols: stocks AAPL, crypto BTC-USD, forex EURUSD=X, indices ^GSPC / ^IXIC. Quotes may be delayed -- say when the quote is from. news: true adds recent headlines (titles and links only, no article text).",
+    compact: "Quote + daily prices, any ticker (BTC-USD, EURUSD=X, ^GSPC). news:true adds headlines.",
     parameters: {
       type: "object",
       properties: {
         symbol: { type: "string" },
         range: { type: "string", enum: ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"] },
+        news: { type: "boolean" },
       },
       required: ["symbol"],
     },

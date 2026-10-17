@@ -203,6 +203,14 @@ export const BENCH: BenchQuestion[] = [
     facts: () => [{ label: "names NVDA", text: ["NVDA", "Nvidia"] }],
     needsNetwork: true,
   },
+  {
+    id: "nvda_news",
+    question: "Any news on NVDA lately?",
+    calls: [call("get_market_data", { symbol: "NVDA", news: true })],
+    tools: ["get_market_data"],
+    facts: () => [{ label: "names NVDA", text: ["NVDA", "Nvidia"] }],
+    needsNetwork: true,
+  },
 ];
 
 /** The question's facts with the ones this journal can't supply dropped. */

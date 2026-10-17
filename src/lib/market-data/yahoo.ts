@@ -149,6 +149,50 @@ export async function fetchYahooCandles(
   };
 }
 
+export interface YahooNewsItem {
+  title: string;
+  publisher: string | null;
+  link: string | null;
+  published: string | null;
+  /** Tickers Yahoo tags the story with; a search for NVDA also returns market-wide stories. */
+  related: string[];
+}
+
+/**
+ * Recent headlines for a symbol, from the search endpoint Yahoo's own site
+ * uses. Unofficial like the chart endpoint, with the same fetch, retries and
+ * breaker. Headlines and links only -- there is no article text. Every field
+ * is third-party text: callers hand it on as data, never as instructions.
+ */
+export async function fetchYahooNews(symbol: string, count = 8): Promise<YahooNewsItem[] | null> {
+  const url =
+    `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}` +
+    `&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`;
+  const res = await fetchYahoo(url, 600);
+  if (!res.ok) return null;
+  const json = await res.json().catch(() => null);
+  const news: unknown[] = Array.isArray(json?.news) ? json.news : [];
+  const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+  return news.slice(0, count).flatMap((raw) => {
+    const n = raw as Record<string, unknown>;
+    const title = text(n.title, 300);
+    if (!title) return [];
+    const link = text(n.link, 500);
+    const time = typeof n.providerPublishTime === "number" ? n.providerPublishTime : NaN;
+    return [
+      {
+        title,
+        publisher: text(n.publisher, 80),
+        link: link && link.startsWith("https://") ? link : null,
+        published: Number.isFinite(time) ? new Date(time * 1000).toISOString() : null,
+        related: Array.isArray(n.relatedTickers)
+          ? n.relatedTickers.filter((t): t is string => typeof t === "string").slice(0, 8)
+          : [],
+      },
+    ];
+  });
+}
+
 /**
  * Just the session high/low, for the background job -- asks for the
  * shortest range Yahoo will serve since the candle history is irrelevant
