@@ -8,6 +8,9 @@ import { repickRetiredModel } from "@/lib/ai-keys/repick-model";
 import { markApiKeyInvalid } from "@/lib/ai-keys/queries";
 import { TradeStore, makeToolExecutor, toolDefsFor } from "@/lib/ai-keys/tools";
 import { tierPolicyFor } from "@/lib/ai-keys/tier";
+import { hasConsent } from "@/lib/ai-keys/consent";
+import { loadChartImage, type VisionState } from "@/lib/ai-keys/vision";
+import { SCREENSHOT_AI_PROVIDERS } from "@/lib/ocr/ai-providers";
 import { claimTurn, getConversation, releaseTurn } from "@/lib/chat/queries";
 import { encodeEvent, type ChatStreamEvent } from "@/lib/chat/protocol";
 import { runTurn } from "@/lib/chat/turn";
@@ -104,8 +107,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This provider can't hold a conversation with tools." }, { status: 400 });
   }
 
+  // Charts: only to a provider whose models can see images, and only once
+  // the user has switched it on for that provider (its own consent scope).
+  const vision: VisionState = !SCREENSHOT_AI_PROVIDERS.has(ready.provider)
+    ? "unsupported"
+    : (await hasConsent(gate.supabase, ready.provider, "chat_images_v1").catch(() => false))
+      ? "on"
+      : "no_consent";
+
   const settings = await getUserSettings(gate.supabase, gate.userId);
-  const overview = await buildToolOverview(gate.supabase, settings.timezone);
+  const overview = await buildToolOverview(gate.supabase, settings.timezone, vision);
   if (overview.totalTrades === 0) {
     return NextResponse.json(
       { error: "There are no trades in your journal yet. Log a trade and then ask again." },
@@ -177,8 +188,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             onKeyRejected: () => markApiKeyInvalid(supabase, keyId),
             policy,
             system: buildToolSystemPrompt(overview),
-            tools: toolDefsFor(policy),
-            execute: makeToolExecutor(supabase, settings.timezone, store, policy.maxToolOutputChars),
+            tools: toolDefsFor(policy, { vision: vision !== "unsupported" }),
+            execute: makeToolExecutor(supabase, settings.timezone, store, policy.maxToolOutputChars, { vision }),
+            loadImage: vision === "on" ? (imageId) => loadChartImage(supabase, imageId) : undefined,
             maxTokens: policy.maxAnswerTokens,
             deadline: startedAt + TURN_BUDGET_MS,
             signal: request.signal,

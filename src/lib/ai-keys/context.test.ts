@@ -86,11 +86,17 @@ describe("buildToolOverview", () => {
     expect(o.text).toContain("Emotion Before Trade");
   });
 
-  it("mentions chart screenshots it cannot see", async () => {
+  it("says whether it can see the chart screenshots, and how to change that", async () => {
     const { client } = fakeSupabase({ tradeCount: 1, imageCount: 7 });
-    const o = await buildToolOverview(client, "UTC");
-    expect(o.text).toContain("7 chart screenshot");
-    expect(o.text).toContain("cannot see images");
+    const unsupported = await buildToolOverview(client, "UTC");
+    expect(unsupported.text).toContain("7 chart screenshot");
+    expect(unsupported.text).toContain("models can't see images");
+
+    const off = await buildToolOverview(fakeSupabase({ tradeCount: 1, imageCount: 7 }).client, "UTC", "no_consent");
+    expect(off.text).toContain("Let Ask see my chart screenshots");
+
+    const on = await buildToolOverview(fakeSupabase({ tradeCount: 1, imageCount: 7 }).client, "UTC", "on");
+    expect(on.text).toContain("view_trade_chart shows you one");
   });
 
   it("reports an empty journal as zero rather than throwing", async () => {

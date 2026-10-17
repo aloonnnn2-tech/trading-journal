@@ -50,7 +50,7 @@ export function buildModelMessages(rows: MessageRow[], policy: TierPolicy): Chat
     const isToolRound = round[0].role === "assistant" && (round[0].tool_calls?.length ?? 0) > 0;
     if (isToolRound) toolRoundsSeen += 1;
     const blankBodies = isToolRound && !current && toolRoundsSeen > policy.keepToolBodiesRounds;
-    converted.unshift(round.map((r) => toChatMessage(r, blankBodies)));
+    converted.unshift(round.map((r) => toChatMessage(r, blankBodies, current)));
   }
 
   // Fit to budget by dropping whole earlier rounds, oldest first. The
@@ -98,13 +98,26 @@ function groupRounds(rows: MessageRow[]): MessageRow[][] {
 
 const OMITTED = '{"omitted":"earlier result, no longer needed"}';
 
-function toChatMessage(row: MessageRow, blankToolBody: boolean): ChatMessage {
+/** The chart screenshots a tool row showed the model (view_trade_chart). */
+export function tradeImageIds(parts: unknown[] | null): string[] {
+  if (!Array.isArray(parts)) return [];
+  return parts.flatMap((p) => {
+    const part = p as { type?: unknown; id?: unknown } | null;
+    return part && part.type === "trade_image" && typeof part.id === "string" ? [part.id] : [];
+  });
+}
+
+function toChatMessage(row: MessageRow, blankToolBody: boolean, current: boolean): ChatMessage {
   if (row.role === "tool") {
+    // Only the current question's charts are shown again: they are what its
+    // answer is about, and images are the costliest thing in a transcript.
+    const imageIds = current ? tradeImageIds(row.parts) : [];
     return {
       role: "tool",
       content: blankToolBody ? OMITTED : row.content,
       toolCallId: row.tool_call_id ?? undefined,
       toolName: row.tool_name ?? undefined,
+      ...(imageIds.length ? { imageIds } : {}),
     };
   }
   if (row.role === "assistant") {

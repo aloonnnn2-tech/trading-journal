@@ -50,7 +50,16 @@ function toAnthropicMessages(messages: ChatMessage[]): unknown[] {
     if (m.role === "tool") {
       const blocks: unknown[] = [];
       while (i < messages.length && messages[i].role === "tool") {
-        blocks.push({ type: "tool_result", tool_use_id: messages[i].toolCallId, content: messages[i].content });
+        const t = messages[i];
+        // A tool_result may hold image blocks itself, so a chart travels
+        // inside the result that fetched it.
+        const content = t.images?.length
+          ? [
+              { type: "text", text: t.content },
+              ...t.images.map((img) => ({ type: "image", source: { type: "base64", media_type: img.mime, data: img.base64 } })),
+            ]
+          : t.content;
+        blocks.push({ type: "tool_result", tool_use_id: t.toolCallId, content });
         i++;
       }
       out.push({ role: "user", content: blocks });

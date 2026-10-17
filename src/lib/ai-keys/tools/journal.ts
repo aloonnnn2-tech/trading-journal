@@ -25,6 +25,7 @@ import {
 import { limited, toolError } from "./envelope";
 import { compactRow, compactTradeDetail } from "./sanitize";
 import type { TradeStore } from "./store";
+import type { VisionState } from "../vision";
 
 // The journal tools: trades, stats, one trade in full, its edit history, and
 // the cash account. All read through the per-request TradeStore.
@@ -35,6 +36,8 @@ export interface ToolContext {
   timezone: string | null;
   /** The tier's ceiling on one serialised result; tools size long text to it. */
   outputBudget: number;
+  /** Whether view_trade_chart may show this provider a chart (../vision.ts). Unset = no. */
+  vision?: VisionState;
 }
 
 // ---- schemas ---------------------------------------------------------------

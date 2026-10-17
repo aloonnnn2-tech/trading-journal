@@ -38,6 +38,8 @@ import {
 } from "./reports";
 import { calculate, calculateSchema, getMarketData, getMarketDataSchema } from "./general";
 import { explainMetric, explainMetricSchema } from "./metrics";
+import { viewTradeChart, viewTradeChartSchema } from "./charts";
+import type { VisionState } from "../vision";
 
 // The read-only tools the chat can call to reach the trader's own data and
 // get EXACT numbers computed here rather than guessed from a text dump.
@@ -65,6 +67,8 @@ interface Def {
   parameters: Record<string, unknown>;
   /** In the free-tier set? Defaults to false. */
   compactSet?: boolean;
+  /** Only offered when the provider can see images. */
+  needsVision?: boolean;
 }
 
 const FILTER_PARAM = {
@@ -242,6 +246,14 @@ const DEFS: Def[] = [
     parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"] },
   },
   {
+    name: "view_trade_chart",
+    compactSet: true,
+    needsVision: true,
+    full: "Look at one of a trade's chart screenshots: pass an image id from get_trade's `images`. The image is attached to the result. Use it to judge entries, exits, stops and the setup against the chart. At most 3 per question.",
+    compact: "See a trade's chart screenshot (image_id from get_trade).",
+    parameters: { type: "object", properties: { image_id: { type: "string" } }, required: ["image_id"] },
+  },
+  {
     name: "get_reviews",
     full: "Past AI reviews the trader generated: the review for one trade (by trade_id), or recent weekly/monthly reviews. Useful for 'what did the last review say' or to avoid repeating advice already given.",
     parameters: {
@@ -256,14 +268,15 @@ function toToolDef(d: Def, compact: boolean): ToolDef {
 }
 
 /** The definitions offered to the model under a given tier policy. */
-export function toolDefsFor(policy: TierPolicy): ToolDef[] {
+export function toolDefsFor(policy: TierPolicy, options: { vision?: boolean } = {}): ToolDef[] {
+  const offered = DEFS.filter((d) => !d.needsVision || options.vision);
   if (policy.toolSet === "compact") {
-    return DEFS.filter((d) => d.compactSet).map((d) => toToolDef(d, true));
+    return offered.filter((d) => d.compactSet).map((d) => toToolDef(d, true));
   }
-  return DEFS.map((d) => toToolDef(d, false));
+  return offered.map((d) => toToolDef(d, false));
 }
 
-/** Every tool, full descriptions -- what a paid key sees. */
+/** Every tool, full descriptions -- what a paid key on an image-capable provider sees. */
 export const TOOL_DEFS: ToolDef[] = DEFS.map((d) => toToolDef(d, false));
 
 // ---- executor ---------------------------------------------------------------
@@ -291,15 +304,18 @@ export function makeToolExecutor(
   timezone: string | null,
   store?: TradeStore,
   maxOutputChars: number = DEFAULT_OUTPUT_BUDGET,
+  options: { vision?: VisionState } = {},
 ) {
   const ctx: ToolContext = {
     supabase,
     timezone,
     store: store ?? new TradeStore(supabase, timezone),
     outputBudget: maxOutputChars,
+    vision: options.vision,
   };
 
   let marketLookups = 0;
+  const chartsShown = { count: 0 };
 
   return async function execute(call: ToolCall): Promise<string> {
     try {
@@ -359,6 +375,9 @@ export function makeToolExecutor(
           break;
         case "explain_metric":
           result = await explainMetric(ctx, explainMetricSchema.parse(call.args));
+          break;
+        case "view_trade_chart":
+          result = await viewTradeChart(ctx, viewTradeChartSchema.parse(call.args), chartsShown);
           break;
         default:
           return JSON.stringify({ error: `Unknown tool "${call.name}".` });

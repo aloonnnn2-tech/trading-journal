@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAnalyticsSummary } from "@/lib/analytics/queries";
 import { formatMoney } from "@/lib/format/money";
+import type { VisionState } from "./vision";
 
 // The standing context handed to the AI provider on the chat path, and the
 // number formatters the AI review prompts share with it.
@@ -91,6 +92,8 @@ export interface ToolOverview {
 export async function buildToolOverview(
   supabase: SupabaseClient,
   timezone: string | null,
+  /** Whether view_trade_chart can show this provider a chart (../vision.ts). */
+  vision: VisionState = "unsupported",
 ): Promise<ToolOverview> {
   const [summary, countRes, fieldRes, strategyRes, imageRes] = await Promise.all([
     getAnalyticsSummary(supabase, timezone),
@@ -119,7 +122,13 @@ export async function buildToolOverview(
   if (strategies.length > 0) lines.push(`- Strategies defined: ${strategies.join(", ")}`);
   if (fields.length > 0) lines.push(`- Custom fields available to filter on: ${fields.join(", ")}`);
   if ((imageRes.count ?? 0) > 0) {
-    lines.push(`- ${imageRes.count} chart screenshot(s) attached; you cannot see images.`);
+    const seeing =
+      vision === "on"
+        ? "view_trade_chart shows you one (image ids are in get_trade's images)"
+        : vision === "no_consent"
+          ? 'you can\'t see them until the user switches on "Let Ask see my chart screenshots" under the message box'
+          : "this provider's models can't see images, so you can't see them";
+    lines.push(`- ${imageRes.count} chart screenshot(s) attached; ${seeing}.`);
   }
 
   return { text: lines.join("\n"), totalTrades, closedTrades: summary.closedCount };
@@ -178,6 +187,9 @@ export function buildToolSystemPrompt(overview: ToolOverview): string {
     "  against their own other figures and the rules of thumb it returns -- and what to do about it.",
     "- calculate for any arithmetic (position size, R, what-if P/L, compounding) instead of",
     "  doing it in your head.",
+    "- view_trade_chart, when offered, to look at a trade's chart screenshot (image ids are in",
+    "  get_trade's images) -- for questions about an entry, exit, stop or setup on the chart.",
+    "  Describe only what you can actually see.",
     "- Plan the fewest calls that answer the question. `truncated` or `error: result too large`",
     "  means narrow the filter or page, not guess. Simple questions may need no tool at all.",
     "",

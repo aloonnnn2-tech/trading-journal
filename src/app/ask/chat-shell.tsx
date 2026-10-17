@@ -9,6 +9,7 @@ import type { Conversation } from "@/lib/chat/queries";
 import type { TurnView } from "@/lib/chat/fold";
 import { Card } from "@/components/ui/Card";
 import { ProviderConsentCard } from "@/components/ai/provider-consent-card";
+import { SCREENSHOT_AI_PROVIDERS } from "@/lib/ocr/ai-providers";
 import { ModelPicker } from "./model-picker";
 import { KeyForm } from "./key-form";
 import { KeyManager } from "./key-manager";
@@ -23,9 +24,8 @@ const inputClass =
 // per-question wording: the chat persists conversations and lets the model
 // look up anything in the journal. Consent to the old shape does not cover
 // this, hence the separate "chat_v2" scope. It describes what ships today
-// only -- screenshots and suggested edits are later phases, and each will
-// get its own line here (and, if it widens what a provider sees, a new
-// scope) when it lands, not before.
+// only. Chart screenshots widen what a provider sees, so they have their own
+// switch and wording (CHART_DISCLOSURE, scope "chat_images_v1").
 const CHAT_DISCLOSURE =
   "To answer, this provider gets live, read-only access to your journal through lookups scoped to " +
   "each question: trades, prices, notes, custom fields, strategies and rules, cash movements, goals, " +
@@ -33,9 +33,16 @@ const CHAT_DISCLOSURE =
   "change anything. Earlier messages in a conversation are re-sent with every turn, and conversations " +
   "are saved to your account until you delete them.";
 
+const CHART_DISCLOSURE =
+  "When a question needs it, Ask can look at your trades' chart screenshots: the image itself is sent " +
+  "to this provider, resized and without any location or camera data, each time that question needs " +
+  "it. The chat stores only which screenshot it looked at, never the image. Untick the switch to " +
+  "stop it at any time.";
+
 export function ChatShell({
   initialKeys,
   initialConsents,
+  initialImageConsents,
   initialConversations,
   initialConversation,
   initialTurns,
@@ -43,6 +50,8 @@ export function ChatShell({
   initialKeys: StoredApiKey[];
   /** Providers consented to under the CHAT scope. */
   initialConsents: AIProviderName[];
+  /** Providers allowed to see chart screenshots (scope chat_images_v1). */
+  initialImageConsents: AIProviderName[];
   initialConversations: Conversation[];
   initialConversation: Conversation | null;
   initialTurns: TurnView[];
@@ -60,6 +69,9 @@ export function ChatShell({
   const [managingKeys, setManagingKeys] = useState(false);
   const [pendingDisclosure, setPendingDisclosure] = useState(false);
   const [savingConsent, setSavingConsent] = useState(false);
+  const [imageConsents, setImageConsents] = useState<AIProviderName[]>(initialImageConsents);
+  const [askingChartConsent, setAskingChartConsent] = useState(false);
+  const [savingChartConsent, setSavingChartConsent] = useState(false);
   const [creating, setCreating] = useState(false);
   const pendingSendRef = useRef<string | null>(null);
   // A second Enter while the first message's conversation is still being
@@ -235,6 +247,28 @@ export function ChatShell({
     }
   }
 
+  // Chart screenshots: a switch per provider. On asks first, with its own
+  // wording; off withdraws the agreement straight away.
+  const canSeeCharts = provider ? SCREENSHOT_AI_PROVIDERS.has(provider) : false;
+  const chartsOn = provider ? imageConsents.includes(provider) : false;
+
+  async function setChartAccess(on: boolean) {
+    if (!provider) return;
+    setSavingChartConsent(true);
+    const res = await fetch("/api/ai-keys/consent", {
+      method: on ? "POST" : "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, scope: "chat_images_v1" }),
+    });
+    setSavingChartConsent(false);
+    if (!res.ok) {
+      setUiError(on ? "Couldn't switch chart viewing on. Try again." : "Couldn't switch chart viewing off. Try again.");
+      return;
+    }
+    setImageConsents((prev) => (on ? [...prev.filter((p) => p !== provider), provider] : prev.filter((p) => p !== provider)));
+    setAskingChartConsent(false);
+  }
+
   // Stream errors and UI errors share one card; derived, not synced, so
   // there is no effect to fall out of step. A consent refusal is shown as
   // the disclosure card instead, never as an error.
@@ -298,6 +332,16 @@ export function ChatShell({
               pendingSendRef.current = null;
               if (serverNeedsConsent) chat.clearError();
             }}
+          />
+        )}
+
+        {askingChartConsent && provider && (
+          <ProviderConsentCard
+            provider={provider}
+            description={CHART_DISCLOSURE}
+            saving={savingChartConsent}
+            onAccept={() => void setChartAccess(true)}
+            onCancel={() => setAskingChartConsent(false)}
           />
         )}
 
@@ -423,6 +467,22 @@ export function ChatShell({
                 apiKey={pickerKey}
                 onKeyChange={(updated) => setKeys((prev) => prev.map((k) => (k.id === updated.id ? updated : k)))}
               />
+            )}
+
+            {canSeeCharts && (
+              <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+                <input
+                  type="checkbox"
+                  checked={chartsOn}
+                  disabled={savingChartConsent}
+                  onChange={(e) => {
+                    if (e.target.checked) setAskingChartConsent(true);
+                    else void setChartAccess(false);
+                  }}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Let Ask see my chart screenshots
+              </label>
             )}
 
             <button

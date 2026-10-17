@@ -20,15 +20,34 @@ import {
   type ChatResult,
   type KeyCheck,
   type ToolCall,
+  type AskImage,
+  TOOL_IMAGES_INTRO,
 } from "./types";
 
 /** Neutral messages -> OpenAI `messages`. Assistant tool-call turns and tool
  *  results carry the extra fields OpenAI needs to pair a call to its answer. */
 function toOpenAIMessages(system: string, messages: ChatMessage[]): unknown[] {
   const out: unknown[] = [{ role: "system", content: system }];
+  // A `tool` message is text only in this API, so a tool's images follow
+  // the run of tool messages as one user message -- placed after the LAST
+  // of the run, because every result must directly follow its call.
+  let pendingImages: AskImage[] = [];
+  const flushImages = () => {
+    if (pendingImages.length === 0) return;
+    out.push({
+      role: "user",
+      content: [
+        { type: "text", text: TOOL_IMAGES_INTRO },
+        ...pendingImages.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mime};base64,${img.base64}` } })),
+      ],
+    });
+    pendingImages = [];
+  };
   for (const m of messages) {
+    if (m.role !== "tool") flushImages();
     if (m.role === "tool") {
       out.push({ role: "tool", tool_call_id: m.toolCallId, content: m.content });
+      if (m.images?.length) pendingImages.push(...m.images);
     } else if (m.role === "assistant" && m.toolCalls?.length) {
       out.push({
         role: "assistant",
@@ -43,6 +62,7 @@ function toOpenAIMessages(system: string, messages: ChatMessage[]): unknown[] {
       out.push({ role: m.role, content: m.content });
     }
   }
+  flushImages();
   return out;
 }
 

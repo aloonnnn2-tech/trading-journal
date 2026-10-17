@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ProviderError,
   type AIProvider,
+  type AskImage,
   type ChatMessage,
   type ChatResult,
   type ToolCall,
@@ -10,6 +11,7 @@ import {
 import { MAX_ROUNDS_PER_MESSAGE, type TierPolicy } from "@/lib/ai-keys/tier";
 import type { KeyInput } from "@/lib/ai-keys/secret";
 import { buildModelMessages } from "./trim";
+import { MAX_IMAGES_PER_QUESTION } from "@/lib/ai-keys/vision";
 import { labelForTool } from "./labels";
 import {
   insertMessage,
@@ -67,6 +69,12 @@ export interface TurnContext {
   system: string;
   tools: ToolDef[];
   execute: (call: ToolCall) => Promise<string>;
+  /**
+   * Loads a chart screenshot for the model (view_trade_chart). Set only when
+   * the provider can see images AND the user switched it on; without it a
+   * stored chart reference is simply not shown.
+   */
+  loadImage?: (imageId: string) => Promise<AskImage | null>;
   maxTokens: number;
   /** Absolute ms. The model call and the tools phase both respect it. */
   deadline: number;
@@ -182,6 +190,7 @@ export async function runTurn(ctx: TurnContext, emit: Emit): Promise<void> {
 
   // ---- 4. One model call -----------------------------------------------------
   const messages = buildModelMessages(rows, ctx.policy);
+  const imagesAttached = await hydrateImages(messages, ctx.loadImage);
   const hasToolResults = rows.some((r) => r.role === "tool");
   const offerTools = !forceAnswer;
   const modelMessages: ChatMessage[] = offerTools
@@ -220,13 +229,13 @@ export async function runTurn(ctx: TurnContext, emit: Emit): Promise<void> {
   let result: ChatResult;
   try {
     const call = ctx.provider.chatStream ?? adaptOnce(ctx.provider);
-    const ask = (model: string) =>
+    const ask = (model: string, messages: ChatMessage[] = modelMessages) =>
       call(
         ctx.apiKey,
         {
           model,
           system: ctx.system,
-          messages: modelMessages,
+          messages,
           tools: offerTools ? ctx.tools : [],
           maxTokens: ctx.maxTokens,
           // Up to 50 s for one model call: a long, reasoned answer streams
@@ -242,12 +251,22 @@ export async function runTurn(ctx: TurnContext, emit: Emit): Promise<void> {
     try {
       result = await ask(ctx.model);
     } catch (err) {
-      // A retired model is refused before any text, so nothing has been
-      // shown yet: re-pick and ask again, once, if there is time left.
-      const retired = err instanceof ProviderError && err.failure === "model_missing";
-      const healed = retired && streamed === "" && ctx.healModel ? await ctx.healModel() : null;
-      if (!healed || healed === ctx.model || ctx.deadline - Date.now() < 3_000) throw err;
-      result = await ask(healed);
+      // A model that can't take images refuses the whole request (a 400)
+      // before any text. The provider's OTHER models may see images, so
+      // this is only knowable by asking: ask again without the charts,
+      // telling the model why, rather than failing the question.
+      const refusedImages =
+        imagesAttached > 0 && err instanceof ProviderError && err.failure === "failed" && streamed === "";
+      if (refusedImages && ctx.deadline - Date.now() >= 3_000) {
+        result = await ask(ctx.model, withoutImages(modelMessages));
+      } else {
+        // A retired model is refused before any text, so nothing has been
+        // shown yet: re-pick and ask again, once, if there is time left.
+        const retired = err instanceof ProviderError && err.failure === "model_missing";
+        const healed = retired && streamed === "" && ctx.healModel ? await ctx.healModel() : null;
+        if (!healed || healed === ctx.model || ctx.deadline - Date.now() < 3_000) throw err;
+        result = await ask(healed);
+      }
     }
   } catch (err) {
     // Keep whatever text arrived, marked so it is never mistaken for done.
@@ -357,12 +376,15 @@ async function executeTools(
 
   let seq = startSeq;
   for (const { call, output } of results) {
+    const attached = call.name === "view_trade_chart" ? chartAttachment(output) : null;
     try {
       await insertMessage(supabase, userId, conversationId, seq, {
         role: "tool",
         content: output,
         tool_call_id: call.id,
         tool_name: call.name,
+        // The chart's id, never its bytes: they are loaded per request.
+        ...(attached ? { parts: [attached] } : {}),
       });
       seq += 1;
     } catch (err) {
@@ -378,6 +400,61 @@ async function executeTools(
     emit({ type: "tool_result", toolCallId: call.id, name: call.name, ok, summary: summarise(output) });
   }
   return "done";
+}
+
+/** The chart a view_trade_chart result attached, if it did. */
+function chartAttachment(output: string): { type: "trade_image"; id: string } | null {
+  try {
+    const a = (JSON.parse(output) as { attach?: { type?: unknown; id?: unknown } }).attach;
+    return a && a.type === "trade_image" && typeof a.id === "string" ? { type: "trade_image", id: a.id } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Loads the charts the current question's tool results refer to into those
+ * messages, at most MAX_IMAGES_PER_QUESTION (the latest). Returns how many
+ * were attached. A chart that can't be loaded (deleted since, unreadable)
+ * says so in its result instead of silently vanishing.
+ */
+async function hydrateImages(
+  messages: ChatMessage[],
+  load: ((imageId: string) => Promise<AskImage | null>) | undefined,
+): Promise<number> {
+  const wanted = messages.filter((m) => m.imageIds?.length);
+  if (wanted.length === 0) return 0;
+  if (!load) {
+    for (const m of wanted) delete m.imageIds;
+    return 0;
+  }
+  let budget = MAX_IMAGES_PER_QUESTION;
+  let attached = 0;
+  for (const m of [...wanted].reverse()) {
+    const ids = (m.imageIds ?? []).slice(0, budget);
+    delete m.imageIds;
+    budget -= ids.length;
+    const images = (await Promise.all(ids.map((id) => load(id).catch(() => null)))).filter(
+      (img): img is AskImage => img !== null,
+    );
+    if (images.length) {
+      m.images = images;
+      attached += images.length;
+    } else if (ids.length) {
+      m.content = JSON.stringify({ error: "That screenshot could no longer be loaded, so you can't see it." });
+    }
+  }
+  return attached;
+}
+
+const NO_IMAGES = JSON.stringify({
+  error:
+    "This model doesn't accept images, so the chart couldn't be shown. Tell the user to pick a model " +
+    "that can see images (Choose model, under the message box).",
+});
+
+function withoutImages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((m) => (m.images?.length ? { ...m, images: undefined, content: NO_IMAGES } : m));
 }
 
 /** The seq the next row gets: rows are dense and sorted, but never assume that. */

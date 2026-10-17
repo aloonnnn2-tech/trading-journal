@@ -288,7 +288,7 @@ describe("an unknown tool", () => {
 });
 
 describe("tool definitions", () => {
-  it("full set exposes the thirteen read tools plus calculate, market data and explain_metric, with object schemas", () => {
+  it("full set exposes the thirteen read tools plus calculate, market data, explain_metric and charts, with object schemas", () => {
     expect(TOOL_DEFS.map((t) => t.name).sort()).toEqual([
       "calculate",
       "compute_stats",
@@ -306,6 +306,7 @@ describe("tool definitions", () => {
       "list_folders",
       "list_strategies",
       "query_trades",
+      "view_trade_chart",
     ]);
     for (const def of TOOL_DEFS) {
       expect(def.parameters.type).toBe("object");

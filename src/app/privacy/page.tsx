@@ -92,7 +92,10 @@ export default function PrivacyPage() {
           the paid plan you can choose &ldquo;Read with AI&rdquo; for a screenshot: that one image is then
           sent to the AI provider of your own key, only after you agree for that provider. The
           recognition model runs locally as part of our infrastructure, and the image itself is
-          stored in your account&apos;s private storage.
+          stored in your account&apos;s private storage. Ask can also look at a trade&apos;s chart
+          screenshots, but only once you switch on &ldquo;Let Ask see my chart screenshots&rdquo; for that
+          provider: the image is then sent to it when a question needs it, and unticking the switch
+          stops that at once.
         </p>
 
         <h2 className={SECTION_HEADING}>Where your data is stored</h2>

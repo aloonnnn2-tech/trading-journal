@@ -87,7 +87,19 @@ export interface ChatMessage {
   toolCallId?: string;
   /** On a `tool` message: the tool's name (Google pairs by name, not id). */
   toolName?: string;
+  /**
+   * On a `tool` message: images the tool showed the model (view_trade_chart).
+   * Loaded per request for the current question only, never stored -- see
+   * hydrateImages in src/lib/chat/turn.ts. Each adapter delivers them in the
+   * form its API accepts (below).
+   */
+  images?: AskImage[];
+  /** Internal, never sent: the trade_images ids hydrateImages is to load into `images`. */
+  imageIds?: string[];
 }
+
+/** Said with a tool result's images where an API can't put them inside the result itself. */
+export const TOOL_IMAGES_INTRO = "The chart screenshot(s) the tool result above refers to:";
 
 export interface ChatOnceInput {
   system: string;

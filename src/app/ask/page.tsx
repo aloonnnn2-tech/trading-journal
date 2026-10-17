@@ -45,13 +45,15 @@ export default async function AskPage({
   // user's request never touches those tables, so the paywall can't leak
   // whether they once had a key. Consent is read under the CHAT scope (0047):
   // agreement to the older per-question disclosure does not carry over.
-  const [keys, consents, conversations] = paid
+  const [keys, consents, imageConsents, conversations] = paid
     ? await Promise.all([
         listApiKeys(supabase),
         listConsentedProviders(supabase, "chat_v2"),
+        // Chart screenshots are their own switch (chat_images_v1).
+        listConsentedProviders(supabase, "chat_images_v1"),
         listConversations(supabase),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   // Server-render the requested conversation so a refresh lands on the same
   // transcript with no flash. RLS makes another user's id simply not resolve.
@@ -88,6 +90,7 @@ export default async function AskPage({
         <ChatShell
           initialKeys={keys}
           initialConsents={consents}
+          initialImageConsents={imageConsents}
           initialConversations={conversations}
           initialConversation={conversation}
           initialTurns={turns}

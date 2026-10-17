@@ -13,6 +13,7 @@ import {
   retryAfterSeconds,
   providerFetch,
   syntheticToolCallId,
+  TOOL_IMAGES_INTRO,
   type AIProvider,
   type AskOptions,
   type ChatMessage,
@@ -57,7 +58,7 @@ interface GeminiPart {
  *  tool result is a `functionResponse` part paired by NAME (Gemini has no
  *  call ids), which is why the neutral tool message carries `toolName`. */
 function toGeminiContents(messages: ChatMessage[]): unknown[] {
-  return messages.map((m) => {
+  return messages.flatMap((m) => {
     if (m.role === "tool") {
       let response: unknown;
       try {
@@ -68,15 +69,24 @@ function toGeminiContents(messages: ChatMessage[]): unknown[] {
       if (response === null || typeof response !== "object" || Array.isArray(response)) {
         response = { result: response };
       }
-      return { role: "user", parts: [{ functionResponse: { name: m.toolName ?? "tool", response } }] };
+      const answer = { role: "user", parts: [{ functionResponse: { name: m.toolName ?? "tool", response } }] };
+      if (!m.images?.length) return [answer];
+      // The chart goes in its own user content right after the response.
+      return [
+        answer,
+        {
+          role: "user",
+          parts: [{ text: TOOL_IMAGES_INTRO }, ...m.images.map((img) => ({ inlineData: { mimeType: img.mime, data: img.base64 } }))],
+        },
+      ];
     }
     if (m.role === "assistant" && m.toolCalls?.length) {
       const parts: unknown[] = [];
       if (m.content) parts.push({ text: m.content });
       for (const c of m.toolCalls) parts.push({ functionCall: { name: c.name, args: c.args } });
-      return { role: "model", parts };
+      return [{ role: "model", parts }];
     }
-    return { role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] };
+    return [{ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }];
   });
 }
 
