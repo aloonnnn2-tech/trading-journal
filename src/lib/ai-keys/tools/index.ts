@@ -351,7 +351,7 @@ export function makeToolExecutor(
             result = { error: `At most ${MAX_MARKET_LOOKUPS} market lookups per answer. Answer with what you have.` };
             break;
           }
-          result = await getMarketData(getMarketDataSchema.parse(call.args));
+          result = await getMarketData(getMarketDataSchema.parse(call.args), ctx.outputBudget);
           break;
         case "calculate":
           result = calculate(calculateSchema.parse(call.args));

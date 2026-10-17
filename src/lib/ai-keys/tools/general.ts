@@ -146,7 +146,13 @@ export function sampleBars<T>(bars: T[], max: number): T[] {
   return out;
 }
 
-export async function getMarketData(args: z.infer<typeof getMarketDataSchema>) {
+/**
+ * `outputBudget` is the tier's ceiling on one tool result. Three months of
+ * daily bars run past a free tier's, and an over-budget result reaches the
+ * model as an error -- so "what do you think of NVDA?" failed outright on a
+ * free key (found by the Ask benchmark, 2026-10-17). The bars thin out to fit.
+ */
+export async function getMarketData(args: z.infer<typeof getMarketDataSchema>, outputBudget = Infinity) {
   const symbol = args.symbol.toUpperCase();
   if (!SYMBOL.test(symbol)) return { error: `"${args.symbol}" isn't a valid ticker symbol.` };
   const range = args.range ?? "3mo";
@@ -166,7 +172,7 @@ export async function getMarketData(args: z.infer<typeof getMarketDataSchema>) {
   const candles: Candle[] = result.candles;
   const first = candles[0];
   const last = candles[candles.length - 1];
-  return {
+  const out = {
     symbol,
     source: "Yahoo Finance (unofficial; quotes may be delayed)",
     quote: {
@@ -186,4 +192,11 @@ export async function getMarketData(args: z.infer<typeof getMarketDataSchema>) {
     daily_bars: sampleBars(candles, MAX_BARS),
     bars_sampled: candles.length > MAX_BARS,
   };
+  // Leave room for the envelope the executor wraps around a result.
+  for (let max = MAX_BARS; JSON.stringify(out).length > outputBudget * 0.9 && max > 8; ) {
+    max = Math.floor(max / 2);
+    out.daily_bars = sampleBars(candles, max);
+    out.bars_sampled = candles.length > max;
+  }
+  return out;
 }

@@ -5,7 +5,22 @@ vi.mock("@/lib/market-data/yahoo", () => ({
   fetchYahooCandles: async (symbol: string) =>
     symbol === "NOPE"
       ? null
-      : {
+      : symbol === "LONG"
+        ? {
+            candles: Array.from({ length: 250 }, (_, i) => ({
+              time: `2026-01-01T00:00:${String(i).padStart(3, "0")}`,
+              open: 100.25 + i,
+              high: 101.75 + i,
+              low: 99.5 + i,
+              close: 100.5 + i,
+              volume: 12_345_678,
+            })),
+            currentPrice: 350,
+            dayHigh: 351,
+            dayLow: 349,
+            quoteTime: new Date("2026-10-15T20:00:00Z"),
+          }
+        : {
           candles: [
             { time: "2026-10-01", open: 100, high: 105, low: 99, close: 100 },
             { time: "2026-10-15", open: 108, high: 112, low: 107, close: 110 },
@@ -64,6 +79,18 @@ describe("getMarketData", () => {
     expect(out.quote.price).toBe(110.5);
     expect(out.quote.as_of).toBe("2026-10-15T20:00:00.000Z");
     expect(out.range).toMatchObject({ change_pct: 10, high: 112, low: 99 });
+  });
+
+  it("thins the bars to fit a free tier's output budget, keeping the quote and the last bar", async () => {
+    const out = (await getMarketData({ symbol: "LONG", range: "1y" }, 6_000)) as {
+      quote: { price: number };
+      daily_bars: { close: number }[];
+      bars_sampled: boolean;
+    };
+    expect(JSON.stringify(out).length).toBeLessThan(6_000);
+    expect(out.quote.price).toBe(350);
+    expect(out.daily_bars.at(-1)?.close).toBe(349.5);
+    expect(out.bars_sampled).toBe(true);
   });
 
   it("says so for an unknown or malformed symbol", async () => {
