@@ -305,6 +305,7 @@ describe("tool definitions", () => {
       "list_custom_fields",
       "list_folders",
       "list_strategies",
+      "propose_change",
       "query_trades",
       "view_trade_chart",
     ]);
@@ -315,15 +316,19 @@ describe("tool definitions", () => {
   });
 
   it("the free-tier compact set stays small enough for an 8k-token-per-minute budget", () => {
-    const compact = toolDefsFor(tierPolicyFor("groq"));
-    const full = toolDefsFor(tierPolicyFor("openai"));
+    // What a free key is actually sent once suggested changes are on (0070).
+    const compact = toolDefsFor(tierPolicyFor("groq"), { proposals: true });
+    const full = toolDefsFor(tierPolicyFor("openai"), { proposals: true, vision: true });
     expect(compact.length).toBeLessThan(full.length);
     // Roughly 4 chars per token: 5 800 chars ≈ 1 450 tokens, sent every turn.
     // Raised from 5 000 for calculate and get_market_data (2026-10-16), then
     // for explain_metric (2026-10-17), which pays for itself: "what's my X and
     // is it good" now takes one lookup instead of two, and every round saved
-    // skips re-sending these definitions and the history altogether.
-    expect(JSON.stringify(compact).length).toBeLessThan(5_800);
+    // skips re-sending these definitions and the history altogether. Then to
+    // 6 600 for propose_change (2026-10-17): one flat definition for all five
+    // kinds of suggested change, about 200 tokens a round, so a free key
+    // (Alon's Groq key) can suggest changes too.
+    expect(JSON.stringify(compact).length).toBeLessThan(6_600);
     // Every compact tool is a real tool.
     const names = new Set(full.map((t) => t.name));
     for (const t of compact) expect(names.has(t.name)).toBe(true);

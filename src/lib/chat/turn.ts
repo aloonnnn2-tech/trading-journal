@@ -23,6 +23,7 @@ import {
   type MessageRow,
 } from "./queries";
 import type { ChatStreamEvent } from "./protocol";
+import type { ProposalView } from "./proposals";
 
 /**
  * One turn of a persisted conversation: at most one model call, plus
@@ -375,7 +376,11 @@ async function executeTools(
   if (results === null) return "stopped";
 
   let seq = startSeq;
-  for (const { call, output } of results) {
+  for (const result of results) {
+    const { call } = result;
+    // A suggested change's card is for the user, not the model: lifted out
+    // of the result before it is stored or sent.
+    const { output, card } = call.name === "propose_change" ? liftCard(result.output) : { output: result.output, card: null };
     const attached = call.name === "view_trade_chart" ? chartAttachment(output) : null;
     try {
       await insertMessage(supabase, userId, conversationId, seq, {
@@ -398,8 +403,21 @@ async function executeTools(
     }
     const ok = !output.startsWith('{"error"');
     emit({ type: "tool_result", toolCallId: call.id, name: call.name, ok, summary: summarise(output) });
+    if (card) emit({ type: "proposal", proposal: card });
   }
   return "done";
+}
+
+function liftCard(output: string): { output: string; card: ProposalView | null } {
+  try {
+    const j = JSON.parse(output) as { proposal_card?: ProposalView };
+    if (!j.proposal_card || typeof j.proposal_card.id !== "string") return { output, card: null };
+    const card = j.proposal_card;
+    delete j.proposal_card;
+    return { output: JSON.stringify(j), card };
+  } catch {
+    return { output, card: null };
+  }
 }
 
 /** The chart a view_trade_chart result attached, if it did. */

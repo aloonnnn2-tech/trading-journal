@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { isMissingTableError } from "@/lib/supabase/errors";
 
 /**
  * "Download all my data" (security hardening, Part B): everything this app
@@ -52,6 +53,16 @@ export const EXPORT_SECTIONS: ExportSection[] = [
   { name: "ai_reviews", rows: own("ai_reviews") },
   { name: "ai_conversations", rows: own("ai_conversations") },
   { name: "ai_messages", rows: own("ai_messages") },
+  {
+    // Changes Ask suggested and what became of them (0070). Read leniently:
+    // until that migration is applied the table doesn't exist, and the export
+    // must not fail for it.
+    name: "ai_suggested_changes",
+    rows: (ctx) => own("ai_proposals")(ctx).catch((err: unknown) => {
+      if (isMissingTableError(err)) return [];
+      throw err;
+    }),
+  },
   { name: "ai_provider_consents", rows: own("ai_provider_consents", "*", "accepted_at") },
   {
     // Public columns only: the encrypted key is never readable by the user
@@ -140,6 +151,7 @@ export const EXPORTED_TABLES = [
   "ai_reviews",
   "ai_conversations",
   "ai_messages",
+  "ai_proposals",
   "ai_provider_consents",
   "user_api_keys",
   "trade_images",

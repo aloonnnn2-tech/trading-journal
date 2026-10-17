@@ -3,6 +3,7 @@
 import { Database, PauseCircle } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { AnswerText } from "./answer-text";
+import { ProposalCard } from "./proposal-card";
 import { describeActivity } from "@/lib/chat/labels";
 import type { TurnView } from "@/lib/chat/fold";
 import type { StreamPhase } from "./use-chat-stream";
@@ -90,6 +91,9 @@ export function MessageList({
                   // still cannot inject markup here.
                   <AnswerText text={turn.answer.content} />
                 )}
+
+                {/* Changes it suggested: each its own card, applied only by a click. */}
+                {turn.proposals?.map((p) => <ProposalCard key={p.id} proposal={p} />)}
 
                 {turn.answer?.status === "interrupted" && (
                   <p className="flex items-center gap-1.5 text-xs text-amber-500">

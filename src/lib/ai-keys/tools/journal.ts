@@ -38,6 +38,11 @@ export interface ToolContext {
   outputBudget: number;
   /** Whether view_trade_chart may show this provider a chart (../vision.ts). Unset = no. */
   vision?: VisionState;
+  /**
+   * Set when this conversation can carry suggested changes (0070 applied):
+   * where a propose_change records its proposal. Unset = it can't suggest.
+   */
+  proposals?: { conversationId: string; userId: string; made: number };
 }
 
 // ---- schemas ---------------------------------------------------------------
@@ -92,7 +97,7 @@ async function folderLookup(store: TradeStore, f: Filter) {
  * most recent AAPL trade -- you have four" instead of presenting one of
  * several as the one they asked about.
  */
-async function findTrade(
+export async function findTrade(
   store: TradeStore,
   args: z.infer<typeof getTradeSchema>,
 ): Promise<{ row: Row | undefined; otherMatches: number; dateMatched: boolean }> {

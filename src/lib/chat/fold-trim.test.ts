@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldMessages } from "./fold";
+import { attachProposals, foldMessages } from "./fold";
 import { buildModelMessages } from "./trim";
 import type { MessageRow } from "./queries";
 import { tierPolicyFor } from "@/lib/ai-keys/tier";
@@ -62,6 +62,23 @@ describe("foldMessages", () => {
   it("starts a new turn at every user message", () => {
     const turns = foldMessages([user("a"), answer("1"), user("b"), answer("2")]);
     expect(turns.map((t) => t.answer?.content)).toEqual(["1", "2"]);
+  });
+});
+
+describe("attachProposals", () => {
+  it("puts each suggested change on the turn whose tool call made it", () => {
+    const turns = foldMessages([
+      user("q1"),
+      asks("c1", "propose_change"),
+      tool("c1", "propose_change"),
+      answer("Suggested."),
+      user("q2"),
+      answer("Plain answer."),
+    ]);
+    const card = { id: "p1", toolCallId: "c1", kind: "add_note" as const, status: "pending" as const, display: { title: "t", changes: [] }, outcome: null };
+    const out = attachProposals(turns, [card]);
+    expect(out[0].proposals).toEqual([card]);
+    expect(out[1].proposals).toBeUndefined();
   });
 });
 

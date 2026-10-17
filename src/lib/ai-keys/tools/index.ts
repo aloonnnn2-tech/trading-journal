@@ -39,6 +39,7 @@ import {
 import { calculate, calculateSchema, getMarketData, getMarketDataSchema } from "./general";
 import { explainMetric, explainMetricSchema } from "./metrics";
 import { viewTradeChart, viewTradeChartSchema } from "./charts";
+import { FILLABLE_FIELDS, proposeChange, proposeChangeSchema } from "./proposals";
 import type { VisionState } from "../vision";
 
 // The read-only tools the chat can call to reach the trader's own data and
@@ -69,6 +70,8 @@ interface Def {
   compactSet?: boolean;
   /** Only offered when the provider can see images. */
   needsVision?: boolean;
+  /** Only offered when the conversation can carry suggested changes (0070). */
+  needsProposals?: boolean;
 }
 
 const FILTER_PARAM = {
@@ -254,6 +257,46 @@ const DEFS: Def[] = [
     parameters: { type: "object", properties: { image_id: { type: "string" } }, required: ["image_id"] },
   },
   {
+    name: "propose_change",
+    compactSet: true,
+    needsProposals: true,
+    full:
+      "Suggest a change to the journal. It is NOT made: the user sees a card with Apply / Dismiss and decides. " +
+      "Name the trade by trade_id, or ticker + date. " +
+      `fill_field: field (${FILLABLE_FIELDS.join(", ")}) + value -- only a field that is empty now. ` +
+      "tag_strategy: strategy (an existing strategy's name). " +
+      "add_note: text, added after what's there (field: a notes field's name; default the main one). " +
+      "tag_mistake: mistake (one of the journal's mistake tags). " +
+      "create_goal: label, goal_kind (aggregate | reduction), target, target_direction (at_least | at_most), " +
+      "period (month | quarter | year | all_time), and metric for aggregate (trade_count, win_rate as a % like 55, " +
+      "expectancy, avg_loss_r, total_r) or mistake for reduction. " +
+      "Only when the user asks for a change or clearly would want one; one call per change.",
+    compact:
+      "Suggest a change; the user must click Apply. Trade by trade_id or ticker+date. fill_field: field+value (empty fields only); " +
+      "tag_strategy: strategy; add_note: text; tag_mistake: mistake; create_goal: label, goal_kind, metric|mistake, target, target_direction, period.",
+    parameters: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["fill_field", "tag_strategy", "add_note", "tag_mistake", "create_goal"] },
+        trade_id: { type: "string" },
+        ticker: { type: "string" },
+        date: { type: "string" },
+        field: { type: "string" },
+        value: { type: "string" },
+        strategy: { type: "string" },
+        text: { type: "string" },
+        mistake: { type: "string" },
+        label: { type: "string" },
+        goal_kind: { type: "string" },
+        metric: { type: "string" },
+        target: { type: "number" },
+        target_direction: { type: "string" },
+        period: { type: "string" },
+      },
+      required: ["kind"],
+    },
+  },
+  {
     name: "get_reviews",
     full: "Past AI reviews the trader generated: the review for one trade (by trade_id), or recent weekly/monthly reviews. Useful for 'what did the last review say' or to avoid repeating advice already given.",
     parameters: {
@@ -268,15 +311,15 @@ function toToolDef(d: Def, compact: boolean): ToolDef {
 }
 
 /** The definitions offered to the model under a given tier policy. */
-export function toolDefsFor(policy: TierPolicy, options: { vision?: boolean } = {}): ToolDef[] {
-  const offered = DEFS.filter((d) => !d.needsVision || options.vision);
+export function toolDefsFor(policy: TierPolicy, options: { vision?: boolean; proposals?: boolean } = {}): ToolDef[] {
+  const offered = DEFS.filter((d) => (!d.needsVision || options.vision) && (!d.needsProposals || options.proposals));
   if (policy.toolSet === "compact") {
     return offered.filter((d) => d.compactSet).map((d) => toToolDef(d, true));
   }
   return offered.map((d) => toToolDef(d, false));
 }
 
-/** Every tool, full descriptions -- what a paid key on an image-capable provider sees. */
+/** Every tool, full descriptions -- what a paid key on an image-capable provider sees, once 0070 is applied. */
 export const TOOL_DEFS: ToolDef[] = DEFS.map((d) => toToolDef(d, false));
 
 // ---- executor ---------------------------------------------------------------
@@ -304,7 +347,7 @@ export function makeToolExecutor(
   timezone: string | null,
   store?: TradeStore,
   maxOutputChars: number = DEFAULT_OUTPUT_BUDGET,
-  options: { vision?: VisionState } = {},
+  options: { vision?: VisionState; proposals?: { conversationId: string; userId: string } } = {},
 ) {
   const ctx: ToolContext = {
     supabase,
@@ -312,6 +355,7 @@ export function makeToolExecutor(
     store: store ?? new TradeStore(supabase, timezone),
     outputBudget: maxOutputChars,
     vision: options.vision,
+    proposals: options.proposals ? { ...options.proposals, made: 0 } : undefined,
   };
 
   let marketLookups = 0;
@@ -378,6 +422,9 @@ export function makeToolExecutor(
           break;
         case "view_trade_chart":
           result = await viewTradeChart(ctx, viewTradeChartSchema.parse(call.args), chartsShown);
+          break;
+        case "propose_change":
+          result = await proposeChange(ctx, call.id, proposeChangeSchema.parse(call.args));
           break;
         default:
           return JSON.stringify({ error: `Unknown tool "${call.name}".` });

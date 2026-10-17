@@ -8,7 +8,8 @@ import { FREE_TIER_PROVIDERS, PROVIDER_LABELS, SELECTABLE_PROVIDERS } from "@/li
 import { listConsentedProviders } from "@/lib/ai-keys/consent";
 import { Card } from "@/components/ui/Card";
 import { getConversation, listConversations, listMessages, type Conversation } from "@/lib/chat/queries";
-import { foldMessages, type TurnView } from "@/lib/chat/fold";
+import { attachProposals, foldMessages, type TurnView } from "@/lib/chat/fold";
+import { listProposals, toView } from "@/lib/chat/proposals";
 import { ChatShell } from "./chat-shell";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
@@ -62,7 +63,13 @@ export default async function AskPage({
   // A non-UUID id used to reach Postgres and 500 the whole page render.
   if (paid && requestedId && UUID.test(requestedId)) {
     conversation = await getConversation(supabase, requestedId);
-    if (conversation) turns = foldMessages(await listMessages(supabase, requestedId, userId));
+    if (conversation) {
+      const [rows, proposals] = await Promise.all([
+        listMessages(supabase, requestedId, userId),
+        listProposals(supabase, requestedId),
+      ]);
+      turns = attachProposals(foldMessages(rows), proposals.map(toView));
+    }
   }
 
   return (

@@ -30,7 +30,8 @@ const CHAT_DISCLOSURE =
   "To answer, this provider gets live, read-only access to your journal through lookups scoped to " +
   "each question: trades, prices, notes, custom fields, strategies and rules, cash movements, goals, " +
   "mistakes, analytics reports and your past AI reviews — whatever it decides it needs. It cannot " +
-  "change anything. Earlier messages in a conversation are re-sent with every turn, and conversations " +
+  "change anything itself: it can suggest a change, which happens only if you press Apply on it. " +
+  "Earlier messages in a conversation are re-sent with every turn, and conversations " +
   "are saved to your account until you delete them.";
 
 const CHART_DISCLOSURE =

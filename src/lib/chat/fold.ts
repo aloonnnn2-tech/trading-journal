@@ -1,5 +1,6 @@
 import type { MessageRow, MessageStatus } from "./queries";
 import { labelForTool } from "./labels";
+import type { ProposalView } from "./proposals";
 
 /**
  * What the UI renders: stored rows folded into user-visible turns.
@@ -22,6 +23,21 @@ export interface TurnView {
   user: { id: string; content: string };
   activity: Activity[];
   answer?: { id: string; content: string; status: MessageStatus | "streaming" };
+  /** Changes the model suggested in this turn (cards with Apply / Dismiss). */
+  proposals?: ProposalView[];
+}
+
+/**
+ * Puts each stored proposal on the turn whose tool call made it. Tool call
+ * ids are unique within a conversation (ai_messages' own unique index).
+ */
+export function attachProposals(turns: TurnView[], proposals: ProposalView[]): TurnView[] {
+  if (proposals.length === 0) return turns;
+  return turns.map((turn) => {
+    const ids = new Set(turn.activity.map((a) => a.toolCallId));
+    const mine = proposals.filter((p) => ids.has(p.toolCallId));
+    return mine.length ? { ...turn, proposals: mine } : turn;
+  });
 }
 
 export function foldMessages(rows: MessageRow[]): TurnView[] {

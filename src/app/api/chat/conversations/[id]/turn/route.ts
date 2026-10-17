@@ -12,6 +12,7 @@ import { hasConsent } from "@/lib/ai-keys/consent";
 import { loadChartImage, type VisionState } from "@/lib/ai-keys/vision";
 import { SCREENSHOT_AI_PROVIDERS } from "@/lib/ocr/ai-providers";
 import { claimTurn, getConversation, releaseTurn } from "@/lib/chat/queries";
+import { describeOutcomes, listProposals, proposalsAvailable } from "@/lib/chat/proposals";
 import { encodeEvent, type ChatStreamEvent } from "@/lib/chat/protocol";
 import { runTurn } from "@/lib/chat/turn";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -115,6 +116,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? "on"
       : "no_consent";
 
+  // Suggested changes need 0070; until it is applied Ask just can't suggest.
+  // What became of earlier suggestions goes into the prompt, so a follow-up
+  // knows whether the user applied them.
+  const canPropose = await proposalsAvailable(gate.supabase).catch(() => false);
+  const outcomes = canPropose ? describeOutcomes(await listProposals(gate.supabase, id).catch(() => [])) : null;
+
   const settings = await getUserSettings(gate.supabase, gate.userId);
   const overview = await buildToolOverview(gate.supabase, settings.timezone, vision);
   if (overview.totalTrades === 0) {
@@ -187,9 +194,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               }),
             onKeyRejected: () => markApiKeyInvalid(supabase, keyId),
             policy,
-            system: buildToolSystemPrompt(overview),
-            tools: toolDefsFor(policy, { vision: vision !== "unsupported" }),
-            execute: makeToolExecutor(supabase, settings.timezone, store, policy.maxToolOutputChars, { vision }),
+            system: buildToolSystemPrompt(overview, { canPropose, outcomes }),
+            tools: toolDefsFor(policy, { vision: vision !== "unsupported", proposals: canPropose }),
+            execute: makeToolExecutor(supabase, settings.timezone, store, policy.maxToolOutputChars, {
+              vision,
+              proposals: canPropose ? { conversationId: id, userId } : undefined,
+            }),
             loadImage: vision === "on" ? (imageId) => loadChartImage(supabase, imageId) : undefined,
             maxTokens: policy.maxAnswerTokens,
             deadline: startedAt + TURN_BUDGET_MS,
