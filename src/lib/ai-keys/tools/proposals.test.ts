@@ -144,3 +144,14 @@ describe("propose_change", () => {
     expect(await proposeChange(ctx(), "y", { kind: "add_note", ticker: "TSLA", text: "hi" })).toHaveProperty("error");
   });
 });
+
+describe("defaultNotesField", () => {
+  it("puts an unaddressed note in the catch-all field, not in 'Why did I take this trade?'", async () => {
+    const { defaultNotesField } = await import("./proposals");
+    const f = (key: string, label: string) => ({ key, label, field_type: "large_notes", strategy_id: null, options: {} }) as never;
+    const journal = [f("notes_why_entered", "Why did I take this trade?"), f("notes_lessons_learned", "Lessons Learned"), f("notes_additional", "Additional Notes")];
+    expect(defaultNotesField(journal)?.key).toBe("notes_additional");
+    expect(defaultNotesField([f("x", "Why?"), f("y", "Notes")])?.key).toBe("y");
+    expect(defaultNotesField([f("x", "Why?")])?.key).toBe("x");
+  });
+});

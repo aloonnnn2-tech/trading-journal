@@ -220,6 +220,22 @@ function notesFields(fields: FieldDefinition[]): FieldDefinition[] {
   return fields.filter((f) => (f.field_type === "large_notes" || f.field_type === "text") && !f.strategy_id);
 }
 
+/**
+ * Where a note goes when the model names no field: the general-purpose one.
+ * A new journal's first long-text field is "Why did I take this trade?" --
+ * the wrong home for "exited early on fear" -- so the catch-all ("Additional
+ * Notes", or one simply called Notes) wins, then any long-text field.
+ */
+export function defaultNotesField(candidates: FieldDefinition[]): FieldDefinition | undefined {
+  const general = /^(additional notes|notes|general notes|long-term notes)$/i;
+  return (
+    candidates.find((f) => f.key === "notes_additional" || f.key === "long_term_notes") ??
+    candidates.find((f) => general.test(f.label.trim())) ??
+    candidates.find((f) => f.field_type === "large_notes") ??
+    candidates[0]
+  );
+}
+
 export async function proposeAddNote(ctx: ToolContext, callId: string, args: z.infer<typeof proposeAddNoteSchema>) {
   if (!ready(ctx)) return UNAVAILABLE;
   const trade = await resolveTrade(ctx, args.trade);
@@ -230,7 +246,7 @@ export async function proposeAddNote(ctx: ToolContext, callId: string, args: z.i
   const wanted = args.field?.toLowerCase();
   const field = wanted
     ? candidates.find((f) => f.key.toLowerCase() === wanted || f.label.trim().toLowerCase() === wanted)
-    : (candidates.find((f) => f.field_type === "large_notes") ?? candidates[0]);
+    : defaultNotesField(candidates);
   if (!field) {
     return { error: `No notes field${args.field ? ` called "${args.field}"` : ""}. Text fields: ${candidates.map((f) => f.label).join(", ") || "none"}.` };
   }
