@@ -288,10 +288,11 @@ describe("an unknown tool", () => {
 });
 
 describe("tool definitions", () => {
-  it("full set exposes the thirteen read tools plus calculate and market data, with object schemas", () => {
+  it("full set exposes the thirteen read tools plus calculate, market data and explain_metric, with object schemas", () => {
     expect(TOOL_DEFS.map((t) => t.name).sort()).toEqual([
       "calculate",
       "compute_stats",
+      "explain_metric",
       "get_account",
       "get_market_data",
       "get_period_report",
@@ -316,10 +317,12 @@ describe("tool definitions", () => {
     const compact = toolDefsFor(tierPolicyFor("groq"));
     const full = toolDefsFor(tierPolicyFor("openai"));
     expect(compact.length).toBeLessThan(full.length);
-    // Roughly 4 chars per token: 5 500 chars ≈ 1 375 tokens, sent every turn.
-    // Raised from 5 000 for calculate and get_market_data (2026-10-16): about
-    // 75 tokens a round, under 3% of Groq's 8 000 tokens a minute.
-    expect(JSON.stringify(compact).length).toBeLessThan(5_500);
+    // Roughly 4 chars per token: 5 800 chars ≈ 1 450 tokens, sent every turn.
+    // Raised from 5 000 for calculate and get_market_data (2026-10-16), then
+    // for explain_metric (2026-10-17), which pays for itself: "what's my X and
+    // is it good" now takes one lookup instead of two, and every round saved
+    // skips re-sending these definitions and the history altogether.
+    expect(JSON.stringify(compact).length).toBeLessThan(5_800);
     // Every compact tool is a real tool.
     const names = new Set(full.map((t) => t.name));
     for (const t of compact) expect(names.has(t.name)).toBe(true);

@@ -37,6 +37,7 @@ import {
   getReviewsSchema,
 } from "./reports";
 import { calculate, calculateSchema, getMarketData, getMarketDataSchema } from "./general";
+import { explainMetric, explainMetricSchema } from "./metrics";
 
 // The read-only tools the chat can call to reach the trader's own data and
 // get EXACT numbers computed here rather than guessed from a text dump.
@@ -205,6 +206,20 @@ const DEFS: Def[] = [
     parameters: { type: "object", properties: { kind: { type: "string", enum: [...REPORT_KINDS] } }, required: ["kind"] },
   },
   {
+    name: "explain_metric",
+    compactSet: true,
+    full: "Explain any figure in the journal and give this trader's value in one call: what it means and exactly how Trading Lens computes it, how to judge it (direction, common rules of thumb), its caveats, where it is in the app, and their current value. Use for 'what is my X / is my X good'. Accepts names and aliases (MAE, MFE, capture, profit factor, expectancy, win rate, drawdown, risk per trade, streaks, edge, mistakes, R multiple, ...). Per-trade metrics take `trade` ({id} or {ticker, date}). An unknown name returns the list of known ones.",
+    compact: "Meaning, how to judge, and their value for any figure (MAE, PF, win rate...).",
+    parameters: {
+      type: "object",
+      properties: {
+        metric: { type: "string" },
+        trade: { type: "object", description: "{id} or {ticker, date}, for per-trade figures." },
+      },
+      required: ["metric"],
+    },
+  },
+  {
     name: "get_market_data",
     compactSet: true,
     full: "Live-ish market data for any ticker (not only ones in the journal): current quote with its time, and daily price history over a range with high, low and % change. Yahoo symbols: stocks AAPL, crypto BTC-USD, forex EURUSD=X, indices ^GSPC / ^IXIC. Quotes may be delayed -- say when the quote is from.",
@@ -340,6 +355,9 @@ export function makeToolExecutor(
           break;
         case "calculate":
           result = calculate(calculateSchema.parse(call.args));
+          break;
+        case "explain_metric":
+          result = await explainMetric(ctx, explainMetricSchema.parse(call.args));
           break;
         default:
           return JSON.stringify({ error: `Unknown tool "${call.name}".` });
