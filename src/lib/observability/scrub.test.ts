@@ -47,6 +47,14 @@ describe("scrubString", () => {
     expect(scrubString(`Authorization: Bearer ${jwt}`)).not.toContain(jwt);
   });
 
+  it("redacts Supabase's sb_secret_ keys wherever they sit", () => {
+    // Built at runtime so no key-shaped literal sits in source.
+    const key = ["sb", "secret", "Zx9" + "q".repeat(30)].join("_");
+    const out = scrubString(`createClient failed for ${key} on project x`);
+    expect(out).not.toContain(key);
+    expect(out).not.toContain("sb_secret_");
+  });
+
   it("redacts unprefixed tokens by where they sit: Bearer, or a credential header", () => {
     // Mistral (32 alphanumerics) and SambaNova (a UUID) issue keys no prefix
     // rule can recognise. Position is the only signal.

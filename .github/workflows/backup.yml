@@ -32,14 +32,15 @@
 # TO RESTORE FROM AN ARTIFACT (verified end-to-end in Git Bash on Windows,
 # which is where you would actually be doing this)
 #   1. Download and unzip it from the workflow run page.
-#   2. printf '%s' '<BACKUP_PASSPHRASE>' | gpg --batch --yes --decrypt \
-#        --passphrase-fd 0 trading-lens-backup-<stamp>.tar.gz.gpg > backup.tar.gz
-#      (piping rather than --passphrase keeps the passphrase out of your
+#   2. read -rs P; printf '%s' "$P" | gpg --batch --yes --decrypt \
+#        --passphrase-fd 0 trading-lens-backup-<stamp>.tar.gz.gpg > backup.tar.gz; unset P
+#      (read -s and the pipe keep the passphrase off the screen, out of your
 #       shell history and off the process list)
 #   3. tar -xzf backup.tar.gz            # yields backups/<stamp>/*.json
 #   4. npm run restore:db -- --dir backups/<stamp>
 #      (dry run; add `-- --apply` once the output looks right, and read the
-#       header of scripts/restore-db.ts before pointing it at a fresh project)
+#       header of scripts/restore-db.ts before pointing it at a fresh project;
+#       the full fresh-project drill is docs/security/restore-test.md)
 #   5. npm run restore:storage -- --dir backups/<stamp>
 #      (the screenshots, since 2026-10-16; dry run, then `-- --apply`. Never
 #       overwrites a file that is already there.)

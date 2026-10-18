@@ -204,8 +204,8 @@ export default function PrivacyPage() {
           waitlist sign-up. We keep only a record that an account with that internal id was
           deleted, and when, with no email or other details. Encrypted backups of the database are
           kept for up to 90 days (most for 30), so your data leaves them as they expire. If we ever
-          have to restore from a backup, we delete again any account that was deleted after that
-          backup was made.
+          have to restore from a backup, we delete again every account our records show was deleted
+          after that backup was made.
         </p>
 
         <h2 className={SECTION_HEADING}>Children&apos;s privacy</h2>

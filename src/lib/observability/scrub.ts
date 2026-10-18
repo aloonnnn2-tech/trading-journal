@@ -54,6 +54,9 @@ const SECRET_PATTERNS: RegExp[] = [
   // business in a third-party error tracker either, and its presence in a
   // report is itself a signal something is logging the wrong object.
   /\bv[123]\.[A-Za-z0-9+/=]{12,}\.[A-Za-z0-9+/=]{20,}\.[A-Za-z0-9+/=]{8,}/g,
+  // Supabase's newer secret keys (the replacement for the service-role JWT;
+  // this project still uses the JWT, but a rotation can switch it).
+  /\bsb_secret_[A-Za-z0-9_-]{16,}/g,
   // Supabase / JWT-shaped tokens, which includes the service-role key.
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
 ];

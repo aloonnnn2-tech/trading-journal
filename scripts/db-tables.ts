@@ -16,15 +16,21 @@
  * quietly held less than they claimed. It happened again with 0047's
  * ai_conversations and ai_messages, caught in review two days later.
  *
- * So: **any migration that creates a table must add it here.** There is no
- * automatic check, because the obvious one (read information_schema) is not
- * reachable -- this project has REST access only and PostgREST does not
- * expose that schema. `grep -h "create table" supabase/migrations/*.sql` is
- * the manual equivalent, and is worth running whenever this list is touched.
+ * And a third time: 0070's ai_proposals, 0071's ai_review_versions and
+ * ai_review_messages and 0072's admin_audit_log were missing until the
+ * security gaps pass (G-7, 2026-10-18).
+ *
+ * So: **any migration that creates a table must add it here, or to
+ * BACKUP_EXCLUDED below with the reason.** That is now checked:
+ * src/lib/backup/db-tables.drift.test.ts reads every `create table` in
+ * supabase/migrations and fails on a table that is in neither list, and on a
+ * child table listed before the parent its foreign key needs.
  *
  * ORDER MATTERS for restore, not for backup. Every table below references
  * auth.users; several also reference each other:
- *   trades.strategy_id  -> strategies    (0018)
+ *   field_definitions.strategy_id -> strategies (0017)
+ *   ai_proposals        -> ai_conversations, trades (0070)
+ *   ai_review_versions, ai_review_messages -> ai_reviews (0071)
  *   trade_folders       -> trades, folders
  *   trade_strategies    -> trades, strategies
  *   trade_history       -> trades
@@ -47,7 +53,6 @@
 export const TABLES = [
   // --- Independent of everything but auth.users ------------------------
   "user_settings",
-  "field_definitions",
   "folders",
   "strategies",
   "commission_rules",
@@ -62,6 +67,11 @@ export const TABLES = [
   // Your review of Trading Lens (0064). Depends only on auth.users.
   "app_reviews",
   "analytics_sessions",
+  // The operator's security record (0072): admin actions, exports, account
+  // deletions -- ids only. After a restore it is also the list of accounts
+  // deleted since the backup was taken, which must be deleted again
+  // (docs/security/restore-test.md).
+  "admin_audit_log",
 
   // --- Depends on user_api_keys (0047) ----------------------------------
   // Chat transcripts: the model's tool results here are the user's own
@@ -70,6 +80,10 @@ export const TABLES = [
   "ai_messages",
 
   // --- Depends on strategies -------------------------------------------
+  // field_definitions.strategy_id (0017): it sat in the first group until the
+  // drift test caught it (2026-10-18), so a restore into a fresh project
+  // failed on the first strategy-specific field.
+  "field_definitions",
   "strategy_rules",
   "trades",
 
@@ -80,6 +94,12 @@ export const TABLES = [
   "trade_strategies",
   "trade_excursions",
   "ai_reviews",
+  // Ask's suggested changes (0070): reference ai_conversations and trades.
+  "ai_proposals",
+
+  // --- Depends on ai_reviews (0071) -------------------------------------
+  "ai_review_versions",
+  "ai_review_messages",
 
   // --- Depends on auth.users / analytics_sessions ----------------------
   "account_transactions",
@@ -92,3 +112,18 @@ export const TABLES = [
 ] as const;
 
 export type BackupTable = (typeof TABLES)[number];
+
+/**
+ * Tables deliberately NOT backed up, with the reason. The drift test makes
+ * every table be in TABLES or here.
+ */
+export const BACKUP_EXCLUDED: Record<string, string> = {
+  schema_migrations: "Describes the schema, not data; restoring it would claim migrations ran that didn't.",
+  rate_limit_counters: "Abuse counters that expire within a day.",
+  idempotency_keys: "Request replay copies kept a day.",
+  public_page_views: "Anonymous daily totals; cheap to lose.",
+  // An open question for Alon (security gaps pass, Phase 6): the backups hold
+  // no email addresses today (auth.users isn't in them), and including the
+  // waitlist would change that. Losing it loses the sign-ups.
+  waitlist: "Email addresses only; kept out of backups until Alon decides (02-gaps-report.md, Q13).",
+};
