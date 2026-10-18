@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { isAdmin } from "@/lib/tracking/admin-queries";
+import { recordAudit } from "@/lib/admin/audit";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { setReviewFeatured } from "@/lib/reviews/queries";
 
@@ -48,5 +49,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     return NextResponse.json({ error: "Couldn't update that review." }, { status: 500 });
   }
+  await recordAudit({ actorId: userId, action: "review_featured", target: id, detail: { featured: parsed.data.featured } });
   return NextResponse.json({ ok: true });
 }

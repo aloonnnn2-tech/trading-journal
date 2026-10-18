@@ -399,6 +399,13 @@ export const config = {
     // like any other API route. Without the guard such a path skipped the
     // proxy, so a client-supplied x-user-id was never stripped and an
     // unauthenticated caller reached handler code (500) instead of 401.
-    "/((?!_next/static|_next/image|favicon.ico|api/cron/|(?!api/).*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    //
+    // Narrowed further (security gaps pass, G-13): the skip used to cover ANY
+    // non-API path ending in an image extension, so a PAGE path such as
+    // /trades/x.png or /admin/users/x.jpg skipped the proxy too, and a forged
+    // x-user-id reached page code. Now only what public/ actually serves is
+    // skipped: an image file at the root, or one in /screenshots/. No page
+    // route lives at the root with a dynamic segment, so nothing else matches.
+    "/((?!_next/static|_next/image|favicon.ico|api/cron/|[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp)$|screenshots/[^/]+\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

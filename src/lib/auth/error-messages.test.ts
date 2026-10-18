@@ -108,3 +108,17 @@ describe("isEmailNotConfirmed", () => {
     expect(isEmailNotConfirmed(authError("user_banned", "account not confirmed"))).toBe(false);
   });
 });
+
+describe("account enumeration (security gaps pass, item 1.5)", () => {
+  it("signing in with an unknown email reads exactly like a wrong password", () => {
+    // Different texts would tell an attacker which emails have accounts.
+    expect(authErrorMessage(authError("user_not_found"))).toBe(authErrorMessage(authError("invalid_credentials")));
+    expect(authErrorMessage(authError("user_not_found", "User not found", 404))).toBe(
+      authErrorMessage(authError("invalid_credentials", "Invalid login credentials", 400)),
+    );
+  });
+
+  it("asks for the same 8-character minimum the forms and Supabase enforce", () => {
+    expect(authErrorMessage(authError("weak_password"))).toContain("at least 8 characters");
+  });
+});

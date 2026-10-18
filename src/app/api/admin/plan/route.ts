@@ -6,6 +6,7 @@ import { isAdmin } from "@/lib/tracking/admin-queries";
 import { setUserPlan } from "@/lib/settings/admin-queries";
 import { planUpdateSchema } from "@/lib/settings/schema";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { recordAudit } from "@/lib/admin/audit";
 
 // Sets another user's plan. This is the only route in the app that writes
 // `plan`, and it is the reason `plan` is reachable at all: 0029 deliberately
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
   if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  await recordAudit(
+    { actorId: userId, action: "plan_change", target: parsed.data.userId, detail: { plan: parsed.data.plan } },
+    admin,
+  );
 
   return NextResponse.json({ ok: true, plan: parsed.data.plan });
 }

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Activity, Clock, MousePointerClick, Sparkles, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import { getUserDetail, getUserDirectory, isAdmin } from "@/lib/tracking/admin-queries";
 import { formatDate } from "@/lib/dates/format";
 import { buildActivity, getActivityRows, type ActivityRow } from "@/lib/tracking/activity";
@@ -31,6 +32,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
 
   const admin = await isAdmin(supabase, viewerId);
   if (!admin) redirect("/dashboard");
+  await recordAudit({ actorId: viewerId, action: "admin_page_view", target: `/admin/users/${id}` });
 
   // The directory row gives the headline numbers; the detail RPC gives the
   // breakdowns. Both are one round-trip each and run together.

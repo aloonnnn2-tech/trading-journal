@@ -6,6 +6,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { EXPORT_SECTIONS } from "@/lib/account/data-export";
 import { log } from "@/lib/observability/log";
+import { recordAudit } from "@/lib/admin/audit";
 
 // "Download all my data" (security hardening, Part B). Everything stored
 // about the signed-in account as one JSON file. See src/lib/account/
@@ -44,6 +45,9 @@ export async function GET() {
     // usage-event sections, and says so below.
   }
   const ctx = { db, admin, userId };
+  // A full copy of an account's data leaving the app is worth a line in the
+  // audit trail: who and when, nothing of the contents.
+  await recordAudit({ actorId: userId, action: "account_export", target: userId });
   const encoder = new TextEncoder();
   const exportedAt = new Date().toISOString();
 

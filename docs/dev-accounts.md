@@ -33,7 +33,8 @@ domain other than the demo account.
 
    After a new migration, paste that migration there too.
 3. In the dev project, go to **Authentication → Sign In / Providers → Email**
-   and turn **Confirm email off**. This matches production. With it on,
+   and turn **Confirm email off**. This deliberately **differs** from
+   production, which has confirmation ON (confirmed 2026-10-18). With it on,
    Supabase emails every sign-up, which means:
    - it refuses the test addresses (`.invalid` can't receive mail);
    - it rate-limits after a few sign-ups.

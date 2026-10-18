@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import { getUserDirectory, isAdmin, type UserDirectoryRow } from "@/lib/tracking/admin-queries";
 import { Card } from "@/components/ui/Card";
 import { AdminTabs } from "../admin-tabs";
@@ -20,6 +21,7 @@ export default async function AdminUsersPage() {
   // so this redirect is the polite front door, not the lock.
   const admin = await isAdmin(supabase, userId);
   if (!admin) redirect("/dashboard");
+  await recordAudit({ actorId: userId, action: "admin_page_view", target: "/admin/users" });
 
   let users: UserDirectoryRow[] = [];
   let loadError: string | null = null;

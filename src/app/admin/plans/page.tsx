@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import { isAdmin } from "@/lib/tracking/admin-queries";
 import { listUsersWithPlans, type AdminUserPlan } from "@/lib/settings/admin-queries";
 import { Card } from "@/components/ui/Card";
@@ -22,6 +23,7 @@ export default async function AdminPlansPage() {
   // service-role client exists. isAdmin() fails closed on any error.
   const admin = await isAdmin(supabase, userId);
   if (!admin) redirect("/dashboard");
+  await recordAudit({ actorId: userId, action: "admin_page_view", target: "/admin/plans" });
 
   let users: AdminUserPlan[] = [];
   let hasMore = false;
