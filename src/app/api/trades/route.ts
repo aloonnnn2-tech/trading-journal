@@ -6,7 +6,8 @@ import { coreFieldsSchema } from "@/lib/trades/schema";
 import { pickEditableCore } from "@/lib/trades/pick-core";
 import { getAccountBalance } from "@/lib/account/queries";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceTradeCreateLimits } from "@/lib/trades/create-limits";
+import { rowLimitResponse } from "@/lib/limits";
 import { withIdempotency } from "@/lib/http/idempotency";
 import { log } from "@/lib/observability/log";
 
@@ -16,14 +17,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Creating a trade is a button press, so 60/min is far above any real use
-  // while stopping a loop from filling an account with blank rows.
-  const limited = await enforceRateLimit(
-    `trades-create:${userId}`,
-    60,
-    60_000,
-    "You're creating trades faster than we can keep up. Wait a moment and try again.",
-  );
+  // Per-minute and hourly: src/lib/trades/create-limits.ts.
+  const limited = await enforceTradeCreateLimits(userId);
   if (limited) return limited;
 
   // Optional body: { core } -- the details Quick trade and the screenshot
@@ -59,7 +54,15 @@ export async function POST(request: Request) {
         ? Math.round(account.availableCash * 100) / 100
         : null;
 
-    let trade = await createBlankTrade(supabase, userId, positionSize);
+    let trade;
+    try {
+      trade = await createBlankTrade(supabase, userId, positionSize);
+    } catch (err) {
+      // 0067's cap on trades per account: say so instead of a bare 500.
+      const limited = rowLimitResponse(err);
+      if (limited) return limited;
+      throw err;
+    }
     if (Object.keys(core).length > 0) {
       try {
         trade = await updateTrade(supabase, trade.id, { core });

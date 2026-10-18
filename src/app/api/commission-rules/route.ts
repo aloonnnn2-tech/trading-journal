@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { ComponentsUnavailableError, createCommissionRule, listCommissionRules } from "@/lib/commissions/queries";
 import { commissionRuleSchema, validateFeeRange } from "@/lib/commissions/schema";
+import { rowLimitResponse } from "@/lib/limits";
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -59,6 +60,8 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
+    const limited = rowLimitResponse(error);
+    if (limited) return limited;
     return NextResponse.json({ error: "Could not create the rule" }, { status: 500 });
   }
 }

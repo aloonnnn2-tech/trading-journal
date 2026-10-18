@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createFieldDefinition, listFieldDefinitions } from "@/lib/fields/definitions";
 import type { EntityType } from "@/lib/fields/types";
 import { fieldDefinitionCreateSchema, fieldKeyFromLabel } from "@/lib/fields/definition-schema";
+import { rowLimitResponse } from "@/lib/limits";
 
 export async function GET(request: Request) {
   const userId = await getUserIdFromHeader();
@@ -44,15 +45,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Use at least one letter or number in the name." }, { status: 400 });
   }
 
-  const field = await createFieldDefinition(supabase, userId, {
-    entity_type: body.entity_type,
-    key,
-    label: body.label,
-    field_type: body.field_type,
-    options: body.options,
-    sort_order: body.sort_order,
-    strategy_id: body.strategy_id,
-  });
+  let field;
+  try {
+    field = await createFieldDefinition(supabase, userId, {
+      entity_type: body.entity_type,
+      key,
+      label: body.label,
+      field_type: body.field_type,
+      options: body.options,
+      sort_order: body.sort_order,
+      strategy_id: body.strategy_id,
+    });
+  } catch (err) {
+    const limited = rowLimitResponse(err);
+    if (limited) return limited;
+    throw err;
+  }
 
   return NextResponse.json(field, { status: 201 });
 }

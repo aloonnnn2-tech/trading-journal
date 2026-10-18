@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { isMissingTableError } from "@/lib/supabase/errors";
 import { createRule, listRulesForStrategy } from "@/lib/plan-rules/queries";
 import { ruleCreateSchema } from "@/lib/plan-rules/schema";
+import { rowLimitResponse } from "@/lib/limits";
 
 // Plan rules are FREE -- no requirePaidUser() here, deliberately. Recording
 // your own trading rules is core journal functionality; the paid AI features
@@ -78,6 +79,8 @@ export async function POST(request: Request) {
     return NextResponse.json(created, { status: 201 });
   } catch (err) {
     if (isMissingTableError(err)) return NextResponse.json(MIGRATION_PENDING, { status: 503 });
+    const limited = rowLimitResponse(err);
+    if (limited) return limited;
     throw err;
   }
 }

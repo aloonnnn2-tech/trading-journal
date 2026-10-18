@@ -17,6 +17,7 @@ import { resolveCommission } from "@/lib/commissions/calculate";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { log } from "@/lib/observability/log";
+import { isRowLimitError, ROW_LIMIT_IMPORT_MESSAGE } from "@/lib/limits";
 
 const BATCH_SIZE = 500;
 
@@ -192,6 +193,12 @@ async function runImport(request: Request): Promise<Response> {
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
     const { error, count } = await supabase.from("trades").insert(batch, { count: "exact" });
+    if (isRowLimitError(error)) {
+      // 0067's cap on trades per account: every later batch would fail the
+      // same way, so stop and say why.
+      rowErrors.push({ row: -1, message: ROW_LIMIT_IMPORT_MESSAGE });
+      break;
+    }
     if (error) {
       log.error("import.batch_failed", { error });
       rowErrors.push({ row: -1, message: "batch insert failed" });

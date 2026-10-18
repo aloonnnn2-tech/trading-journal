@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { duplicateTrade } from "@/lib/trades/queries";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceTradeCreateLimits } from "@/lib/trades/create-limits";
+import { rowLimitResponse } from "@/lib/limits";
 import { withIdempotency } from "@/lib/http/idempotency";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -13,13 +14,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Same ceiling as creating a trade: it is one.
-  const limited = await enforceRateLimit(
-    `trades-create:${userId}`,
-    60,
-    60_000,
-    "You're creating trades faster than we can keep up. Wait a moment and try again.",
-  );
+  // Per-minute and hourly: src/lib/trades/create-limits.ts.
+  const limited = await enforceTradeCreateLimits(userId);
   if (limited) return limited;
 
   // A repeated click (same Idempotency-Key) gets the first copy back
@@ -32,7 +28,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let duplicate;
     try {
       duplicate = await duplicateTrade(supabase, id);
-    } catch {
+    } catch (err) {
+      const limited = rowLimitResponse(err);
+      if (limited) return limited;
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

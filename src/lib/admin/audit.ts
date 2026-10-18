@@ -23,6 +23,7 @@ export const AUDIT_ACTIONS = [
   "waitlist_export",
   "waitlist_remove",
   "account_export",
+  "account_delete",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

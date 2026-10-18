@@ -7,6 +7,7 @@ import { enforceDailyCap } from "@/lib/rate-limits/daily";
 import { EXPORT_SECTIONS } from "@/lib/account/data-export";
 import { log } from "@/lib/observability/log";
 import { recordAudit } from "@/lib/admin/audit";
+import { getAuthProfile } from "@/lib/account/auth-profile";
 
 // "Download all my data" (security hardening, Part B). Everything stored
 // about the signed-in account as one JSON file. See src/lib/account/
@@ -48,6 +49,9 @@ export async function GET() {
   // A full copy of an account's data leaving the app is worth a line in the
   // audit trail: who and when, nothing of the contents.
   await recordAudit({ actorId: userId, action: "account_export", target: userId });
+  // The sign-in record (email, dates, sign-in methods): not in any table the
+  // sections read, so it was missing from "everything we store".
+  const account = await getAuthProfile(admin, userId);
   const encoder = new TextEncoder();
   const exportedAt = new Date().toISOString();
 
@@ -57,9 +61,11 @@ export async function GET() {
       try {
         write(
           `{"exported_at":${JSON.stringify(exportedAt)},"user_id":${JSON.stringify(userId)},` +
+            `"account":${JSON.stringify(account)},` +
             `"note":${JSON.stringify(
               "Everything Trading Lens stores about this account. Screenshot links expire after one hour." +
-                (admin ? "" : " Usage events could not be included on this server."),
+                (admin ? "" : " Usage events could not be included on this server.") +
+                (account ? "" : " The sign-in record (account) could not be read; ask support for it."),
             )},"sections":{`,
         );
         let first = true;

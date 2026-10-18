@@ -45,6 +45,7 @@ describe("auditRow", () => {
         "waitlist_export",
         "waitlist_remove",
         "account_export",
+        "account_delete",
       ]),
     );
   });

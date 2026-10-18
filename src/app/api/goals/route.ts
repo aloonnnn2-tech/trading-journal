@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { isMissingTableError } from "@/lib/supabase/errors";
 import { createGoal, listGoals } from "@/lib/goals/queries";
 import { goalCreateSchema, toGoalRow } from "@/lib/goals/schema";
+import { rowLimitResponse } from "@/lib/limits";
 
 // Goals are FREE, like the plan rules they are built on: committing to a rule
 // and checking whether you kept it is a recording capability, not analytics.
@@ -47,6 +48,8 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     if (isMissingTableError(err)) return NextResponse.json(MIGRATION_PENDING, { status: 503 });
+    const limited = rowLimitResponse(err);
+    if (limited) return limited;
     throw err;
   }
 }
