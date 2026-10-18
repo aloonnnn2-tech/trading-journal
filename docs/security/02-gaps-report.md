@@ -1,12 +1,13 @@
-# Security gaps pass: audit report (Step 0, 2026-10-18)
+# Security gaps pass: audit report and results (2026-10-18)
 
-**Progress:** Phase 1 committed (`dde23ca`). Phase 2: migration 0073 plus the upload route change. Migrations 0072 and 0073 were applied on dev and live (2026-10-18, verified: anon refused, the cross-user suite passes 313/313). Phases 3 and 4 committed. Phase 5 (limits and account lifecycle) committed; its migration 0074 waits to be pasted on dev and live. Phase 6 (email, backups, recovery) committed: no migration.
+**Progress:** Phase 1 committed (`dde23ca`). Phase 2: migration 0073 plus the upload route change. Migrations 0072 and 0073 were applied on dev and live (2026-10-18, verified: anon refused, the cross-user suite passes 313/313). Phases 3 and 4 committed. Phase 5 (limits and account lifecycle) committed; its migration 0074 waits to be pasted on dev and live. Phase 6 (email, backups, recovery) committed: no migration. Phase 7 (regression suite, CI, outside-review brief) committed. **Every phase of the brief is done except Phase 1b** (HttpOnly sign-in on the server: approved, its own branch, not started). Nothing is pushed; each phase waits for Alon's local check, then a `--no-ff` merge.
 
 This is the audit for the brief `02-security-gaps.md`. That brief covers what
 `SECURITY_HARDENING.md` (report: [99-audit-report.md](99-audit-report.md)) and
 `01-production-readiness.md` (report: [../production-readiness.md](../production-readiness.md))
-did not. **No code was changed for this report.** Every row cites real files
-and lines, or says "not found".
+did not. The audit (Step 0) changed no code; each row cites real files and
+lines, or says "not found". What each phase then did is marked **Done** in its
+row, and in the findings table's status column.
 
 **This report does not say the app is secure.** It records what was checked
 and how. The "What this audit did not check" section lists what was not.
@@ -20,7 +21,8 @@ and how. The "What this audit did not check" section lists what was not.
   has the same migrations as live:
   - an anon-key call to `rate_limit_hit`;
   - the public GitHub API, for CI results.
-- **Live database:** never queried or written.
+- **Live database:** never written. Read only for counts in Phase 5 (usage
+  sizes, the accounts summary), with no emails printed.
 - **Secrets:** none appear in this file. Credential locations are given as
   file and line.
 
@@ -61,6 +63,7 @@ overrode them:
 | G-21 | Medium | `scripts/db-tables.ts` | Found in Phase 6 by the new drift test. `field_definitions` was restored before `strategies`, but since 0017 a strategy-specific field references its strategy. A restore into a **fresh** project would have failed (foreign key) on the first such field, and stopped partway: `restore-db.ts` doesn't roll back. Restores into the same project were unaffected (the parent rows exist). | **fixed (Phase 6): reordered; the drift test now checks every foreign key's order** | drift test; fresh-account restore drill on dev |
 | G-22 | Medium | `scripts/backup-db.ts`; `auth.users` | **The backups hold no sign-in accounts.** After losing the whole project, the data can be restored (accounts recreated by id with placeholder emails, proven on dev), but nobody could sign back into their account: their email addresses aren't anywhere. A real recovery would have to match people to accounts by hand. Backing up the account list (ids, emails, sign-up dates through `listUsers`; no passwords) would close it, but it puts email addresses into the backups. | **needs Alon (Q13)** | — |
 | G-23 | Low | `backups/` on Alon's PC | `npm run backup:db` writes **unencrypted** dumps to `backups/<stamp>/`, and nothing ever deletes them. One from 2026-08-13 is there now (live data). The privacy page's "backups leave after 90 days" covers the encrypted GitHub copies, not these. | **needs Alon: delete the old folder, and remove each hand-made dump once its job is done** | `ls backups/` |
+| G-24 | Info | `SECURITY.md` §5; `docs/security/00-inventory.md:39` | Found in Phase 7. SECURITY.md still described the bucket as owner-writable with a 5 MB cap, and the rule "no service-role route under a dynamic `[id]` segment", which the inventory says SECURITY.md records, was written nowhere. Since Phase 2, `POST /api/trades/[id]/images` is an exception to it. | **fixed (Phase 7): §5 brought up to date; the rule, why it exists, and the one exception (trade proven by RLS first, Storage path from the verified user id, covered by the cross-user suite) written down** | `tests/idor/routes.idor.test.ts` (POST trades/[id]/images) |
 | G-19 | Info | `src/lib/accounts/classify.ts:19-20` | The owner's personal email addresses are hard-coded in a public repo. | needs Alon | — |
 
 ## Per-item audit
@@ -135,9 +138,9 @@ a disposition that differs from the brief's default, with the reason.
 
 | # | Item | Disposition | Evidence | Planned fix or reason N/A |
 |---|---|---|---|---|
-| 7.1 | Security regression tests in one place | IMPLEMENT | They exist but are scattered: `src/proxy.test.ts`, `rate-limit*.test.ts`, `body-limits.test.ts`, `export.security.test.ts`, `preprocess.security.test.ts`, `ai-keys/{crypto,secret,vault}.test.ts`, `scrub.test.ts`, `env/*.test.ts`, `admin-gates.test.ts`, `answer-text.test.ts`; cross-user suite `tests/idor/*` (`npm run test:idor`, dev project). | A `security` tag or folder: `npm run test:security` runs the unit security tests, the new ones from these phases, and the IDOR suite. Moving files is proposed, not forced. |
-| 7.2 | Run them in CI | IMPLEMENT (G-3 first) | CI runs vitest (unit security tests included), lint, tsc, build, bundle check (failing), and gitleaks. Not in CI: `test:idor` (needs dev-project secrets as GitHub secrets), e2e. | Fix G-3; add a `test:security` step; the IDOR step runs only when the dev secrets exist (Alon adds them). File change only. |
-| 7.3 | Outside review brief | IMPLEMENT (document) | Not found. The closest is 99-audit-report.md:132-170 ("not checked"). | `docs/security/external-review-scope.md` |
+| 7.1 | Security regression tests in one place | IMPLEMENT | They exist but are scattered: `src/proxy.test.ts`, `rate-limit*.test.ts`, `body-limits.test.ts`, `export.security.test.ts`, `preprocess.security.test.ts`, `ai-keys/{crypto,secret,vault}.test.ts`, `scrub.test.ts`, `env/*.test.ts`, `admin-gates.test.ts`, `answer-text.test.ts`; cross-user suite `tests/idor/*` (`npm run test:idor`, dev project). | A `security` tag or folder: `npm run test:security` runs the unit security tests, the new ones from these phases, and the IDOR suite. Moving files is proposed, not forced. **Done (Phase 7):** `tests/security/suite.ts` indexes 47 test files by the brief's categories (access, enumeration, rate limits and quotas, SSRF, XSS and injection, leaks, demo, never-touch-live, lifecycle, backups); `npm run test:security` (342 tests, about 3 s) and `npm run test:security:all` (plus the cross-user suite). Files stay beside their code; `src/lib/security-suite.test.ts` fails if an indexed file disappears or a `*.security`/`*.enumeration`/`*.drift` test isn't indexed. New in this phase: a CSP regression test (`src/proxy.csp.security.test.ts`) and a fixed-hosts SSRF test for the AI providers (every endpoint a literal on an allowlist, every fetch refuses redirects, a key can't carry an endpoint). Demo restrictions: N/A, the demo account is writable by decision (G-9). |
+| 7.2 | Run them in CI | IMPLEMENT (G-3 first) | CI runs vitest (unit security tests included), lint, tsc, build, bundle check (failing), and gitleaks. Not in CI: `test:idor` (needs dev-project secrets as GitHub secrets), e2e. | Fix G-3; add a `test:security` step; the IDOR step runs only when the dev secrets exist (Alon adds them). File change only. **Done (Phase 7), not pushed:** a "Security regression tests" step in the `test` job; a new `cross-user` job that runs `npm run test:idor` only when the four dev-project secrets exist (otherwise it says so and skips). Forks' pull requests never get secrets. G-3 was fixed in Phase 3. |
+| 7.3 | Outside review brief | IMPLEMENT (document) | Not found. The closest is 99-audit-report.md:132-170 ("not checked"). | `docs/security/external-review-scope.md` **Done (Phase 7):** [external-review-scope.md](external-review-scope.md): the architecture, the trust path of a request, the route inventory (by link), what's been done, known gaps and decisions, in and out of scope, a staging-only test-account plan (no credentials), and what to deliver. Recommends commissioning it before payments, after Phase 1b. |
 
 ## Open questions for Alon
 
@@ -148,20 +151,27 @@ From the brief:
    people out.
 2. Do BYOK providers allow a custom base URL? **The code answers this:** no.
    Fixed hosts only, so the custom-endpoint SSRF rules are N/A unless one is
-   added later.
+   added later. Now pinned by `fixed-hosts.security.test.ts` (Phase 7).
 3. Should disposable-email domains be blocked at sign-up (some real users may
-   be blocked)?
-4. What per-user storage and rate quotas feel right? The real usage is in
-   5.1; the numbers will be proposed with headroom.
+   be blocked)? **Proposal written** ([disposable-email-proposal.md](disposable-email-proposal.md)):
+   recommends not now; a server-side list once Phase 1b moves sign-up to
+   the server. Your call.
+4. What per-user storage and rate quotas feel right? **Built with these
+   numbers** (Phase 5, `src/lib/limits.ts`): 2,000 screenshots and 200 MB per
+   account, 100 uploads a day, 300 trades created an hour; row caps for the
+   newest tables in 0074. All far above real use. Change any of them in that
+   one file.
 5. ~~Is the demo account meant to be read-only?~~ **Answered (2026-10-18):
    no.** It stays a normal account. Its password is already private (env
    only, rotated after F-08).
 6. Will the site move to a custom domain (affects email records and cookie
    scope)?
 7. Should account deletion stay self-serve? It is already built and works;
-   the gaps are in G-15.
+   its gaps (G-15) are fixed in Phase 5. Kept self-serve unless you say
+   otherwise.
 8. Is a paid outside review acceptable before taking payments, and roughly
-   when?
+   when? The brief to hand over is ready:
+   [external-review-scope.md](external-review-scope.md).
 
 New, from this audit:
 9. ~~Email confirmation on or off?~~ **Answered (2026-10-18): it is on in
@@ -181,6 +191,70 @@ New, from this audit:
     the waitlist isn't backed up. Recommended: **yes, both**. The backups
     already hold every journal, which is more sensitive than an address,
     and they are encrypted. But it is a privacy choice, so it's yours.
+14. Add the dev project's keys as GitHub secrets, so CI runs the cross-user
+    suite on every push (the `cross-user` job in `ci.yml` lists the four)?
+    Optional; until then it skips, and you run `npm run test:security:all`
+    locally.
+
+## Residual risks (after every phase)
+
+What stays true even with all of the above merged and pushed. The order is
+how much each could hurt, not how likely it is.
+
+1. **Any XSS is still account takeover** until Phase 1b makes the session
+   cookie HttpOnly (G-4). The CSP (`strict-dynamic`, nonces, pinned by a
+   test now) and the absence of unsafe HTML on the AI paths are the
+   defence meanwhile.
+2. **Nothing here is live until it's pushed.** Production still runs `main`
+   from before this pass and earlier unpushed work: 0072/0073 are in the
+   live database, but the code that relies on them isn't deployed yet,
+   and CI on `main` is still red (G-3 is fixed only locally).
+3. **Losing the whole Supabase project** loses everyone's sign-in (G-22),
+   and anything since the last nightly backup. No restore into a fresh
+   project has been run with live data yet: the drill
+   ([restore-test.md](restore-test.md)) is waiting for you.
+4. **The dashboards nobody has checked from here:** Netlify deploy
+   previews and environment scoping (G-10), Supabase Auth settings, 2FA
+   on every account. These are checklists. Until they're ticked, a preview
+   deploy could hold the live service-role key.
+5. **A public repository.** Every gap in the code can be read by anyone.
+   The history is clean of live secrets as far as gitleaks and the
+   searches here go; one dead test password stays in old history (Q12).
+6. **Supply chain:** the native single-maintainer OCR package, and an
+   install-script allowlist that isn't enforced (G-16).
+7. **Fail-open limits:** if the rate-limit counter breaks, limits stop
+   applying (by design, so a broken counter can't lock everyone out). The
+   database row caps and the bucket's own limits still hold.
+8. **Email delivery** through Supabase's built-in mailer is unverified for
+   real inboxes, and it is the only way to confirm an account or reset a
+   password.
+9. **The internal reviews aren't independent.** Every pass so far was done
+   by the developer with an AI assistant, which is why the outside review
+   (Q8) matters before taking money.
+
+## Decisions needed from Alon
+
+In the order they unblock things:
+
+1. **Check each phase locally, then say go**: the `sec2/phase-*` branches
+   are merged with `--no-ff` only after that. Then say when to push.
+2. **Paste 0074** into the dev and live SQL editors.
+3. **Q13:** should backups hold email addresses (the account list and the
+   waitlist)?
+4. **Run the restore drill** ([restore-test.md](restore-test.md)) once.
+5. **Tick the checklists:**
+   - [netlify-checklist.md](netlify-checklist.md) (G-10);
+   - [supabase-auth-checklist.md](supabase-auth-checklist.md);
+   - [account-checklist.md](account-checklist.md);
+   - the two email checks in [email-records.md](email-records.md).
+6. **G-23:** delete the unencrypted `backups/2026-08-13…` folder on your PC.
+7. **G-16:** turn on the install-script allowlist (`.npmrc`), and remove
+   `tesseract.js`?
+8. **Q3** disposable emails, **Q6** custom domain, **Q8** outside review
+   timing, **Q11** your emails in `classify.ts`, **Q12** history rewrite,
+   **Q14** CI secrets.
+9. **Delete** the stray `flip.tmp.mjs` and `seed39.tmp.mjs` (they hold no
+   key, but they read it).
 
 ## What this audit did not check
 
@@ -194,7 +268,8 @@ New, from this audit:
   Otherwise the dev project is assumed to match it, per the migrations ledger.
 - Migration 0074 and the cleanup SQL were reviewed by reading, not run: there
   is no SQL access from here. 0074 gets checked on dev once it's pasted.
-- No penetration test of the live site. No dynamic scan.
+- No penetration test of the live site. No dynamic scan. No restore into a
+  fresh project with live data (proven on dev only; the drill is Alon's).
 - Netlify's install command and npm version.
 - Whether Supabase's built-in mailer actually delivers password-reset emails
   to real users.

@@ -33,6 +33,12 @@ jobs:
 
       - run: npx vitest run
 
+      # The security regression suite (tests/security/suite.ts) again, on its
+      # own: it already passed inside the run above, but a failure here is a
+      # red X that says "security" instead of being one line in 1,900.
+      - name: Security regression tests
+        run: npm run test:security
+
       - run: npm run lint
 
       # A type error used to surface only inside next build, mixed in with
@@ -45,6 +51,50 @@ jobs:
       # `env` above stand in for the real secrets: if code ever inlined one
       # into a client component, the placeholder would show up here.
       - run: npx tsx scripts/check-bundle-secrets.ts
+
+  # The cross-user suite (tests/idor): two real accounts on the DEV Supabase
+  # project, checking neither can reach the other's rows, files or routes.
+  # It needs the dev project's keys, so it runs only once these repository
+  # secrets exist (Settings -> Secrets and variables -> Actions):
+  #   SUPABASE_DEV_URL, SUPABASE_DEV_ANON_KEY, SUPABASE_DEV_SERVICE_ROLE_KEY
+  #     -- the DEV project's values, from .env.test.local; never live's
+  #   SUPABASE_PROD_URL -- live's URL (public anyway), so the guard in
+  #     src/lib/env/dev-guard.ts can refuse it
+  # Without them the job reports "skipped". Pull requests from forks never
+  # receive secrets, so a stranger's PR can't run it against the dev project.
+  cross-user:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_DEV_URL: ${{ secrets.SUPABASE_DEV_URL }}
+      SUPABASE_DEV_ANON_KEY: ${{ secrets.SUPABASE_DEV_ANON_KEY }}
+      SUPABASE_DEV_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_DEV_SERVICE_ROLE_KEY }}
+      SUPABASE_PROD_URL: ${{ secrets.SUPABASE_PROD_URL }}
+    steps:
+      - name: Check the dev-project secrets are set
+        id: gate
+        run: |
+          if [ -n "$SUPABASE_DEV_URL" ] && [ -n "$SUPABASE_DEV_SERVICE_ROLE_KEY" ] && [ -n "$SUPABASE_PROD_URL" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Dev-project secrets not set: skipping the cross-user suite."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+        if: steps.gate.outputs.run == 'true'
+
+      - name: Cross-user suite (dev project)
+        if: steps.gate.outputs.run == 'true'
+        run: npm run test:idor
 
   # Secret scan over the FULL git history on every push (security hardening,
   # Phase 3). Downloads the pinned gitleaks release binary rather than the

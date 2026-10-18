@@ -246,8 +246,9 @@ Already sound before this pass; recorded so it is not weakened by accident.
 - MIME allowlist: JPEG, PNG, WebP, GIF. **SVG is excluded deliberately** — an
   SVG can carry `<script>`, and signed URLs are opened directly in the browser,
   which would make it stored XSS.
-- 5 MB cap, plus a 50-megapixel ceiling so a decompression bomb cannot land
-  during decode.
+- 4 MB cap (`src/lib/http/upload-limits.ts`), plus a 50-megapixel ceiling so
+  a decompression bomb cannot land during decode. Per account: 2,000 files,
+  200 MB and 100 uploads a day (`src/lib/limits.ts`, security gaps pass).
 - Every upload is re-encoded through sharp. This both strips EXIF (phone photos
   of trading screens routinely carry GPS coordinates) and proves the bytes
   really are the image type the client claimed.
@@ -255,9 +256,21 @@ Already sound before this pass; recorded so it is not weakened by accident.
   `{userId}/{tradeId}/{uuid}.{ext}` with the extension derived from the
   validated MIME type — so path traversal, collisions and executable
   extensions are all structurally impossible, not filtered against.
-- Bucket `trade-images` is private, with owner-scoped RLS on all four verbs
-  (`supabase/migrations/0012_trade_images_bucket.sql`). Files are served via
+- Bucket `trade-images` is private. Users can read and delete their own
+  files (`0012`), but **cannot write to it directly** since 0073: an upload
+  through the Storage API skipped every check on this list (G-2). The upload
+  route writes with the service role instead. Files are served via
   short-lived signed URLs.
+- **Service-role routes and dynamic segments.** The rule: no service-role
+  query may be keyed by an id from the URL, because the service role skips
+  RLS, so a URL id would reach any user's row. `account/export` sits at a
+  fixed path for that reason. The **one exception** is
+  `POST /api/trades/[id]/images`. The `[id]` is used only after the user's
+  own RLS client has returned that trade (`getTrade`), and the service role
+  only writes a Storage path built from the verified user id
+  (`{userId}/{tradeId}/…`). Uploading to another user's trade is covered by
+  `tests/idor/routes.idor.test.ts`. Any new exception needs the same two
+  conditions and a cross-user test.
 - `X-Content-Type-Options: nosniff` is set globally, so a stored file cannot be
   sniffed into `text/html` and executed on this origin.
 
