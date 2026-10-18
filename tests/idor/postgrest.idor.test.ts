@@ -9,7 +9,7 @@
  * points at B's records (foreign keys bypass RLS -- migration 0059).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createWorld, destroyWorld, IMAGE_BUCKET, snapshot, TINY_PNG, type TestUser } from "./world";
+import { anonClient, createWorld, destroyWorld, IMAGE_BUCKET, snapshot, TINY_PNG, type TestUser } from "./world";
 
 let A: TestUser;
 let B: TestUser;
@@ -201,6 +201,41 @@ describe("Storage: trade-images is private per user", () => {
   });
 
   it("A can download its own file (the policy is not just refusing everything)", async () => {
+    const { error } = await A.db.storage.from(IMAGE_BUCKET).download(A.journal.imagePath);
+    expect(error).toBeNull();
+  });
+});
+
+// ---- Security gaps pass, Phase 2 (migration 0073) ---------------------------
+
+describe("service-role-only functions (G-1)", () => {
+  it("a signed-in user cannot call rate_limit_hit -- it would let anyone exhaust a shared limit", async () => {
+    const { error } = await A.db.rpc("rate_limit_hit", { p_bucket: "upstream:yahoo", p_max: 1, p_window_seconds: 60 });
+    expect(error).not.toBeNull();
+  });
+
+  it("nobody without a session can call it either", async () => {
+    const anon = anonClient();
+    const { error } = await anon.rpc("rate_limit_hit", { p_bucket: "upstream:yahoo", p_max: 1, p_window_seconds: 60 });
+    expect(error).not.toBeNull();
+  });
+
+  it("a signed-in user cannot call prune_click_events (it deletes analytics)", async () => {
+    // p_days far in the future would delete nothing even if it ran.
+    const { error } = await A.db.rpc("prune_click_events", { p_days: 100000 });
+    expect(error).not.toBeNull();
+  });
+});
+
+describe("no direct uploads (G-2)", () => {
+  it("A cannot upload even into A's OWN folder: uploads go through the app, which checks and re-encodes them", async () => {
+    const up = await A.db.storage
+      .from(IMAGE_BUCKET)
+      .upload(`${A.id}/${A.journal.tradeId}/direct.png`, TINY_PNG, { contentType: "image/png" });
+    expect(up.error).not.toBeNull();
+  });
+
+  it("A can still read A's own files", async () => {
     const { error } = await A.db.storage.from(IMAGE_BUCKET).download(A.journal.imagePath);
     expect(error).toBeNull();
   });

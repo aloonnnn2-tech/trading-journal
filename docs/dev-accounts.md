@@ -56,6 +56,7 @@ domain other than the demo account.
 | `npm run test:e2e` | Starts its **own** `next dev` on :3100 pointed at the dev project. It never reuses a running server, because that one talks to production. Next 16 locks `.next/dev`, so stop your regular dev server first. |
 | `npm run seed:fake` | A throwaway account with ~45 fake trades, for looking at the UI with data. |
 | `npm run dev:devdb` | `next dev` on :3003 against the dev project, to look at seeded accounts or try sign-up without creating a real account. |
+| `npm run dev` | **The LIVE database**, deliberately: plain `next dev` reads `.env.local`, which holds production's keys. It is how Alon checks a change against his real journal. Everything done there (edits, sign-ups, AI calls) is real. For anything throwaway, use `dev:devdb`. |
 
 ## How it is enforced
 
