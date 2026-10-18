@@ -8,6 +8,7 @@ import { computeDerivedFields } from "@/lib/trades/compute";
 import { resultForClosedTrade } from "@/lib/trades/result";
 import type { Trade, TradeCoreFields } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { safeFailureMessage } from "@/lib/api/server-error";
 
 // How many row updates to have in flight at once. Each is its own PATCH
 // against PostgREST (a single bulk upsert would risk nulling columns absent
@@ -115,7 +116,8 @@ export async function POST() {
           .update({ commission, ...derived, ...resultPatch })
           .eq("id", trade.id);
 
-        return updateError ? updateError.message : null;
+        // The database's own wording stays in the server log (3.4).
+        return updateError ? safeFailureMessage("commissions.recalculate_failed", updateError, { tradeId: trade.id }) : null;
       }),
     );
 

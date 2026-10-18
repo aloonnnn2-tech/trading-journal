@@ -70,7 +70,7 @@ export function formatLogLine(
  * The current request's id, when there is a request. next/headers only
  * works inside one; anywhere else (a worker starting up) there is no id.
  */
-async function currentRequestId(): Promise<string | null> {
+export async function currentRequestId(): Promise<string | null> {
   try {
     const { headers } = await import("next/headers");
     return (await headers()).get("x-request-id");
