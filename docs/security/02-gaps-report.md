@@ -1,6 +1,6 @@
 # Security gaps pass: audit report and results (2026-10-18)
 
-**Progress:** Phase 1 committed (`dde23ca`). Phase 2: migration 0073 plus the upload route change. Migrations 0072 and 0073 were applied on dev and live (2026-10-18, verified: anon refused, the cross-user suite passes 313/313). Phases 3 and 4 committed. Phase 5 (limits and account lifecycle) committed; its migration 0074 waits to be pasted on dev and live. Phase 6 (email, backups, recovery) committed: no migration. Phase 7 (regression suite, CI, outside-review brief) committed. **Every phase of the brief is done except Phase 1b** (HttpOnly sign-in on the server: approved, its own branch, not started). Nothing is pushed; each phase waits for Alon's local check, then a `--no-ff` merge.
+**Progress:** Phase 1 committed (`dde23ca`). Phase 2: migration 0073 plus the upload route change. Migrations 0072 and 0073 were applied on dev and live (2026-10-18, verified: anon refused, the cross-user suite passes 313/313). Phases 3 and 4 committed. Phase 5 (limits and account lifecycle) committed; migration 0074 applied on dev and live 2026-10-19 (verified: in the live ledger; all 10 live screenshot rows backfilled with their size, 0.32 MB; a real upload on dev stores the re-encoded file's size, now pinned in `e2e/trade-image-upload.spec.ts`). Phase 6 (email, backups, recovery) committed: no migration. Phase 7 (regression suite, CI, outside-review brief) committed. **Every phase of the brief is done except Phase 1b** (HttpOnly sign-in on the server: approved, its own branch, not started). Nothing is pushed; each phase waits for Alon's local check, then a `--no-ff` merge.
 
 This is the audit for the brief `02-security-gaps.md`. That brief covers what
 `SECURITY_HARDENING.md` (report: [99-audit-report.md](99-audit-report.md)) and
@@ -238,7 +238,7 @@ In the order they unblock things:
 
 1. **Check each phase locally, then say go**: the `sec2/phase-*` branches
    are merged with `--no-ff` only after that. Then say when to push.
-2. **Paste 0074** into the dev and live SQL editors.
+2. ~~Paste 0074~~ **Done 2026-10-19**, verified.
 3. **Q13:** should backups hold email addresses (the account list and the
    waitlist)?
 4. **Run the restore drill** ([restore-test.md](restore-test.md)) once.
@@ -266,8 +266,10 @@ In the order they unblock things:
 - The live database was only read, for counts: usage sizes for 5.1 and the
   accounts summary for 5.5 (service role, no writes, no emails printed).
   Otherwise the dev project is assumed to match it, per the migrations ledger.
-- Migration 0074 and the cleanup SQL were reviewed by reading, not run: there
-  is no SQL access from here. 0074 gets checked on dev once it's pasted.
+- The cleanup SQL was reviewed by reading, not run: there is no SQL access
+  from here. 0074 was pasted by Alon and checked through the API afterwards;
+  its row-cap triggers can't be listed through the API, so they are trusted to
+  the ledger entry (the file records itself only after the trigger block ran).
 - No penetration test of the live site. No dynamic scan. No restore into a
   fresh project with live data (proven on dev only; the drill is Alon's).
 - Netlify's install command and npm version.
