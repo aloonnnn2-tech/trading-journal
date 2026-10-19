@@ -202,8 +202,9 @@ export default function PrivacyPage() {
         <p className={BODY}>
           Deleting your account also deletes your screenshots and, if you joined the waitlist, your
           waitlist sign-up. We keep only a record that an account with that internal id was
-          deleted, and when, with no email or other details. Encrypted backups of the database are
-          kept for up to 90 days (most for 30), so your data leaves them as they expire. If we ever
+          deleted, and when, with no email or other details. Encrypted backups of the database,
+          which include your account&apos;s email address so it can be restored after a failure,
+          are kept for up to 90 days (most for 30), so your data leaves them as they expire. If we ever
           have to restore from a backup, we delete again every account our records show was deleted
           after that backup was made.
         </p>

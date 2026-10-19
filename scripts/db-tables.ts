@@ -72,6 +72,10 @@ export const TABLES = [
   // deleted since the backup was taken, which must be deleted again
   // (docs/security/restore-test.md).
   "admin_audit_log",
+  // Paid-plan sign-ups (0050): email addresses with no account behind them.
+  // Backed up since 2026-10-19 (Alon's decision, gaps report Q13); losing it
+  // lost the list for good. No foreign keys.
+  "waitlist",
 
   // --- Depends on user_api_keys (0047) ----------------------------------
   // Chat transcripts: the model's tool results here are the user's own
@@ -122,8 +126,4 @@ export const BACKUP_EXCLUDED: Record<string, string> = {
   rate_limit_counters: "Abuse counters that expire within a day.",
   idempotency_keys: "Request replay copies kept a day.",
   public_page_views: "Anonymous daily totals; cheap to lose.",
-  // An open question for Alon (security gaps pass, Phase 6): the backups hold
-  // no email addresses today (auth.users isn't in them), and including the
-  // waitlist would change that. Losing it loses the sign-ups.
-  waitlist: "Email addresses only; kept out of backups until Alon decides (02-gaps-report.md, Q13).",
 };

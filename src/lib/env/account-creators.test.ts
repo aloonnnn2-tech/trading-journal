@@ -17,7 +17,7 @@ const GUARDED = /\b(loadDevProject|assertDevSupabase)\b/;
 const ALLOWED: Record<string, string> = {
   "scripts/seed-demo-account.mjs": "the one deliberate production account (demo@tradinglens.app), excluded from analytics",
   "tests/idor/world.ts": "runs only under vitest.idor.config.mts, whose setupFile tests/idor/env.ts calls loadDevProject",
-  "scripts/restore-auth-placeholders.ts":
+  "scripts/restore-auth.ts":
     "restore drill / disaster recovery: its target is a fresh project by design; it refuses the live project named in .env.local and any project that already has accounts",
 };
 

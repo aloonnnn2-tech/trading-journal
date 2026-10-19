@@ -59,9 +59,9 @@ async function main() {
   for (const u of users) {
     const rows: Record<string, number> = {};
     await Promise.all(
-      // The audit log is keyed by actor_id and is the operator's record, not
-      // the account's data.
-      TABLES.filter((t) => t !== "admin_audit_log").map(async (t) => {
+      // The audit log (actor_id) and the waitlist (email only) have no
+      // user_id: neither is the account's own rows.
+      TABLES.filter((t) => t !== "admin_audit_log" && t !== "waitlist").map(async (t) => {
         const { count, error } = await db.from(t).select("*", { count: "exact", head: true }).eq("user_id", u.id);
         rows[t] = error ? -1 : (count ?? 0);
       }),

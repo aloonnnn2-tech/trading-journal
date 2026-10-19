@@ -84,7 +84,8 @@ export const SECURITY_SUITE: Record<string, string[]> = {
   ],
   "backups and recovery": [
     "src/lib/backup/db-tables.drift.test.ts",
-    "src/lib/backup/restore-auth-placeholders.test.ts",
+    "src/lib/backup/restore-auth.test.ts",
+    "src/lib/backup/backup-accounts.test.ts",
   ],
   "this index": ["src/lib/security-suite.test.ts"],
 };

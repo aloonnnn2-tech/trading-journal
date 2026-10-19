@@ -66,7 +66,7 @@ user id the proxy verified, never by an id from the request body.
 | `src/lib/rate-limit.ts` | The `rate_limit_hit` counter: anon and users lost access in 0073 (G-1) |
 
 Scripts (run by hand, or by the backup workflow; never deployed):
-`backup-db`, `restore-db`, `restore-storage`, `restore-auth-placeholders`,
+`backup-db`, `restore-db`, `restore-storage`, `restore-auth`,
 `list-accounts`, `accounts-summary`, `migrations-status`, `rotate-ai-keys`,
 `check-cache-secrets`, `seed-demo-account`, `set-demo-password`,
 `capture-marketing-shots`. The test suites (`tests/idor`, `e2e`) use the

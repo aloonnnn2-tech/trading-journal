@@ -19,15 +19,18 @@ From [Supabase's backup docs](https://supabase.com/docs/guides/platform/backups)
 - **Storage files are never in Supabase's database backups**, on any plan.
 - So the only copies of Trading Lens's data are the encrypted GitHub
   Actions artifacts from `.github/workflows/backup.yml`: daily, kept 30
-  days, and weekly, kept 90 days. They hold every user table and the
-  screenshots.
+  days, and weekly, kept 90 days. They hold every user table, the
+  screenshots, the waitlist, and (since 2026-10-19) the account list:
+  each account's id, email, sign-up and last sign-in dates, and sign-in
+  method.
 
-**What the backups don't hold:** sign-in accounts (`auth.users`: emails and
-passwords), the schema, the waitlist, and the short-lived operational
-tables (`scripts/db-tables.ts`, `BACKUP_EXCLUDED`). The schema comes from
-the migrations. The accounts are recreated by id with placeholder emails
-(step 4). People getting back into their real accounts after a total loss
-is not covered today: see Q13 in the report.
+**What the backups don't hold:** passwords (Supabase never hands them
+out), the schema, and the short-lived operational tables
+(`scripts/db-tables.ts`, `BACKUP_EXCLUDED`). The schema comes from the
+migrations. The accounts are recreated by id with their real email (step 4).
+After a real restore, people get back in with "Forgot password" (or Google).
+A backup from before 2026-10-19 has no account list, so its accounts come
+back with placeholder emails.
 
 ## What was already proven, by Claude, on the dev project (2026-10-18)
 
@@ -36,8 +39,12 @@ is not covered today: see Q13 in the report.
   restore 3.3 s.
 - **Fresh-account restore:** an account with a strategy, a
   strategy-specific custom field, folders, links and history was backed up
-  and deleted, recreated by id (`restore-auth-placeholders.ts`), then
-  restored. All 25 rows came back, and the trade was identical.
+  and deleted, recreated by id (`restore-auth.ts`), then restored. All 25
+  rows came back, and the trade was identical.
+- **Account list (2026-10-19):** an account was backed up, deleted and
+  recreated from the backup's account list. It came back with the same id,
+  its real email and its confirmed state, and its trade restored. The backup
+  log printed no email addresses.
 - The drill found and fixed one bug: `field_definitions` was restored
   before `strategies`, which a fresh-project restore would have failed on.
 
@@ -95,12 +102,15 @@ fresh project, and the screenshots. That's this drill.
 4. **Recreate the accounts** (dry run, then apply):
 
    ```bash
-   npx tsx --env-file=.env.restore-test.local scripts/restore-auth-placeholders.ts --dir backups/<stamp>
-   npx tsx --env-file=.env.restore-test.local scripts/restore-auth-placeholders.ts --dir backups/<stamp> --apply
+   npx tsx --env-file=.env.restore-test.local scripts/restore-auth.ts --dir backups/<stamp>
+   npx tsx --env-file=.env.restore-test.local scripts/restore-auth.ts --dir backups/<stamp> --apply
    ```
 
-   Write down "N account(s) in the backup". The script refuses a project
-   that already has accounts, so pointing it at live by mistake stops here.
+   Write down "N account(s) in the backup". The script refuses the live
+   project and any project that already has accounts, so pointing it at
+   live by mistake stops here. It sends nobody an email. For the drill you
+   may add `--placeholders` if you'd rather the throwaway project held no
+   real addresses; a real restore never uses it.
 
 5. **Restore the rows** (dry run, then apply). The dry run prints each
    table's row count from the backup: keep that output, it's the "expected"
