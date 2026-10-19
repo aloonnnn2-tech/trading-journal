@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
@@ -10,7 +10,7 @@ import { ResendConfirmation } from "@/components/auth/resend-confirmation";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
-import { MINIMUM_AGE, TERMS_VERSION } from "@/lib/legal/terms";
+import { MINIMUM_AGE } from "@/lib/legal/terms";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -24,7 +24,6 @@ const CAPTCHA_INCOMPLETE =
   "Please complete the security check below, then try again.";
 
 export default function SignUpPage() {
-  const supabase = createClient();
   const { track } = useAnalytics();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,20 +53,10 @@ export default function SignUpPage() {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      // Where the link in the confirmation email lands. The email template
-      // sends the user through /auth/confirm, which exchanges the token for
-      // a cookie session server-side before forwarding them on.
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
-        captchaToken,
-        // Read by the database at account creation (migration 0061), which
-        // records WHEN with its own clock. Only the user's claim travels here.
-        data: { age_confirmed: true, accepted_terms_version: TERMS_VERSION },
-      },
-    });
+    // On the server (src/app/api/auth/sign-up/route.ts), which sets the
+    // confirmation link and records the age and terms agreement (0061).
+    const result = await authApi.signUp(email, password, captchaToken ?? undefined);
+    const error = result.error;
 
     // Reset after every completed call -- the token is spent either way.
     captcha.current?.reset();
@@ -86,7 +75,7 @@ export default function SignUpPage() {
     // clicked. Sending them to /dashboard here would just bounce off the
     // auth check and dump them back on /sign-in with nothing explaining
     // why, so tell them to go and check their inbox instead.
-    if (!data.session) {
+    if (!("session" in result) || !result.session) {
       setSentAt(Date.now());
       setAwaitingConfirmation(true);
       return;
@@ -107,7 +96,7 @@ export default function SignUpPage() {
       setContinuing(false);
       return;
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
+    const { error } = await authApi.signIn(email, password, captchaToken ?? undefined);
     captcha.current?.reset();
     setContinuing(false);
     if (error) {

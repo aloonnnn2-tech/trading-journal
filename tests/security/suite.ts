@@ -27,6 +27,9 @@ export const SECURITY_SUITE: Record<string, string[]> = {
     "src/lib/auth/next-path.test.ts",
     "src/lib/auth/confirm-link.test.ts",
     "src/lib/auth/oauth-providers.test.ts",
+    // Phase 1b: sign-in on the server, HttpOnly session cookie.
+    "src/app/api/auth/auth-routes.test.ts",
+    "src/lib/supabase/no-browser-client.test.ts",
   ],
   "account enumeration": [
     "src/lib/auth/error-messages.test.ts",

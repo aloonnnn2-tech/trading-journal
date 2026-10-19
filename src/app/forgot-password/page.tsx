@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage } from "@/lib/auth/error-messages";
@@ -20,7 +20,6 @@ const CAPTCHA_INCOMPLETE =
   "Please complete the security check below, then try again.";
 
 export default function ForgotPasswordPage() {
-  const supabase = createClient();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,10 +37,9 @@ export default function ForgotPasswordPage() {
       setLoading(false);
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
-      captchaToken,
-    });
+    // On the server (src/app/api/auth/forgot-password/route.ts), which sets
+    // the reset link. It answers the same whether or not an account exists.
+    const { error } = await authApi.forgotPassword(email, captchaToken ?? undefined);
 
     captcha.current?.reset();
     setLoading(false);

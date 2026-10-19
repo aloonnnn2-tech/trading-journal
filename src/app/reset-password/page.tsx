@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage } from "@/lib/auth/error-messages";
@@ -11,7 +11,6 @@ const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
 
 export default function ResetPasswordPage() {
-  const supabase = createClient();
   const [ready, setReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [password, setPassword] = useState("");
@@ -24,11 +23,12 @@ export default function ResetPasswordPage() {
     // /auth/confirm verifies the recovery token_hash server-side and lands
     // the user here with a session already set via cookies -- if there's no
     // session, the link was invalid/expired or was opened directly.
-    supabase.auth.getUser().then(({ data }) => {
-      setHasSession(!!data.user);
+    // The session cookie is HttpOnly, so the page asks the server.
+    authApi.session().then(({ signedIn }) => {
+      setHasSession(signedIn);
       setReady(true);
     });
-  }, [supabase]);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await authApi.updatePassword(password);
     setLoading(false);
 
     if (error) {

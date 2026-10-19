@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BrandMark } from "@/components/brand-mark";
 import { useDialog } from "@/lib/a11y/use-dialog";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { endSession } from "@/lib/tracking/useAnalytics";
 import { MINIMUM_AGE, TERMS_VERSION } from "@/lib/legal/terms";
 
@@ -58,7 +58,7 @@ export function ConsentGate() {
   async function signOut() {
     endSession();
     try {
-      await createClient().auth.signOut();
+      await authApi.signOut();
     } catch {
       // Navigate away regardless, as the nav bar's sign-out does.
     }

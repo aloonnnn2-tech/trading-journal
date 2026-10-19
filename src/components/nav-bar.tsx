@@ -7,7 +7,7 @@ import { useAccountThemeToggle } from "@/components/preferences/preferences-prov
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sun, Moon, HelpCircle, UserCircle, ShieldCheck, ChevronDown } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { endSession } from "@/lib/tracking/useAnalytics";
 import { BrandMark } from "@/components/brand-mark";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
@@ -182,13 +182,13 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
   }
 
   async function handleSignOut() {
-    const supabase = createClient();
     // Before anything else: the analytics session belongs to the account that
     // is signing out, and sessionStorage would otherwise carry its id into
     // whoever signs in next in this tab.
     endSession();
     try {
-      await supabase.auth.signOut();
+      // On the server: the HttpOnly cookie can only be cleared there.
+      await authApi.signOut();
     } catch {
       // Still navigate away even if the network call failed -- better
       // than leaving the user stuck on the current page looking

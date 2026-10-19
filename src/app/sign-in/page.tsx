@@ -4,7 +4,7 @@ import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { afterSignIn } from "@/lib/auth/next-path";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { BrandMark } from "@/components/brand-mark";
 import { ResendConfirmation } from "@/components/auth/resend-confirmation";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
@@ -35,7 +35,6 @@ export default function SignInPage() {
 }
 
 function SignInForm() {
-  const supabase = createClient();
   const { track } = useAnalytics();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -74,11 +73,9 @@ function SignInForm() {
       setLoading(false);
       return;
     }
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-      options: { captchaToken },
-    });
+    // On the server, so the session cookie it sets is HttpOnly
+    // (src/app/api/auth/sign-in/route.ts).
+    const { error } = await authApi.signIn(email, password, captchaToken ?? undefined);
 
     // Every completed call, not just failed ones: Supabase redeems the token
     // on success too, so leaving it in place would make the next action on

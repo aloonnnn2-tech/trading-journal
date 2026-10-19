@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Provider } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { authErrorMessage } from "@/lib/auth/error-messages";
 import { OAUTH_PROVIDERS, enabledProviders } from "@/lib/auth/oauth-providers";
 
@@ -64,17 +64,16 @@ export function OAuthButtons({ next, onError }: { next?: string | null; onError:
   async function go(provider: Provider) {
     onError(null);
     setGoing(provider);
-    const callback = new URL("/auth/callback", window.location.origin);
-    if (next) callback.searchParams.set("next", next);
-    // Leaves the page for the provider's screen; it only returns on failure.
-    const { error } = await createClient().auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: callback.href },
-    });
-    if (error) {
+    // The server starts the flow (src/app/api/auth/oauth/route.ts) so its
+    // code verifier cookie is HttpOnly too; the page then leaves for the
+    // provider's screen, and only stays here on failure.
+    const result = await authApi.oauth(provider, next);
+    if (result.error) {
       setGoing(null);
-      onError(authErrorMessage(error));
+      onError(authErrorMessage(result.error));
+      return;
     }
+    window.location.assign(result.url);
   }
 
   return (
