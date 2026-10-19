@@ -39,7 +39,14 @@ const nullableDate = z
 export const coreFieldsSchema = z
   .object({
     mode: z.enum(["trade", "investment"]),
-    ticker: z.string().max(32).transform((v) => v.trim().toUpperCase()),
+    // No control or markup characters (security gaps pass, 3.3): a ticker
+    // reaches market-data URLs and AI prompts, and no real symbol needs
+    // them. Broker spellings like "EUR/USD", "BRK B" or "ES1!" still pass.
+    ticker: z
+      .string()
+      .max(32)
+      .refine((v) => !/[\u0000-\u001f\u007f<>{}`"\\;]/.test(v), "A ticker can't contain that character.")
+      .transform((v) => v.trim().toUpperCase()),
     company_name: boundedString(200),
     asset_type: boundedString(64),
     market: boundedString(64),

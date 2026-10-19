@@ -40,14 +40,15 @@ const MIN_SECRET_LENGTH = 12;
 // credential and must never ship.
 const PUBLIC_BY_DESIGN = new Set(["SENTRY_DSN", "SENTRY_ORG", "SENTRY_PROJECT"]);
 
-function loadEnv(file: string): Record<string, string> {
+/** `keepEmpty`: also list names with no value (the example file has none). */
+function loadEnv(file: string, keepEmpty = false): Record<string, string> {
   const env: Record<string, string> = {};
   if (!existsSync(file)) return env;
   for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
     if (!match) continue;
     const value = match[2].trim().replace(/^["']|["']$/g, "");
-    if (value) env[match[1]] = value;
+    if (value || keepEmpty) env[match[1]] = value;
   }
   return env;
 }
@@ -62,7 +63,18 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const env = loadEnv(".env.local");
+// Where the secret values come from:
+//  - locally, .env.local;
+//  - in CI there is no .env.local (G-3: the old version exited 1 on every CI
+//    run for exactly that reason), so the values come from the process
+//    environment, for the variable NAMES .env.local.example declares --
+//    never from the whole environment (PATH and friends would only add noise).
+const exampleNames = Object.keys(loadEnv(".env.local.example", true));
+const env: Record<string, string> = existsSync(".env.local")
+  ? loadEnv(".env.local")
+  : Object.fromEntries(
+      exampleNames.filter((name) => process.env[name]).map((name) => [name, process.env[name] as string]),
+    );
 // A var whose value is byte-identical to some NEXT_PUBLIC_ var is that public
 // value under a second name -- finding it in the bundle proves nothing about
 // the private one, so checking it can only ever produce a false alarm.
@@ -81,8 +93,9 @@ const secrets = Object.entries(env).filter(
 );
 
 if (secrets.length === 0) {
-  console.error("No secrets found in .env.local -- nothing to check. Is the file present?");
-  process.exit(1);
+  // Not a failure on its own: CI may run with placeholders shorter than the
+  // threshold. The source-map check below still runs.
+  console.warn("No server-only secret values to look for (no .env.local and none in the environment).");
 }
 
 const files = walk(CLIENT_DIR);
@@ -90,6 +103,21 @@ if (files.length === 0) {
   console.error(`${CLIENT_DIR} is empty or missing. Run \`npm run build\` first.`);
   process.exit(1);
 }
+
+// Source maps would hand the browser the original source, comments and all
+// (security gaps pass, 3.5). Sentry deletes them after upload
+// (next.config.ts); this proves none shipped, and that no bundle still
+// points at one.
+const maps = files.filter((f) => f.endsWith(".map"));
+const mapRefs = files.filter(
+  (f) => /\.(js|css)$/.test(f) && /[#@] sourceMappingURL=(?!data:)\S+\.map/.test(readFileSync(f, "latin1")),
+);
+if (maps.length > 0 || mapRefs.length > 0) {
+  console.error(`Source maps are in the browser bundle: ${maps.length} .map file(s), ${mapRefs.length} file(s) pointing at one.`);
+  for (const f of [...maps, ...mapRefs].slice(0, 10)) console.error(`  ${f}`);
+  process.exit(1);
+}
+console.log(`No source maps in ${CLIENT_DIR}.`);
 
 // latin1 keeps every byte addressable regardless of the file's real encoding,
 // so a secret can't hide behind a decoding failure.

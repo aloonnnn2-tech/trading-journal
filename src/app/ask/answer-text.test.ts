@@ -162,3 +162,22 @@ describe("AnswerText resilience", () => {
     expect(render("| broken")).toContain("broken");
   });
 });
+
+describe("AnswerText: image payloads (security gaps pass, 3.2)", () => {
+  it("never renders an <img> from model output, in any block", () => {
+    const html = render(
+      [
+        '<img src=x onerror=alert(1)>',
+        "",
+        '**<img src="x" onerror="alert(document.cookie)">**',
+        "",
+        "- ![x](javascript:alert(1))",
+        "",
+        "### <img/src/onerror=alert(1)>",
+      ].join("\n"),
+    );
+    expect(html).not.toMatch(/<img/i);
+    expect(html).not.toMatch(/<a\s/i);
+    expect(html).toContain("&lt;img");
+  });
+});

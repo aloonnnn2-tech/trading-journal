@@ -81,11 +81,25 @@ function fetchYahoo(url: string, revalidate: number): Promise<Response> {
 //
 // Shared by the interactive chart route (/api/market-data/candles) and the
 // scheduled auto-execution job, so both read prices the same way.
+/**
+ * Whether a symbol may go into a Yahoo URL at all (security gaps pass,
+ * G-14). Yahoo symbols are letters and digits with . - = ^ (BRK.B, BTC-USD,
+ * EURUSD=X, ^GSPC). The routes already check that shape, but a ticker stored
+ * on a trade reaches here unchecked (the order sweep, excursions), and a
+ * symbol of only dots -- "..", which every check allowed -- walked the
+ * request path up a folder on Yahoo's server. Checked once, here, so every
+ * caller is covered: an unsafe symbol is "no data", never a request.
+ */
+export function isSafeYahooSymbol(symbol: string): boolean {
+  return /^[A-Za-z0-9.\-=^]{1,25}$/.test(symbol) && /[A-Za-z0-9]/.test(symbol);
+}
+
 export async function fetchYahooCandles(
   symbol: string,
   options: { range?: string; revalidate?: number } = {},
 ): Promise<YahooFetchResult | null> {
   const { range = "2y", revalidate = 300 } = options;
+  if (!isSafeYahooSymbol(symbol) || !/^[0-9a-z]{1,4}$/.test(range)) return null;
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
   const res = await fetchYahoo(url, revalidate);
   if (!res.ok) return null;
@@ -165,6 +179,7 @@ export interface YahooNewsItem {
  * is third-party text: callers hand it on as data, never as instructions.
  */
 export async function fetchYahooNews(symbol: string, count = 8): Promise<YahooNewsItem[] | null> {
+  if (!isSafeYahooSymbol(symbol)) return null;
   const url =
     `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}` +
     `&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`;
@@ -238,6 +253,7 @@ export async function fetchYahooBars(
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<YahooBarsResult | null> {
   const { interval, period1, period2 } = request;
+  if (!isSafeYahooSymbol(symbol) || !Number.isInteger(period1) || !Number.isInteger(period2)) return null;
   const url =
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
     `?period1=${period1}&period2=${period2}&interval=${interval}` +

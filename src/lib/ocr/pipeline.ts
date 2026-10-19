@@ -26,6 +26,7 @@ import { demoteDisabledFields } from "./disabled";
 import { validate } from "./validate";
 import { buildLog } from "./logging";
 import { resolveOrderFields, warningsFor } from "./resolve";
+import { log } from "@/lib/observability/log";
 
 const CORE_SET = new Set<FieldKey>(OCR_CORE_FIELDS);
 
@@ -177,7 +178,8 @@ async function stage<T>(timings: Record<string, number>, name: string, fn: () =>
 }
 
 function emptyResult(err: unknown, timings: Record<string, number>): ParseResult {
-  const message = err instanceof Error ? err.message : "unknown error";
+  // This result goes to the browser: the internal reason only to the log.
+  log.error("ocr.pipeline_failed", { error: err });
   return {
     ok: false,
     core: {},
@@ -193,7 +195,7 @@ function emptyResult(err: unknown, timings: Record<string, number>): ParseResult
       meanConfidence: 0,
       rawText: "",
       detectedLabels: [],
-      validation: [{ field: "cross", ok: false, message: `pipeline error: ${message}` }],
+      validation: [{ field: "cross", ok: false, message: "the screenshot couldn't be processed" }],
       missingFields: [...OCR_CORE_FIELDS],
       rejectedFields: [],
       timings,

@@ -151,6 +151,11 @@ export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: true,
+  // Explicit, not left to the SDK default (security gaps pass, 3.5): source
+  // maps exist only so Sentry can show readable stack traces, and are deleted
+  // from the build once uploaded, so the browser never gets the original
+  // source. `npm run check:bundle` fails if a .map file ever ships.
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   webpack: {
     treeshake: {
       removeDebugLogging: true,

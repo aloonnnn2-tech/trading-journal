@@ -90,9 +90,19 @@ export async function POST(request: Request) {
     void logEvent(userId, SERVER_SESSION_ID, "screenshot_parsed", {});
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "OCR failed";
+    // The reason (a native OCR error, a file path) stays in the server log;
+    // the person gets something they can act on (security gaps pass, 3.4).
+    log.error("ocr.parse_failed", { error: err });
     return NextResponse.json(
-      { ok: false, core: {}, extra: [], screenshotType: "unknown", broker: null, warnings: [], error: message },
+      {
+        ok: false,
+        core: {},
+        extra: [],
+        screenshotType: "unknown",
+        broker: null,
+        warnings: [],
+        error: "Couldn't read that screenshot. Try again, or enter the trade by hand.",
+      },
       { status: 200 },
     );
   }

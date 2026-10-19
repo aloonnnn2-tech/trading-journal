@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { guessYahooSymbol, fetchYahooCandles, fetchYahooBars } from "./yahoo";
+import { guessYahooSymbol, fetchYahooCandles, fetchYahooBars, fetchYahooNews, isSafeYahooSymbol } from "./yahoo";
 import { UpstreamUnavailableError } from "@/lib/http/resilient-fetch";
 
 // Shared by the trade chart and the background auto-execution sweep. When
@@ -266,5 +266,40 @@ describe("fetchYahooBars", () => {
   it("is null for an unknown symbol", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(404)));
     expect(await fetchYahooBars("NOPE", { interval: "1d", period1: 0, period2: 1 })).toBeNull();
+  });
+});
+
+describe("isSafeYahooSymbol (security gaps pass, G-14)", () => {
+  it("accepts every real symbol shape", () => {
+    for (const s of ["AAPL", "BRK.B", "BTC-USD", "EURUSD=X", "^GSPC", "7203.T", "RDS-A"]) expect(isSafeYahooSymbol(s), s).toBe(true);
+  });
+
+  it("refuses path tricks, other hosts, encodings and control characters", () => {
+    for (const s of ["..", ".", "...", "../x", "AAPL/..", "@evil.com", "a@b", "%00", "%2e%2e", "AA\u0000PL", "AAPL?x=1", "AAPL#", "a b", "", "A".repeat(26)]) {
+      expect(isSafeYahooSymbol(s), JSON.stringify(s)).toBe(false);
+    }
+  });
+});
+
+describe("unsafe symbols never reach Yahoo", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns no data without making a request", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    for (const s of ["..", "../v7", "@evil.com", "%00", "127.0.0.1/x"]) {
+      expect(await fetchYahooCandles(s), s).toBeNull();
+      expect(await fetchYahooBars(s, { interval: "1d", period1: 1, period2: 2 }), s).toBeNull();
+      expect(await fetchYahooNews(s), s).toBeNull();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the host fixed for a valid but odd symbol (digits and dots)", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => (urls.push(u), new Response("{}", { status: 404 }))));
+    await fetchYahooCandles("127.0.0.1");
+    expect(new URL(urls[0]).host).toBe("query1.finance.yahoo.com");
+    expect(new URL(urls[0]).pathname).toBe("/v8/finance/chart/127.0.0.1");
   });
 });

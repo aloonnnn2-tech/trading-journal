@@ -74,3 +74,17 @@ describe("numbers must be storable, not merely finite", () => {
     expect(ok({ direction: "sideways" })).toBe(false);
   });
 });
+
+describe("ticker characters (security gaps pass, 3.3)", () => {
+  it("accepts the spellings brokers use", () => {
+    for (const t of ["AAPL", "brk.b", "BRK B", "EUR/USD", "BTC-USD", "ES1!", "^GSPC", "EURUSD=X", "7203.T"]) {
+      expect(coreFieldsSchema.safeParse({ ticker: t }).success, t).toBe(true);
+    }
+  });
+
+  it("refuses control and markup characters", () => {
+    for (const t of ["AA\nPL", "AAPL\u0000", "<script>", "{x}", "`id`", 'A"B', "A\\B", "A;B"]) {
+      expect(coreFieldsSchema.safeParse({ ticker: t }).success, JSON.stringify(t)).toBe(false);
+    }
+  });
+});
