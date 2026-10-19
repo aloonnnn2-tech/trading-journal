@@ -20,10 +20,11 @@
  * ---------------------------------------------------------------------------
  * WHAT THIS CANNOT DO, READ BEFORE RELYING ON IT
  *
- * 1. **auth.users is not in the backup**, and every table has a `user_id`
- *    foreign key into it. Restoring into a fresh project therefore fails on
- *    the first row unless the auth users already exist there WITH THE SAME
- *    UUIDs. Recreating a user through sign-up mints a new id and will not do.
+ * 1. **This script does not create accounts**, and every table has a
+ *    `user_id` foreign key into auth.users. Restoring into a fresh project
+ *    therefore fails on the first row unless the accounts already exist
+ *    there WITH THE SAME UUIDs: run scripts/restore-auth.ts first (it reads
+ *    the backup's account list). Signing up again mints a new id and won't do.
  *    Restoring into the SAME project (the realistic case: a bad migration or
  *    a bulk delete) is fine, because the users are still there.
  *
@@ -35,9 +36,9 @@
  *    holds the trade-images files too; this script restores only the rows,
  *    and `npm run restore:storage` puts the files back (rows first).
  *
- * 4. **The waitlist is not in the backup** (scripts/db-tables.ts,
- *    BACKUP_EXCLUDED), and the audit log is only restored into an empty
- *    table (APPEND_ONLY below).
+ * 4. **Accounts come first, from scripts/restore-auth.ts** (the backup's
+ *    auth_users.json, since 2026-10-19). The audit log is only restored
+ *    into an empty table (APPEND_ONLY below).
  *
  * So this covers "the rows were damaged and the project is otherwise intact",
  * which is the failure that actually happens. Full project loss needs the

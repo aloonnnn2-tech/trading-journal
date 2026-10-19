@@ -46,7 +46,9 @@ GitHub Actions backups (`.github/workflows/backup.yml`): daily, kept 30 days, an
 
 **Included since 2026-10-16:** the screenshots (Supabase Storage, the `trade-images` bucket).
 
-**Not in any backup:** sign-in accounts (`auth.users`), the schema, the waitlist, and page-view totals.
+**Included since 2026-10-19:** the account list (ids, emails, dates, sign-in method) and the waitlist.
+
+**Not in any backup:** passwords, the schema, and page-view totals.
 
 To restore (the steps the workflow header gives, verified in Git Bash on Windows):
 
@@ -60,7 +62,7 @@ To restore (the steps the workflow header gives, verified in Git Bash on Windows
 
 Restore into the **same** project (bad migration, mass delete): the accounts still exist, so this just
 works. Into a **new** project: paste `supabase/dev/schema.sql` (every migration), recreate the accounts by id with
-`scripts/restore-auth-placeholders.ts`, then restore. The tested, step-by-step version is the drill in
+`scripts/restore-auth.ts`, then restore. The tested, step-by-step version is the drill in
 [docs/security/restore-test.md](security/restore-test.md); pass the new project's env file explicitly, never `.env.local`.
 
 ## 4. Rotating secrets

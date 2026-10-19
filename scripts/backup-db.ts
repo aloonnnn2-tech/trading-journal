@@ -21,12 +21,15 @@
  * **Screenshots are included** (since 2026-10-16): every file in the
  * trade-images bucket, under storage/trade-images/ -- see dumpStorage below.
  *
+ * **The account list is included** (since 2026-10-19): auth_users.json,
+ * the ids, emails and dates of every sign-in account (scripts/
+ * backup-accounts.ts; no passwords). scripts/restore-auth.ts recreates them
+ * with the same ids before the rows go back.
+ *
  * **What this does NOT capture, and it matters when reading a dump as
  * "the backup":**
- *  - auth.users. Every table below has a user_id foreign key into it, so
- *    these rows cannot be restored into a project until the matching auth
- *    users exist with the SAME ids. scripts/restore-db.ts says so directly
- *    and refuses to pretend otherwise.
+ *  - Passwords and sign-in sessions. After a full restore, people sign in
+ *    again with "Forgot password" (or Google).
  *  - Schema, RLS policies, functions, triggers. This is a row dump; the
  *    structure comes from re-applying supabase/migrations.
  */
@@ -39,6 +42,8 @@ import path from "node:path";
 // That module also documents the six tables this list was missing until
 // 2026-09-08, and the rule for keeping it current.
 import { TABLES } from "./db-tables";
+import { listAllAccounts } from "./backup-accounts";
+import { AUTH_USERS_FILE } from "./restore-auth";
 
 // PostgREST caps any single response at 1,000 rows regardless of .limit() --
 // this codebase has hit that exact bug in the app itself more than once, so
@@ -185,6 +190,11 @@ async function main() {
 
   console.log(`\nDone. ${totalRows} rows across ${dumped} tables.`);
 
+  // The account list. Fails the run if it can't be read: a backup that
+  // silently lost the accounts would restore journals nobody can reach.
+  writeFileSync(path.join(outDir, AUTH_USERS_FILE), JSON.stringify(await listAllAccounts(supabase), null, 2));
+  console.log("  accounts: done");
+
   if (absent.length > 0) {
     // Not a warning to shrug at: if one of these is a table that DOES hold
     // live data, this backup is incomplete and the reason is worth chasing.
@@ -198,8 +208,9 @@ async function main() {
   console.log("");
   await dumpStorage(supabase, outDir);
 
-  console.log("\nNot included: auth.users and schema/policies. See the header of this file and");
-  console.log("scripts/restore-db.ts. Screenshots restore with scripts/restore-storage.ts.");
+  console.log("\nNot included: passwords and schema/policies. See the header of this file and");
+  console.log("scripts/restore-db.ts. Accounts restore with scripts/restore-auth.ts, screenshots");
+  console.log("with scripts/restore-storage.ts.");
 }
 
 main().catch((err) => {
