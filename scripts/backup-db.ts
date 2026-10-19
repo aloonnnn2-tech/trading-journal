@@ -18,10 +18,11 @@
  * 2026-09-08 exactly one backup existed. Still run it by hand before risky
  * changes (migrations, bulk edits); the schedule is the floor, not the plan.
  *
+ * **Screenshots are included** (since 2026-10-16): every file in the
+ * trade-images bucket, under storage/trade-images/ -- see dumpStorage below.
+ *
  * **What this does NOT capture, and it matters when reading a dump as
  * "the backup":**
- *  - Storage objects (trade screenshots) -- binary files behind signed URLs,
- *    not rows in any table here.
  *  - auth.users. Every table below has a user_id foreign key into it, so
  *    these rows cannot be restored into a project until the matching auth
  *    users exist with the SAME ids. scripts/restore-db.ts says so directly
@@ -78,6 +79,72 @@ async function dumpTable(
   return rows;
 }
 
+// The trade screenshots. Supabase's own backups never include Storage (and
+// the free plan has none anyway), so without this a lost bucket was lost for
+// good. Files sit at <userId>/<tradeId>/<file>; list() returns one level at a
+// time, so walk it. Written under storage/<bucket>/ next to the table dumps,
+// plus a manifest, and restored by scripts/restore-storage.ts.
+const STORAGE_BUCKETS = ["trade-images"];
+
+async function listAll(
+  supabase: ReturnType<typeof createClient>,
+  bucket: string,
+  prefix = "",
+): Promise<{ path: string; size: number | null }[]> {
+  const files: { path: string; size: number | null }[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await supabase.storage.from(bucket).list(prefix, { limit: PAGE_SIZE, offset });
+    if (error) throw new Error(`storage ${bucket}/${prefix}: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const entry of data) {
+      const full = prefix ? `${prefix}/${entry.name}` : entry.name;
+      // A folder has no id; a file does.
+      if (entry.id === null) files.push(...(await listAll(supabase, bucket, full)));
+      else files.push({ path: full, size: (entry.metadata as { size?: number } | null)?.size ?? null });
+    }
+    if (data.length < PAGE_SIZE) break;
+  }
+  return files;
+}
+
+async function dumpStorage(supabase: ReturnType<typeof createClient>, outDir: string) {
+  for (const bucket of STORAGE_BUCKETS) {
+    let files: { path: string; size: number | null }[];
+    try {
+      files = await listAll(supabase, bucket);
+    } catch (err) {
+      // The table dump above is still worth keeping: say so and carry on.
+      console.log(`  storage ${bucket}: could not list (${(err as Error).message}) -- skipped`);
+      continue;
+    }
+    const root = path.join(outDir, "storage", bucket);
+    let bytes = 0;
+    const failed: string[] = [];
+    for (const file of files) {
+      const { data, error } = await supabase.storage.from(bucket).download(file.path);
+      if (error || !data) {
+        failed.push(file.path);
+        continue;
+      }
+      const buffer = Buffer.from(await data.arrayBuffer());
+      const target = path.join(root, ...file.path.split("/"));
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, buffer);
+      bytes += buffer.length;
+    }
+    writeFileSync(
+      path.join(outDir, "storage", `${bucket}.manifest.json`),
+      JSON.stringify({ bucket, files: files.map((f) => f.path), failed }, null, 2),
+    );
+    console.log(
+      `  storage ${bucket}: ${files.length - failed.length} of ${files.length} files, ${(bytes / 1024 / 1024).toFixed(1)} MB`,
+    );
+    // A file that couldn't be read means this backup is missing it: fail the
+    // run so it shows red, rather than pass with a hole in it.
+    if (failed.length > 0) throw new Error(`storage ${bucket}: ${failed.length} file(s) could not be downloaded`);
+  }
+}
+
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -124,8 +191,11 @@ async function main() {
     );
   }
 
-  console.log("\nNot included: trade screenshot images (Supabase Storage), auth.users,");
-  console.log("and schema/policies. See the header of this file and scripts/restore-db.ts.");
+  console.log("");
+  await dumpStorage(supabase, outDir);
+
+  console.log("\nNot included: auth.users and schema/policies. See the header of this file and");
+  console.log("scripts/restore-db.ts. Screenshots restore with scripts/restore-storage.ts.");
 }
 
 main().catch((err) => {

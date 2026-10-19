@@ -130,6 +130,7 @@ export async function POST(request: Request) {
           schemaHint: TRADE_REVIEW_SCHEMA_HINT,
           maxTokens: TRADE_REVIEW_MAX_TOKENS,
           deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+          signal: request.signal,
         });
       },
       {

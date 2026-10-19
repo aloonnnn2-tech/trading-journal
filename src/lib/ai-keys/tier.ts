@@ -28,15 +28,21 @@ export interface TierPolicy {
   keepToolBodiesRounds: number;
   /** Whether a second model call may be spent on a conversation title. */
   modelTitle: boolean;
+  /** Ceiling on one answer, in tokens -- thinking included on reasoning models. */
+  maxAnswerTokens: number;
 }
 
+// Paid keys: room for a thorough answer (Alon, 2026-10-16: "smarter"). Ten
+// lookups before "keep going?", and long answers -- the user's own key and
+// bill, and the turn has 55 s now.
 const PAID: TierPolicy = {
-  autoRounds: 6,
+  autoRounds: 10,
   toolSet: "full",
   maxToolOutputChars: 24_000,
   historyBudgetChars: 40_000,
   keepToolBodiesRounds: 2,
   modelTitle: true,
+  maxAnswerTokens: 8_000,
 };
 
 const FREE: TierPolicy = {
@@ -46,12 +52,20 @@ const FREE: TierPolicy = {
   historyBudgetChars: 7_000,
   keepToolBodiesRounds: 1,
   modelTitle: false,
+  // The per-minute token cap is shared with history and tools: unchanged.
+  maxAnswerTokens: 2_500,
 };
 
 // Google AI Studio's free tier is bounded by requests per minute far more
 // than tokens, so it can carry the full tool set; only the round gate and
 // title call stay conservative.
-const GOOGLE_FREE: TierPolicy = { ...FREE, toolSet: "full", maxToolOutputChars: 16_000, historyBudgetChars: 24_000 };
+const GOOGLE_FREE: TierPolicy = {
+  ...FREE,
+  toolSet: "full",
+  maxToolOutputChars: 16_000,
+  historyBudgetChars: 24_000,
+  maxAnswerTokens: 4_000,
+};
 
 export function tierPolicyFor(provider: AIProviderName): TierPolicy {
   if (provider === "google") return GOOGLE_FREE;

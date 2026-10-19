@@ -5,6 +5,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { deleteMyReview, getMyReview, getPromptState, isMissingReviews, saveMyReview } from "@/lib/reviews/queries";
 import { reviewInputSchema } from "@/lib/reviews/schema";
+import { log } from "@/lib/observability/log";
 
 // The caller's own review of Trading Lens (migration 0064): read, write or
 // remove. Only ever their own row -- the RLS client and the user id from the
@@ -62,7 +63,7 @@ export async function PUT(request: Request) {
     if (isMissingReviews(error)) {
       return NextResponse.json({ error: "Reviews aren't switched on yet." }, { status: 503 });
     }
-    console.error("[reviews] save failed:", (error as { code?: string })?.code ?? error);
+    log.error("reviews.save_failed", { error });
     return NextResponse.json({ error: "Couldn't save your review. Try again." }, { status: 500 });
   }
 }

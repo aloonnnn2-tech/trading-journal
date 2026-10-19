@@ -36,6 +36,11 @@ import {
   getReviews,
   getReviewsSchema,
 } from "./reports";
+import { calculate, calculateSchema, getMarketData, getMarketDataSchema } from "./general";
+import { explainMetric, explainMetricSchema } from "./metrics";
+import { viewTradeChart, viewTradeChartSchema } from "./charts";
+import { FILLABLE_FIELDS, proposeChange, proposeChangeSchema } from "./proposals";
+import type { VisionState } from "../vision";
 
 // The read-only tools the chat can call to reach the trader's own data and
 // get EXACT numbers computed here rather than guessed from a text dump.
@@ -63,6 +68,10 @@ interface Def {
   parameters: Record<string, unknown>;
   /** In the free-tier set? Defaults to false. */
   compactSet?: boolean;
+  /** Only offered when the provider can see images. */
+  needsVision?: boolean;
+  /** Only offered when the conversation can carry suggested changes (0070). */
+  needsProposals?: boolean;
 }
 
 const FILTER_PARAM = {
@@ -204,6 +213,90 @@ const DEFS: Def[] = [
     parameters: { type: "object", properties: { kind: { type: "string", enum: [...REPORT_KINDS] } }, required: ["kind"] },
   },
   {
+    name: "explain_metric",
+    compactSet: true,
+    full: "Explain any figure in the journal and give this trader's value in one call: what it means and exactly how Trading Lens computes it, how to judge it (direction, common rules of thumb), its caveats, where it is in the app, and their current value. Use for 'what is my X / is my X good'. Accepts names and aliases (MAE, MFE, capture, profit factor, expectancy, win rate, drawdown, risk per trade, streaks, edge, mistakes, R multiple, ...). Per-trade metrics take `trade` ({id} or {ticker, date}). An unknown name returns the list of known ones.",
+    compact: "Meaning, how to judge, and their value for any figure (MAE, PF, win rate...).",
+    parameters: {
+      type: "object",
+      properties: {
+        metric: { type: "string" },
+        trade: { type: "object", description: "{id} or {ticker, date}, for per-trade figures." },
+      },
+      required: ["metric"],
+    },
+  },
+  {
+    name: "get_market_data",
+    compactSet: true,
+    full: "Live-ish market data for any ticker (not only ones in the journal): current quote with its time, and daily price history over a range with high, low and % change. Yahoo symbols: stocks AAPL, crypto BTC-USD, forex EURUSD=X, indices ^GSPC / ^IXIC. Quotes may be delayed -- say when the quote is from. news: true adds recent headlines (titles and links only, no article text).",
+    compact: "Quote + daily prices, any ticker (BTC-USD, EURUSD=X, ^GSPC). news:true adds headlines.",
+    parameters: {
+      type: "object",
+      properties: {
+        symbol: { type: "string" },
+        range: { type: "string", enum: ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"] },
+        news: { type: "boolean" },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "calculate",
+    compactSet: true,
+    full: "Exact arithmetic: + - * / ^ %, parentheses, sqrt, abs, round(x, digits), floor, ceil, min, max, log, ln, exp, pow, pi. Use it for any calculation (position size, R multiple, what-if P/L, compounding) instead of doing the maths yourself.",
+    compact: "Exact maths: +-*/^%, sqrt, round(x,d), min, max, pow.",
+    parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"] },
+  },
+  {
+    name: "view_trade_chart",
+    compactSet: true,
+    needsVision: true,
+    full: "Look at one of a trade's chart screenshots: pass an image id from get_trade's `images`. The image is attached to the result. Use it to judge entries, exits, stops and the setup against the chart. At most 3 per question.",
+    compact: "See a trade's chart screenshot (image_id from get_trade).",
+    parameters: { type: "object", properties: { image_id: { type: "string" } }, required: ["image_id"] },
+  },
+  {
+    name: "propose_change",
+    compactSet: true,
+    needsProposals: true,
+    full:
+      "Suggest a change to the journal. It is NOT made: the user sees a card with Apply / Dismiss and decides. " +
+      "Name the trade by trade_id, or ticker + date. " +
+      `fill_field: field (${FILLABLE_FIELDS.join(", ")}) + value -- only a field that is empty now. ` +
+      "tag_strategy: strategy (an existing strategy's name). " +
+      "add_note: text, added after what's there (field: a notes field's name; default the main one). " +
+      "tag_mistake: mistake (one of the journal's mistake tags). " +
+      "create_goal: label, goal_kind (aggregate | reduction), target, target_direction (at_least | at_most), " +
+      "period (month | quarter | year | all_time), and metric for aggregate (trade_count, win_rate as a % like 55, " +
+      "expectancy, avg_loss_r, total_r) or mistake for reduction. " +
+      "Only when the user asks for a change or clearly would want one; one call per change.",
+    compact:
+      "Suggest a change; the user must click Apply. Trade by trade_id or ticker+date. fill_field: field+value (empty fields only); " +
+      "tag_strategy: strategy; add_note: text; tag_mistake: mistake; create_goal: label, goal_kind, metric|mistake, target, target_direction, period.",
+    parameters: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["fill_field", "tag_strategy", "add_note", "tag_mistake", "create_goal"] },
+        trade_id: { type: "string" },
+        ticker: { type: "string" },
+        date: { type: "string" },
+        field: { type: "string" },
+        value: { type: "string" },
+        strategy: { type: "string" },
+        text: { type: "string" },
+        mistake: { type: "string" },
+        label: { type: "string" },
+        goal_kind: { type: "string" },
+        metric: { type: "string" },
+        target: { type: "number" },
+        target_direction: { type: "string" },
+        period: { type: "string" },
+      },
+      required: ["kind"],
+    },
+  },
+  {
     name: "get_reviews",
     full: "Past AI reviews the trader generated: the review for one trade (by trade_id), or recent weekly/monthly reviews. Useful for 'what did the last review say' or to avoid repeating advice already given.",
     parameters: {
@@ -218,17 +311,21 @@ function toToolDef(d: Def, compact: boolean): ToolDef {
 }
 
 /** The definitions offered to the model under a given tier policy. */
-export function toolDefsFor(policy: TierPolicy): ToolDef[] {
+export function toolDefsFor(policy: TierPolicy, options: { vision?: boolean; proposals?: boolean } = {}): ToolDef[] {
+  const offered = DEFS.filter((d) => (!d.needsVision || options.vision) && (!d.needsProposals || options.proposals));
   if (policy.toolSet === "compact") {
-    return DEFS.filter((d) => d.compactSet).map((d) => toToolDef(d, true));
+    return offered.filter((d) => d.compactSet).map((d) => toToolDef(d, true));
   }
-  return DEFS.map((d) => toToolDef(d, false));
+  return offered.map((d) => toToolDef(d, false));
 }
 
-/** Every tool, full descriptions -- what a paid key sees. */
+/** Every tool, full descriptions -- what a paid key on an image-capable provider sees, once 0070 is applied. */
 export const TOOL_DEFS: ToolDef[] = DEFS.map((d) => toToolDef(d, false));
 
 // ---- executor ---------------------------------------------------------------
+
+/** Market-data lookups one executor (one model round) will make. */
+const MAX_MARKET_LOOKUPS = 6;
 
 /** Output ceiling when the caller names none: the paid tier's. */
 const DEFAULT_OUTPUT_BUDGET = 24_000;
@@ -250,13 +347,19 @@ export function makeToolExecutor(
   timezone: string | null,
   store?: TradeStore,
   maxOutputChars: number = DEFAULT_OUTPUT_BUDGET,
+  options: { vision?: VisionState; proposals?: { conversationId: string; userId: string } } = {},
 ) {
   const ctx: ToolContext = {
     supabase,
     timezone,
     store: store ?? new TradeStore(supabase, timezone),
     outputBudget: maxOutputChars,
+    vision: options.vision,
+    proposals: options.proposals ? { ...options.proposals, made: 0 } : undefined,
   };
+
+  let marketLookups = 0;
+  const chartsShown = { count: 0 };
 
   return async function execute(call: ToolCall): Promise<string> {
     try {
@@ -300,6 +403,28 @@ export function makeToolExecutor(
           break;
         case "get_reviews":
           result = await getReviews(ctx, getReviewsSchema.parse(call.args ?? {}));
+          break;
+        case "get_market_data":
+          // Each lookup is a request to Yahoo from this app's address: a
+          // handful per answer is plenty, and a looping model can't run up
+          // the app-wide ceiling everyone shares.
+          if (++marketLookups > MAX_MARKET_LOOKUPS) {
+            result = { error: `At most ${MAX_MARKET_LOOKUPS} market lookups per answer. Answer with what you have.` };
+            break;
+          }
+          result = await getMarketData(getMarketDataSchema.parse(call.args), ctx.outputBudget);
+          break;
+        case "calculate":
+          result = calculate(calculateSchema.parse(call.args));
+          break;
+        case "explain_metric":
+          result = await explainMetric(ctx, explainMetricSchema.parse(call.args));
+          break;
+        case "view_trade_chart":
+          result = await viewTradeChart(ctx, viewTradeChartSchema.parse(call.args), chartsShown);
+          break;
+        case "propose_change":
+          result = await proposeChange(ctx, call.id, proposeChangeSchema.parse(call.args));
           break;
         default:
           return JSON.stringify({ error: `Unknown tool "${call.name}".` });

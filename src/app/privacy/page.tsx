@@ -36,7 +36,10 @@ export default function PrivacyPage() {
         <p className={BODY}>
           <strong className="text-zinc-800 dark:text-zinc-200">Account information:</strong> the
           email address and password you sign up with. Passwords are handled by our
-          authentication provider (Supabase Auth) and are never visible to us in plain text.
+          authentication provider (Supabase Auth) and are never visible to us in plain text. If
+          you sign in with Google instead, Google confirms who you are and shares your email
+          address, name and profile picture with Supabase Auth, which stores them with your
+          account; we never see your Google password.
         </p>
         <p className={BODY}>
           <strong className="text-zinc-800 dark:text-zinc-200">Trade journal data:</strong>{" "}
@@ -89,7 +92,10 @@ export default function PrivacyPage() {
           the paid plan you can choose &ldquo;Read with AI&rdquo; for a screenshot: that one image is then
           sent to the AI provider of your own key, only after you agree for that provider. The
           recognition model runs locally as part of our infrastructure, and the image itself is
-          stored in your account&apos;s private storage.
+          stored in your account&apos;s private storage. Ask can also look at a trade&apos;s chart
+          screenshots, but only once you switch on &ldquo;Let Ask see my chart screenshots&rdquo; for that
+          provider: the image is then sent to it when a question needs it, and unticking the switch
+          stops that at once.
         </p>
 
         <h2 className={SECTION_HEADING}>Where your data is stored</h2>

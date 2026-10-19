@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { deleteStrategy, updateStrategy } from "@/lib/strategies/queries";
 import { strategyPatchSchema } from "@/lib/strategies/schema";
+import { log } from "@/lib/observability/log";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,7 +42,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if ((error as { code?: string })?.code === "23505") {
       return NextResponse.json({ error: "A strategy with that name already exists" }, { status: 400 });
     }
-    console.error("updateStrategy failed", { strategyId: id, error });
+    log.error("strategies.update_failed", { strategyId: id, error });
     return NextResponse.json({ error: "Could not save the strategy." }, { status: 500 });
   }
   if (!updated) {

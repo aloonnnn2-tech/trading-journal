@@ -6,9 +6,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FormError } from "@/components/form-error";
 import { failureMessage } from "@/lib/api/failure-message";
 import { useDialog } from "@/lib/a11y/use-dialog";
-import { signalQuickTradeClosed, signalTradeCreated } from "@/lib/tour/signals";
+import { signalQuickTradeClosed, signalQuickTradeOpened, signalTradeCreated } from "@/lib/tour/signals";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
+import { newIdempotencyKey } from "@/lib/http/idempotency-key";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -19,6 +20,9 @@ export function AddTradeButton({ label = "+ Add trade" }: { label?: string } = {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A ref, not `loading`: a fast double click fires both handlers before
+  // React re-renders with the button disabled, and made two trades.
+  const busy = useRef(false);
 
   // Without the res.ok check, a failed create still parsed a body, read
   // `undefined` off it and navigated to /trades/undefined -- and because
@@ -26,21 +30,25 @@ export function AddTradeButton({ label = "+ Add trade" }: { label?: string } = {
   // "Creating..." with no way to retry. Same guard the keyboard-shortcut
   // and screenshot paths already use.
   async function handleClick() {
+    if (busy.current) return;
+    busy.current = true;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/trades", { method: "POST" });
+      const res = await fetch("/api/trades", { method: "POST", headers: { "Idempotency-Key": newIdempotencyKey() } });
       if (!res.ok) {
         // Reads the route's own message rather than discarding it, so a
         // rate-limited create says so instead of blaming the connection.
         setError(await failureMessage(res, "Couldn't create the trade. Please try again."));
         setLoading(false);
+        busy.current = false;
         return;
       }
       const trade = (await res.json()) as { id: string };
       router.push(`/trades/${trade.id}`);
     } catch {
       setLoading(false);
+      busy.current = false;
       // Was window.alert(): modal, unstyled, and dismissed before a screen
       // reader user could reach it.
       setError("Couldn't create the trade. Check your connection and try again.");
@@ -73,6 +81,7 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
   const [takeProfit, setTakeProfit] = useState("");
   const [shares, setShares] = useState("");
   const [dollarAmount, setDollarAmount] = useState("");
+  const createBusy = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   // Escape, the Tab focus trap, background scroll lock and focus restore all
@@ -143,20 +152,21 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
   }
 
   async function handleCreate(skipDetails: boolean) {
+    // A ref, not `submitting`: a fast double click on Create fires both
+    // handlers before the re-render that disables the button.
+    if (createBusy.current) return;
+    createBusy.current = true;
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/trades", { method: "POST" });
-      if (!res.ok) throw new Error();
-      const trade = (await res.json()) as { id: string };
-
+      let core: Record<string, unknown> | null = null;
       if (!skipDetails && (ticker || entryPrice || stopLoss || takeProfit || shares || dollarAmount)) {
         const entryPriceNum = entryPrice === "" ? null : Number(entryPrice);
         const stopLossNum = stopLoss === "" ? null : Number(stopLoss);
         const sharesNum = shares === "" ? null : Number(shares);
         const dollarAmountNum = dollarAmount === "" ? null : Number(dollarAmount);
 
-        const core: Record<string, unknown> = {
+        core = {
           ticker,
           direction,
           status,
@@ -187,28 +197,26 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
           accountBalance,
         );
         Object.assign(core, derived);
-
-        // An unchecked PATCH here was the worse half of this bug: the trade
-        // got created but every detail typed into this form was dropped, and
-        // the modal closed as if it had all saved.
-        const patchRes = await fetch(`/api/trades/${trade.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ core }),
-        });
-        // The trade exists either way, so send the user to it rather than
-        // stranding them -- but say the details didn't save, since the whole
-        // point of the form was entering them.
-        if (!patchRes.ok) {
-          setSubmitting(false);
-          setError("Trade created, but its details couldn't be saved. Opening it so you can fill them in.");
-          signalTradeCreated(`/trades/${trade.id}`);
-          setTimeout(() => router.push(`/trades/${trade.id}`), 1200);
-          return;
-        }
       }
 
+      // One request, details included: it used to be a create and then a
+      // PATCH, and a failed PATCH left a blank trade behind. The server now
+      // saves both or neither (src/app/api/trades/route.ts).
+      const res = await fetch("/api/trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": newIdempotencyKey() },
+        body: core ? JSON.stringify({ core }) : undefined,
+      });
+      if (!res.ok) {
+        setSubmitting(false);
+        createBusy.current = false;
+        setError(await failureMessage(res, "Couldn't create the trade. Please try again."));
+        return;
+      }
+      const trade = (await res.json()) as { id: string };
+
       setSubmitting(false);
+      createBusy.current = false;
       // Before closing: the tour must know the form went away because a trade
       // was made, not because it was cancelled.
       signalTradeCreated(`/trades/${trade.id}`);
@@ -217,6 +225,7 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
       router.push(`/trades/${trade.id}`);
     } catch {
       setSubmitting(false);
+      createBusy.current = false;
       setError("Couldn't create the trade. Check your connection and try again.");
     }
   }
@@ -225,7 +234,10 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
     <>
       <button
         data-tour-id="dashboard-quick-trade"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          signalQuickTradeOpened();
+          setOpen(true);
+        }}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 shadow-[0_1px_2px_rgba(28,27,24,0.2)] hover:brightness-110"
       >
         Quick trade
@@ -235,9 +247,12 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
         {open && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            // Click-through the moment it starts closing: the fading backdrop
+            // stayed on top for its exit animation and swallowed the next
+            // click -- "my click didn't register" (e2e/navigation-feedback).
+            exit={{ opacity: 0, pointerEvents: "none" }}
+            className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
             onClick={() => !submitting && closeWithoutCreating()}
           >
             <motion.div
@@ -245,7 +260,7 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.15 }}
-              className="w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
+              className="dialog-panel w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
               onClick={(e) => e.stopPropagation()}
               ref={dialogRef}
               role="dialog"
@@ -380,7 +395,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                 {error}
               </FormError>
 
-              <div className="mt-5 flex items-center justify-between">
+              {/* Pinned to the bottom of the panel, which scrolls on a short
+                  phone screen: Create trade stays in reach without scrolling. */}
+              <div className="sticky -bottom-6 -mx-6 -mb-6 mt-2 flex items-center justify-between bg-white px-6 pt-3 pb-6 dark:bg-card">
                 <button
                   onClick={() => handleCreate(true)}
                   disabled={submitting}

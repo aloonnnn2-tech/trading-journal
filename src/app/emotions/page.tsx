@@ -4,6 +4,7 @@ import { requireUserId } from "@/lib/supabase/auth";
 import { getEmotionBreakdown, getEmotionHistory } from "@/lib/emotions/queries";
 import { Card } from "@/components/ui/Card";
 import { formatMoney } from "@/lib/format/money";
+import { ShowMoreOnPhone } from "@/components/mobile/show-more-on-phone";
 
 export default async function EmotionsPage() {
   await requireUserId();
@@ -64,9 +65,12 @@ export default async function EmotionsPage() {
         {history.length === 0 ? (
           <p className="text-sm text-zinc-500">No emotion entries yet.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          // Phones: the first three, then "Show all" -- every entry stacked
+          // made this page ~5,900px tall on a 360px screen with 36 trades.
+          <div className="flex flex-col gap-2">
+          <ShowMoreOnPhone count={history.length} noun="entries" className="flex flex-col gap-2">
             {history.map((entry) => (
-              <li key={entry.tradeId}>
+              <div key={entry.tradeId}>
                 <Link
                   href={`/trades/${entry.tradeId}`}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -100,9 +104,10 @@ export default async function EmotionsPage() {
                     )}
                   </span>
                 </Link>
-              </li>
+              </div>
             ))}
-          </ul>
+          </ShowMoreOnPhone>
+          </div>
         )}
       </Card>
     </div>

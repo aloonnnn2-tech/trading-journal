@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { logEvent, logEvents } from "@/lib/tracking/log";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateClientEvent, type ClientEventName } from "@/lib/tracking/events";
+import { log } from "@/lib/observability/log";
 
 // Browser analytics events. Every event must be one of CLIENT_EVENTS in
 // src/lib/tracking/events.ts and match that event's props schema. Unknown
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
   if (rejectedCount > 0) {
     // Counts and event names only, never props: a reject is a client out of
     // step with events.ts (an old tab, a new event without a registry entry).
-    console.warn("[analytics] rejected events", { count: rejectedCount, byReason: rejected });
+    log.warn("analytics.events_rejected", { count: rejectedCount, byReason: rejected });
   }
   if (accepted.length === 0) {
     return NextResponse.json({ error: "Unknown or malformed event", rejected: rejectedCount }, { status: 400 });

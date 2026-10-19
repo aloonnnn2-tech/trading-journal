@@ -4,7 +4,7 @@
  * whatever arrives -- `request.json()` and `request.formData()` read the
  * whole body before a single validation rule sees it.
  *
- * Two tiers. Uploads and imports legitimately carry megabytes: a 5 MB
+ * Two tiers. Uploads and imports legitimately carry megabytes: a 4 MB
  * screenshot or spreadsheet (the routes' own MAX_BYTES) plus multipart
  * overhead, or up to 20,000 import rows as JSON. Everything else is a form
  * field or a small JSON object, where 1 MB is already orders of magnitude

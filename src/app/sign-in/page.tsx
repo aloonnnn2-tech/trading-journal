@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { afterSignIn } from "@/lib/auth/next-path";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/brand-mark";
+import { ResendConfirmation } from "@/components/auth/resend-confirmation";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
 import { endSession, useAnalytics } from "@/lib/tracking/useAnalytics";
@@ -39,16 +41,25 @@ function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
+    // Usually the link was already used -- by a mail scanner opening it
+    // before the person did, or by an earlier click -- and for a sign-up
+    // link that means the account IS confirmed. Signing in settles it either
+    // way: it works, or it says "not confirmed" and offers a fresh link.
     searchParams.get("error") === "confirmation_failed"
-      ? "That confirmation link is invalid or has expired. Please sign up again or request a new link."
-      : null,
+      ? searchParams.get("kind") === "recovery"
+        ? "That password reset link was already used or has expired. Use Forgot password? below to get a new one."
+        : "That link was already used or has expired. You may already be confirmed: sign in below. If not, we'll offer to send a new link."
+      : searchParams.get("error") === "oauth_cancelled"
+        ? "Google sign-in was cancelled. Try again, or sign in with your email below."
+        : searchParams.get("error") === "oauth_failed"
+          ? "Couldn't finish signing in with Google. Try again, or sign in with your email below."
+          : null,
   );
   const [loading, setLoading] = useState(false);
   // Supabase rejects a sign-in from an account that never clicked its
   // confirmation link. Without an offer to resend, an expired or lost email
   // is a dead end -- the account exists, so signing up again fails too.
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
-  const [resent, setResent] = useState(false);
   const captcha = useRef<TurnstileHandle>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,10 +67,6 @@ function SignInForm() {
     setLoading(true);
     setError(null);
     setNeedsConfirmation(false);
-    // Otherwise a second unconfirmed sign-in still shows the "sent again"
-    // note from the first one -- claiming an email was sent that wasn't, and
-    // hiding the button that would actually send it.
-    setResent(false);
 
     const captchaToken = await captcha.current?.getToken();
     if (CAPTCHA_ENABLED && !captchaToken) {
@@ -96,28 +103,6 @@ function SignInForm() {
     window.location.href = afterSignIn(searchParams.get("next"));
   }
 
-  async function handleResend() {
-    const captchaToken = await captcha.current?.getToken();
-    if (CAPTCHA_ENABLED && !captchaToken) {
-      setError(captcha.current?.problem() ?? CAPTCHA_INCOMPLETE);
-      return;
-    }
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
-        captchaToken,
-      },
-    });
-    captcha.current?.reset();
-    if (error) {
-      setError(authErrorMessage(error));
-      return;
-    }
-    setResent(true);
-  }
-
   return (
     <div
       data-v2-page="auth"
@@ -136,6 +121,7 @@ function SignInForm() {
             <p className="mt-0.5 text-sm text-zinc-500">Sign in to your journal.</p>
           </div>
         </div>
+        <OAuthButtons next={searchParams.get("next")} onError={setError} />
         <label className="flex flex-col gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
           Email
           <input
@@ -168,23 +154,7 @@ function SignInForm() {
         </label>
         <Turnstile ref={captcha} />
         <FormError>{error}</FormError>
-        {needsConfirmation &&
-          (resent ? (
-            // role="status" rather than "alert": this is a confirmation, so it
-            // should be announced politely once the screen reader finishes what
-            // it is saying, not interrupt mid-sentence the way an error should.
-            <p role="status" className="text-sm text-zinc-500">
-              Confirmation email sent again. It can take a minute to arrive.
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={handleResend}
-              className="self-start text-sm font-medium text-primary hover:underline"
-            >
-              Resend confirmation email
-            </button>
-          ))}
+        {needsConfirmation && <ResendConfirmation email={email} captcha={captcha} onError={setError} />}
         <button
           type="submit"
           disabled={loading}

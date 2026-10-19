@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventName } from "@/lib/tracking/events";
+import { log } from "@/lib/observability/log";
 
 // Events are written with the service-role client, never the user's own
 // (migration 0066). While users could insert into analytics_events
@@ -87,9 +88,9 @@ export async function upsertHeartbeat(
       // Best-effort, like logEvent -- a lost beat must never fail the request
       // that carried it. Logged rather than swallowed, because swallowing is
       // exactly what hid this bug for weeks.
-      console.warn("heartbeat failed:", error.message);
+      log.warn("analytics.heartbeat_failed", { error });
     }
   } catch (err) {
-    console.warn("heartbeat threw:", err instanceof Error ? err.message : err);
+    log.warn("analytics.heartbeat_threw", { error: err });
   }
 }

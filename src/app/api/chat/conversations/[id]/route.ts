@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { getActiveKeyMeta } from "@/lib/ai-keys/queries";
 import type { AIProviderName } from "@/lib/ai-keys/types";
-import { foldMessages } from "@/lib/chat/fold";
+import { attachProposals, foldMessages } from "@/lib/chat/fold";
+import { listProposals, toView } from "@/lib/chat/proposals";
 import {
   deleteConversation,
   getConversation,
@@ -33,8 +34,11 @@ export async function GET(_request: Request, { params }: Params) {
   // resolve, and a 403 would confirm the id exists.
   if (!conversation) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const rows = await listMessages(gate.supabase, id, gate.userId);
-  return NextResponse.json({ conversation, turns: foldMessages(rows) });
+  const [rows, proposals] = await Promise.all([
+    listMessages(gate.supabase, id, gate.userId),
+    listProposals(gate.supabase, id),
+  ]);
+  return NextResponse.json({ conversation, turns: attachProposals(foldMessages(rows), proposals.map(toView)) });
 }
 
 const patchSchema = z

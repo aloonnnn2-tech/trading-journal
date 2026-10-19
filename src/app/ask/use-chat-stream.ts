@@ -99,6 +99,9 @@ export function useChatStream(opts: {
             ok: event.ok,
           });
           break;
+        case "proposal":
+          last.proposals = [...(last.proposals ?? []).filter((p) => p.id !== event.proposal.id), event.proposal];
+          break;
         case "message_end":
           if (event.stopReason === "tool_calls") {
             // A tool-only assistant turn is not an answer; clear the

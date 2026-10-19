@@ -8,7 +8,8 @@ import { FREE_TIER_PROVIDERS, PROVIDER_LABELS, SELECTABLE_PROVIDERS } from "@/li
 import { listConsentedProviders } from "@/lib/ai-keys/consent";
 import { Card } from "@/components/ui/Card";
 import { getConversation, listConversations, listMessages, type Conversation } from "@/lib/chat/queries";
-import { foldMessages, type TurnView } from "@/lib/chat/fold";
+import { attachProposals, foldMessages, type TurnView } from "@/lib/chat/fold";
+import { listProposals, toView } from "@/lib/chat/proposals";
 import { ChatShell } from "./chat-shell";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
@@ -45,13 +46,15 @@ export default async function AskPage({
   // user's request never touches those tables, so the paywall can't leak
   // whether they once had a key. Consent is read under the CHAT scope (0047):
   // agreement to the older per-question disclosure does not carry over.
-  const [keys, consents, conversations] = paid
+  const [keys, consents, imageConsents, conversations] = paid
     ? await Promise.all([
         listApiKeys(supabase),
         listConsentedProviders(supabase, "chat_v2"),
+        // Chart screenshots are their own switch (chat_images_v1).
+        listConsentedProviders(supabase, "chat_images_v1"),
         listConversations(supabase),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   // Server-render the requested conversation so a refresh lands on the same
   // transcript with no flash. RLS makes another user's id simply not resolve.
@@ -60,7 +63,13 @@ export default async function AskPage({
   // A non-UUID id used to reach Postgres and 500 the whole page render.
   if (paid && requestedId && UUID.test(requestedId)) {
     conversation = await getConversation(supabase, requestedId);
-    if (conversation) turns = foldMessages(await listMessages(supabase, requestedId, userId));
+    if (conversation) {
+      const [rows, proposals] = await Promise.all([
+        listMessages(supabase, requestedId, userId),
+        listProposals(supabase, requestedId),
+      ]);
+      turns = attachProposals(foldMessages(rows), proposals.map(toView));
+    }
   }
 
   return (
@@ -79,8 +88,8 @@ export default async function AskPage({
           Ask Your Journal
         </h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          Ask questions about your own trading in plain English, answered by the AI provider you
-          connect.
+          Ask anything: your own trading, a ticker, the market, or something else entirely. Answered
+          by the AI provider you connect, with your journal and live prices to hand.
         </p>
       </div>
 
@@ -88,6 +97,7 @@ export default async function AskPage({
         <ChatShell
           initialKeys={keys}
           initialConsents={consents}
+          initialImageConsents={imageConsents}
           initialConversations={conversations}
           initialConversation={conversation}
           initialTurns={turns}

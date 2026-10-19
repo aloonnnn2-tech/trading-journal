@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { withIdempotency } from "@/lib/http/idempotency";
 import { deriveStatusAndResult, withDerivedFields } from "@/lib/trades/import";
 import { EDITABLE_CORE_FIELDS } from "@/lib/trades/types";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
@@ -9,6 +10,7 @@ import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { log } from "@/lib/observability/log";
 
 const BATCH_SIZE = 500;
 
@@ -25,7 +27,18 @@ const importJsonBodySchema = z.object({
 // Direct re-import of our own JSON export format: rows already use core
 // field names as keys, so no column-mapping step is needed -- just
 // whitelist known columns and recompute derived fields server-side.
+// A repeated submit (same Idempotency-Key -- a double click, a retried
+// request) gets the first import's answer back instead of importing the
+// whole file a second time. See src/lib/http/idempotency.ts.
 export async function POST(request: Request) {
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return withIdempotency(request, userId, "trades.import-json", () => runImport(request));
+}
+
+async function runImport(request: Request): Promise<Response> {
   const userId = await getUserIdFromHeader();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -134,7 +147,7 @@ export async function POST(request: Request) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
     const { error, count } = await supabase.from("trades").insert(batch, { count: "exact" });
     if (error) {
-      console.error("[import-json] batch insert failed:", error);
+      log.error("import_json.batch_failed", { error });
       errors.push({ row: -1, message: "batch insert failed" });
       continue;
     }

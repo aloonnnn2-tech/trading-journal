@@ -288,10 +288,13 @@ describe("an unknown tool", () => {
 });
 
 describe("tool definitions", () => {
-  it("full set exposes all thirteen read tools with object schemas", () => {
+  it("full set exposes the thirteen read tools plus calculate, market data, explain_metric and charts, with object schemas", () => {
     expect(TOOL_DEFS.map((t) => t.name).sort()).toEqual([
+      "calculate",
       "compute_stats",
+      "explain_metric",
       "get_account",
+      "get_market_data",
       "get_period_report",
       "get_report",
       "get_reviews",
@@ -302,7 +305,9 @@ describe("tool definitions", () => {
       "list_custom_fields",
       "list_folders",
       "list_strategies",
+      "propose_change",
       "query_trades",
+      "view_trade_chart",
     ]);
     for (const def of TOOL_DEFS) {
       expect(def.parameters.type).toBe("object");
@@ -311,11 +316,19 @@ describe("tool definitions", () => {
   });
 
   it("the free-tier compact set stays small enough for an 8k-token-per-minute budget", () => {
-    const compact = toolDefsFor(tierPolicyFor("groq"));
-    const full = toolDefsFor(tierPolicyFor("openai"));
+    // What a free key is actually sent once suggested changes are on (0070).
+    const compact = toolDefsFor(tierPolicyFor("groq"), { proposals: true });
+    const full = toolDefsFor(tierPolicyFor("openai"), { proposals: true, vision: true });
     expect(compact.length).toBeLessThan(full.length);
-    // Roughly 4 chars per token: 5 000 chars ≈ 1 250 tokens, sent every turn.
-    expect(JSON.stringify(compact).length).toBeLessThan(5_000);
+    // Roughly 4 chars per token: 5 800 chars ≈ 1 450 tokens, sent every turn.
+    // Raised from 5 000 for calculate and get_market_data (2026-10-16), then
+    // for explain_metric (2026-10-17), which pays for itself: "what's my X and
+    // is it good" now takes one lookup instead of two, and every round saved
+    // skips re-sending these definitions and the history altogether. Then to
+    // 6 600 for propose_change (2026-10-17): one flat definition for all five
+    // kinds of suggested change, about 200 tokens a round, so a free key
+    // (Alon's Groq key) can suggest changes too.
+    expect(JSON.stringify(compact).length).toBeLessThan(6_600);
     // Every compact tool is a real tool.
     const names = new Set(full.map((t) => t.name));
     for (const t of compact) expect(names.has(t.name)).toBe(true);

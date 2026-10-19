@@ -6,6 +6,7 @@ import { getTrade } from "@/lib/trades/queries";
 import { DETECTED_LABELS } from "@/lib/mistakes/analyze";
 import { isMissingColumnError } from "@/lib/supabase/errors";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { log } from "@/lib/observability/log";
 import {
   MISTAKE_FIELD_KEY,
   dismissedLabels,
@@ -99,7 +100,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq("id", id);
 
     if (error) {
-      console.error("accept suggestion failed", { tradeId: id, error });
+      log.error("suggestions.accept_failed", { tradeId: id, error });
       return NextResponse.json({ error: "Failed to add the tag" }, { status: 400 });
     }
     void logEvent(userId, SERVER_SESSION_ID, "trade_edited", { tradeId: id });
@@ -130,7 +131,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { status: 503 },
       );
     }
-    console.error("dismiss suggestion failed", { tradeId: id, error });
+    log.error("suggestions.dismiss_failed", { tradeId: id, error });
     return NextResponse.json({ error: "Failed to dismiss the suggestion" }, { status: 400 });
   }
 

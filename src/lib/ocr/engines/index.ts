@@ -7,6 +7,7 @@
 import type { OcrLine, OcrPassResult } from "../types";
 import type { PreprocessVariant } from "../preprocess";
 import { paddleEngine } from "./paddle";
+import { log } from "@/lib/observability/log";
 
 /** Char-weighted mean confidence — long confident lines matter more. */
 function meanConfidence(lines: OcrLine[]): number {
@@ -61,7 +62,7 @@ export async function runOcr(variants: PreprocessVariant[]): Promise<OcrPassResu
       // something usable, regardless of which variant it came from. Still
       // log it — a silently-swallowed model/native-addon load failure here
       // is otherwise invisible (the pipeline never throws to the caller).
-      console.error(`[ocr] paddle engine failed on variant "${variant.name}":`, err);
+      log.error("ocr.paddle_variant_failed", { variant: variant.name, error: err });
     }
   }
 

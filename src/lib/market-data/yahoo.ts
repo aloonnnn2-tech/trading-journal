@@ -1,3 +1,4 @@
+import { CircuitBreaker, resilientFetch } from "@/lib/http/resilient-fetch";
 import { isCalendarInterval, type BarInterval } from "./trade-window";
 
 /**
@@ -51,37 +52,26 @@ export interface YahooFetchResult {
   quoteTime: Date | null;
 }
 
-// Yahoo's endpoint is unofficial/undocumented, but the failure it's most
-// likely to hit in practice is a transient blip (a dropped connection, a
-// momentary 5xx) rather than Yahoo being genuinely down -- worth a couple of
-// short retries before giving up. A 4xx (e.g. 404 for an unknown symbol) is
-// not transient, so it's not retried.
-const RETRY_DELAYS_MS = [300, 900];
+// Yahoo's endpoint is unofficial/undocumented. Its likeliest failure is a
+// transient blip (a dropped connection, a momentary 5xx or 429), worth a
+// couple of short retries; a 4xx such as 404 for an unknown symbol is an
+// answer, not an outage, and comes back as null.
+//
+// A real outage THROWS UpstreamUnavailableError instead of returning null,
+// so the chart can say "market data temporarily unavailable" rather than
+// "no price history for this symbol". Every attempt has a timeout -- the
+// old retry loop had none, so a hung connection held the request until the
+// platform killed it. The breaker is per serverless instance; see
+// src/lib/http/resilient-fetch.ts.
+const yahooBreaker = new CircuitBreaker(5, 30_000);
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit & { next?: { revalidate?: number } },
-): Promise<Response> {
-  const maxAttempts = RETRY_DELAYS_MS.length + 1;
-  let lastError: unknown;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const isLastAttempt = attempt === maxAttempts - 1;
-    try {
-      const res = await fetch(url, init);
-      if (res.ok || res.status < 500 || isLastAttempt) return res;
-    } catch (err) {
-      lastError = err;
-      if (isLastAttempt) throw lastError;
-      await sleep(RETRY_DELAYS_MS[attempt]);
-      continue;
-    }
-    await sleep(RETRY_DELAYS_MS[attempt]);
-  }
-  throw lastError;
+/** Worst case: 3 attempts of 6s plus about 2.3s of backoff, inside the 26s function budget. */
+function fetchYahoo(url: string, revalidate: number): Promise<Response> {
+  return resilientFetch(
+    url,
+    { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate } },
+    { upstream: "Yahoo market data", timeoutMs: 6_000, idempotent: true, attempts: 3, breaker: yahooBreaker },
+  );
 }
 
 // Yahoo Finance's undocumented chart endpoint -- no API key required, but
@@ -97,10 +87,7 @@ export async function fetchYahooCandles(
 ): Promise<YahooFetchResult | null> {
   const { range = "2y", revalidate = 300 } = options;
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
-  const res = await fetchWithRetry(url, {
-    headers: { "User-Agent": "Mozilla/5.0" },
-    next: { revalidate },
-  });
+  const res = await fetchYahoo(url, revalidate);
   if (!res.ok) return null;
 
   const json = await res.json();
@@ -162,6 +149,50 @@ export async function fetchYahooCandles(
   };
 }
 
+export interface YahooNewsItem {
+  title: string;
+  publisher: string | null;
+  link: string | null;
+  published: string | null;
+  /** Tickers Yahoo tags the story with; a search for NVDA also returns market-wide stories. */
+  related: string[];
+}
+
+/**
+ * Recent headlines for a symbol, from the search endpoint Yahoo's own site
+ * uses. Unofficial like the chart endpoint, with the same fetch, retries and
+ * breaker. Headlines and links only -- there is no article text. Every field
+ * is third-party text: callers hand it on as data, never as instructions.
+ */
+export async function fetchYahooNews(symbol: string, count = 8): Promise<YahooNewsItem[] | null> {
+  const url =
+    `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(symbol)}` +
+    `&quotesCount=0&newsCount=${count}&enableFuzzyQuery=false`;
+  const res = await fetchYahoo(url, 600);
+  if (!res.ok) return null;
+  const json = await res.json().catch(() => null);
+  const news: unknown[] = Array.isArray(json?.news) ? json.news : [];
+  const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+  return news.slice(0, count).flatMap((raw) => {
+    const n = raw as Record<string, unknown>;
+    const title = text(n.title, 300);
+    if (!title) return [];
+    const link = text(n.link, 500);
+    const time = typeof n.providerPublishTime === "number" ? n.providerPublishTime : NaN;
+    return [
+      {
+        title,
+        publisher: text(n.publisher, 80),
+        link: link && link.startsWith("https://") ? link : null,
+        published: Number.isFinite(time) ? new Date(time * 1000).toISOString() : null,
+        related: Array.isArray(n.relatedTickers)
+          ? n.relatedTickers.filter((t): t is string => typeof t === "string").slice(0, 8)
+          : [],
+      },
+    ];
+  });
+}
+
 /**
  * Just the session high/low, for the background job -- asks for the
  * shortest range Yahoo will serve since the candle history is irrelevant
@@ -214,10 +245,7 @@ export async function fetchYahooBars(
     // outside regular hours, and without them those trades have no bar.
     (isCalendarInterval(interval) ? "" : "&includePrePost=true");
   const settled = period2 < nowSeconds - 86_400;
-  const res = await fetchWithRetry(url, {
-    headers: { "User-Agent": "Mozilla/5.0" },
-    next: { revalidate: settled ? 86_400 : 300 },
-  });
+  const res = await fetchYahoo(url, settled ? 86_400 : 300);
   if (!res.ok) return null;
 
   const json = await res.json();

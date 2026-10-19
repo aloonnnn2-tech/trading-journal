@@ -13,6 +13,7 @@ import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/a
 import type { PeriodReviewContent } from "@/lib/ai-reviews/schema";
 import type { PeriodKind, ResolvedPeriod } from "@/lib/ai-reviews/period";
 import type { StoredReview } from "@/lib/ai-reviews/types";
+import { NETWORK_FAILURE } from "@/lib/api/failure-message";
 
 type Review = StoredReview<PeriodReviewContent>;
 
@@ -151,11 +152,18 @@ export function ReviewsManager({
           ...(kind === "custom" ? { startDate, endDate } : {}),
         };
 
-    const res = await fetch("/api/ai-reviews/period", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/ai-reviews/period", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      setRunning(false);
+      setError(NETWORK_FAILURE);
+      return;
+    }
     setRunning(false);
 
     if (!res.ok) {
@@ -194,11 +202,18 @@ export function ReviewsManager({
   async function acceptDisclosure() {
     if (!selected) return;
     setSavingConsent(true);
-    const res = await fetch("/api/ai-keys/consent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: selected.provider }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/ai-keys/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: selected.provider }),
+      });
+    } catch {
+      setSavingConsent(false);
+      setError(NETWORK_FAILURE);
+      return;
+    }
     setSavingConsent(false);
 
     if (!res.ok) {

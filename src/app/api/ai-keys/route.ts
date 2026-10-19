@@ -8,8 +8,8 @@ import { chooseModel } from "@/lib/ai-keys/providers/model-check";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
 import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { rateLimit } from "@/lib/rate-limit";
-import { scrubString } from "@/lib/observability/scrub";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
+import { log } from "@/lib/observability/log";
 
 export async function GET() {
   const gate = await requirePaidUser();
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     const failure = err instanceof ProviderError ? err.failure : "failed";
     const detail = err instanceof ProviderError ? err.detail : String(err);
     // Scrubbed: a provider's error body can echo the request, key included.
-    console.error(`[ai-keys] validate ${provider} ${failure}:`, scrubString(detail));
+    log.error("ai_keys.validate_failed", { provider, failure, detail });
 
     // Couldn't reach the provider at all. Deliberately *not* saved: an
     // unverified key is exactly what this step exists to prevent, and asking
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
   // user's key, needs updating, and saving would just defer the failure.
   const model = chooseModel(provider, check.models);
   if (!model) {
-    console.error(`[ai-keys] ${provider}: none of the model choices are in its live list of ${check.models.length}`);
+    log.error("ai_keys.no_known_model", { provider, liveModels: check.models.length });
     return NextResponse.json(
       {
         error: `Your key works, but none of the models this app knows for ${provider} are offered to it any more. This needs updating in the app — it isn't something you can fix. Another provider will work meanwhile.`,

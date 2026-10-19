@@ -4,6 +4,7 @@ import type { Trade } from "@/lib/trades/types";
 import { getLocalDayOfMonth, localDateParts, startOfLocalDayIso } from "@/lib/dates/local-day";
 import { getStatusCounts } from "@/lib/trades/queries";
 import { getAccountBalance, hasOwnCashEntries, type AccountBalance } from "@/lib/account/queries";
+import { log } from "@/lib/observability/log";
 
 // "Today" and "this month" are bucketed by the user's own calendar day, not
 // UTC's -- see src/lib/dates/local-day.ts for why that distinction matters
@@ -256,7 +257,7 @@ export async function getDashboardStats(
   });
 
   if (error) {
-    console.error("dashboard_stats RPC failed, falling back to per-query path:", error);
+    log.error("dashboard.stats_rpc_failed", { error, fallback: "per-query path" });
   }
 
   if (!error && data) {

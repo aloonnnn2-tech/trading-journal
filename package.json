@@ -1,9 +1,9 @@
 {
   "name": "trading-journal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
-    "node": ">=20.9"
+    "node": ">=24 <25"
   },
   "scripts": {
     "dev": "next dev",
@@ -16,6 +16,7 @@
     "ocr:eval-ai": "tsx scripts/ocr-eval/run-ai.ts",
     "backup:db": "tsx --env-file-if-exists=.env.local scripts/backup-db.ts",
     "restore:db": "tsx --env-file-if-exists=.env.local scripts/restore-db.ts",
+    "restore:storage": "tsx --env-file-if-exists=.env.local scripts/restore-storage.ts",
     "migrations:status": "tsx --env-file=.env.local scripts/migrations-status.ts",
     "dev-schema": "tsx scripts/build-dev-schema.ts",
     "verify:ai-secret": "tsx --conditions=react-server --env-file=.env.local scripts/verify-ai-key-secret.ts",
@@ -29,6 +30,7 @@
     "check:cache-secrets": "tsx --env-file=.env.local scripts/check-cache-secrets.ts",
     "check:design-v2": "tsx scripts/check-design-v2-scope.ts",
     "check:ai-models": "tsx --env-file-if-exists=.env.local scripts/check-ai-models.ts",
+    "ask:bench": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ask-bench/run.ts",
     "shots:marketing": "node scripts/capture-marketing-shots.mjs",
     "accounts:list": "tsx --env-file=.env.local scripts/list-accounts.ts",
     "seed:fake": "tsx scripts/seed-fake-data.mjs",

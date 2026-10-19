@@ -87,7 +87,19 @@ export interface ChatMessage {
   toolCallId?: string;
   /** On a `tool` message: the tool's name (Google pairs by name, not id). */
   toolName?: string;
+  /**
+   * On a `tool` message: images the tool showed the model (view_trade_chart).
+   * Loaded per request for the current question only, never stored -- see
+   * hydrateImages in src/lib/chat/turn.ts. Each adapter delivers them in the
+   * form its API accepts (below).
+   */
+  images?: AskImage[];
+  /** Internal, never sent: the trade_images ids hydrateImages is to load into `images`. */
+  imageIds?: string[];
 }
+
+/** Said with a tool result's images where an API can't put them inside the result itself. */
+export const TOOL_IMAGES_INTRO = "The chart screenshot(s) the tool result above refers to:";
 
 export interface ChatOnceInput {
   system: string;
@@ -207,6 +219,12 @@ export interface AskOptions {
    * SCREENSHOT_AI_PROVIDERS (src/lib/ocr/ai-providers.ts) are ever given any.
    */
   images?: AskImage[];
+  /**
+   * The incoming request's signal: when the user closes the tab, the call
+   * to the provider stops too, instead of finishing a generation nobody will
+   * read on the user's own (billed) key.
+   */
+  signal?: AbortSignal;
 }
 
 export interface AskImage {
@@ -315,7 +333,11 @@ export async function providerFetch(
     // strips `Authorization` on a cross-origin redirect it does NOT strip
     // `x-api-key` or `x-goog-api-key`. A provider (or anything between us and
     // it) answering 30x to another host must never receive the credential.
-    return await fetch(url, { ...init, redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
+    // The caller's own signal (the user closed the tab) aborts as well as the
+    // timeout: a generation nobody will read is still billed to their key.
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    return await fetch(url, { ...init, redirect: "error", signal });
   } catch (err) {
     // A timeout and a DNS/TLS failure are both "couldn't reach them", which is
     // the same advice to the user either way.

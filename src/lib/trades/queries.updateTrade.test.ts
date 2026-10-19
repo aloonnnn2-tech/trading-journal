@@ -17,19 +17,23 @@ function fakeSupabase(existing: Trade): SupabaseClient {
             maybeSingle: () => Promise.resolve({ data: existing, error: null }),
           }),
         }),
+        // .eq("id").eq("updated_at") -- the write is conditional on the row
+        // being as it was read (see updateTrade).
         update: (payload: Record<string, unknown>) => ({
           eq: () => ({
-            select: () => ({
-              single: () => {
-                updateCallCount += 1;
-                if (updateCallCount === 1) {
-                  return Promise.resolve({
-                    data: null,
-                    error: { code: "PGRST204", message: "column not found" },
-                  });
-                }
-                return Promise.resolve({ data: payload, error: null });
-              },
+            eq: () => ({
+              select: () => ({
+                maybeSingle: () => {
+                  updateCallCount += 1;
+                  if (updateCallCount === 1) {
+                    return Promise.resolve({
+                      data: null,
+                      error: { code: "PGRST204", message: "column not found" },
+                    });
+                  }
+                  return Promise.resolve({ data: payload, error: null });
+                },
+              }),
             }),
           }),
         }),

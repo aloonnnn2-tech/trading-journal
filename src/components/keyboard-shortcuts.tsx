@@ -1,9 +1,10 @@
 ﻿"use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { usePreferences } from "@/components/preferences/preferences-provider";
+import { newIdempotencyKey } from "@/lib/http/idempotency-key";
 
 // "g" then a letter is a Gmail/Linear-style nav chord -- pressed within
 // GO_CHORD_WINDOW_MS of each other, otherwise the "g" is dropped so a
@@ -30,6 +31,7 @@ export function KeyboardShortcuts() {
   const router = useRouter();
   const [helpOpen, setHelpOpen] = useState(false);
   const [goArmed, setGoArmed] = useState(false);
+  const creatingRef = useRef(false);
   const isPublicPage = PUBLIC_PATHS.includes(pathname);
   // Setup -> Settings "Keyboard shortcuts": off means none of these keys
   // do anything, the ? help included.
@@ -68,7 +70,12 @@ export function KeyboardShortcuts() {
 
       if (e.key === "n") {
         e.preventDefault();
-        fetch("/api/trades", { method: "POST" })
+        // Holding the key down repeats it, and each repeat made a trade.
+        // One press, one trade: repeats are ignored, and so is a second
+        // press while the first is still being created.
+        if (e.repeat || creatingRef.current) return;
+        creatingRef.current = true;
+        fetch("/api/trades", { method: "POST", headers: { "Idempotency-Key": newIdempotencyKey() } })
           .then((res) => {
             if (!res.ok) throw new Error("Failed to create trade");
             return res.json();
@@ -77,6 +84,9 @@ export function KeyboardShortcuts() {
           .catch(() => {
             // No toast infra reachable from this global shortcut handler --
             // failing silently is safer than navigating to /trades/undefined.
+          })
+          .finally(() => {
+            creatingRef.current = false;
           });
         return;
       }
@@ -106,11 +116,11 @@ export function KeyboardShortcuts() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={() => setHelpOpen(false)}
     >
       <div
-        className="w-80 rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-5"
+        className="dialog-panel w-80 max-w-full rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">

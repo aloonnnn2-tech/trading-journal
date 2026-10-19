@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   Info,
   CalendarDays,
@@ -24,7 +24,9 @@ import { PriceChart } from "@/components/trade-card/PriceChart";
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { Folder } from "@/lib/folders/types";
 import type { Strategy } from "@/lib/strategies/types";
-import { useAutosaveTrade } from "@/lib/trades/use-autosave-trade";
+import { useAutosaveTrade, type SaveStatus } from "@/lib/trades/use-autosave-trade";
+import { newIdempotencyKey } from "@/lib/http/idempotency-key";
+import { conflictFieldLabel } from "@/lib/trades/conflicts";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { isWatchable } from "@/lib/trades/auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
@@ -84,7 +86,7 @@ export function TradeCard({
   accountBalance?: number | null;
 }) {
   const router = useRouter();
-  const { trade, status, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade } =
+  const { trade, status, conflict, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade, resolveConflict } =
     useAutosaveTrade(initialTrade);
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeError, setFeeError] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export function TradeCard({
   // like it did nothing. Rendered inline instead, beside the buttons that
   // failed, in the same treatment every other error in the app uses.
   const [actionError, setActionError] = useState<string | null>(null);
+  const duplicating = useRef(false);
   // Namespaces the custom- and strategy-field ids below; the field keys are
   // user-defined, so two definitions could otherwise collide with anything
   // else on the page that happens to share a key.
@@ -263,16 +266,24 @@ export function TradeCard({
   }
 
   async function handleDuplicate() {
+    // A double click made two copies: there was no in-flight state at all.
+    if (duplicating.current) return;
+    duplicating.current = true;
     setActionError(null);
     try {
-      const res = await fetch(`/api/trades/${trade.id}/duplicate`, { method: "POST" });
+      const res = await fetch(`/api/trades/${trade.id}/duplicate`, {
+        method: "POST",
+        headers: { "Idempotency-Key": newIdempotencyKey() },
+      });
       if (!res.ok) {
         setActionError(await failureMessage(res, "Couldn't duplicate this trade. Please try again."));
+        duplicating.current = false;
         return;
       }
       const duplicate = (await res.json()) as Trade;
       router.push(`/trades/${duplicate.id}`);
     } catch {
+      duplicating.current = false;
       setActionError("Couldn't duplicate this trade. Check your connection and try again.");
     }
   }
@@ -357,6 +368,36 @@ export function TradeCard({
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2 text-sm text-primary">
           <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />
           {autoExecutionMessage}
+        </div>
+      )}
+      {conflict && (
+        // A save refused because the same field changed elsewhere (another
+        // tab, the background order check). Never a silent overwrite.
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-900 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p>
+            This trade was changed somewhere else while you were editing
+            {conflict.fields.length > 0 ? <> ({conflict.fields.map(conflictFieldLabel).join(", ")})</> : null}. Your
+            change isn&apos;t saved yet.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => resolveConflict("theirs")}
+              className="rounded-lg border border-amber-600/40 px-3 py-1.5 text-xs font-medium hover:bg-amber-500/10"
+            >
+              Use the saved version
+            </button>
+            <button
+              type="button"
+              onClick={() => resolveConflict("mine")}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:brightness-110 dark:text-zinc-950"
+            >
+              Keep my change
+            </button>
+          </div>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1109,12 +1150,13 @@ function ReadOnlyField({
   );
 }
 
-function SaveStatusBadge({ status }: { status: "idle" | "saving" | "saved" | "error" }) {
+function SaveStatusBadge({ status }: { status: SaveStatus }) {
   const text = {
     idle: "Autosave on",
     saving: "Saving...",
     saved: "Saved",
     error: "Save failed",
+    conflict: "Not saved: changed elsewhere",
   }[status];
 
   const color = {
@@ -1122,6 +1164,7 @@ function SaveStatusBadge({ status }: { status: "idle" | "saving" | "saved" | "er
     saving: "text-amber-500",
     saved: "text-profit",
     error: "text-loss",
+    conflict: "text-amber-600 dark:text-amber-400",
   }[status];
 
   return (

@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/http/upload-limits";
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB, same cap as the image upload route
+const MAX_BYTES = MAX_UPLOAD_BYTES; // the same cap as every upload (upload-limits.ts)
 
 // An .xlsx IS a zip archive, so MAX_BYTES bounds the COMPRESSED size only.
 // Highly repetitive sheet XML compresses at extreme ratios, so a few MB can
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
   }
 
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File exceeds 5 MB limit" }, { status: 400 });
+    return NextResponse.json({ error: `File exceeds the ${MAX_UPLOAD_LABEL} limit. Export fewer rows, or save it as CSV.` }, { status: 400 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());

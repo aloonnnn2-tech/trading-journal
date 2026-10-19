@@ -39,13 +39,13 @@ export function WelcomeModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="dialog-backdrop fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
     >
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.25, delay: 0.05 }}
-        className="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 text-center shadow-2xl"
+        className="dialog-panel flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-8 text-center shadow-2xl"
         ref={dialogRef}
         role="dialog"
         aria-modal="true"

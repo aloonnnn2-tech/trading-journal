@@ -18,7 +18,10 @@ describe("chooseModel", () => {
   });
 
   it("accepts a dated snapshot of an alias, but never a different model sharing a prefix", () => {
-    expect(chooseModel("anthropic", ["claude-haiku-4-5-20251001"])).toBe("claude-haiku-4-5-20251001");
+    expect(chooseModel("anthropic", ["claude-haiku-5-5-20261007"])).toBe("claude-haiku-5-5-20261007");
+    // claude-sonnet-5-5 is NOT a snapshot of claude-sonnet-5.
+    expect(chooseModel("anthropic", ["claude-sonnet-5-5"])).toBe("claude-sonnet-5-5");
+    expect(chooseModel("anthropic", ["claude-sonnet-5-5"], "claude-sonnet-5")).toBe("claude-sonnet-5-5");
     // gemini-3.8-flash-lite is NOT gemini-3.8-flash.
     expect(chooseModel("google", ["gemini-3.8-flash-lite"])).toBeNull();
   });

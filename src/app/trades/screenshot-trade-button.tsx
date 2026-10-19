@@ -16,6 +16,9 @@ import type { EditableCoreField, Trade } from "@/lib/trades/types";
 import { entryPriceLabels } from "@/lib/trades/order-labels";
 import { AiReadPanel } from "./ai-read-panel";
 import { signalReviewWow } from "@/lib/reviews/signals";
+import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
+import { newIdempotencyKey } from "@/lib/http/idempotency-key";
+import { failureMessage } from "@/lib/api/failure-message";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -110,6 +113,7 @@ export function ScreenshotTradeButton({
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const createBusy = useRef(false);
   const [showRaw, setShowRaw] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showExample, setShowExample] = useState(false);
@@ -172,8 +176,8 @@ export function ScreenshotTradeButton({
       setError("Unsupported image type. Use JPEG, PNG, WebP, or GIF.");
       return;
     }
-    if (selected.size > 5 * 1024 * 1024) {
-      setError("File exceeds 5 MB limit.");
+    if (selected.size > MAX_UPLOAD_BYTES) {
+      setError(UPLOAD_TOO_LARGE);
       return;
     }
 
@@ -222,13 +226,13 @@ export function ScreenshotTradeButton({
   }, [open, step]);
 
   async function handleCreate() {
+    // A ref, not `submitting`: a double click fires both handlers before
+    // the button re-renders as disabled.
+    if (createBusy.current) return;
+    createBusy.current = true;
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/trades", { method: "POST" });
-      if (!res.ok) throw new Error();
-      const trade = await res.json();
-
       // REQUIRED fields are checked before this can run (the button is
       // disabled until they are filled), so nothing here falls back to a
       // default value.
@@ -274,12 +278,21 @@ export function ScreenshotTradeButton({
         if (!(field in core)) core[field] = value;
       }
 
-      const patchRes = await fetch(`/api/trades/${trade.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      // One request with the details: a create followed by a separate PATCH
+      // left a blank trade behind whenever the PATCH failed. The server now
+      // saves both or neither.
+      const res = await fetch("/api/trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": newIdempotencyKey() },
         body: JSON.stringify({ core }),
       });
-      if (!patchRes.ok) throw new Error();
+      if (!res.ok) {
+        setError(await failureMessage(res, "Failed to create the trade. Try again."));
+        setSubmitting(false);
+        createBusy.current = false;
+        return;
+      }
+      const trade = (await res.json()) as { id: string };
 
       if (file) {
         const formData = new FormData();
@@ -293,6 +306,7 @@ export function ScreenshotTradeButton({
       router.push(`/trades/${trade.id}`);
     } catch {
       setError("Failed to create the trade. Check your connection and try again.");
+      createBusy.current = false;
       setSubmitting(false);
     }
   }
@@ -424,9 +438,10 @@ export function ScreenshotTradeButton({
         {open && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            // Click-through while it fades out, so it can't swallow the next click.
+            exit={{ opacity: 0, pointerEvents: "none" }}
+            className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
             onClick={close}
           >
             <motion.div
@@ -434,7 +449,7 @@ export function ScreenshotTradeButton({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.15 }}
-              className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
+              className="dialog-panel w-full max-w-md rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
               onClick={(e) => e.stopPropagation()}
               ref={dialogRef}
               role="dialog"

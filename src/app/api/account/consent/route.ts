@@ -4,6 +4,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { TERMS_VERSION } from "@/lib/legal/terms";
+import { log } from "@/lib/observability/log";
 
 // An existing account confirming it is 18+ and accepting the current Terms
 // and Privacy Policy (Alon, 2026-10-09). New accounts do this at sign-up,
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     .update({ age_confirmed_at: now, terms_accepted_at: now, terms_version: TERMS_VERSION })
     .eq("user_id", userId);
   if (error) {
-    console.error("[consent] update failed", { userId, error });
+    log.error("consent.update_failed", { userId, error });
     return NextResponse.json({ error: "Could not save that. Please try again." }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

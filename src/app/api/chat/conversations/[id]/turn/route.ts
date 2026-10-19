@@ -3,12 +3,16 @@ import { z } from "zod";
 import { requirePaidUser } from "@/lib/ai-keys/guard";
 import { preflightProviderCall } from "@/lib/ai-keys/preflight";
 import { buildToolOverview, buildToolSystemPrompt } from "@/lib/ai-keys/context";
-import { getProvider, MAX_ANSWER_TOKENS } from "@/lib/ai-keys/providers";
+import { getProvider } from "@/lib/ai-keys/providers";
 import { repickRetiredModel } from "@/lib/ai-keys/repick-model";
 import { markApiKeyInvalid } from "@/lib/ai-keys/queries";
 import { TradeStore, makeToolExecutor, toolDefsFor } from "@/lib/ai-keys/tools";
 import { tierPolicyFor } from "@/lib/ai-keys/tier";
+import { hasConsent } from "@/lib/ai-keys/consent";
+import { loadChartImage, type VisionState } from "@/lib/ai-keys/vision";
+import { SCREENSHOT_AI_PROVIDERS } from "@/lib/ocr/ai-providers";
 import { claimTurn, getConversation, releaseTurn } from "@/lib/chat/queries";
+import { describeOutcomes, listProposals, proposalsAvailable } from "@/lib/chat/proposals";
 import { encodeEvent, type ChatStreamEvent } from "@/lib/chat/protocol";
 import { runTurn } from "@/lib/chat/turn";
 import { getUserSettings } from "@/lib/settings/queries";
@@ -19,15 +23,18 @@ import { logError } from "@/lib/observability/scrub";
 
 // One turn of a conversation, streamed back as newline-delimited JSON.
 //
-// The platform ends any request at 26 s. Everything below budgets against a
-// deadline well inside that so the LAST event the client sees is ours -- a
-// clean `error` or `done` -- rather than the platform's own 502. runTurn
-// persists at unit boundaries, so even a hard cut loses at most one model
-// call, and the next request picks up where it stopped.
-export const maxDuration = 26;
+// Netlify ends a synchronous function at 60 s
+// (https://docs.netlify.com/build/functions/configuration/, checked
+// 2026-10-16; this used to assume 26 s and cut long answers short).
+// Everything below budgets against a deadline inside that so the LAST event
+// the client sees is ours -- a clean `error` or `done` -- rather than the
+// platform's own 502. runTurn persists at unit boundaries, so even a hard cut
+// loses at most one model call, and the next request picks up where it
+// stopped.
+export const maxDuration = 60;
 
 /** Wall-clock budget for the whole turn, from the top of the handler. */
-const TURN_BUDGET_MS = 22_000;
+const TURN_BUDGET_MS = 55_000;
 
 // Per-turn: a driven loop makes many short requests, so this is generous.
 // Per-message: new questions are what cost provider tokens on a free tier.
@@ -101,8 +108,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "This provider can't hold a conversation with tools." }, { status: 400 });
   }
 
+  // Charts: only to a provider whose models can see images, and only once
+  // the user has switched it on for that provider (its own consent scope).
+  const vision: VisionState = !SCREENSHOT_AI_PROVIDERS.has(ready.provider)
+    ? "unsupported"
+    : (await hasConsent(gate.supabase, ready.provider, "chat_images_v1").catch(() => false))
+      ? "on"
+      : "no_consent";
+
+  // Suggested changes need 0070; until it is applied Ask just can't suggest.
+  // What became of earlier suggestions goes into the prompt, so a follow-up
+  // knows whether the user applied them.
+  const canPropose = await proposalsAvailable(gate.supabase).catch(() => false);
+  const outcomes = canPropose ? describeOutcomes(await listProposals(gate.supabase, id).catch(() => [])) : null;
+
   const settings = await getUserSettings(gate.supabase, gate.userId);
-  const overview = await buildToolOverview(gate.supabase, settings.timezone);
+  const overview = await buildToolOverview(gate.supabase, settings.timezone, vision);
   if (overview.totalTrades === 0) {
     return NextResponse.json(
       { error: "There are no trades in your journal yet. Log a trade and then ask again." },
@@ -173,10 +194,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               }),
             onKeyRejected: () => markApiKeyInvalid(supabase, keyId),
             policy,
-            system: buildToolSystemPrompt(overview),
-            tools: toolDefsFor(policy),
-            execute: makeToolExecutor(supabase, settings.timezone, store, policy.maxToolOutputChars),
-            maxTokens: MAX_ANSWER_TOKENS,
+            system: buildToolSystemPrompt(overview, { canPropose, outcomes }),
+            tools: toolDefsFor(policy, { vision: vision !== "unsupported", proposals: canPropose }),
+            execute: makeToolExecutor(supabase, settings.timezone, store, policy.maxToolOutputChars, {
+              vision,
+              proposals: canPropose ? { conversationId: id, userId } : undefined,
+            }),
+            loadImage: vision === "on" ? (imageId) => loadChartImage(supabase, imageId) : undefined,
+            maxTokens: policy.maxAnswerTokens,
             deadline: startedAt + TURN_BUDGET_MS,
             signal: request.signal,
             newMessage,

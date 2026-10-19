@@ -10,6 +10,8 @@ import { NAV_GROUPS, PRIMARY_LINKS, navLinkTourId } from "@/lib/nav/links";
 import { AddTradeButton, QuickTradeButton } from "@/app/trades/new-trade-button";
 import { ScreenshotTradeButton } from "@/app/trades/screenshot-trade-button";
 import { useAccountThemeToggle } from "@/components/preferences/preferences-provider";
+import { TOUR_CLOSE_SHEETS_EVENT } from "@/lib/tour/signals";
+import { PendingLinkHint } from "@/components/nav/pending-link-hint";
 
 // The phone navigation (below `sm`, 640px): a bar fixed to the bottom of the
 // screen, where a thumb reaches, in place of the top bar's six items that
@@ -41,6 +43,13 @@ export function MobileTabBar() {
     setSheet(null);
   }
 
+  // The guided tour closes them when it points somewhere new.
+  useEffect(() => {
+    const close = () => setSheet(null);
+    window.addEventListener(TOUR_CLOSE_SHEETS_EVENT, close);
+    return () => window.removeEventListener(TOUR_CLOSE_SHEETS_EVENT, close);
+  }, []);
+
   if (PUBLIC_PATHS.includes(pathname)) return null;
 
   const moreActive = !TAB_HREFS.some((h) => isActive(pathname, h));
@@ -59,6 +68,7 @@ export function MobileTabBar() {
             <button
               type="button"
               aria-label="Add a trade"
+              data-tour-id="nav-add"
               aria-haspopup="dialog"
               onClick={() => setSheet("add")}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white shadow-sm active:scale-95 dark:text-zinc-950"
@@ -127,6 +137,7 @@ function AddSheet() {
       <ScreenshotTradeButton accountBalance={accountBalance} label="From a screenshot" />
       <Link
         href="/trades/import"
+        data-tour-id="trades-import"
         className="flex items-center justify-center gap-2 rounded-lg border border-zinc-300 py-3 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
       >
         <FileUp className="h-4 w-4" /> From a file (CSV, Excel)
@@ -142,12 +153,13 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
         href={href}
         data-tour-id={navLinkTourId(href)}
         aria-current={active ? "page" : undefined}
-        className={`flex h-full w-full flex-col items-center justify-center gap-0.5 text-[11px] ${
+        className={`relative flex h-full w-full flex-col items-center justify-center gap-0.5 text-[11px] ${
           active ? "text-primary" : "text-zinc-500 dark:text-zinc-400"
         }`}
       >
         {icon}
         {label}
+        <PendingLinkHint className="rounded-lg" />
       </Link>
     </li>
   );
@@ -174,19 +186,20 @@ function MoreLinks({ pathname }: { pathname: string }) {
                 href={l.href}
                 data-tour-id={navLinkTourId(l.href)}
                 aria-current={isActive(pathname, l.href) ? "page" : undefined}
-                className={`rounded-lg border px-3 py-2.5 text-sm ${
+                className={`relative rounded-lg border px-3 py-2.5 text-sm ${
                   isActive(pathname, l.href)
                     ? "border-primary/50 bg-primary/10 text-zinc-900 dark:text-zinc-50"
                     : "border-zinc-200 text-zinc-700 dark:border-subtle dark:text-zinc-200"
                 }`}
               >
                 {l.label}
+                <PendingLinkHint />
               </Link>
             ))}
           </div>
         </section>
       ))}
-      <section>
+      <section data-tour-id="trades-export">
         {/* The Trades page's Export menu is hidden on phones with the rest
             of its header buttons. */}
         <h3 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
@@ -253,7 +266,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-2xl border-t border-zinc-200 bg-white px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none dark:border-subtle dark:bg-card"
+        className="sheet-panel absolute inset-x-0 bottom-0 overflow-y-auto rounded-t-2xl border-t border-zinc-200 bg-white px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none dark:border-subtle dark:bg-card"
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{title}</h2>

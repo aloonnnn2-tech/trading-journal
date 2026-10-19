@@ -7,7 +7,7 @@ import { getProvider, ProviderError } from "@/lib/ai-keys/providers";
 import { isEncryptionConfigured } from "@/lib/ai-keys/crypto";
 import { DAY_MS, KEY_CHECKS_PER_DAY, keyCheckDailyBucket } from "@/lib/ai-keys/limits";
 import { rateLimit } from "@/lib/rate-limit";
-import { scrubString } from "@/lib/observability/scrub";
+import { log } from "@/lib/observability/log";
 
 const patchSchema = z.union([
   z.object({ is_active: z.boolean() }).strict(),
@@ -119,7 +119,7 @@ async function chooseModelForKey(
     offered = check.models;
   } catch (err) {
     const detail = err instanceof ProviderError ? err.detail : String(err);
-    console.error(`[ai-keys/model] ${stored.provider}:`, scrubString(detail));
+    log.error("ai_keys.model_change_failed", { provider: stored.provider, detail });
     return NextResponse.json(
       { error: "Couldn't reach that provider to check the model. Try again in a moment." },
       { status: 503 },

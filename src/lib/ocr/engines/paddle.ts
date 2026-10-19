@@ -65,6 +65,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import type { OcrEngine, OcrLine } from "../types";
 import { boxFromPoints, makeLine } from "../types";
 import { createSerialQueue } from "../serialize-queue";
+import { log } from "@/lib/observability/log";
 
 // Never called -- ocr-worker/onnx-worker.mjs does its own import() of this
 // package at runtime. This reference exists purely so Next's file tracer
@@ -150,7 +151,7 @@ async function ensureOnnxRuntimeSharedLibrary(): Promise<void> {
   const decompressed = zlib.gunzipSync(compressed);
   await fs.mkdir(TMP_LIB_DIR, { recursive: true });
   await fs.writeFile(TMP_SHARED_LIB_PATH, decompressed);
-  console.error(`[ocr] extracted libonnxruntime.so.1 (${decompressed.length} bytes) to ${TMP_SHARED_LIB_PATH}`);
+  log.info("ocr.onnx_runtime_extracted", { bytes: decompressed.length, path: TMP_SHARED_LIB_PATH });
 }
 
 interface PendingRequest {
@@ -185,9 +186,7 @@ async function spawnWorker(): Promise<Worker> {
   // the logs instead of failing with an opaque MODULE_NOT_FOUND.
   const workerScriptExists = await pathExists(WORKER_SCRIPT_PATH);
   const modelsExist = await Promise.all(MOBILE_MODEL_PATHS.map((p) => pathExists(p)));
-  console.error(
-    `[ocr] onnx worker script ${WORKER_SCRIPT_PATH} exists=${workerScriptExists}; models exist=${modelsExist.join(",")}`,
-  );
+  log.info("ocr.onnx_worker_files", { script: WORKER_SCRIPT_PATH, scriptExists: workerScriptExists, modelsExist });
   return new Promise((resolve, reject) => {
     // spawn(), not fork(): Turbopack special-cases fork()'s first argument
     // and tries to statically resolve it as a module import at build time,
@@ -208,7 +207,7 @@ async function spawnWorker(): Promise<Worker> {
       if (!msg) return;
       if (msg.type === "ready") {
         ready = true;
-        console.error("[ocr] onnx worker ready");
+        log.info("ocr.onnx_worker_ready");
         resolve(worker);
         return;
       }
@@ -245,7 +244,7 @@ async function getWorker(): Promise<Worker> {
       return worker;
     });
     workerPromise.catch((err) => {
-      console.error("[ocr] onnx worker failed to start:", err);
+      log.error("ocr.onnx_worker_failed", { error: err });
       workerPromise = null;
     });
   }

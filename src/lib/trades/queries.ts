@@ -6,6 +6,7 @@ import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
 import type { StreakTrade } from "./streak";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
+import { findConflicts, type ConflictField, type TradePatch } from "./conflicts";
 
 // "Column doesn't exist": PGRST204 is what PostgREST returns for an unknown
 // column in a write payload, 42703 is raw Postgres's undefined_column.
@@ -64,6 +65,27 @@ export async function createBlankTrade(
 // derived P/L columns from the resulting row, and writes everything in
 // one update. Caller is responsible for validating customFields against
 // buildCustomFieldsSchema(...) before calling this.
+/**
+ * The update is a read, a merge in code, and a write -- so two saves landing
+ * together (two tabs, autosave and the background order check) could each
+ * merge into the same old row, and the second write would silently drop the
+ * first one's custom-field values. Each write is now conditional on the row
+ * being exactly as it was read (updated_at, bumped by a trigger on every
+ * write); if it moved, read it again and merge again. A few rounds is plenty:
+ * a trade is edited by one person.
+ */
+const UPDATE_ATTEMPTS = 4;
+
+export class TradeConflictError extends Error {
+  constructor(
+    readonly fields: ConflictField[],
+    readonly current: Trade,
+  ) {
+    super("Trade changed elsewhere");
+    this.name = "TradeConflictError";
+  }
+}
+
 export async function updateTrade(
   supabase: SupabaseClient,
   id: string,
@@ -72,9 +94,42 @@ export async function updateTrade(
     customFields?: Record<string, unknown>;
     strategyFieldValues?: Record<string, Record<string, unknown>>;
   },
+  options: { base?: TradePatch } = {},
 ): Promise<Trade> {
-  const existing = await getTrade(supabase, id);
-  if (!existing) throw new Error("Trade not found");
+  for (let attempt = 1; ; attempt++) {
+    const existing = await getTrade(supabase, id);
+    if (!existing) throw new Error("Trade not found");
+
+    // Checked against the row as it is now, on every round: a change that
+    // lands between rounds is exactly the case this is for.
+    if (options.base) {
+      const conflicts = findConflicts(
+        {
+          core: existing as unknown as Record<string, unknown>,
+          customFields: existing.custom_fields ?? {},
+          strategyFieldValues: existing.strategy_field_values ?? {},
+        },
+        changes,
+        options.base,
+      );
+      if (conflicts.length > 0) throw new TradeConflictError(conflicts, existing);
+    }
+
+    const written = await writeMergedTrade(supabase, id, existing, changes);
+    if (written) return written;
+    if (attempt >= UPDATE_ATTEMPTS) {
+      throw new TradeConflictError([], (await getTrade(supabase, id)) ?? existing);
+    }
+  }
+}
+
+/** One merge-and-write against `existing`; null when the row moved since it was read. */
+async function writeMergedTrade(
+  supabase: SupabaseClient,
+  id: string,
+  existing: Trade,
+  changes: Parameters<typeof updateTrade>[2],
+): Promise<Trade | null> {
 
   const mergedCore = { ...existing, ...changes.core };
   const mergedCustomFields = changes.customFields
@@ -165,10 +220,13 @@ export async function updateTrade(
     .from("trades")
     .update({ ...basePayload, commission, commission_manual: commissionManual })
     .eq("id", id)
+    // Only if nobody wrote since `existing` was read; otherwise no row
+    // matches, data is null, and updateTrade merges again.
+    .eq("updated_at", existing.updated_at)
     .select()
-    .single();
+    .maybeSingle();
 
-  if (!error) return data as Trade;
+  if (!error) return (data as Trade | null) ?? null;
 
   // Migration 0022 (which adds the commission columns) is applied by hand in
   // the Supabase SQL editor, so there's a window where this code is live and
@@ -200,11 +258,12 @@ export async function updateTrade(
         : {}),
     })
     .eq("id", id)
+    .eq("updated_at", existing.updated_at)
     .select()
-    .single();
+    .maybeSingle();
 
   if (retry.error) throw retry.error;
-  return retry.data as Trade;
+  return (retry.data as Trade | null) ?? null;
 }
 
 // Returns whether a row was actually deleted, so the route can 404 rather

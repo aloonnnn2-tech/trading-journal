@@ -4,7 +4,7 @@
 -- the dev project (the one in .env.test.local), never the live one.
 -- It runs as one transaction: if any statement fails, nothing is kept.
 --
--- Contains 68 migrations: 0001_field_definitions_and_trades.sql .. 0068_public_view_server_only.sql
+-- Contains 70 migrations: 0001_field_definitions_and_trades.sql .. 0070_ai_proposals.sql
 
 -- ===== 0001_field_definitions_and_trades.sql =====
 -- Milestone 0: field-definition engine + core trades schema
@@ -3029,7 +3029,8 @@ create table if not exists rate_limit_counters (
   bucket text primary key,
   -- Start of the current fixed window. A bucket's row is reused in place, so
   -- the table grows only with the number of distinct buckets seen, not with
-  -- request volume; the nightly prune below drops cold ones.
+  -- request volume; rate_limit_hit itself prunes cold ones (about 1 call in
+  -- 100 deletes rows whose window ended over a day ago) -- there is no cron.
   window_start timestamptz not null default now(),
   count int not null default 0
 );
@@ -5968,4 +5969,123 @@ grant execute on function public.record_public_view(text) to service_role;
 -- Self-recording, as every migration since 0040.
 insert into schema_migrations (filename)
 values ('0068_public_view_server_only.sql')
+on conflict do nothing;
+
+-- ===== 0069_idempotency_keys.sql =====
+-- MANUAL APPLY REQUIRED: paste this file into the Supabase SQL editor and
+-- run it. No Supabase CLI in this project -- migrations are applied by hand.
+--
+-- ORDER: any time. The code that uses this table (src/lib/http/idempotency.ts)
+-- works without it: until the table exists, every request simply runs, as
+-- before.
+--
+-- DOWN: `drop table if exists idempotency_keys;` -- nothing else depends on it,
+-- and dropping it only returns creates to "a repeat runs twice".
+--
+-- Production readiness item 25. Creating a trade, duplicating one, and
+-- importing a file are not safe to repeat: a double click or a retried
+-- request made two trades, or imported the whole file twice. The page now
+-- sends an Idempotency-Key header (one random key per user action); the first
+-- request with a key runs and its answer is kept here for a day, and a repeat
+-- of the same key gets that answer back instead of running again.
+
+create table if not exists idempotency_keys (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  -- Client-generated (crypto.randomUUID()), so scoped per user: one user's
+  -- key can never replay another's answer.
+  key text not null check (length(key) between 8 and 100),
+  -- Which route the key was used on; the same key on another route is refused.
+  route text not null,
+  -- Null while the first request is still running.
+  status int,
+  body jsonb,
+  created_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+
+create index if not exists idempotency_keys_created_at on idempotency_keys (created_at);
+
+-- RLS on with NO policies, and no grants: only the server (service role)
+-- reads or writes it, after the route has authenticated the user. Same
+-- posture as rate_limit_counters (0042).
+alter table idempotency_keys enable row level security;
+revoke all on table idempotency_keys from anon, authenticated;
+
+-- Self-recording, as every migration since 0040.
+insert into schema_migrations (filename)
+values ('0069_idempotency_keys.sql')
+on conflict do nothing;
+
+-- ===== 0070_ai_proposals.sql =====
+-- MANUAL APPLY REQUIRED: paste this file into the Supabase SQL editor and
+-- run it (live project, and the dev project for the tests). Until it is,
+-- Ask simply doesn't offer to change anything.
+--
+-- 0070: changes Ask suggests, that happen only when the user presses Apply
+-- (Alon, 2026-10-17: fill an empty trade field, tag a strategy, add a note,
+-- tag a mistake, create a goal).
+--
+-- Why a table of its own rather than ai_messages.parts: a user can write
+-- rows in their own conversation through PostgREST (SECURITY.md, "Known and
+-- accepted"), so the transcript must never be what Apply trusts. A proposal
+-- here is written by the server when the model calls a propose_ tool, shown
+-- to the user exactly as stored (`display`), and on Apply its `payload` is
+-- validated again by the same schemas as the normal edit routes and checked
+-- against the trade as it is THEN (`before`). The model can only ever cause
+-- a card to appear; a person's click is what changes the journal.
+
+create table if not exists ai_proposals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  conversation_id uuid not null references ai_conversations (id) on delete cascade,
+  -- The tool call that made it. Unique per conversation, so a round that is
+  -- re-run after an interruption finds its proposal instead of a second one.
+  tool_call_id text not null check (char_length(tool_call_id) <= 200),
+  kind text not null check (kind in ('fill_field', 'tag_strategy', 'add_note', 'tag_mistake', 'create_goal')),
+  -- The trade it changes; null for a goal. Deleting the trade deletes the card.
+  trade_id uuid references trades (id) on delete cascade,
+  -- What Apply writes, already validated once.
+  payload jsonb not null check (pg_column_size(payload) <= 16384),
+  -- The values the user saw as "before", for the changed-since check.
+  before jsonb check (before is null or pg_column_size(before) <= 16384),
+  -- What the card shows, built by the server from the validated payload.
+  display jsonb not null check (pg_column_size(display) <= 16384),
+  status text not null default 'pending'
+    check (status in ('pending', 'applying', 'applied', 'dismissed', 'stale', 'failed')),
+  -- Why it ended stale/failed, in words for the card.
+  outcome text check (outcome is null or char_length(outcome) <= 500),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  unique (conversation_id, tool_call_id)
+);
+
+create index if not exists ai_proposals_user_conversation_idx
+  on ai_proposals (user_id, conversation_id, created_at);
+
+alter table ai_proposals enable row level security;
+
+-- Owner access, and the conversation must be the owner's too -- the lesson
+-- of 0048: a foreign key alone let a row point into someone else's chat.
+create policy "ai_proposals owner access"
+  on ai_proposals for all
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1 from ai_conversations c
+      where c.id = ai_proposals.conversation_id
+        and c.user_id = auth.uid()
+    )
+  )
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from ai_conversations c
+      where c.id = ai_proposals.conversation_id
+        and c.user_id = auth.uid()
+    )
+  );
+
+-- Self-recording, as every migration since 0040.
+insert into schema_migrations (filename)
+values ('0070_ai_proposals.sql')
 on conflict do nothing;

@@ -25,6 +25,7 @@ import { TradeList } from "./trade-list";
 import { SummaryStrip } from "./summary-strip";
 import { ImportFirstTrade } from "./import-first-trade";
 import { CollapseOnPhone } from "@/components/mobile/collapse-on-phone";
+import { PendingLinkHint } from "@/components/nav/pending-link-hint";
 
 const PAGE_SIZE = 50;
 
@@ -447,13 +448,14 @@ function StatusTab({
   return (
     <Link
       href={href}
-      className={`rounded-full border px-2.5 py-1 text-xs font-medium sm:px-3 sm:py-1.5 sm:text-sm ${
+      className={`relative rounded-full border px-2.5 py-1 text-xs font-medium sm:px-3 sm:py-1.5 sm:text-sm ${
         active
           ? "border-primary bg-primary/10 text-primary"
           : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-500"
       }`}
     >
       {label} ({count})
+      <PendingLinkHint />
     </Link>
   );
 }
@@ -465,13 +467,14 @@ function FolderTab({ href, label, active }: { href: string; label: string; activ
       // The visible text is the folder's name -- user content -- so click
       // analytics gets this fixed label instead. See click-capture.ts.
       data-track="folder tab"
-      className={`rounded-full border px-3 py-1 text-sm ${
+      className={`relative rounded-full border px-3 py-1 text-sm ${
         active
           ? "border-primary bg-primary/10 text-primary"
           : "border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-500"
       }`}
     >
       {label}
+      <PendingLinkHint />
     </Link>
   );
 }
@@ -489,8 +492,9 @@ function PageLink({
     return <span className="px-2 py-1 text-zinc-400 dark:text-zinc-700">{children}</span>;
   }
   return (
-    <Link href={href} className="rounded px-2 py-1 hover:text-zinc-900 dark:hover:text-zinc-100">
+    <Link href={href} className="relative rounded px-2 py-1 hover:text-zinc-900 dark:hover:text-zinc-100">
       {children}
+      <PendingLinkHint />
     </Link>
   );
 }

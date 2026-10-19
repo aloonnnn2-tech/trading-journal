@@ -86,3 +86,65 @@ describe("the trade list and its summary strip", () => {
     expect(strip.calls.find(([m]) => m === "range")).toEqual(["range", 0, 999]);
   });
 });
+
+// The emotion filter is the second place user text goes into or()'s filter
+// SYNTAX (an emotion tag is free text typed on the Emotions page). PostgREST
+// splits or() on commas and groups on parentheses before binding any value,
+// so a tag must arrive as one quoted literal per condition -- never as extra
+// conditions. Split the way PostgREST does: commas outside double quotes,
+// honouring backslash escapes inside them.
+function splitOrConditions(filter: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let i = 0; i < filter.length; i++) {
+    const ch = filter[i];
+    if (quoted && ch === "\\") {
+      current += ch + filter[++i];
+      continue;
+    }
+    if (ch === '"') quoted = !quoted;
+    if (ch === "," && !quoted) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current);
+  return parts;
+}
+
+/** The quoted value of one condition, unescaped. */
+function literalOf(condition: string): string {
+  const match = /\.cs\."(.*)"$/.exec(condition);
+  if (!match) throw new Error(`not a single quoted literal: ${condition}`);
+  return match[1].replace(/\\(.)/g, "$1");
+}
+
+describe("the emotion filter with hostile tags", () => {
+  const PAYLOADS = [
+    "a,b.eq.c",
+    "'; drop table trades--",
+    'say "hi"',
+    "back\\slash",
+    "x),or(user_id.neq.0",
+    "calm,status.eq.open",
+  ];
+
+  for (const emotion of PAYLOADS) {
+    it(`keeps ${JSON.stringify(emotion)} as one literal per slot`, async () => {
+      const { client, calls } = recordingClient();
+      await listTradesPage(client, { emotion, page: 1, pageSize: 50 });
+      const or = calls.find(([m]) => m === "or");
+      expect(or).toBeDefined();
+      const conditions = splitOrConditions(or![1] as string);
+      // Three slots (before / during / after), never more.
+      expect(conditions).toHaveLength(3);
+      for (const condition of conditions) {
+        expect(condition).toMatch(/^custom_fields->emotion_(before|during|after)\.cs\."/);
+        expect(JSON.parse(literalOf(condition))).toEqual([emotion]);
+      }
+    });
+  }
+});

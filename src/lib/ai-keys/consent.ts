@@ -21,7 +21,15 @@ import type { AIProviderName } from "./types";
 // "screenshot_v1" (2026-10-10): screenshot import's "Read with AI" sends the
 // screenshot image itself -- not covered by either agreement above, whose
 // wording never mentions images.
-export type ConsentScope = "journal_v1" | "chat_v2" | "screenshot_v1";
+//
+// "chat_images_v1" (2026-10-17): Ask looking at a trade's chart screenshots.
+// The chat's own agreement never mentioned images, so this is its own
+// switch, per provider, and the only one the user can turn back off from the
+// chat (revokeConsent).
+export type ConsentScope = "journal_v1" | "chat_v2" | "screenshot_v1" | "chat_images_v1";
+
+/** Scopes accepted from the browser. */
+export const CONSENT_SCOPES = ["journal_v1", "chat_v2", "screenshot_v1", "chat_images_v1"] as const;
 
 export async function listConsentedProviders(
   supabase: SupabaseClient,
@@ -48,6 +56,15 @@ export async function hasConsent(
     .maybeSingle();
   if (error) throw error;
   return data !== null;
+}
+
+export async function revokeConsent(
+  supabase: SupabaseClient,
+  provider: AIProviderName,
+  scope: ConsentScope,
+): Promise<void> {
+  const { error } = await supabase.from("ai_provider_consents").delete().eq("provider", provider).eq("scope", scope);
+  if (error) throw error;
 }
 
 export async function recordConsent(

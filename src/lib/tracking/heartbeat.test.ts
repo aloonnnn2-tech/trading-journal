@@ -52,8 +52,12 @@ describe("upsertHeartbeat", () => {
 
     // A lost beat must never fail the request that carried it...
     await expect(upsertHeartbeat(c as never, "u", "s")).resolves.toBeUndefined();
-    // ...but silence is what hid the original bug, so it is logged.
-    expect(warn).toHaveBeenCalledWith("heartbeat failed:", "not authenticated");
+    // ...but silence is what hid the original bug, so it is logged -- as
+    // one structured line (src/lib/observability/log.ts), on the next tick.
+    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    const line = JSON.parse(String(warn.mock.calls[0][0])) as { event: string; error: { message: string } };
+    expect(line.event).toBe("analytics.heartbeat_failed");
+    expect(line.error.message).toBe("not authenticated");
   });
 
   it("swallows a thrown transport error too", async () => {

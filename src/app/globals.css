@@ -290,3 +290,25 @@ html[data-announcement-dismissed] [data-announcement] {
 #main-content {
   padding-bottom: var(--tabbar-h);
 }
+
+/* ---- Dialogs and sheets fit the screen -----------------------------------
+ * A centred dialog grew to its content's height: on a 360x640 phone, or with
+ * the keyboard up, the Quick trade form's Create trade button went off the
+ * bottom of the screen. Every dialog panel caps at the window and scrolls
+ * inside instead; its backdrop (.dialog-backdrop) keeps the gap around it.
+ *
+ * --tour-top is the room the guided tour's strip takes at the top of a phone
+ * while a dialog is open (src/lib/tour/phone-placement.ts). The tour sets it
+ * on <html> and removes it; 0 otherwise, so nothing moves without a tour. */
+.dialog-backdrop {
+  padding-top: calc(1rem + var(--tour-top, 0px));
+}
+.dialog-panel {
+  max-height: calc(100dvh - 2rem - var(--tour-top, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sheet-panel {
+  max-height: min(85dvh, calc(100dvh - var(--tour-top, 0px) - 0.5rem));
+  overscroll-behavior: contain;
+}

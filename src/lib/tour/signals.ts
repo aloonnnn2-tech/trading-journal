@@ -19,3 +19,22 @@ export function signalTradeCreated(path: string) {
 export function signalQuickTradeClosed() {
   window.dispatchEvent(new CustomEvent(QUICK_TRADE_CLOSED_EVENT));
 }
+
+// And one the tour sends: it is pointing somewhere new, so the phone tab
+// bar's + and More sheets close. Left open, the + sheet sat over the More
+// button the very next step asked the user to tap (2026-10-15).
+export const TOUR_CLOSE_SHEETS_EVENT = "trading-lens:tour-close-sheets";
+
+export function signalCloseSheets() {
+  window.dispatchEvent(new CustomEvent(TOUR_CLOSE_SHEETS_EVENT));
+}
+
+// Quick trade was opened. The tour, after the form was closed, waits for its
+// fields to disappear before counting "Quick trade is open" again -- so a
+// form reopened during its closing fade (it never disappears, it fades back
+// in) left the tour waiting forever. Being told is better than inferring.
+export const QUICK_TRADE_OPENED_EVENT = "trading-lens:tour-quick-trade-opened";
+
+export function signalQuickTradeOpened() {
+  window.dispatchEvent(new CustomEvent(QUICK_TRADE_OPENED_EVENT));
+}

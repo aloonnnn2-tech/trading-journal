@@ -138,7 +138,7 @@ export default async function AnalyticsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card hoverable={false}>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
               Cumulative P&amp;L over time
               <InfoTip text="The green line is profit and loss from your trading, added up over time. It starts at zero and does not include deposits or withdrawals, so it is not your account balance. The red line shows drawdown: how far you have fallen from your highest point." />

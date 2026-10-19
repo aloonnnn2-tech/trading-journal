@@ -20,6 +20,11 @@ export const TOOL_LABELS: Record<string, string> = {
   get_period_report: "built a period report",
   get_report: "ran an analytics report",
   get_reviews: "read your past reviews",
+  get_market_data: "looked up the market",
+  calculate: "did the maths",
+  explain_metric: "looked up what that figure means",
+  view_trade_chart: "looked at your chart",
+  propose_change: "suggested a change",
 };
 
 export function labelForTool(name: string): string {

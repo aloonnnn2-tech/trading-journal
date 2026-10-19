@@ -15,6 +15,7 @@ import type { StoredReview } from "@/lib/ai-reviews/types";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
 import { signalReviewWow } from "@/lib/reviews/signals";
+import { NETWORK_FAILURE } from "@/lib/api/failure-message";
 // The AI Trade Review entry point, rendered as a sibling of the trade card
 // rather than inside it. TradeCard is a 900-line form with its own autosave
 // lifecycle; a panel that only reads the trade id has no business being
@@ -78,11 +79,18 @@ export function AiReviewPanel({
     setRunning(true);
     setError(null);
 
-    const res = await fetch("/api/ai-reviews/trade", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tradeId, keyId: selected.id }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/ai-reviews/trade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tradeId, keyId: selected.id }),
+      });
+    } catch {
+      setRunning(false);
+      setError(NETWORK_FAILURE);
+      return;
+    }
     setRunning(false);
 
     if (!res.ok) {
@@ -121,11 +129,18 @@ export function AiReviewPanel({
   async function acceptDisclosure() {
     if (!selected) return;
     setSavingConsent(true);
-    const res = await fetch("/api/ai-keys/consent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: selected.provider }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/ai-keys/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: selected.provider }),
+      });
+    } catch {
+      setSavingConsent(false);
+      setError(NETWORK_FAILURE);
+      return;
+    }
     setSavingConsent(false);
 
     if (!res.ok) {

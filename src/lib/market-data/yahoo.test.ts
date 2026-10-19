@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { guessYahooSymbol, fetchYahooCandles, fetchYahooBars } from "./yahoo";
+import { UpstreamUnavailableError } from "@/lib/http/resilient-fetch";
 
 // Shared by the trade chart and the background auto-execution sweep. When
 // only the chart had this, a crypto trade auto-executed in the browser
@@ -86,17 +87,17 @@ describe("fetchYahooCandles retry behavior", () => {
     expect(result).toBeNull();
   });
 
-  it("gives up after exhausting retries on repeated 5xx", async () => {
+  it("gives up after exhausting retries on repeated 5xx -- as an outage, not 'no such symbol'", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(503));
     vi.stubGlobal("fetch", fetchMock);
 
     const promise = fetchYahooCandles("AAPL");
+    const outcome = expect(promise).rejects.toBeInstanceOf(UpstreamUnavailableError);
     await vi.runAllTimersAsync();
-    const result = await promise;
+    await outcome;
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(result).toBeNull();
   });
 });
 

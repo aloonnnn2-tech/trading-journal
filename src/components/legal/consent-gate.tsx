@@ -69,14 +69,14 @@ export function ConsentGate() {
   }
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+    <div className="dialog-backdrop fixed inset-0 z-[250] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="flex w-full max-w-md flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-2xl dark:border-subtle dark:bg-card"
+        className="dialog-panel flex w-full max-w-md flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-8 shadow-2xl dark:border-subtle dark:bg-card"
       >
         <BrandMark className="h-10 w-10" />
         <div>

@@ -2,12 +2,14 @@
 
 import Papa from "papaparse";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FormError } from "@/components/form-error";
 import { failureMessage } from "@/lib/api/failure-message";
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { ImportTarget } from "@/lib/trades/import";
 import { TOGGLEABLE_CORE_FIELDS } from "@/lib/trades/types";
+import { MAX_UPLOAD_BYTES } from "@/lib/http/upload-limits";
+import { newIdempotencyKey } from "@/lib/http/idempotency-key";
 
 const CORE_FIELD_OPTIONS: { key: string; label: string }[] = [
   { key: "ticker", label: "Ticker" },
@@ -20,7 +22,7 @@ const CORE_FIELD_OPTIONS: { key: string; label: string }[] = [
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
 
-// Matches the 5 MB cap the .xlsx route already enforces server-side, so all
+// Matches the cap the .xlsx route enforces server-side (upload-limits.ts), so all
 // three formats behave the same way rather than one of them silently being
 // the odd one out.
 //
@@ -29,7 +31,7 @@ const inputClass =
 // never reach a route that could bound them. Without this, picking a
 // multi-hundred-MB file reads the whole thing into a single JavaScript string
 // and hangs or crashes the tab, with no error and nothing to explain it.
-const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const MAX_IMPORT_BYTES = MAX_UPLOAD_BYTES;
 
 function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -71,6 +73,13 @@ export function ImportWizard({
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  // One key per chosen file, reused if the import is retried: an import whose
+  // answer was lost (connection dropped after the server saved it) replays
+  // that answer instead of importing every row a second time.
+  const importKey = useRef(newIdempotencyKey());
+  // A ref as well as `importing`: a double click fires twice before the
+  // re-render that disables the button.
+  const importBusy = useRef(false);
 
   function reset() {
     setHeaders([]);
@@ -83,6 +92,7 @@ export function ImportWizard({
 
   async function handleFile(file: File) {
     reset();
+    importKey.current = newIdempotencyKey();
     setFileName(file.name);
 
     if (file.size > MAX_IMPORT_BYTES) {
@@ -159,13 +169,15 @@ export function ImportWizard({
   // already renders as a message) and only ever put a well-formed result in
   // `result`.
   async function runImport(url: string, body: unknown) {
+    if (importBusy.current) return;
+    importBusy.current = true;
     setImporting(true);
     setParseError(null);
     setResult(null);
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": importKey.current },
         body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
@@ -179,6 +191,7 @@ export function ImportWizard({
       setParseError("Import failed. Check your connection and try again.");
     } finally {
       setImporting(false);
+      importBusy.current = false;
     }
   }
 
@@ -205,7 +218,7 @@ export function ImportWizard({
           </p>
           <button
             onClick={handleImportJson}
-            disabled={importing}
+            disabled={importing || result !== null}
             className="w-fit rounded-full bg-primary px-5 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
           >
             {importing ? "Importing..." : `Import ${jsonRows.length} Trades`}
@@ -294,7 +307,7 @@ export function ImportWizard({
 
           <button
             onClick={handleImportMapped}
-            disabled={importing}
+            disabled={importing || result !== null}
             className="w-fit rounded-full bg-primary px-5 py-2 text-sm font-medium text-white dark:text-zinc-950 hover:brightness-110 disabled:opacity-50"
           >
             {importing ? "Importing..." : `Import ${rows.length} Trades`}

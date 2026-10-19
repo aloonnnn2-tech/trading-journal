@@ -1,4 +1,5 @@
 import type { ProviderFailure, ToolCall } from "@/lib/ai-keys/providers/types";
+import type { ProposalView } from "./proposals";
 
 /**
  * The wire format between the browser and `POST /api/chat/conversations/[id]/turn`.
@@ -39,6 +40,11 @@ export type ChatStreamEvent =
    * the model.
    */
   | { type: "tool_result"; toolCallId: string; name: string; ok: boolean; summary: string }
+  /**
+   * The model suggested a change (propose_change). The card is the stored
+   * proposal as the server built it; nothing has changed until Apply.
+   */
+  | { type: "proposal"; proposal: ProposalView }
   | {
       type: "message_end";
       messageId: string;

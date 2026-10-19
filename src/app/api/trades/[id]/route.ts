@@ -5,27 +5,27 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { buildCustomFieldsSchema } from "@/lib/fields/schema";
 import { listFieldDefinitions, listFieldDefinitionsForStrategies } from "@/lib/fields/definitions";
 import { coreFieldsSchema } from "@/lib/trades/schema";
-import { deleteTrade, getTrade, updateTrade } from "@/lib/trades/queries";
-import { EDITABLE_CORE_FIELDS, type EditableCoreField } from "@/lib/trades/types";
+import { deleteTrade, getTrade, TradeConflictError, updateTrade } from "@/lib/trades/queries";
+import { pickEditableCore } from "@/lib/trades/pick-core";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { enforceRateLimit } from "@/lib/rate-limit";
-
-function pickEditableCore(input: unknown): Partial<Record<EditableCoreField, unknown>> {
-  if (typeof input !== "object" || input === null) return {};
-  const result: Partial<Record<EditableCoreField, unknown>> = {};
-  for (const key of EDITABLE_CORE_FIELDS) {
-    if (key in input) {
-      result[key] = (input as Record<string, unknown>)[key];
-    }
-  }
-  return result;
-}
+import { log } from "@/lib/observability/log";
 
 const patchEnvelopeSchema = z
   .object({
     core: z.unknown().optional(),
     customFields: z.unknown().optional(),
     strategyFieldValues: z.unknown().optional(),
+    // The last value this page saw for each field it is changing (same
+    // shape as the three above). Optional: without it nothing is checked.
+    // See src/lib/trades/conflicts.ts.
+    base: z
+      .object({
+        core: z.record(z.string(), z.unknown()).optional(),
+        customFields: z.record(z.string(), z.unknown()).optional(),
+        strategyFieldValues: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+      })
+      .optional(),
   })
   .strict();
 
@@ -117,13 +117,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   let updated;
   try {
-    updated = await updateTrade(supabase, id, { core, customFields, strategyFieldValues });
+    updated = await updateTrade(supabase, id, { core, customFields, strategyFieldValues }, { base: body.base });
   } catch (err) {
+    // Never a silent overwrite: the page shows what changed and lets the
+    // user keep theirs or take the saved version.
+    if (err instanceof TradeConflictError) {
+      return NextResponse.json(
+        {
+          error: "This trade was changed somewhere else while you were editing it.",
+          conflict: err.fields,
+          trade: err.current,
+        },
+        { status: 409 },
+      );
+    }
     // Log the real failure and surface its Postgres/PostgREST code (safe --
     // it's an identifier, not data). Previously every cause collapsed into
     // one generic message, making a schema-drift failure indistinguishable
     // from bad input on both sides of the wire.
-    console.error("updateTrade failed", { tradeId: id, err });
+    log.error("trades.update_failed", { tradeId: id, error: err });
     const code = (err as { code?: string }).code;
     return NextResponse.json({ error: "Failed to update trade", code: code ?? null }, { status: 400 });
   }

@@ -60,14 +60,16 @@ export const PROVIDER_LABELS: Record<AIProviderName, string> = {
  * therefore degrades to the next choice instead of breaking Ask.
  *
  * `npm run check:ai-models` compares these against the live lists.
- * Last checked against the providers' live lists / docs: 2026-09-29.
+ * Last checked against the providers' live lists / docs: 2026-10-17
+ * (GitHub Models' catalog needs a token; not re-checked).
  */
 export const PROVIDER_MODEL_CHOICES: Record<AIProviderName, readonly string[]> = {
   // Cost-optimized: these run on the user's own key and their own bill, and
   // answering questions over an already-summarized journal context is not a
   // hard reasoning task.
   openai: ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"],
-  anthropic: ["claude-sonnet-5", "claude-haiku-4-5"],
+  // claude-haiku-4-5 is retirable from 2026-10-15 (Anthropic deprecations page).
+  anthropic: ["claude-sonnet-5-5", "claude-sonnet-5", "claude-haiku-5-5"],
   // gemini-2.0-flash was shut down on 2026-06-01.
   google: ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-flash-latest"],
   // Groq retired the Llama 3.x chat models; gpt-oss is a reasoning model, so
@@ -79,7 +81,6 @@ export const PROVIDER_MODEL_CHOICES: Record<AIProviderName, readonly string[]> =
   // (providers.test.ts enforces that).
   openrouter: [
     "google/gemma-4-31b-it:free",
-    "qwen/qwen3.8-27b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
     "google/gemma-4-26b-a4b-it:free",
   ],

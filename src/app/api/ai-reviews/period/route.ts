@@ -154,6 +154,7 @@ export async function POST(request: Request) {
           schemaHint: PERIOD_REVIEW_SCHEMA_HINT,
           maxTokens: PERIOD_REVIEW_MAX_TOKENS,
           deadlineAt: startedAt + PROVIDER_BUDGET_MS,
+          signal: request.signal,
         });
       },
       {

@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import type { CaptureBand, ExcursionAverages, ExcursionReport } from "@/lib/excursions/aggregate";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
+import { NETWORK_FAILURE } from "@/lib/api/failure-message";
 // MAE / MFE aggregates -- the paid section of /analytics.
 //
 // Every figure here is an OUTER BOUND, because it rests on daily bars that
@@ -169,7 +170,14 @@ export function ExcursionPanel({ report }: { report: ExcursionReport }) {
     setError(null);
     setMessage(null);
 
-    const res = await fetch("/api/excursions", { method: "POST" });
+    let res: Response;
+    try {
+      res = await fetch("/api/excursions", { method: "POST" });
+    } catch {
+      setRunning(false);
+      setError(NETWORK_FAILURE);
+      return;
+    }
     setRunning(false);
 
     if (!res.ok) {
@@ -186,7 +194,7 @@ export function ExcursionPanel({ report }: { report: ExcursionReport }) {
     setMessage(
       `Measured ${summary.computed} of ${summary.tradesConsidered} closed trades` +
         (summary.symbolsFailed.length > 0
-          ? `. No price history for ${summary.symbolsFailed.join(", ")}.`
+          ? `. Couldn't get price data for ${summary.symbolsFailed.join(", ")}.`
           : "."),
     );
     // The page was rendered before these existed, so its payload is stale.

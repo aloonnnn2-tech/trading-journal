@@ -8,6 +8,7 @@ import type { SecretKey } from "@/lib/ai-keys/secret";
 import type { AIProviderName } from "@/lib/ai-keys/types";
 import { logError } from "@/lib/observability/scrub";
 import { rateLimit } from "@/lib/rate-limit";
+import { log } from "@/lib/observability/log";
 
 /**
  * The model a key used has been retired by its provider. Re-pick from the
@@ -40,7 +41,7 @@ export async function repickRetiredModel(opts: RepickOptions): Promise<string | 
     if (!check.valid) return null;
     const next = chooseModel(providerName, check.models.filter((m) => m !== model));
     if (next) await setApiKeyModel(supabase, keyId, next, { userId });
-    console.warn(`[${logPrefix}] ${providerName}: ${model} retired, switched key to ${next}`);
+    log.warn("ai_keys.model_retired", { route: logPrefix, provider: providerName, model, switchedTo: next });
     return next;
   } catch (err) {
     logError(`[${logPrefix}] model re-pick failed:`, err);

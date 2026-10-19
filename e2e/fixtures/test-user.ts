@@ -167,5 +167,7 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
 
   const tokenHash = data.properties.hashed_token;
   await page.goto(`/auth/confirm?token_hash=${tokenHash}&type=magiclink&next=/dashboard`);
+  // Opening the link spends nothing; the button does (src/app/auth/confirm).
+  await page.getByRole("button", { name: "Confirm my email" }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
 }

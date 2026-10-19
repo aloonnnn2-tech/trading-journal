@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
+import { log } from "@/lib/observability/log";
 
 const BUCKET = "trade-images";
 
@@ -33,7 +34,7 @@ export async function DELETE(
 
   const { error: removeError } = await supabase.storage.from(BUCKET).remove([image.storage_path]);
   if (removeError) {
-    console.error("[images] storage remove failed:", removeError);
+    log.error("images.storage_remove_failed", { error: removeError });
     return NextResponse.json({ error: "Could not delete the image." }, { status: 500 });
   }
 
@@ -43,7 +44,7 @@ export async function DELETE(
     .eq("id", imageId);
 
   if (deleteError) {
-    console.error("[images] row delete failed:", deleteError);
+    log.error("images.row_delete_failed", { error: deleteError });
     return NextResponse.json({ error: "Could not delete the image." }, { status: 500 });
   }
 
