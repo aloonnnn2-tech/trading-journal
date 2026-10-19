@@ -55,6 +55,11 @@ const opts = { auth: { autoRefreshToken: false, persistSession: false } };
 
 export const admin = () => createClient(url(), process.env.SUPABASE_SERVICE_ROLE_KEY!, opts);
 
+/** No session at all: only the public anon key, as anyone on the internet has it. */
+export function anonClient(): SupabaseClient {
+  return createClient(url(), anonKey(), opts);
+}
+
 export function clientFor(accessToken: string): SupabaseClient {
   return createClient(url(), anonKey(), {
     ...opts,

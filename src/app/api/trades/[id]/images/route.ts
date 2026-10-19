@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { getTrade } from "@/lib/trades/queries";
 import sharp from "sharp";
@@ -147,7 +148,17 @@ export async function POST(
     );
   }
 
-  const { error: uploadError } = await supabase.storage
+  // Written with the service role: since 0073 users have no direct write
+  // access to the bucket (an upload through the Storage API skipped every
+  // check above -- G-2). Safe because the path is built here from the
+  // VERIFIED user id and a trade the RLS client just proved is theirs.
+  let storage;
+  try {
+    storage = createAdminClient().storage;
+  } catch {
+    return NextResponse.json({ error: "Image uploads aren't configured on this server." }, { status: 503 });
+  }
+  const { error: uploadError } = await storage
     .from(BUCKET)
     .upload(storagePath, buffer, { contentType: mime });
 
