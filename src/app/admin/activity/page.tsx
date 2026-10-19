@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import { isAdmin } from "@/lib/auth/roles";
 import { buildActivity, filterFeed, getActivityRows, type ActivityRow } from "@/lib/tracking/activity";
 import { CATEGORY_LABELS } from "@/lib/tracking/events";
@@ -31,6 +32,7 @@ export default async function AdminActivityPage({ searchParams }: { searchParams
   const userId = await requireUserId();
   const supabase = await createClient();
   if (!(await isAdmin(supabase, userId))) redirect("/dashboard");
+  await recordAudit({ actorId: userId, action: "admin_page_view", target: "/admin/activity" });
 
   const sp = await searchParams;
   const days = WINDOWS.includes(Number(sp.days) as (typeof WINDOWS)[number]) ? Number(sp.days) : 7;

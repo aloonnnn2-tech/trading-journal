@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import { isAdmin } from "@/lib/tracking/admin-queries";
 import { listWaitlist, WAITLIST_PAGE_CAP, type WaitlistEntry } from "@/lib/waitlist/admin-queries";
 import { Card } from "@/components/ui/Card";
@@ -25,6 +26,7 @@ export default async function AdminWaitlistPage() {
   // Checked against the RLS client before any service-role client exists.
   // isAdmin() fails closed on any error.
   if (!(await isAdmin(supabase, userId))) redirect("/dashboard");
+  await recordAudit({ actorId: userId, action: "admin_page_view", target: "/admin/waitlist" });
 
   let entries: WaitlistEntry[] = [];
   let total = 0;

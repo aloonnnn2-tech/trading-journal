@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { isAdmin } from "@/lib/tracking/admin-queries";
+import { recordAudit } from "@/lib/admin/audit";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { listWaitlist, removeWaitlistEntry } from "@/lib/waitlist/admin-queries";
 import { waitlistToCsv } from "@/lib/waitlist/csv";
@@ -18,7 +19,7 @@ import { waitlistToCsv } from "@/lib/waitlist/csv";
 // request can widen that. These are visitors' email addresses; a non-admin
 // who finds this URL gets a 403 and no data.
 
-type Gate = { ok: true; admin: ReturnType<typeof createAdminClient> } | { ok: false; response: Response };
+type Gate = { ok: true; userId: string; admin: ReturnType<typeof createAdminClient> } | { ok: false; response: Response };
 
 async function gate(bucket: string): Promise<Gate> {
   const userId = await getUserIdFromHeader();
@@ -33,7 +34,7 @@ async function gate(bucket: string): Promise<Gate> {
   }
 
   try {
-    return { ok: true, admin: createAdminClient() };
+    return { ok: true, userId, admin: createAdminClient() };
   } catch {
     return {
       ok: false,
@@ -47,6 +48,8 @@ export async function GET() {
   if (!g.ok) return g.response;
 
   const { entries } = await listWaitlist(g.admin);
+  // Personal data leaving the app: who took it, and how many rows.
+  await recordAudit({ actorId: g.userId, action: "waitlist_export", detail: { rows: entries.length } }, g.admin);
   const stamp = new Date().toISOString().slice(0, 10);
   return new Response(waitlistToCsv(entries), {
     headers: {
@@ -75,5 +78,6 @@ export async function DELETE(request: Request) {
 
   const removed = await removeWaitlistEntry(g.admin, parsed.data.id);
   if (!removed) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await recordAudit({ actorId: g.userId, action: "waitlist_remove", target: parsed.data.id }, g.admin);
   return NextResponse.json({ ok: true });
 }

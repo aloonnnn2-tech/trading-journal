@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Users, UserPlus, Activity, CalendarDays, TrendingUp, Clock, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import {
   getOverviewStats,
   getUsageSeries,
@@ -55,6 +56,7 @@ export default async function AdminAnalyticsPage() {
 
   const admin = await isAdmin(supabase, userId);
   if (!admin) redirect("/dashboard");
+  await recordAudit({ actorId: userId, action: "admin_page_view", target: "/admin/analytics" });
 
   // Public views degrade to empty rather than failing the page: the RPC comes
   // from migration 0043, and every other panel here predates it.

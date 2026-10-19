@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiCacheControl, isCrossSite } from "./proxy";
+import { apiCacheControl, config, isCrossSite } from "./proxy";
 
 // The CSRF predicate for state-changing /api requests. It must refuse a
 // browser page on another site and let through everything that is not a
@@ -54,5 +54,23 @@ describe("apiCacheControl", () => {
     expect(apiCacheControl("POST", "/api/trades")).toBeNull();
     expect(apiCacheControl("GET", "/dashboard")).toBeNull();
     expect(apiCacheControl("GET", "/api/chat/conversations/x/turn")).toBeNull();
+  });
+});
+
+describe("the proxy matcher", () => {
+  // Next applies the pattern to the whole pathname; the same anchoring here.
+  const runs = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
+
+  it("runs on every page and API path, including ones that merely END in an image extension", () => {
+    // These used to skip the proxy, so a forged x-user-id reached page code (G-13).
+    for (const path of ["/trades/x.png", "/admin/users/abc.jpg", "/strategies/a.webp", "/api/folders/x.png", "/dashboard", "/api/trades"]) {
+      expect(runs(path), path).toBe(true);
+    }
+  });
+
+  it("still skips the static files public/ serves, Next's assets, and the cron routes", () => {
+    for (const path of ["/brand-mark.png", "/example-trade-screenshot.png", "/screenshots/journal.png", "/_next/static/chunk.js", "/favicon.ico", "/api/cron/auto-execute"]) {
+      expect(runs(path), path).toBe(false);
+    }
   });
 });

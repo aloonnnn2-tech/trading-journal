@@ -131,7 +131,7 @@ export default function ResetPasswordPage() {
           <input
             type="password"
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

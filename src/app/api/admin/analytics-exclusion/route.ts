@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { isAdmin, setUserExcluded } from "@/lib/tracking/admin-queries";
+import { recordAudit } from "@/lib/admin/audit";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 // Toggles whether one account's activity counts toward admin analytics
@@ -58,6 +59,12 @@ export async function POST(request: Request) {
   }
 
   await setUserExcluded(supabase, parsed.data.userId, parsed.data.excluded);
+  await recordAudit({
+    actorId: userId,
+    action: "analytics_exclusion",
+    target: parsed.data.userId,
+    detail: { excluded: parsed.data.excluded },
+  });
 
   return NextResponse.json({ ok: true, excluded: parsed.data.excluded });
 }

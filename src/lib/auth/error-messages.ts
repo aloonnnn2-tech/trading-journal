@@ -43,10 +43,11 @@ const MESSAGES: Record<string, string> = {
   user_banned: "This account has been suspended. Contact support if you think that's a mistake.",
 
   // --- Sign up ---------------------------------------------------------
-  // Both of these mean "this email is taken". Saying so plainly is not an
-  // account disclosure worth agonising over here: sign-up already reveals it
-  // by failing, and pretending otherwise leaves the person stuck on a form
-  // that will never succeed.
+  // Both of these mean "this email is taken". They only ever arrive from a
+  // project with email confirmation OFF (the dev project). Production has it
+  // ON (Alon, 2026-10-18), and there Supabase answers a sign-up for a taken
+  // address exactly like a new one -- "check your inbox" -- so the live site
+  // does not reveal which emails are registered (security gaps pass, G-5).
   email_exists: "An account already exists for that email address. Try signing in instead.",
   user_already_exists:
     "An account already exists for that email address. Try signing in instead.",
@@ -57,7 +58,7 @@ const MESSAGES: Record<string, string> = {
 
   // --- Passwords -------------------------------------------------------
   weak_password:
-    "That password is too easy to guess. Use at least 6 characters, and mix in something less common.",
+    "That password is too easy to guess. Use at least 8 characters, and mix in something less common.",
   same_password: "That's already your current password. Choose a different one.",
 
   // --- Recovery / confirmation links -----------------------------------

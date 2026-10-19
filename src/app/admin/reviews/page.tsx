@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
+import { recordAudit } from "@/lib/admin/audit";
 import { isAdmin } from "@/lib/tracking/admin-queries";
 import { isMissingReviews, listAllReviews, type AdminReview } from "@/lib/reviews/queries";
 import { Card } from "@/components/ui/Card";
@@ -19,6 +20,7 @@ export default async function AdminReviewsPage() {
   const supabase = await createClient();
   // isAdmin() fails closed; the database function checks is_admin again.
   if (!(await isAdmin(supabase, userId))) redirect("/dashboard");
+  await recordAudit({ actorId: userId, action: "admin_page_view", target: "/admin/reviews" });
 
   let reviews: AdminReview[] = [];
   let missing = false;
