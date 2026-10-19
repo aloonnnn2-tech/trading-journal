@@ -189,7 +189,8 @@ export default function PrivacyPage() {
         <h2 className={SECTION_HEADING}>Your data, your control</h2>
         <p className={BODY}>
           You can download everything we store about your account as one file from the Account
-          page: your trades and their edit history, notes, strategies and rules, folders, goals,
+          page: your sign-in details (email, sign-up and last sign-in dates, sign-in methods),
+          your trades and their edit history, notes, strategies and rules, folders, goals,
           settings, cash entries, fees, AI reviews and conversations, a list of your screenshots
           with download links, and the usage events recorded for your account. Your trades can
           also be exported as CSV, Excel or JSON from the Trades page.
@@ -197,6 +198,14 @@ export default function PrivacyPage() {
         <p className={BODY}>
           You can permanently delete your account and all of its data yourself, from the Account
           page. Deletion can&apos;t be undone. You can also ask us to do it by email (see below).
+        </p>
+        <p className={BODY}>
+          Deleting your account also deletes your screenshots and, if you joined the waitlist, your
+          waitlist sign-up. We keep only a record that an account with that internal id was
+          deleted, and when, with no email or other details. Encrypted backups of the database are
+          kept for up to 90 days (most for 30), so your data leaves them as they expire. If we ever
+          have to restore from a backup, we delete again any account that was deleted after that
+          backup was made.
         </p>
 
         <h2 className={SECTION_HEADING}>Children&apos;s privacy</h2>

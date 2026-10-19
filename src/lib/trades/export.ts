@@ -18,17 +18,32 @@ export function tradeToRow(
 
   for (const column of EXPORT_CORE_COLUMNS) {
     const value = trade[column as keyof Trade];
-    row[column] = value === undefined ? null : (value as string | number | boolean | null);
+    row[column] = plainCell(value);
   }
 
   for (const field of fieldDefinitions) {
     const value = trade.custom_fields[field.key];
-    row[field.label] = Array.isArray(value)
-      ? value.join("; ")
-      : ((value as string | number | boolean | null | undefined) ?? null);
+    row[field.label] = Array.isArray(value) ? value.map(plainText).join("; ") : plainCell(value);
   }
 
   return row;
+}
+
+// custom_fields is JSON the database doesn't shape-check, and a user can
+// write it directly through the API. ExcelJS reads an OBJECT cell value as an
+// instruction -- { formula: "..." } becomes a live formula, { hyperlink } a
+// link -- so anything that isn't a plain value is written as its JSON text.
+// (Security gaps pass, 5.4.)
+function plainCell(value: unknown): string | number | boolean | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  return plainText(value);
+}
+
+function plainText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 // Excel, LibreOffice and Google Sheets evaluate a cell as a formula when its

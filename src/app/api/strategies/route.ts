@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createStrategy, listStrategies } from "@/lib/strategies/queries";
 import { strategyCreateSchema } from "@/lib/strategies/schema";
+import { rowLimitResponse } from "@/lib/limits";
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -46,7 +47,9 @@ export async function POST(request: Request) {
       color: parsed.data.color ?? null,
     });
     return NextResponse.json(strategy, { status: 201 });
-  } catch {
+  } catch (err) {
+    const limited = rowLimitResponse(err);
+    if (limited) return limited;
     return NextResponse.json({ error: "A strategy with that name already exists" }, { status: 400 });
   }
 }

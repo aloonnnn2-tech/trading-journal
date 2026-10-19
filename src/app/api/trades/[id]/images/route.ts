@@ -9,6 +9,10 @@ import { detectImageKind, MIME_BY_KIND } from "@/lib/images/magic";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { MAX_UPLOAD_BYTES, UPLOAD_TOO_LARGE } from "@/lib/http/upload-limits";
 import { log } from "@/lib/observability/log";
+import { enforceDailyCap } from "@/lib/rate-limits/daily";
+import { getImageUsage, imageQuotaError } from "@/lib/images/quota";
+import { rowLimitResponse } from "@/lib/limits";
+import { isMissingColumnError } from "@/lib/supabase/errors";
 
 const BUCKET = "trade-images";
 const MAX_BYTES = MAX_UPLOAD_BYTES;
@@ -148,6 +152,19 @@ export async function POST(
     );
   }
 
+  // Per-account quotas (src/lib/limits.ts): the free plan's 1 GB of storage
+  // is shared by every user. Checked after validation so a refused file never
+  // counts. A failed count fails open, like every other limit here: the
+  // per-minute and daily caps still bound the account.
+  try {
+    const quotaError = imageQuotaError(await getImageUsage(supabase, userId), buffer.length);
+    if (quotaError) return NextResponse.json({ error: quotaError }, { status: 429 });
+  } catch (err) {
+    log.warn("images.quota_check_failed", { error: err });
+  }
+  const capped = await enforceDailyCap("image-upload", userId);
+  if (capped) return capped;
+
   // Written with the service role: since 0073 users have no direct write
   // access to the bucket (an upload through the Storage API skipped every
   // check above -- G-2). Safe because the path is built here from the
@@ -167,15 +184,20 @@ export async function POST(
     return NextResponse.json({ error: "Could not store the image." }, { status: 500 });
   }
 
-  const { data: inserted, error: insertError } = await supabase
-    .from("trade_images")
-    .insert({ trade_id: id, user_id: userId, storage_path: storagePath })
-    .select("id, trade_id, storage_path, created_at")
-    .single();
+  const row = { trade_id: id, user_id: userId, storage_path: storagePath };
+  const insertRow = (values: typeof row & { size_bytes?: number }) =>
+    supabase.from("trade_images").insert(values).select("id, trade_id, storage_path, created_at").single();
+  let { data: inserted, error: insertError } = await insertRow({ ...row, size_bytes: buffer.length });
+  // Before 0074 there is no size_bytes column: save the row without it.
+  if (insertError && isMissingColumnError(insertError)) {
+    ({ data: inserted, error: insertError } = await insertRow(row));
+  }
 
   if (insertError) {
-    // Clean up orphaned storage file
-    await supabase.storage.from(BUCKET).remove([storagePath]);
+    // Clean up the orphaned file, with the same client that wrote it.
+    await storage.from(BUCKET).remove([storagePath]);
+    const rowCapped = rowLimitResponse(insertError);
+    if (rowCapped) return rowCapped;
     log.error("images.row_insert_failed", { error: insertError });
     return NextResponse.json({ error: "Could not save the image." }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { rateLimit } from "@/lib/rate-limit";
+import { MAX_IMAGE_UPLOADS_PER_DAY } from "@/lib/limits";
 
 /**
  * Per-user DAILY caps on the routes that cost real money or real CPU
@@ -21,6 +22,9 @@ import { rateLimit } from "@/lib/rate-limit";
  *   excursions   MAE/MFE recompute -- one Yahoo call per trade
  *   market-data  candle/bar/fx lookups (shared); protects the unofficial
  *                Yahoo endpoint from being hammered through us
+ *   image-upload trade screenshots; with the per-account quotas in
+ *                src/lib/limits.ts it keeps one account from filling the
+ *                free plan's 1 GB of storage
  */
 export const DAILY_CAPS = {
   ocr: { limit: 200, what: "screenshot reads" },
@@ -31,6 +35,7 @@ export const DAILY_CAPS = {
   export: { limit: 200, what: "exports" },
   excursions: { limit: 50, what: "excursion recalculations" },
   "market-data": { limit: 3000, what: "price lookups" },
+  "image-upload": { limit: MAX_IMAGE_UPLOADS_PER_DAY, what: "screenshot uploads" },
 } as const;
 
 export type DailyCapFeature = keyof typeof DAILY_CAPS;

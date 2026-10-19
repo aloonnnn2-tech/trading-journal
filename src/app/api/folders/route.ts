@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { createFolder, listFolders } from "@/lib/folders/queries";
 import { folderCreateSchema } from "@/lib/strategies/schema";
+import { rowLimitResponse } from "@/lib/limits";
 
 export async function GET() {
   const userId = await getUserIdFromHeader();
@@ -39,6 +40,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const folder = await createFolder(supabase, userId, parsed.data.name);
-  return NextResponse.json(folder, { status: 201 });
+  try {
+    const folder = await createFolder(supabase, userId, parsed.data.name);
+    return NextResponse.json(folder, { status: 201 });
+  } catch (err) {
+    const limited = rowLimitResponse(err);
+    if (limited) return limited;
+    throw err;
+  }
 }
