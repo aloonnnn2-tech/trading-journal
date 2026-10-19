@@ -62,7 +62,7 @@ const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
  * a predictable or reused nonce is worth exactly as much as
  * `'unsafe-inline'`, since an injected script need only carry the value.
  */
-function buildCsp(nonce: string): string {
+export function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV === "development";
 
   const connect = ["'self'", SUPABASE_ORIGIN, SENTRY_ORIGIN, TURNSTILE_ORIGIN]

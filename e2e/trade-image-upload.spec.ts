@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import { createTestUser, deleteTestUser, signIn, type TestUser } from "./fixtures/test-user";
+
+const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 /**
  * Attaching a screenshot to a trade, through the real route and real dev
@@ -33,6 +38,12 @@ test("a screenshot attached to a trade is stored and can be opened", async ({ pa
 
   const file = await page.request.get(body.url!);
   expect(file.status()).toBe(200);
+
+  // The stored size (0074) is what the per-account storage quota sums, and
+  // it is the re-encoded file's size, not the upload's.
+  const { data: row, error } = await admin.from("trade_images").select("size_bytes").eq("id", body.id).single();
+  expect(error).toBeNull();
+  expect(row!.size_bytes).toBe((await file.body()).length);
 
   // And it can be removed again through the app.
   const removed = await page.request.delete(`/api/trades/${id}/images/${body.id}`);
