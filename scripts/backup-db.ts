@@ -176,7 +176,11 @@ async function main() {
     writeFileSync(path.join(outDir, `${table}.json`), JSON.stringify(rows, null, 2));
     totalRows += rows.length;
     dumped += 1;
-    console.log(`  ${table}: ${rows.length} rows`);
+    // Name only, no count: this runs in GitHub Actions on a PUBLIC repo, so
+    // its log is readable by anyone, and per-table counts (how many users,
+    // trades, keys) are information about the business nobody needs there
+    // (security gaps pass, 4.5). The total below is enough to see it worked.
+    console.log(`  ${table}: done`);
   }
 
   console.log(`\nDone. ${totalRows} rows across ${dumped} tables.`);
