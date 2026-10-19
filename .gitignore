@@ -90,3 +90,7 @@ notes-page.png
 # Screenshots collected from other sites for local OCR testing only:
 # someone else's copyright, never committed (public repo).
 /scripts/ocr-eval/web-inbox/
+
+# A private all-in-one notes file at the repo root (security gaps pass, G-12):
+# it names the admin and demo accounts, and one `git add -A` would publish it.
+/TRADING-LENS-EVERYTHING.txt

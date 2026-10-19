@@ -44,7 +44,7 @@ domain, where only scripts ever signed up.
 
 | Id | Email | Created | Last sign-in | Holds | Where it came from |
 |---|---|---|---|---|---|
-| `33483ef7…` | `demo+1783024871792@caliunlock-demo.test` | 2026-07-02 | 2026-08-13 | 53 trades, 482 events, **7 screenshots in Storage** (819 rows) | `scripts/seed-fake-data.mjs` run with no arguments: it signed a new account up on whatever project `.env.local` named, which was production. Its password was the script's default, `DemoPass123!`, written in the public repo. |
+| `33483ef7…` | `demo+1783024871792@caliunlock-demo.test` | 2026-07-02 | 2026-08-13 | 53 trades, 482 events, **7 screenshots in Storage** (819 rows) | `scripts/seed-fake-data.mjs` run with no arguments: it signed a new account up on whatever project `.env.local` named, which was production. Its password was the script's default, which was written in the public repo (redacted here, 2026-10-18; the account is deleted and the script no longer has a default). |
 | `bf7b2da4…` | `tour-check-1@tradinglens.app` | 2026-09-29 | 2026-09-29 | 61 trades (demo journal), 10 events | An ad-hoc verification script in an earlier Claude session (tour rebuild), created via the admin API on live and not deleted |
 | `05f90d19…` | `tour-check-2@tradinglens.app` | 2026-09-29 | 2026-09-29 | 61 trades (demo journal), 32 events | Same |
 | `46868a98…` | `tour-check-4@tradinglens.app` | 2026-10-07 | never | settings only | Same (tour rebuild, 2026-10-07) |

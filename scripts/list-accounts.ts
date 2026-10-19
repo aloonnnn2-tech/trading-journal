@@ -59,7 +59,9 @@ async function main() {
   for (const u of users) {
     const rows: Record<string, number> = {};
     await Promise.all(
-      TABLES.map(async (t) => {
+      // The audit log is keyed by actor_id and is the operator's record, not
+      // the account's data.
+      TABLES.filter((t) => t !== "admin_audit_log").map(async (t) => {
         const { count, error } = await db.from(t).select("*", { count: "exact", head: true }).eq("user_id", u.id);
         rows[t] = error ? -1 : (count ?? 0);
       }),

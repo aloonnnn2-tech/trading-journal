@@ -31,12 +31,20 @@
  *    supabase/migrations applied first, or the tables these rows go into do
  *    not exist.
  *
- * 3. **Trade screenshots are not in the backup.** trade_images rows restore;
- *    the image files they point at are Storage objects and are gone.
+ * 3. **Screenshots are restored separately.** Since 2026-10-16 the backup
+ *    holds the trade-images files too; this script restores only the rows,
+ *    and `npm run restore:storage` puts the files back (rows first).
+ *
+ * 4. **The waitlist is not in the backup** (scripts/db-tables.ts,
+ *    BACKUP_EXCLUDED), and the audit log is only restored into an empty
+ *    table (APPEND_ONLY below).
  *
  * So this covers "the rows were damaged and the project is otherwise intact",
- * which is the failure that actually happens. Full project loss needs
- * Supabase Pro (PITR) and no script here changes that.
+ * which is the failure that actually happens. Full project loss needs the
+ * auth users recreated with the same ids first; the drill for that is
+ * docs/security/restore-test.md. Supabase's own daily backups start on the
+ * Pro plan (7 days; point-in-time recovery is a paid add-on on top), and the
+ * free plan has none: these files are the only copy.
  * ---------------------------------------------------------------------------
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -83,6 +91,31 @@ function readTable(dir: string, table: string): Record<string, unknown>[] | null
   const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
   if (!Array.isArray(parsed)) throw new Error(`${table}.json is not a JSON array`);
   return parsed as Record<string, unknown>[];
+}
+
+/**
+ * Append-only tables whose id is `generated always` (0072): Postgres refuses
+ * an explicit id, so they can't be upserted. They are restored only into an
+ * EMPTY table, without their ids; a table that already has rows (a restore
+ * into the same project) is left alone -- the log it holds is newer than the
+ * backup, and appending the backup again would duplicate every entry.
+ */
+const APPEND_ONLY = new Set(["admin_audit_log"]);
+
+async function restoreAppendOnly(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Record<string, unknown>[],
+): Promise<string> {
+  const { count, error } = await supabase.from(table).select("*", { count: "exact", head: true });
+  if (error) throw new Error(`${table}: could not count existing rows -- ${error.message}`);
+  if ((count ?? 0) > 0) return `kept as is (already has ${count} rows; append-only)`;
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE).map(({ id: _id, ...rest }) => rest);
+    const { error: insertError } = await supabase.from(table).insert(chunk);
+    if (insertError) throw new Error(`${table}: rows ${i}-${i + chunk.length - 1} failed -- ${insertError.message}`);
+  }
+  return `${String(rows.length).padStart(6)} rows restored (new ids)`;
 }
 
 async function restoreTable(
@@ -183,6 +216,10 @@ async function main(): Promise<number> {
   for (const { table, rows } of plan) {
     if (rows.length === 0) {
       console.log(`  ${table.padEnd(22)} skipped (empty)`);
+      continue;
+    }
+    if (APPEND_ONLY.has(table)) {
+      console.log(`  ${table.padEnd(22)} ${await restoreAppendOnly(supabase, table, rows)}`);
       continue;
     }
     await restoreTable(supabase, table, rows);

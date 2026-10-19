@@ -51,15 +51,17 @@ GitHub Actions backups (`.github/workflows/backup.yml`): daily, kept 30 days, an
 To restore (the steps the workflow header gives, verified in Git Bash on Windows):
 
 1. GitHub → Actions → "Backup database" → the run you want → download the artifact, unzip.
-2. `printf '%s' '<BACKUP_PASSPHRASE>' | gpg --batch --yes --decrypt --passphrase-fd 0 trading-lens-backup-<stamp>.tar.gz.gpg > backup.tar.gz`
+2. `read -rs BACKUP_PASSPHRASE; printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --decrypt --passphrase-fd 0 trading-lens-backup-<stamp>.tar.gz.gpg > backup.tar.gz; unset BACKUP_PASSPHRASE`
+   (`read -s` keeps the passphrase off the screen and out of your shell history)
 3. `tar -xzf backup.tar.gz` gives `backups/<stamp>/*.json`.
 4. `npm run restore:db -- --dir backups/<stamp>` is a dry run. Read its output, then add `-- --apply`.
 5. Screenshots: `npm run restore:storage -- --dir backups/<stamp>`, then add `-- --apply`. It only uploads files
    that are missing and never overwrites one that is there.
 
 Restore into the **same** project (bad migration, mass delete): the accounts still exist, so this just
-works. Into a **new** project: apply every migration first, and recreate the auth users with the same ids.
-Read the header of `scripts/restore-db.ts` first.
+works. Into a **new** project: paste `supabase/dev/schema.sql` (every migration), recreate the accounts by id with
+`scripts/restore-auth-placeholders.ts`, then restore. The tested, step-by-step version is the drill in
+[docs/security/restore-test.md](security/restore-test.md); pass the new project's env file explicitly, never `.env.local`.
 
 ## 4. Rotating secrets
 
