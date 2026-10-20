@@ -84,6 +84,10 @@ export const metadata: Metadata = {
   description: "Review, analyze, and improve your trading performance.",
   openGraph: { ...BASE_OPEN_GRAPH },
   twitter: { card: "summary_large_image" },
+  // Google Search Console ownership check for https://tradinglenz.netlify.app/
+  // (URL-prefix property, 2026-10-20). Public by design: Google reads it from
+  // the page. Removing it makes Search Console lose the property.
+  verification: { google: "Gu1MQenTnER0J5pqmyIlGS0VwALe7wiPld-yi7nKd6M" },
 };
 
 export default async function RootLayout({
