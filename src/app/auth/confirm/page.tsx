@@ -35,6 +35,9 @@ export default async function ConfirmPage({
 
   const type = otpType(rawType);
   const recovery = type === "recovery";
+  // The account-deletion email (docs/security/delete-account-email.md) comes
+  // through here too, and must not read as "confirm your email".
+  const deletion = Boolean(next?.startsWith("/account/delete"));
 
   return (
     <div data-v2-page="auth" className="flex flex-1 flex-col items-center justify-center px-6 py-16">
@@ -43,12 +46,14 @@ export default async function ConfirmPage({
         {token_hash && type ? (
           <form method="post" action="/auth/confirm/verify" className="flex w-full flex-col items-start gap-3">
             <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              {recovery ? "Reset your password" : "One last step"}
+              {deletion ? "Confirm it's you" : recovery ? "Reset your password" : "One last step"}
             </h1>
             <p className="text-sm text-zinc-500">
-              {recovery
-                ? "Continue to choose a new password."
-                : "Press the button to confirm your email and sign in."}
+              {deletion
+                ? "Continue to the last step of deleting your account. Nothing is deleted until you confirm there."
+                : recovery
+                  ? "Continue to choose a new password."
+                  : "Press the button to confirm your email and sign in."}
             </p>
             <input type="hidden" name="token_hash" value={token_hash} />
             <input type="hidden" name="type" value={type} />
@@ -57,7 +62,7 @@ export default async function ConfirmPage({
               type="submit"
               className="mt-1 w-full rounded-lg bg-primary px-5 py-2.5 font-medium text-white hover:brightness-110 dark:text-zinc-950"
             >
-              {recovery ? "Continue" : "Confirm my email"}
+              {recovery || deletion ? "Continue" : "Confirm my email"}
             </button>
           </form>
         ) : (

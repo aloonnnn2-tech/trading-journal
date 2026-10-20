@@ -5,6 +5,8 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/observability/log";
 import { recordAudit } from "@/lib/admin/audit";
 import { removeUserFiles, removeWaitlistEmail } from "@/lib/account/delete-account";
+import { deletionProof, PROOF_MESSAGES } from "@/lib/account/deletion-proof";
+import { createClient } from "@/lib/supabase/server";
 
 export async function DELETE() {
   const userId = await getUserIdFromHeader();
@@ -33,6 +35,15 @@ export async function DELETE() {
       { error: "Account deletion isn't configured yet. Contact support." },
       { status: 501 },
     );
+  }
+
+  // Only from the emailed link (2026-10-20): a request for this account that
+  // hasn't expired, and a session signed in from an emailed link after it.
+  // A stolen session or an injected script stops here -- it would need the
+  // inbox. See src/lib/account/deletion-proof.ts.
+  const proof = await deletionProof(await createClient(), admin, userId);
+  if (!proof.ok) {
+    return NextResponse.json({ error: PROOF_MESSAGES[proof.reason], reason: proof.reason }, { status: 403 });
   }
 
   // Table rows (trade_images included) cascade-delete with the auth user;

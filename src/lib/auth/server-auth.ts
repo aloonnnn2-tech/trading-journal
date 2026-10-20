@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { clientIpKey, rateLimit } from "@/lib/rate-limit";
 import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
@@ -121,6 +122,24 @@ export async function authClient(request: Request) {
         getAll: () => cookieStore.getAll(),
         setAll: (toSet) => toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)),
       },
+      ...(forward && ip !== "unknown" ? { global: { headers: { "sb-forwarded-for": ip } } } : {}),
+    },
+  );
+}
+
+/**
+ * A Supabase client for SENDING an auth email on someone's behalf (the
+ * account-deletion link), not bound to any cookies: sending must not touch
+ * the session in this browser. Same key and IP forwarding as authClient.
+ */
+export function authMailer(request: Request) {
+  const forward = forwardedForEnabled();
+  const ip = clientIpKey(request.headers);
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    forward ? process.env.SUPABASE_AUTH_SECRET_KEY! : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: { persistSession: false, autoRefreshToken: false, flowType: "implicit" },
       ...(forward && ip !== "unknown" ? { global: { headers: { "sb-forwarded-for": ip } } } : {}),
     },
   );
