@@ -79,6 +79,19 @@ export function FillPricePrompt({
             >
               {changed ? "Save fill price" : "Confirm"}
             </button>
+            {question.alternatives
+              .filter((a) => !(valid && price === a.price))
+              .map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDraft(String(a.price))}
+                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:border-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300"
+                >
+                  Use {a.label} ({formatFillPrice(a.price)})
+                </button>
+              ))}
             {question.assumed != null && changed && (
               <button
                 type="button"

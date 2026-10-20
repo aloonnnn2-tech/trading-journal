@@ -8,8 +8,9 @@
 // write. Anything else merges as before: a change to another field, or an
 // identical change, is not a conflict.
 //
-// A save without `base` (the order-fill hooks, older clients) is never
-// checked, so nothing that saves today starts failing.
+// A save without `base` (older clients, the background fill sweep, which
+// writes directly) is never checked, so nothing that saves today starts
+// failing. The in-page fill hook saves through autosave and does send one.
 
 export interface TradePatch {
   core?: Record<string, unknown>;

@@ -109,9 +109,6 @@ export interface AutoExecutionDecision {
   /** Field updates to apply. */
   changes: {
     status: "open" | "closed" | "expired";
-    /** Set when the fill price differs from the resting price (a stop-limit
-     *  fills at its limit, not at the stop that triggered it). */
-    entry_price?: number;
     entry_date?: string;
     exit_price?: number;
     exit_date?: string;
@@ -161,13 +158,21 @@ export function decideAutoExecution(
     return {
       changes: {
         status: "open",
-        // The journal's entry price is what the trade actually cost. For
-        // every type but stop-limit that is the resting price already; a
-        // stop-limit fills at its limit leg, and P&L, R and the chart's
-        // entry line must start from there, not from the stop that only
-        // woke the order up.
-        ...(filled !== trade.entry_price ? { entry_price: filled } : {}),
-        ...(trade.entry_date ? {} : { entry_date: now.toISOString() }),
+        // The entry price is NOT changed here, for any order type. A
+        // stop-limit used to have it rewritten to the limit -- the worst
+        // price the order allowed, and the stop the trader typed vanished
+        // from the card (Alon, 2026-10-17: "the wrong price is saved"). Its
+        // real fill is somewhere between the two legs and only the broker
+        // knows it, so the entry stays as typed and the fill question
+        // (fill-check.ts, 0063) asks for the actual price.
+        //
+        // The entry date is the moment it filled -- always. A resting order
+        // usually carries the day it was PLACED (typed, duplicated from an
+        // older trade, or read off an order-ticket screenshot), and keeping
+        // that put the chart's Entry on a day the fill price never traded:
+        // the "Entry is outside the range" warning that appeared days after
+        // a buy. The old date stays in trade_history.
+        entry_date: now.toISOString(),
       },
       trigger: "entry",
       price: filled,
@@ -278,6 +283,11 @@ const ENTRY_VERB: Record<string, string> = {
 
 export function describeAutoExecution(decision: AutoExecutionDecision): string {
   if (decision.trigger === "expiry") return "Day order expired without filling.";
+  // A stop-limit's fill is somewhere between its legs; say which, and that
+  // the card is asking for the real price, rather than name one as the fill.
+  if (decision.trigger === "entry" && decision.orderType === "stop_limit") {
+    return "Stop-limit triggered. Marked as open. Enter the price it actually filled at.";
+  }
 
   const price = (decision.price ?? 0).toLocaleString(undefined, { maximumFractionDigits: 8 });
   if (decision.trigger === "entry") {

@@ -14,7 +14,6 @@ import {
   type AutoExecutableTrade,
 } from "@/lib/trades/auto-execute";
 import { computeDerivedFields } from "@/lib/trades/compute";
-import { deriveMoneyFields } from "@/lib/trades/derive-inputs";
 import { resultForClosedTrade } from "@/lib/trades/result";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
@@ -275,25 +274,10 @@ export async function POST(request: Request) {
         // Apply the same derived-field pipeline a normal edit goes through,
         // so an auto-closed trade lands with correct commission and net P&L
         // rather than a status change alone.
-        // A stop-limit fills at its limit, not at the stop that woke it, so
-        // the fill can move entry_price -- and dollar amount and risk amount
-        // follow from it, as they would had the user typed the new price.
-        // Account balance is unknown here, so risk % is left alone.
-        const moneyDerived =
-          decision.changes.entry_price !== undefined
-            ? deriveMoneyFields(
-                "entry_price",
-                {
-                  entry_price: decision.changes.entry_price,
-                  shares: trade.shares,
-                  dollar_amount: trade.dollar_amount ?? null,
-                  stop_loss: trade.stop_loss,
-                  risk_amount: trade.risk_amount,
-                },
-                null,
-              )
-            : {};
-        const merged = { ...trade, ...decision.changes, ...moneyDerived } as unknown as Trade;
+        // A fill never moves the entry price (auto-execute.ts): the trader
+        // confirms the real one afterwards, through the normal edit path,
+        // which re-derives dollar amount and risk then.
+        const merged = { ...trade, ...decision.changes } as unknown as Trade;
         const commission = trade.commission_manual
           ? trade.commission
           : resolveCommission(await rulesFor(trade.user_id), {
@@ -326,7 +310,7 @@ export async function POST(request: Request) {
         if (!dryRun) {
           const { error: updateError } = await supabase
             .from("trades")
-            .update({ ...decision.changes, ...moneyDerived, ...(result ? { result } : {}), commission, ...derived })
+            .update({ ...decision.changes, ...(result ? { result } : {}), commission, ...derived })
             .eq("id", trade.id)
             // Scoped by user_id as well as id: RLS is off on this client, so
             // the filter that normally guarantees ownership must be explicit.

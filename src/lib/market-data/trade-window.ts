@@ -137,6 +137,66 @@ function onCalendarBar(barTime: number, moment: number, interval: BarInterval, t
 }
 
 /**
+ * A trade's date as a moment on the exchange's clock.
+ *
+ * A date typed without a time ("2026-10-08", the date input's value) is
+ * stored as midnight UTC -- which on a US exchange is 8pm the evening
+ * BEFORE. Read literally, every such entry sat on the previous day's candle,
+ * and its price was then checked against the wrong day ("Entry is outside
+ * the range"). So a bare date, or a stored timestamp that is exactly
+ * midnight UTC, means that calendar day: it becomes noon of that day in the
+ * exchange's own time zone. Anything with a real time of day is kept as is.
+ */
+export function tradeMoment(value: string | null | undefined, timeZone: string): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const day = /^(\d{4})-(\d{2})-(\d{2})(?:[T ]00:00(?::00(?:\.0+)?)?(?:Z|[+-]00(?::?00)?)?)?$/.exec(trimmed);
+  // On a market that runs on UTC (crypto), a stored midnight UTC may be a
+  // real midnight entry and is already that calendar day: only a bare date
+  // is moved. Elsewhere midnight UTC is the evening before -- what a date
+  // typed with no time becomes once stored.
+  const utcMarket = /^(UTC|Etc\/UTC|GMT|Etc\/GMT)$/i.test(timeZone);
+  if (day && (!utcMarket || trimmed.length === 10)) {
+    const noonUtc = Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]), 12) / 1000;
+    return noonUtc - zoneOffset(timeZone, noonUtc);
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed / 1000 : null;
+}
+
+/**
+ * The date to save when the trader picks a candle as their entry or exit
+ * (Alon, 2026-10-17: "make it possible to change the candle").
+ *
+ * - An intraday candle: its start time -- as precise as the chart can be.
+ * - A daily candle: that day, at the time of day the trade already had (on
+ *   the exchange's clock), so only the wrong DAY is corrected; with no real
+ *   time of day to keep, the candle's own time (the session open).
+ * - Weekly and monthly candles can't say which day, so they give null and
+ *   the chart asks for a daily or shorter view.
+ */
+export function candleMoment(
+  bar: Pick<Bar, "time">,
+  interval: BarInterval,
+  timeZone: string,
+  current: string | null,
+): string | null {
+  if (interval === "1wk" || interval === "1mo") return null;
+  if (!isCalendarInterval(interval)) return new Date(bar.time * 1000).toISOString();
+
+  const currentMoment = current ? Date.parse(current) / 1000 : NaN;
+  const hasTimeOfDay = Number.isFinite(currentMoment) && tradeMoment(current, timeZone) === currentMoment;
+  if (!hasTimeOfDay) return new Date(bar.time * 1000).toISOString();
+  // Seconds since local midnight of the existing time, moved onto the
+  // candle's local day.
+  const local = (t: number) => t + zoneOffset(timeZone, t);
+  const secondsIntoDay = ((local(currentMoment) % DAY) + DAY) % DAY;
+  const dayStartLocal = Math.floor(local(bar.time) / DAY) * DAY;
+  const guess = dayStartLocal + secondsIntoDay;
+  return new Date((guess - zoneOffset(timeZone, guess)) * 1000).toISOString();
+}
+
+/**
  * The bar a trade's moment belongs to. `inside` is true when the moment falls
  * within that bar (for daily bars, on its calendar date). In a gap --
  * overnight, a weekend, before the open with no pre-market data -- it's the

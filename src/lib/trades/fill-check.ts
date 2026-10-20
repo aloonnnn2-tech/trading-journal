@@ -3,9 +3,9 @@ import type { Trade } from "./types";
 // "At what price did it fill?" -- asked on the trade card after a resting
 // stop, limit, stop-limit or trailing-stop order fills (Alon, 2026-10-10).
 //
-// The app has to assume a fill price when an order opens (auto-execute.ts: a
-// stop at its stop, a limit at its limit, a stop-limit at its limit), and the
-// entry price drives every P/L and R figure. Migration 0063's trigger marks
+// The app has to assume a fill price when an order opens -- the price the
+// order was entered at; for a stop-limit, its stop (auto-execute.ts never
+// moves it) -- and the entry price drives every P/L and R figure. Migration 0063's trigger marks
 // the trade (fill_price_confirmed = false) and keeps the order's own price;
 // this decides what to ask and what range a fill normally lands in.
 //
@@ -31,6 +31,8 @@ export interface FillQuestion {
   assumed: number | null;
   /** Where a fill normally lands, for the soft check. */
   range: { min?: number; max?: number };
+  /** Other prices worth one tap: a stop-limit's limit leg. */
+  alternatives: { label: string; price: number }[];
 }
 
 const TYPE_NAMES: Record<string, string> = {
@@ -86,7 +88,11 @@ export function fillQuestion(trade: FillCheckTrade): FillQuestion | null {
     hint = "A trailing stop fills wherever the trail was hit, so only your broker's fill shows the price.";
   }
 
-  return { heading, hint, assumed: trade.entry_price, range };
+  const alternatives =
+    type === "stop_limit" && trade.limit_price != null && trade.limit_price !== trade.entry_price
+      ? [{ label: "the limit", price: trade.limit_price }]
+      : [];
+  return { heading, hint, assumed: trade.entry_price, range, alternatives };
 }
 
 /** True when a price is outside where this order normally fills. A tolerance

@@ -36,9 +36,12 @@ describe("pending -> open", () => {
     expect(decideAutoExecution(pending, { dayLow: 90, dayHigh: 99 }, NOW)).toBeNull();
   });
 
-  it("preserves an entry date that was already set", () => {
+  it("dates the entry to the fill, replacing a date the order carried from when it was placed", () => {
+    // A pending order's date is usually when it was placed (or copied from an
+    // older trade). Keeping it put the chart's Entry on a day the fill price
+    // never traded -- the "outside the range" warning days after a buy.
     const d = decideAutoExecution(trade({ status: "pending" }), { dayLow: 99, dayHigh: 101 }, NOW);
-    expect(d?.changes.entry_date).toBeUndefined();
+    expect(d?.changes.entry_date).toBe(NOW.toISOString());
   });
 
   it("does nothing without an entry price to trigger on", () => {

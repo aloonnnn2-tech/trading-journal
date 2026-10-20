@@ -200,6 +200,7 @@ export function TradeCard({
     isInvestment,
     applyAutoExecutionChange,
     flushNow,
+    applyServerTrade,
   );
 
   // Computed client-side (rather than read off the saved row) so the chart's
@@ -470,9 +471,12 @@ export function TradeCard({
                 onChange={(e) => {
                   const next = e.target.value as Trade["status"];
                   updateCoreField("status", next);
-                  // Filling a resting order by hand: the entry date is now,
-                  // the same stamp auto-execution applies. Only when blank,
-                  // so a date the user already chose is never overwritten.
+                  // Filling a resting order by hand: today, only when blank.
+                  // Unlike the automatic fill (which always stamps the fill
+                  // moment), a person flipping status is often BACKFILLING an
+                  // old trade whose date they typed on purpose -- overwriting
+                  // it put the entry after the exit. A wrong date is fixed
+                  // from the chart ("Set as entry candle").
                   if (trade.status === "pending" && (next === "open" || next === "closed") && !trade.entry_date) {
                     updateCoreField("entry_date", localToday());
                   }
@@ -885,6 +889,14 @@ export function TradeCard({
         breakevenPrice={breakevenPrice}
         watchForAutoExecution={watchForAutoExecution}
         onPriceUpdate={handlePriceUpdate}
+        // The chart put the trade on the wrong candle: picking the right one
+        // corrects the date itself, so holding time and stats follow (Alon's
+        // choice). Saved like any edit, so it's in the trade's history.
+        onPickCandle={
+          isInvestment || trade.status === "pending"
+            ? undefined
+            : (which, date) => updateCoreField(which === "entry" ? "entry_date" : "exit_date", date)
+        }
       />
 
       {!isInvestment && (
@@ -1036,7 +1048,8 @@ export function TradeCard({
   );
 }
 
-/** Today as YYYY-MM-DD in the browser's zone -- the shape the date input stores. */
+/** Today as YYYY-MM-DD in the browser's zone -- the shape the date input stores.
+ *  The chart reads a bare day as that day on the exchange (tradeMoment). */
 function localToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

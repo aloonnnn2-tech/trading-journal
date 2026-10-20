@@ -34,6 +34,8 @@ import {
   visibleRange,
   type BarInterval,
   zoneOffset,
+  tradeMoment,
+  candleMoment,
 } from "@/lib/market-data/trade-window";
 
 const inputClass =
@@ -89,6 +91,7 @@ export function PriceChart({
   breakevenPrice = null,
   watchForAutoExecution = false,
   onPriceUpdate,
+  onPickCandle,
 }: {
   ticker: string;
   assetType: string | null;
@@ -111,6 +114,12 @@ export function PriceChart({
    *  still fetched once for display but never re-polled. */
   watchForAutoExecution?: boolean;
   onPriceUpdate?: (snapshot: PriceSnapshot) => void;
+  /**
+   * Set when the trader may correct which candle the trade entered or exited
+   * on: a click on a candle offers "Set as entry / exit candle", and this
+   * gets the date to save (candleMoment in trade-window.ts).
+   */
+  onPickCandle?: (which: "entry" | "exit", date: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -136,6 +145,11 @@ export function PriceChart({
   useEffect(() => {
     onPriceUpdateRef.current = onPriceUpdate;
   }, [onPriceUpdate]);
+
+  // The candle the trader clicked, waiting for "entry" or "exit".
+  const canPick = Boolean(onPickCandle);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   // Ticker/asset type update on every keystroke while editing the trade
   // form, but re-fetching candles and rebuilding the chart is expensive.
@@ -338,10 +352,12 @@ export function PriceChart({
   const holdingView = useMemo(() => {
     if (holding.state !== "ready") return null;
     const { bars, timeZone, interval } = holding.data;
-    const at = (iso: string | null) =>
-      iso && Number.isFinite(Date.parse(iso))
-        ? locate(bars, Date.parse(iso) / 1000, interval, timeZone)
-        : { index: -1, inside: false };
+    // tradeMoment: a date with no time of day means that calendar day on
+    // the exchange, not midnight UTC (the evening before, in New York).
+    const at = (iso: string | null) => {
+      const moment = tradeMoment(iso, timeZone);
+      return moment != null ? locate(bars, moment, interval, timeZone) : { index: -1, inside: false };
+    };
     const entry = at(debouncedDates.entry);
     const exit = at(debouncedDates.exit);
     return {
@@ -453,11 +469,60 @@ export function PriceChart({
       chart.timeScale().fitContent();
     }
 
+    // A click (or tap) on a holding-period candle offers to make it the
+    // entry or exit candle. The index comes from the logical position, never
+    // from param.time -- that has been shifted to the exchange's clock above.
+    if (useHolding && canPick) {
+      const count = holdingView.bars.length;
+      chart.subscribeClick((param) => {
+        if (param.logical == null) return;
+        const index = Math.round(param.logical);
+        if (index < 0 || index >= count) return;
+        setPickError(null);
+        setPicked(index);
+      });
+    }
+
     return () => {
       seriesRef.current = null;
       chart.remove();
     };
-  }, [candles, resolvedTheme, waitingForHolding, useHolding, holdingView, autoscale]);
+  }, [candles, resolvedTheme, waitingForHolding, useHolding, holdingView, autoscale, canPick]);
+
+  // A new set of bars (another size, other dates) makes an old pick meaningless.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setPicked(null), [holdingView]);
+
+  function pick(which: "entry" | "exit") {
+    if (!holdingView || picked == null || !onPickCandle) return;
+    const bar = holdingView.bars[picked];
+    const date = candleMoment(bar, holdingView.interval, holdingView.timeZone, which === "entry" ? debouncedDates.entry : debouncedDates.exit);
+    if (!date) {
+      setPickError("Switch to 1D or a shorter candle to pick the exact one.");
+      return;
+    }
+    const moment = Date.parse(date);
+    const other = tradeMoment(which === "entry" ? debouncedDates.exit : debouncedDates.entry, holdingView.timeZone);
+    if (moment > Date.now()) {
+      setPickError("That candle is in the future.");
+      return;
+    }
+    // By exchange DAY when the candle is daily or the other date has no time
+    // of day: a day trade's entry and exit share a day, and a bare date's
+    // stand-in time (noon) must not make the pair look reversed.
+    const otherRaw = which === "entry" ? debouncedDates.exit : debouncedDates.entry;
+    const otherIsBare = other != null && other !== Date.parse(otherRaw ?? "") / 1000;
+    const byDay = isCalendarInterval(holdingView.interval) || otherIsBare;
+    const dayOf = (t: number) => Math.floor((t + zoneOffset(holdingView.timeZone, t)) / 86_400);
+    const mine = byDay ? dayOf(moment / 1000) : moment / 1000;
+    const theirs = other == null ? null : byDay ? dayOf(other) : other;
+    if (theirs != null && (which === "entry" ? mine > theirs : mine < theirs)) {
+      setPickError(which === "entry" ? "The entry can't be after the exit." : "The exit can't be before the entry.");
+      return;
+    }
+    onPickCandle(which, date);
+    setPicked(null);
+  }
 
   // Price lines live in their own effect, keyed only on the three prices.
   // Entry/SL/TP come straight off the trade form, so they change on every
@@ -616,6 +681,7 @@ export function PriceChart({
           {formatBarTime(holdingView.mismatch.barTime, holdingView.timeZone, holdingView.interval)}). Check the
           symbol, the date or the price. Market data is also adjusted for splits, so a trade from before a split
           won&apos;t line up. The chart is scaled to this trade&apos;s own levels.
+          {canPick && " If the date is off, click the candle you actually traded on to correct it."}
         </p>
       )}
       {failed === "unavailable" && !useHolding ? (
@@ -643,6 +709,44 @@ export function PriceChart({
       ) : (
         // 288px on a phone: 480 was most of the screen. autoSize follows.
         <div className="h-72 w-full overflow-hidden rounded-b-xl sm:h-[480px]" ref={containerRef} />
+      )}
+      {useHolding && canPick && picked != null && holdingView.bars[picked] && (
+        <div
+          role="group"
+          aria-label="Use this candle"
+          data-testid="candle-picker"
+          className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-5 py-2.5 text-xs dark:border-subtle"
+        >
+          <span className="text-zinc-600 dark:text-zinc-300">
+            {formatBarTime(holdingView.bars[picked].time, holdingView.timeZone, holdingView.interval)} · O{" "}
+            {formatQuote(holdingView.bars[picked].open)} H {formatQuote(holdingView.bars[picked].high)} L{" "}
+            {formatQuote(holdingView.bars[picked].low)} C {formatQuote(holdingView.bars[picked].close)}
+          </span>
+          <button
+            type="button"
+            onClick={() => pick("entry")}
+            className="rounded-full bg-primary px-3 py-1 font-medium text-white hover:brightness-110 dark:text-zinc-950"
+          >
+            Set as entry candle
+          </button>
+          {debouncedDates.exit && (
+            <button
+              type="button"
+              onClick={() => pick("exit")}
+              className="rounded-full border border-zinc-300 px-3 py-1 font-medium text-zinc-700 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-200"
+            >
+              Set as exit candle
+            </button>
+          )}
+          <button type="button" onClick={() => setPicked(null)} className="text-zinc-500 hover:text-zinc-300">
+            Cancel
+          </button>
+          {pickError && (
+            <span role="alert" className="basis-full text-loss">
+              {pickError}
+            </span>
+          )}
+        </div>
       )}
     </Card>
   );
