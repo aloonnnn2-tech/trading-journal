@@ -29,6 +29,9 @@ describe("checkDeletionProof", () => {
 
   it("refuses an email-link sign-in from BEFORE the request (an old session, not this email)", () => {
     expect(checkDeletionProof(request, otpAt(T0 - 60_000), T0 + 1_000)).toEqual({ ok: false, reason: "needs_link" });
+    // Even seconds before: only rounding to the whole second is forgiven.
+    expect(checkDeletionProof(request, otpAt(T0 - 3_000), T0 + 1_000)).toEqual({ ok: false, reason: "needs_link" });
+    expect(checkDeletionProof(request, otpAt(T0), T0 + 1_000)).toEqual({ ok: true });
   });
 
   it("refuses a claim from the future (forged or broken clock)", () => {

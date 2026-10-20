@@ -20,7 +20,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/auth/server-auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth/server-auth")>()),
-  authMailer: () => ({ auth: { signInWithOtp: (...a: unknown[]) => signInWithOtp(...a) } }),
+  authClient: async () => ({ auth: { signInWithOtp: (...a: unknown[]) => signInWithOtp(...a) } }),
 }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ getAll: () => [], set: () => {} }) }));
 
@@ -50,7 +50,12 @@ describe("POST /api/account/delete/request", () => {
     expect(Date.parse(row.requested_at)).toBeGreaterThanOrEqual(before - 1000);
     expect(signInWithOtp).toHaveBeenCalledWith({
       email: "me@example.com",
-      options: { shouldCreateUser: false, captchaToken: "tok" },
+      options: {
+        shouldCreateUser: false,
+        captchaToken: "tok",
+        // Back to the deletion page on this site (Supabase's default email).
+        emailRedirectTo: "https://x/account/delete/confirm",
+      },
     });
   });
 

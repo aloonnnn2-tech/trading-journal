@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUserId } from "@/lib/supabase/auth";
 import { deletionProof, PROOF_MESSAGES } from "@/lib/account/deletion-proof";
 import { BrandMark } from "@/components/brand-mark";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
+
+const LINK_FAILED =
+  "That link didn't work. It may have been used already, expired, or been opened in a different browser from the one where you asked. Ask for a new link from the Account page, and open it in that same browser.";
 
 export const metadata: Metadata = {
   title: "Delete your account",
@@ -16,7 +20,20 @@ export const metadata: Metadata = {
 // the person in from the link, then sends them here. The same check as the
 // delete route decides what this page offers -- the button only appears for
 // a sign-in from that link, and the route checks again when it's pressed.
-export default async function ConfirmDeletePage() {
+export default async function ConfirmDeletePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string; error?: string; link?: string }>;
+}) {
+  const { code, error, link } = await searchParams;
+  // Supabase's default email: its link comes back here with a one-time code,
+  // which /auth/callback turns into a session (in the browser that asked for
+  // the deletion) and sends back here without it.
+  if (code) {
+    redirect(`/auth/callback?${new URLSearchParams({ code, next: "/account/delete/confirm" })}`);
+  }
+  const linkFailed = Boolean(error) || link === "failed";
+
   const userId = await requireUserId();
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
@@ -28,6 +45,9 @@ export default async function ConfirmDeletePage() {
   } catch {
     proof = { ok: false as const, reason: "unavailable" as const };
   }
+  // A link that was already used, has expired, or was opened in a different
+  // browser from the one that asked: say so, rather than the general message.
+  const failedMessage = linkFailed && !proof.ok ? LINK_FAILED : null;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
@@ -63,7 +83,7 @@ export default async function ConfirmDeletePage() {
             <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Your account wasn&apos;t deleted
             </h1>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">{PROOF_MESSAGES[proof.reason]}</p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">{failedMessage ?? PROOF_MESSAGES[proof.reason]}</p>
             <Link href="/account" className="text-sm font-medium text-primary hover:underline">
               Go to Account
             </Link>

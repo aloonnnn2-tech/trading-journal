@@ -3,7 +3,9 @@
 // another site. Anything else goes to the dashboard as before.
 // /reset-password: a recovery email can arrive through /auth/callback (see
 // src/app/auth/confirm/page.tsx) and must still land on the new-password form.
-const ALLOWED_NEXT = new Set(["/review", "/reset-password"]);
+// /account/delete/confirm: where the emailed account-deletion link lands
+// (2026-10-20); the page itself re-checks everything before deleting.
+const ALLOWED_NEXT = new Set(["/review", "/reset-password", "/account/delete/confirm"]);
 
 export function afterSignIn(next: string | null | undefined): string {
   return next && ALLOWED_NEXT.has(next) ? next : "/dashboard";

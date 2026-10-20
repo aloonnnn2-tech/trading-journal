@@ -39,6 +39,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // An account-deletion link that didn't work (used, expired, or opened in
+  // another browser): back to that page, which says so -- not to sign-in
+  // with a message about Google.
+  if (destination.pathname === "/account/delete/confirm") {
+    return NextResponse.redirect(new URL("/account/delete/confirm?link=failed", url.origin));
+  }
+
   // Cancelled at Google's screen (?error=access_denied), or a code that
   // didn't exchange. Sign-in says so and the other ways in stay open.
   const failed = new URL("/sign-in", url.origin);

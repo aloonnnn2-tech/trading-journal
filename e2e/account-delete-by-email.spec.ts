@@ -26,6 +26,9 @@ async function recordRequest(userId: string, expiresInMs = 3_600_000) {
   if (error) throw new Error(`could not record the request: ${error.message}`);
 }
 
+/** Make sure the next timestamp is in a later second than the last sign-in. */
+const nextSecond = () => new Promise((r) => setTimeout(r, 2_100));
+
 async function exists(userId: string) {
   const { data } = await admin.auth.admin.getUserById(userId);
   return Boolean(data?.user);
@@ -55,6 +58,7 @@ test("without a request, or from a session older than the request, nothing is de
   expect(res.status()).toBe(403);
   expect((await res.json()).reason).toBe("no_request");
 
+  await nextSecond();
   await recordRequest(user.id);
   res = await page.request.delete("/api/account/delete");
   expect(res.status()).toBe(403);
@@ -74,6 +78,20 @@ test("an expired request deletes nothing, even from a fresh link", async ({ page
   await page.getByRole("button", { name: "Continue" }).click();
   await page.waitForURL(/\/account\/delete\/confirm/);
   await expect(page.getByText(/expired/)).toBeVisible();
+  expect(await exists(user.id)).toBe(true);
+});
+
+test("a used or foreign link from Supabase's default email says so, and deletes nothing", async ({ page }) => {
+  // The default email's link comes back as ?code=; one this browser can't
+  // exchange (used, expired, or from another browser) must not end on the
+  // Google sign-in error.
+  await signIn(page, user);
+  await nextSecond();
+  await recordRequest(user.id);
+  await page.goto("/account/delete/confirm?code=not-a-real-code");
+  await page.waitForURL(/\/account\/delete\/confirm\?link=failed/, { timeout: 30_000 });
+  await expect(page.getByText("That link didn't work.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete my account" })).toHaveCount(0);
   expect(await exists(user.id)).toBe(true);
 });
 

@@ -1,20 +1,41 @@
-# The account-deletion email (Supabase "Magic link" template)
+# The account-deletion email
 
 Deleting an account takes a link emailed to the account's own address
-(2026-10-20). The email is Supabase's **Magic link** template, which this
-app uses for nothing else: it has no "sign in by email link" option. Set it
-once on **each** project, dev and live.
+(2026-10-20). The email is Supabase's **Magic link** email. This app uses it
+for nothing else: it has no "sign in by email link" option.
 
-**Supabase dashboard → Authentication → Emails → Templates → Magic link**
+## What's needed today (no email service): one setting per project
 
-**Subject:**
+Supabase only lets you edit email templates once you connect your own email
+service (custom SMTP). Without one, the email is Supabase's default:
+**"Your sign-in link"**, with a **Sign in** link. That works as it is. The
+Account page tells people to expect that title.
 
-```
-Confirm deleting your Trading Lens account
-```
+The default link returns to `/account/delete/confirm`, so that address must be
+on the project's list of allowed return addresses:
 
-**Message body** (switch the editor to its source/HTML view and replace
-everything):
+**Supabase → Authentication → URL Configuration → Redirect URLs → Add URL**
+
+- **Live** (project `uskk…`): `https://tradinglenz.netlify.app/account/delete/confirm`
+- **Dev** (project `tjvu…`): `http://localhost:3003/account/delete/confirm`
+
+Without it, Supabase sends the link to the Site URL instead, and the deletion
+can't finish.
+
+**One limit of the default email:** its link only works in the **same
+browser** where the deletion was asked for. Supabase's default flow ties the
+link to a secret stored in that browser. The page says so if it's opened
+elsewhere. That's also a safety feature: someone else can't use the link.
+
+## Later, with an email service: a proper template
+
+With custom SMTP connected (a free tier such as Brevo, see
+`docs/security/email-records.md`), set the Magic link template on each
+project:
+
+**Subject:** `Confirm deleting your Trading Lens account`
+
+**Body (Source view):**
 
 ```html
 <h2>Delete your Trading Lens account?</h2>
@@ -25,34 +46,26 @@ everything):
 <p>If you didn't ask for this, ignore this email. Your account stays as it is.</p>
 ```
 
-Then **Save**.
-
-## Check the Site URL
-
-The link is built from **Authentication → URL Configuration → Site URL**:
-
-- **Live:** `https://tradinglenz.netlify.app`
-- **Dev:** wherever you test the dev project locally, usually
-  `http://localhost:3003` (`npm run dev:devdb`)
+That link works in any browser, and survives mail scanners that open links
+(it waits for a button press on `/auth/confirm`). The app handles both kinds
+of link, so switching needs no code change.
 
 ## Why this is safe
 
-- Opening the link alone deletes nothing. It lands on `/auth/confirm`, which
-  waits for a button press, so a mail provider's link scanner can't trigger
-  it. That page signs the person in and sends them to
-  `/account/delete/confirm`, which waits for a second press.
 - The delete only goes through for a session signed in **from an emailed
   link, after the request**, within the hour
-  (`src/lib/account/deletion-proof.ts`). If someone else makes Supabase send
-  this email (anyone can ask Supabase for a magic link to any address),
-  nothing happens: there's no request from the account itself, so the page
-  says so and deletes nothing.
+  (`src/lib/account/deletion-proof.ts`). A stolen session or a script in the
+  page can ask, but can't finish.
+- Anyone can make Supabase send a sign-in link to any address. On its own
+  that does nothing: there's no deletion request from the account, so the
+  page deletes nothing.
 - The request route emails only the signed-in account's own address,
   limited to 3 an hour.
+- Nothing is deleted until the button on `/account/delete/confirm` is
+  pressed.
 
 ## The sending limit
 
 Supabase's built-in mailer sends only a few emails an hour **for the whole
-project**, shared with sign-up confirmations and password resets. If people
-report that the email never arrives, connect a free email service as custom
-SMTP (Authentication → SMTP Settings; see `docs/security/email-records.md`).
+project**, shared with sign-up confirmations and password resets. Connecting
+an email service removes that limit too.

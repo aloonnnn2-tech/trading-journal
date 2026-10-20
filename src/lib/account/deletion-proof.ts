@@ -17,8 +17,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /** How long the emailed link is good for. */
 export const DELETION_WINDOW_MS = 60 * 60_000;
 
-/** Clock difference allowed between the database and Supabase Auth. */
-const SKEW_MS = 5_000;
+/**
+ * Rounding allowance: Supabase records the sign-in time in whole seconds.
+ * Kept this small on purpose -- a real emailed link is opened minutes after
+ * the request, and any wider margin would let a sign-in from just BEFORE the
+ * request count (an e2e test caught 5s doing exactly that).
+ */
+const SKEW_MS = 1_000;
 
 /** How an emailed-link sign-in shows up in `amr`. */
 const EMAIL_LINK_METHODS = new Set(["otp", "magiclink"]);

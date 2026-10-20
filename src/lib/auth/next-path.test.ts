@@ -9,4 +9,10 @@ describe("afterSignIn", () => {
     expect(afterSignIn("https://evil.example/review")).toBe("/dashboard");
     expect(afterSignIn("/admin")).toBe("/dashboard");
   });
+
+  it("returns to the account-deletion page from its emailed link, exactly that path", () => {
+    expect(afterSignIn("/account/delete/confirm")).toBe("/account/delete/confirm");
+    expect(afterSignIn("/account/delete/confirm?code=x")).toBe("/dashboard");
+    expect(afterSignIn("/account/delete")).toBe("/dashboard");
+  });
 });

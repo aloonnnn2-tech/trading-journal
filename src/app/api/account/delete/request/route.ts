@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { authFailure, authMailer, captchaField, readJson } from "@/lib/auth/server-auth";
+import { authClient, authFailure, captchaField, readJson, siteOrigin } from "@/lib/auth/server-auth";
 import { DELETION_WINDOW_MS } from "@/lib/account/deletion-proof";
 import { isMissingTableError } from "@/lib/supabase/errors";
 import { log } from "@/lib/observability/log";
@@ -16,9 +16,9 @@ import { log } from "@/lib/observability/log";
 //
 // The address is the verified account's, never one from the request, so this
 // can only ever email the account's owner. The email itself is Supabase's
-// "Magic link" template, which this app uses for nothing else
-// (docs/security/delete-account-email.md has the text). Supabase checks the
-// CAPTCHA token on that call, as on sign-in.
+// "Magic link" one -- its default ("Your sign-in link") unless a custom email
+// service lets the template be edited (docs/security/delete-account-email.md).
+// Supabase checks the CAPTCHA token on that call, as on sign-in.
 
 const body = z.object({ captchaToken: captchaField });
 
@@ -66,9 +66,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const { error } = await authMailer(request).auth.signInWithOtp({
+  // Through the cookie-bound client: Supabase's DEFAULT email links back
+  // with a one-time code, which can only be turned into a session in the
+  // browser holding the matching secret this call stores (PKCE). So the link
+  // works where the deletion was asked for -- and not in anyone else's.
+  // Where it returns to must be on the Redirect URLs list in Supabase
+  // (docs/security/delete-account-email.md). A project with its own email
+  // template sends a token_hash link through /auth/confirm instead.
+  const supabase = await authClient(request);
+  const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: false, captchaToken: parsed.data.captchaToken },
+    options: {
+      shouldCreateUser: false,
+      captchaToken: parsed.data.captchaToken,
+      emailRedirectTo: `${siteOrigin(request)}/account/delete/confirm`,
+    },
   });
   if (error) {
     log.warn("account.delete_request_email_failed", { code: error.code ?? null, status: error.status ?? null });
