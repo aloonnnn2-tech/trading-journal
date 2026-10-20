@@ -215,7 +215,8 @@ export default function PrivacyPage() {
         </p>
         <p className={BODY}>
           You can permanently delete your account and all of its data yourself, from the Account
-          page. Deletion can&apos;t be undone. You can also ask us to do it by email (see below).
+          page: we email a confirmation link to your account&apos;s address, and the account is
+          deleted only after you open it and confirm. Deletion can&apos;t be undone. You can also ask us to do it by email (see below).
         </p>
         <p className={BODY}>
           Deleting your account also deletes your screenshots and, if you joined the waitlist, your

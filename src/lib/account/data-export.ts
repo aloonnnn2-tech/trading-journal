@@ -150,6 +150,8 @@ export const EXCLUDED_TABLES: Record<string, string> = {
     "The operator's security record of admin actions and exports (0072): who did what, when -- ids and paths only, no journal contents.",
   waitlist: "Not linked to an account (anyone can join with any address).",
   public_page_views: "Anonymous daily totals; nothing per person.",
+  account_deletion_requests:
+    "A pending 'delete my account' link (0076): exists only for the hour before the account is deleted.",
 };
 
 /** Tables the sections above read, for the drift test. */

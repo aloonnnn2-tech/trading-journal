@@ -4,7 +4,7 @@
 -- the dev project (the one in .env.test.local), never the live one.
 -- It runs as one transaction: if any statement fails, nothing is kept.
 --
--- Contains 74 migrations: 0001_field_definitions_and_trades.sql .. 0075_help_requests.sql
+-- Contains 76 migrations: 0001_field_definitions_and_trades.sql .. 0077_account_deletion_token.sql
 
 -- ===== 0001_field_definitions_and_trades.sql =====
 -- Milestone 0: field-definition engine + core trades schema
@@ -6323,4 +6323,65 @@ create trigger help_requests_table_cap
 -- Self-recording, as every migration since 0040.
 insert into schema_migrations (filename)
 values ('0075_help_requests.sql')
+on conflict do nothing;
+
+-- ===== 0076_account_deletion_requests.sql =====
+-- MANUAL APPLY REQUIRED: paste this file into the Supabase SQL editor and
+-- run it. No Supabase CLI in this project -- migrations are applied by hand.
+-- Apply after 0075. Apply BEFORE the code ships: without this table the
+-- Account page can't send a deletion link, so nobody could delete their
+-- account (it says so rather than fail silently).
+-- Down: drop table if exists public.account_deletion_requests;
+--
+-- Deleting an account by email confirmation (2026-10-20). Asking to delete
+-- records one row here; the emailed link signs the person in; the delete
+-- only goes through when that sign-in came from an emailed link AFTER this
+-- row was written, and before it expires (src/lib/account/deletion-proof.ts).
+--
+-- One row per account: asking again replaces it. Service role only -- RLS on
+-- with no policies, every grant revoked -- so the browser can neither read
+-- nor forge a request; the only writer is POST /api/account/delete/request.
+
+create table if not exists public.account_deletion_requests (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  requested_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  constraint account_deletion_requests_window check (expires_at > requested_at and expires_at <= requested_at + interval '2 hours')
+);
+
+alter table public.account_deletion_requests enable row level security;
+revoke all on public.account_deletion_requests from anon, authenticated;
+
+-- Self-recording, as every migration since 0040.
+insert into schema_migrations (filename)
+values ('0076_account_deletion_requests.sql')
+on conflict do nothing;
+
+-- ===== 0077_account_deletion_token.sql =====
+-- MANUAL APPLY REQUIRED: paste this file into the Supabase SQL editor and
+-- run it. No Supabase CLI in this project -- migrations are applied by hand.
+-- Apply after 0076, BEFORE the code that uses it: until then the Account
+-- page says deletion is unavailable.
+-- Down: alter table public.account_deletion_requests drop column if exists token_hash;
+--
+-- Account deletion, second version (2026-10-20). The first relied on the
+-- emailed link signing the person in, which with Supabase's default email
+-- only works in the browser that asked, from the newest email -- Alon's real
+-- test failed on exactly that. Now the link carries a one-time code that only
+-- the email contains; this column keeps its SHA-256, never the code.
+
+alter table public.account_deletion_requests
+  add column if not exists token_hash text;
+
+alter table public.account_deletion_requests
+  drop constraint if exists account_deletion_requests_token_hash_shape,
+  add constraint account_deletion_requests_token_hash_shape check (token_hash is null or token_hash ~ '^[0-9a-f]{64}$');
+
+-- Requests made under the first version have no code and can't be finished;
+-- they expire within the hour anyway.
+delete from public.account_deletion_requests where token_hash is null;
+
+-- Self-recording, as every migration since 0040.
+insert into schema_migrations (filename)
+values ('0077_account_deletion_token.sql')
 on conflict do nothing;

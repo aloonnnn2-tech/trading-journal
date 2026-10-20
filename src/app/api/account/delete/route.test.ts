@@ -26,8 +26,18 @@ vi.mock("@/lib/account/delete-account", () => ({
   removeUserFiles: (...a: unknown[]) => removeUserFiles(...a),
   removeWaitlistEmail: (...a: unknown[]) => removeWaitlistEmail(...a),
 }));
+// The emailed-link proof (2026-10-20) is tested on its own in
+// src/lib/account/deletion-proof.test.ts; here only its verdict matters.
+const deletionProof = vi.fn();
+vi.mock("@/lib/account/deletion-proof", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/account/deletion-proof")>()),
+  deletionProof: (...a: unknown[]) => deletionProof(...a),
+}));
 
-const { DELETE } = await import("./route");
+const { DELETE: handler } = await import("./route");
+const TOKEN = "t".repeat(43);
+const DELETE = (body: unknown = { token: TOKEN }) =>
+  handler(new Request("https://x/api/account/delete", { method: "DELETE", body: JSON.stringify(body) }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -38,9 +48,35 @@ beforeEach(() => {
   removeWaitlistEmail.mockResolvedValue(1);
   getUserById.mockResolvedValue({ data: { user: { email: "t@example.com" } }, error: null });
   deleteUser.mockResolvedValue({ error: null });
+  deletionProof.mockResolvedValue({ ok: true });
 });
 
 describe("DELETE /api/account/delete", () => {
+  it.each(["no_request", "expired", "wrong_link"] as const)(
+    "deletes nothing without the emailed-link proof (%s)",
+    async (reason) => {
+      deletionProof.mockResolvedValue({ ok: false, reason });
+      const res = await DELETE();
+      expect(res.status).toBe(403);
+      expect((await res.json()).reason).toBe(reason);
+      expect(removeUserFiles).not.toHaveBeenCalled();
+      expect(deleteUser).not.toHaveBeenCalled();
+      expect(recordAudit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("checks the code from the request body, for the signed-in account", async () => {
+    await DELETE();
+    expect(deletionProof).toHaveBeenCalledWith(admin, "user-1", TOKEN);
+  });
+
+  it("treats a missing or unreadable body as no code", async () => {
+    deletionProof.mockResolvedValue({ ok: false, reason: "wrong_link" });
+    await handler(new Request("https://x/api/account/delete", { method: "DELETE" }));
+    expect(deletionProof).toHaveBeenCalledWith(admin, "user-1", null);
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
   it("removes files, the waitlist row and the user, then records it", async () => {
     const res = await DELETE();
     expect(res.status).toBe(200);

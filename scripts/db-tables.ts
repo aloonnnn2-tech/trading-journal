@@ -128,4 +128,5 @@ export const BACKUP_EXCLUDED: Record<string, string> = {
   rate_limit_counters: "Abuse counters that expire within a day.",
   idempotency_keys: "Request replay copies kept a day.",
   public_page_views: "Anonymous daily totals; cheap to lose.",
+  account_deletion_requests: "A pending 'delete my account' link, valid for an hour (0076).",
 };

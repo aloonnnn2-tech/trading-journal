@@ -5,8 +5,9 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/observability/log";
 import { recordAudit } from "@/lib/admin/audit";
 import { removeUserFiles, removeWaitlistEmail } from "@/lib/account/delete-account";
+import { deletionProof, PROOF_MESSAGES } from "@/lib/account/deletion-proof";
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,6 +34,21 @@ export async function DELETE() {
       { error: "Account deletion isn't configured yet. Contact support." },
       { status: 501 },
     );
+  }
+
+  // Only from the emailed link (2026-10-20): the one-time code from that
+  // link, for a request from this account that hasn't expired. A stolen
+  // session or an injected script stops here -- the code is only in the
+  // email. See src/lib/account/deletion-proof.ts.
+  let token: unknown = null;
+  try {
+    token = ((await request.json()) as { token?: unknown } | null)?.token ?? null;
+  } catch {
+    token = null;
+  }
+  const proof = await deletionProof(admin, userId, token);
+  if (!proof.ok) {
+    return NextResponse.json({ error: PROOF_MESSAGES[proof.reason], reason: proof.reason }, { status: 403 });
   }
 
   // Table rows (trade_images included) cascade-delete with the auth user;

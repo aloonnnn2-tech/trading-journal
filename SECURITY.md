@@ -285,6 +285,26 @@ no account writes to our database, so the form is built to be spammed:
 It can't be used to get into an account: it reads nothing back and changes
 no account. The worst a determined bot gets is 200 junk rows a day.
 
+## 4d. Deleting an account takes the inbox
+
+Since 2026-10-20, deleting an account is two steps:
+
+1. `POST /api/account/delete/request` records a one-hour request (0076)
+   and has Supabase email a link (the "Magic link" template,
+   `docs/security/delete-account-email.md`) to the account's own address.
+2. The link ends in a one-time code that only that email holds
+   (`/account/delete/confirm/<code>`; only its SHA-256 is stored, 0077), and
+   that page offers the button.
+
+`DELETE /api/account/delete` refuses (403) unless the code matches the
+signed-in account's request, which is looked up by the verified user id,
+never by the code, and the request is under an hour old
+(`src/lib/account/deletion-proof.ts`).
+
+A stolen session or an injected script can start a deletion but can't
+finish one, because the code never reaches the browser. The link works in
+any browser; opening it deletes nothing.
+
 ## 5. File upload posture
 
 Already sound before this pass; recorded so it is not weakened by accident.

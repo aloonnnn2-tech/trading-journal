@@ -29,7 +29,8 @@ How the caller is known:
 | admin/help | PATCH, DELETE | A; id in the body, fixed path; audited |
 | auth/session | GET | U for the email; signed-out callers get `signedIn: false` |
 | account/consent | POST | U |
-| account/delete | DELETE | U |
+| account/delete | DELETE | U, plus the one-time code from the emailed link, matched to this account's request under an hour old (`deletion-proof.ts`); 403 otherwise |
+| account/delete/request | POST | U, 3/hour; emails only the account's own address |
 | account/export | GET | U |
 | account/transactions | GET, POST | U |
 | account/transactions/[id] | DELETE | U |

@@ -85,6 +85,9 @@ export const SECURITY_SUITE: Record<string, string[]> = {
   ],
   "account lifecycle and audit": [
     "src/app/api/account/delete/route.test.ts",
+    // Deletion only from the emailed link (2026-10-20).
+    "src/lib/account/deletion-proof.test.ts",
+    "src/app/api/account/delete/request/route.test.ts",
     "src/lib/account/delete-account.test.ts",
     "src/lib/account/data-export.test.ts",
     "src/lib/account/auth-profile.test.ts",
