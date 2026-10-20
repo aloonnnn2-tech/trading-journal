@@ -10,9 +10,13 @@ describe("afterSignIn", () => {
     expect(afterSignIn("/admin")).toBe("/dashboard");
   });
 
-  it("returns to the account-deletion page from its emailed link, exactly that path", () => {
-    expect(afterSignIn("/account/delete/confirm")).toBe("/account/delete/confirm");
-    expect(afterSignIn("/account/delete/confirm?code=x")).toBe("/dashboard");
-    expect(afterSignIn("/account/delete")).toBe("/dashboard");
+  it("returns to an emailed account-deletion link, exactly that shape", () => {
+    const link = `/account/delete/confirm/${"a".repeat(43)}`;
+    expect(afterSignIn(link)).toBe(link);
+    expect(afterSignIn(`${link}?x=1`)).toBe("/dashboard");
+    expect(afterSignIn(`${link}/more`)).toBe("/dashboard");
+    expect(afterSignIn("/account/delete/confirm/short")).toBe("/dashboard");
+    expect(afterSignIn(`//evil.example/account/delete/confirm/${"a".repeat(43)}`)).toBe("/dashboard");
+    expect(afterSignIn("/account/delete/confirm")).toBe("/dashboard");
   });
 });

@@ -6,9 +6,8 @@ import { log } from "@/lib/observability/log";
 import { recordAudit } from "@/lib/admin/audit";
 import { removeUserFiles, removeWaitlistEmail } from "@/lib/account/delete-account";
 import { deletionProof, PROOF_MESSAGES } from "@/lib/account/deletion-proof";
-import { createClient } from "@/lib/supabase/server";
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const userId = await getUserIdFromHeader();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,11 +36,17 @@ export async function DELETE() {
     );
   }
 
-  // Only from the emailed link (2026-10-20): a request for this account that
-  // hasn't expired, and a session signed in from an emailed link after it.
-  // A stolen session or an injected script stops here -- it would need the
-  // inbox. See src/lib/account/deletion-proof.ts.
-  const proof = await deletionProof(await createClient(), admin, userId);
+  // Only from the emailed link (2026-10-20): the one-time code from that
+  // link, for a request from this account that hasn't expired. A stolen
+  // session or an injected script stops here -- the code is only in the
+  // email. See src/lib/account/deletion-proof.ts.
+  let token: unknown = null;
+  try {
+    token = ((await request.json()) as { token?: unknown } | null)?.token ?? null;
+  } catch {
+    token = null;
+  }
+  const proof = await deletionProof(admin, userId, token);
   if (!proof.ok) {
     return NextResponse.json({ error: PROOF_MESSAGES[proof.reason], reason: proof.reason }, { status: 403 });
   }

@@ -37,7 +37,7 @@ export default async function ConfirmPage({
   const recovery = type === "recovery";
   // The account-deletion email (docs/security/delete-account-email.md) comes
   // through here too, and must not read as "confirm your email".
-  const deletion = Boolean(next?.startsWith("/account/delete"));
+  const deletion = Boolean(next?.includes("/account/delete/confirm/"));
 
   return (
     <div data-v2-page="auth" className="flex flex-1 flex-col items-center justify-center px-6 py-16">

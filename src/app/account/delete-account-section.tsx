@@ -85,9 +85,9 @@ export function DeleteAccountSection({ email }: { email: string }) {
       ) : (
         <p role="status" className="text-sm text-zinc-700 dark:text-zinc-300">
           We sent a link to <span className="font-semibold">{email}</span> at{" "}
-          {new Date(sentAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Open it within an hour,
-          <strong> in this browser</strong>, to finish deleting your account. It may be titled &ldquo;Your sign-in
-          link&rdquo;: that&apos;s the one. Check spam too; only the newest email&apos;s link works.
+          {new Date(sentAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Open it within an hour to
+          finish deleting your account. It may be titled &ldquo;Your sign-in link&rdquo;: that&apos;s the one. Check
+          spam too; only the newest email&apos;s link works.
         </p>
       )}
       <Turnstile ref={captcha} />

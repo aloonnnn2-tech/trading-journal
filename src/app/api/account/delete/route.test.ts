@@ -29,13 +29,15 @@ vi.mock("@/lib/account/delete-account", () => ({
 // The emailed-link proof (2026-10-20) is tested on its own in
 // src/lib/account/deletion-proof.test.ts; here only its verdict matters.
 const deletionProof = vi.fn();
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/account/deletion-proof", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/account/deletion-proof")>()),
   deletionProof: (...a: unknown[]) => deletionProof(...a),
 }));
 
-const { DELETE } = await import("./route");
+const { DELETE: handler } = await import("./route");
+const TOKEN = "t".repeat(43);
+const DELETE = (body: unknown = { token: TOKEN }) =>
+  handler(new Request("https://x/api/account/delete", { method: "DELETE", body: JSON.stringify(body) }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -50,7 +52,7 @@ beforeEach(() => {
 });
 
 describe("DELETE /api/account/delete", () => {
-  it.each(["no_request", "expired", "needs_link"] as const)(
+  it.each(["no_request", "expired", "wrong_link"] as const)(
     "deletes nothing without the emailed-link proof (%s)",
     async (reason) => {
       deletionProof.mockResolvedValue({ ok: false, reason });
@@ -63,9 +65,16 @@ describe("DELETE /api/account/delete", () => {
     },
   );
 
-  it("checks the proof for the signed-in account", async () => {
+  it("checks the code from the request body, for the signed-in account", async () => {
     await DELETE();
-    expect(deletionProof).toHaveBeenCalledWith({}, admin, "user-1");
+    expect(deletionProof).toHaveBeenCalledWith(admin, "user-1", TOKEN);
+  });
+
+  it("treats a missing or unreadable body as no code", async () => {
+    deletionProof.mockResolvedValue({ ok: false, reason: "wrong_link" });
+    await handler(new Request("https://x/api/account/delete", { method: "DELETE" }));
+    expect(deletionProof).toHaveBeenCalledWith(admin, "user-1", null);
+    expect(deleteUser).not.toHaveBeenCalled();
   });
 
   it("removes files, the waitlist row and the user, then records it", async () => {

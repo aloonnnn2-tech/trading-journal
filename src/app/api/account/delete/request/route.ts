@@ -5,14 +5,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { authClient, authFailure, captchaField, readJson, siteOrigin } from "@/lib/auth/server-auth";
-import { DELETION_WINDOW_MS } from "@/lib/account/deletion-proof";
+import { DELETION_WINDOW_MS, newDeletionToken } from "@/lib/account/deletion-proof";
 import { isMissingTableError } from "@/lib/supabase/errors";
 import { log } from "@/lib/observability/log";
 
 // Step 1 of deleting an account (2026-10-20): record the request and email
 // a confirmation link to the account's own address. Nothing is deleted here.
-// The link signs the person in; /account/delete/confirm then deletes, and
-// only for a sign-in from that link (src/lib/account/deletion-proof.ts).
+// The link carries a one-time code; /account/delete/confirm/<code> deletes,
+// and only for that code (src/lib/account/deletion-proof.ts).
 //
 // The address is the verified account's, never one from the request, so this
 // can only ever email the account's owner. The email itself is Supabase's
@@ -48,11 +48,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Account deletion isn't configured yet. Contact support." }, { status: 501 });
   }
 
+  // A fresh code each time: asking again makes every earlier email's link
+  // stop working. Only its hash is stored; the code itself goes into the
+  // email and nowhere else -- not into this response.
+  const { token, hash } = newDeletionToken();
   const now = Date.now();
   const { error: saveError } = await admin.from("account_deletion_requests").upsert({
     user_id: userId,
     requested_at: new Date(now).toISOString(),
     expires_at: new Date(now + DELETION_WINDOW_MS).toISOString(),
+    token_hash: hash,
   });
   if (saveError) {
     log.error("account.delete_request_save_failed", { error: saveError });
@@ -66,20 +71,20 @@ export async function POST(request: Request) {
     );
   }
 
-  // Through the cookie-bound client: Supabase's DEFAULT email links back
-  // with a one-time code, which can only be turned into a session in the
-  // browser holding the matching secret this call stores (PKCE). So the link
-  // works where the deletion was asked for -- and not in anyone else's.
-  // Where it returns to must be on the Redirect URLs list in Supabase
-  // (docs/security/delete-account-email.md). A project with its own email
-  // template sends a token_hash link through /auth/confirm instead.
+  // Supabase's email link ends at emailRedirectTo, which carries our code.
+  // Supabase sends people there even when its own part of the link failed
+  // (used, expired, opened by a mail scanner first), so the code always
+  // arrives. The address must match the Redirect URLs list in Supabase:
+  // ".../account/delete/confirm/*" (docs/security/delete-account-email.md).
+  // The cookie-bound client keeps Supabase's flow PKCE, so the ?code= it
+  // adds is useless anywhere but this browser -- the page ignores it.
   const supabase = await authClient(request);
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: false,
       captchaToken: parsed.data.captchaToken,
-      emailRedirectTo: `${siteOrigin(request)}/account/delete/confirm`,
+      emailRedirectTo: `${siteOrigin(request)}/account/delete/confirm/${token}`,
     },
   });
   if (error) {

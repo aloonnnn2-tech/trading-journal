@@ -5,7 +5,7 @@ import { FormError } from "@/components/form-error";
 import { authApi } from "@/lib/auth/client-api";
 import { endSession } from "@/lib/tracking/useAnalytics";
 
-export function ConfirmDeleteButton() {
+export function ConfirmDeleteButton({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -14,7 +14,11 @@ export function ConfirmDeleteButton() {
     setError(null);
     let res: Response | null = null;
     try {
-      res = await fetch("/api/account/delete", { method: "DELETE" });
+      res = await fetch("/api/account/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
     } catch {
       res = null;
     }

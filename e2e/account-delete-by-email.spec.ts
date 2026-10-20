@@ -1,33 +1,34 @@
+import { createHash, randomBytes } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { createTestUser, deleteTestUser, signIn, type TestUser } from "./fixtures/test-user";
+import { captchaEnforced, createTestUser, deleteTestUser, signIn, type TestUser } from "./fixtures/test-user";
 
 /**
- * Deleting an account only from the emailed link (2026-10-20), on the dev
- * project. No real email is sent: the request row is written as the request
- * route writes it, and the link is minted with the admin API -- the same
- * token_hash link the Magic link template carries
- * (docs/security/delete-account-email.md). Sending real mail to these fake
- * addresses would burn the dev mailer's tiny hourly allowance and count as
- * bounces.
+ * Deleting an account only from the emailed link (2026-10-20, second
+ * version), on the dev project. The link ends in a one-time code that only
+ * the email holds (/account/delete/confirm/<code>). No real email is sent:
+ * the request row is written as the request route writes it (the code's
+ * SHA-256), and the page is opened with the code -- the address Supabase's
+ * email sends people to. Real mail to these fake addresses would burn the dev
+ * mailer's tiny hourly allowance and count as bounces.
  */
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-async function recordRequest(userId: string, expiresInMs = 3_600_000) {
+const newCode = () => randomBytes(32).toString("base64url");
+
+async function recordRequest(userId: string, code: string, expiresInMs = 3_600_000) {
   const now = Date.now();
   const { error } = await admin.from("account_deletion_requests").upsert({
     user_id: userId,
     requested_at: new Date(now).toISOString(),
     expires_at: new Date(now + expiresInMs).toISOString(),
+    token_hash: createHash("sha256").update(code).digest("hex"),
   });
   if (error) throw new Error(`could not record the request: ${error.message}`);
 }
-
-/** Make sure the next timestamp is in a later second than the last sign-in. */
-const nextSecond = () => new Promise((r) => setTimeout(r, 2_100));
 
 async function exists(userId: string) {
   const { data } = await admin.auth.admin.getUserById(userId);
@@ -51,60 +52,62 @@ test("the Account page offers an emailed link, not a type-your-email box", async
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 
-test("without a request, or from a session older than the request, nothing is deleted", async ({ page }) => {
-  await signIn(page, user); // an emailed-link sign-in, but BEFORE any request
+test("without the right code, nothing is deleted", async ({ page }) => {
+  await signIn(page, user);
 
-  let res = await page.request.delete("/api/account/delete");
+  let res = await page.request.delete("/api/account/delete", { data: { token: newCode() } });
   expect(res.status()).toBe(403);
   expect((await res.json()).reason).toBe("no_request");
 
-  await nextSecond();
-  await recordRequest(user.id);
-  res = await page.request.delete("/api/account/delete");
+  const code = newCode();
+  await recordRequest(user.id, code);
+  // A session alone -- what a thief or an injected script has -- isn't enough.
+  res = await page.request.delete("/api/account/delete", { data: {} });
+  expect((await res.json()).reason).toBe("wrong_link");
+  res = await page.request.delete("/api/account/delete", { data: { token: newCode() } });
   expect(res.status()).toBe(403);
-  expect((await res.json()).reason).toBe("needs_link");
+  expect((await res.json()).reason).toBe("wrong_link");
 
-  await page.goto("/account/delete/confirm");
+  await page.goto(`/account/delete/confirm/${newCode()}`);
   await expect(page.getByText("Your account wasn't deleted")).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete my account" })).toHaveCount(0);
   expect(await exists(user.id)).toBe(true);
 });
 
-test("an expired request deletes nothing, even from a fresh link", async ({ page }) => {
-  await recordRequest(user.id, 1_000);
+test("an expired link deletes nothing", async ({ page }) => {
+  await signIn(page, user);
+  const code = newCode();
+  await recordRequest(user.id, code, 1_000);
   await new Promise((r) => setTimeout(r, 1_500));
-  const { data } = await admin.auth.admin.generateLink({ type: "magiclink", email: user.email });
-  await page.goto(`/auth/confirm?token_hash=${data.properties!.hashed_token}&type=magiclink&next=/account/delete/confirm`);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.waitForURL(/\/account\/delete\/confirm/);
+  await page.goto(`/account/delete/confirm/${code}`);
   await expect(page.getByText(/expired/)).toBeVisible();
   expect(await exists(user.id)).toBe(true);
 });
 
-test("a used or foreign link from Supabase's default email says so, and deletes nothing", async ({ page }) => {
-  // The default email's link comes back as ?code=; one this browser can't
-  // exchange (used, expired, or from another browser) must not end on the
-  // Google sign-in error.
-  await signIn(page, user);
-  await nextSecond();
-  await recordRequest(user.id);
-  await page.goto("/account/delete/confirm?code=not-a-real-code");
-  await page.waitForURL(/\/account\/delete\/confirm\?link=failed/, { timeout: 30_000 });
-  await expect(page.getByText("That link didn't work.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Delete my account" })).toHaveCount(0);
+test("opened signed out (another browser): sign in, come back, and it works", async ({ page }) => {
+  test.skip(await captchaEnforced(), "the dev project enforces CAPTCHA, so the password grant can't run here");
+  const code = newCode();
+  await recordRequest(user.id, code);
+
+  await page.goto(`/account/delete/confirm/${code}?code=from-supabase`);
+  await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.getByLabel("Email").fill(user.email);
+  await page.locator('input[autocomplete="current-password"]').fill(user.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await page.waitForURL(new RegExp(`/account/delete/confirm/${code}$`), { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Delete your account?" })).toBeVisible();
   expect(await exists(user.id)).toBe(true);
 });
 
 test("request, then the emailed link, then the button: the account is gone", async ({ page }) => {
-  await recordRequest(user.id);
-  await new Promise((r) => setTimeout(r, 1_100)); // the link is opened after the request
-  const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: user.email });
-  if (error || !data.properties) throw new Error(`could not mint link: ${error?.message}`);
+  await signIn(page, user);
+  const code = newCode();
+  await recordRequest(user.id, code);
 
-  await page.goto(`/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink&next=/account/delete/confirm`);
-  await expect(page.getByRole("heading", { name: "Confirm it's you" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.waitForURL(/\/account\/delete\/confirm/, { timeout: 30_000 });
+  // Supabase's email adds its own ?code=; the page ignores it.
+  await page.goto(`/account/delete/confirm/${code}?code=from-supabase`);
   await expect(page.getByRole("heading", { name: "Delete your account?" })).toBeVisible();
   await expect(page.getByText(user.email)).toBeVisible();
 
