@@ -14,6 +14,7 @@ import { getAccountBalance } from "@/lib/account/queries";
 import { listApiKeys } from "@/lib/ai-keys/queries";
 import { listConsentedProviders } from "@/lib/ai-keys/consent";
 import { getTradeReview, isTradeReviewStale } from "@/lib/ai-reviews/queries";
+import { getReviewThread } from "@/lib/ai-reviews/thread";
 import { isPaidUser } from "@/lib/settings/plan";
 import { TradeCard } from "@/components/trade-card/TradeCard";
 import { TradeHistoryPanel } from "@/components/trade-card/trade-history-panel";
@@ -84,6 +85,11 @@ export default async function TradeDetailPage({
   // degrades to null before migration 0035 so the panel shows "not measured
   // yet" rather than breaking the page.
   const excursion = await getExcursion(supabase, id).catch(() => null);
+
+  // The discussion under the review (0071); "unavailable" until it's applied.
+  const reviewThread = aiReview
+    ? await getReviewThread(supabase, aiReview.id).catch(() => ({ available: false, messages: [], versions: [] }))
+    : { available: false, messages: [], versions: [] };
 
   // ---- Plan adherence ----------------------------------------------------
   //
@@ -201,6 +207,7 @@ export default async function TradeDetailPage({
         initialConsents={consentedProviders}
         initialReview={aiReview}
         initialStale={aiReview ? isTradeReviewStale(aiReview, trade) : false}
+        initialThread={reviewThread}
       />
       <section className="flex flex-col gap-2">
         <TradeHistoryPanel key={`trade-history-${id}`} tradeId={id} />

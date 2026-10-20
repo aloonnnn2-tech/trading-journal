@@ -13,6 +13,7 @@ import { getUserSettings } from "@/lib/settings/queries";
 import { generateStructured, StructuredOutputError } from "@/lib/ai-reviews/parse";
 import { isMissingTableError, saveTradeReview } from "@/lib/ai-reviews/queries";
 import { tradeReviewContentSchema, tradeReviewSchema } from "@/lib/ai-reviews/schema";
+import { clearReviewThread } from "@/lib/ai-reviews/thread";
 import {
   buildTradeReviewContext,
   TRADE_REVIEW_MAX_TOKENS,
@@ -181,6 +182,9 @@ export async function POST(request: Request) {
       // updated_at past this, which is how the card knows it is out of date.
       sourceUpdatedAt: trade.updated_at,
     });
+    // A regenerated review is a new text: the old discussion and versions
+    // argued about the previous one. Best effort -- never fails the review.
+    await clearReviewThread(gate.supabase, review.id).catch((err) => logError("[ai-review] clearing thread:", err));
     void logEvent(gate.userId, SERVER_SESSION_ID, "ai_review_generated", {
       kind: "trade",
       tradeId: trade.id,

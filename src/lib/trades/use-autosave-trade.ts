@@ -319,6 +319,51 @@ export function useAutosaveTrade(initialTrade: Trade) {
     setTrade(initialTrade);
   }, [initialTrade, status]);
 
+  // A page left open in a background tab (or on a phone) does not know that
+  // the background sweep filled its order meanwhile. Its next edit was then
+  // checked against the old values and refused -- for a stop-limit, the fill
+  // price typed straight after the buy (Alon, 2026-10-17). So when the tab
+  // comes back into view, re-read the trade and adopt it, the same way a
+  // fresh server render is adopted above: never over an unsaved edit, a save
+  // in flight, or a conflict waiting for an answer.
+  useEffect(() => {
+    let cancelled = false;
+    // visibilitychange and focus usually fire together on a return: one read.
+    let refreshing = false;
+    async function refreshIfIdle() {
+      if (document.visibilityState !== "visible" || refreshing) return;
+      const idle = () =>
+        Object.keys(pendingCoreRef.current).length === 0 &&
+        Object.keys(pendingCustomRef.current).length === 0 &&
+        Object.keys(pendingStrategyFieldsRef.current).length === 0 &&
+        !inFlightRef.current &&
+        !conflictRef.current;
+      if (!idle()) return;
+      refreshing = true;
+      try {
+        const res = await fetch(`/api/trades/${trade.id}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const fresh = (await res.json()) as Trade;
+        // Checked again: the user may have typed while the read was out.
+        if (!idle() || fresh.updated_at === confirmedRef.current.updated_at) return;
+        appliedUpdatedAtRef.current = fresh.updated_at;
+        confirmedRef.current = fresh;
+        setTrade(fresh);
+      } catch {
+        // Offline: the next save's conflict check still protects the data.
+      } finally {
+        refreshing = false;
+      }
+    }
+    document.addEventListener("visibilitychange", refreshIfIdle);
+    window.addEventListener("focus", refreshIfIdle);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", refreshIfIdle);
+      window.removeEventListener("focus", refreshIfIdle);
+    };
+  }, [trade.id]);
+
   // Best-effort flush of any unsaved edit when the user navigates away
   // (client-side unmount, e.g. "Back to Trades") or leaves the page
   // entirely (tab close, hard nav) -- the 600ms debounce has no other way

@@ -297,6 +297,11 @@ export async function duplicateTrade(supabase: SupabaseClient, id: string): Prom
       // survive the copy. Without this, the source trade's real exit price,
       // commission, and every derived P&L figure carried over verbatim onto
       // a trade the user just told the app is still unopened.
+      // Nor the entry DATE: the copy is a new order that hasn't filled.
+      // Carrying the source's date put the chart's Entry on the old trade's
+      // day, where the new fill price never traded ("Entry is outside the
+      // range", 2026-10-17). The fill stamps the real one.
+      entry_date: null,
       exit_price: null,
       exit_date: null,
       commission: null,

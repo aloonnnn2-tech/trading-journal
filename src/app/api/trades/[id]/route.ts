@@ -143,6 +143,31 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   return NextResponse.json(updated);
 }
 
+// The trade as it is saved now. The trade page re-reads it when its tab
+// comes back into view, so an order the background sweep filled meanwhile
+// is the state the next edit is checked against (use-autosave-trade.ts).
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const userId = await getUserIdFromHeader();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const limited = await enforceRateLimit(
+    `trade-read:${userId}`,
+    240,
+    60_000,
+    "Too many requests in a row. Wait a moment and try again.",
+  );
+  if (limited) return limited;
+  if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const supabase = await createClient();
+  // RLS: someone else's trade simply doesn't resolve.
+  const trade = await getTrade(supabase, id);
+  if (!trade) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(trade, { headers: { "Cache-Control": "private, no-store" } });
+}
+
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const userId = await getUserIdFromHeader();

@@ -17,6 +17,7 @@ import { getTradeReview, listPeriodReviews } from "@/lib/ai-reviews/queries";
 import { limited, toolError } from "./envelope";
 import { round } from "./filter";
 import type { ToolContext } from "./journal";
+import { getEmotionReport } from "@/lib/emotions/report";
 
 // The computed analytics, exposed as tools. `get_report` is ONE tool with an
 // enum rather than ten separate tools: each tool definition costs ~200
@@ -34,6 +35,7 @@ export const REPORT_KINDS = [
   "mistakes",
   "goals",
   "excursions",
+  "emotions",
 ] as const;
 
 /**
@@ -288,6 +290,22 @@ export async function getReport(ctx: ToolContext, args: z.infer<typeof getReport
           }),
           30,
         ),
+      };
+    }
+    case "emotions": {
+      // The Emotions page's own report (src/lib/emotions/report.ts).
+      const r = await getEmotionReport(supabase, timezone);
+      return {
+        closedTrades: r.closedTrades,
+        loggedTrades: r.loggedTrades,
+        byPhase: Object.fromEntries(
+          Object.entries(r.byPhase).map(([phase, rows]) => [phase, limited(rows.map(({ href: _href, ...row }) => row), 20)]),
+        ),
+        byIntensity: r.byIntensity.map(({ href: _href, ...row }) => row),
+        tilt: r.tilt,
+        mistakes: r.mistakes,
+        periods: r.periods,
+        note: "Rows marked thin rest on fewer than 5 trades: describe them, don't judge them.",
       };
     }
     case "excursions": {

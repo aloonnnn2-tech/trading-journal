@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FormError } from "@/components/form-error";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,8 @@ import { tradeReviewToText } from "@/components/ai-review/to-text";
 import { PROVIDER_LABELS, type AIProviderName, type StoredApiKey } from "@/lib/ai-keys/types";
 import type { TradeReviewContent } from "@/lib/ai-reviews/schema";
 import type { StoredReview } from "@/lib/ai-reviews/types";
+import type { ReviewThread as ReviewThreadData } from "@/lib/ai-reviews/thread-types";
+import { ReviewThread } from "@/components/ai-review/review-thread";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
 import { signalReviewWow } from "@/lib/reviews/signals";
@@ -47,6 +49,7 @@ export function AiReviewPanel({
   initialConsents,
   initialReview,
   initialStale,
+  initialThread = { available: false, messages: [], versions: [] },
 }: {
   tradeId: string;
   isClosed: boolean;
@@ -56,6 +59,8 @@ export function AiReviewPanel({
   initialConsents: AIProviderName[];
   initialReview: StoredReview<TradeReviewContent> | null;
   initialStale: boolean;
+  /** The discussion under the review and its versions (0071). */
+  initialThread?: ReviewThreadData;
 }) {
   const router = useRouter();
   const [review, setReview] = useState(initialReview);
@@ -68,6 +73,12 @@ export function AiReviewPanel({
   const [copied, setCopied] = useState(false);
   const [justGenerated, setJustGenerated] = useState(false);
   const [selectedId, setSelectedId] = useState(keys.find((k) => k.is_active)?.id ?? "");
+  const [thread, setThread] = useState(initialThread);
+  // Which version is on screen; null = the current one.
+  const [viewing, setViewing] = useState<number | null>(null);
+  // The consent card can be opened by the discussion too, which must not
+  // regenerate the review when it's accepted.
+  const consentForRef = useRef<"generate" | "thread">("generate");
 
   // Only active keys can produce a review -- the route ignores parked ones, so
   // offering them here would only produce a confusing error.
@@ -110,6 +121,9 @@ export function AiReviewPanel({
 
     const body = (await res.json()) as { review: StoredReview<TradeReviewContent> };
     setReview(body.review);
+    // A regenerated review starts a fresh discussion (the route cleared it).
+    setThread((t) => ({ ...t, messages: [], versions: [] }));
+    setViewing(null);
     signalReviewWow("wow_ai_review");
     // Freshly generated against the trade as it is right now.
     setStale(false);
@@ -149,7 +163,8 @@ export function AiReviewPanel({
     }
     setConsents((prev) => [...prev, selected.provider]);
     setPendingDisclosure(false);
-    void generate();
+    if (consentForRef.current === "generate") void generate();
+    consentForRef.current = "generate";
   }
 
   async function handleDelete() {
@@ -243,13 +258,28 @@ export function AiReviewPanel({
             comparable past trades, so the review can judge it against your own history."
           saving={savingConsent}
           onAccept={acceptDisclosure}
-          onCancel={() => setPendingDisclosure(false)}
+          onCancel={() => {
+            setPendingDisclosure(false);
+            consentForRef.current = "generate";
+          }}
         />
       )}
 
       {review ? (
+        <>
+        {thread.versions.length > 1 && (
+          <VersionBar
+            versions={thread.versions}
+            viewing={viewing}
+            onView={(v) => setViewing(v === thread.versions[thread.versions.length - 1].version ? null : v)}
+          />
+        )}
         <TradeReviewCard
-          review={review}
+          review={
+            viewing != null
+              ? { ...review, content: thread.versions.find((v) => v.version === viewing)?.content ?? review.content }
+              : review
+          }
           stale={stale}
           actions={
             <>
@@ -270,6 +300,25 @@ export function AiReviewPanel({
             </>
           }
         />
+        {thread.available && (
+          <ReviewThread
+            key={review.id + review.created_at}
+            reviewId={review.id}
+            keyId={selected?.id ?? null}
+            messages={thread.messages}
+            onNeedsConsent={() => {
+              consentForRef.current = "thread";
+              setPendingDisclosure(true);
+            }}
+            onRevised={(revised, versions) => {
+              setReview((r) => (r ? { ...r, content: revised.content, provider: revised.provider, model: revised.model } : r));
+              setThread((t) => ({ ...t, versions }));
+              setViewing(null);
+              router.refresh();
+            }}
+          />
+        )}
+        </>
       ) : (
         <>
           <p className="text-sm text-zinc-500">
@@ -313,5 +362,48 @@ export function AiReviewPanel({
 
       <FormError className="rounded-lg border border-loss/40 px-3 py-2">{error}</FormError>
     </PanelShell>
+  );
+}
+
+/** "Version 3 of 3 · what changed" -- shown once a discussion revised the review. */
+function VersionBar({
+  versions,
+  viewing,
+  onView,
+}: {
+  versions: ReviewThreadData["versions"];
+  viewing: number | null;
+  onView: (version: number) => void;
+}) {
+  const latest = versions[versions.length - 1];
+  const shown = versions.find((v) => v.version === (viewing ?? latest.version)) ?? latest;
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium text-zinc-700 dark:text-zinc-200">
+          Version {shown.version} of {latest.version}
+          {shown.version === latest.version ? " (current)" : ""}
+        </span>
+        <span className="flex flex-wrap gap-1">
+          {versions.map((v) => (
+            <button
+              key={v.version}
+              type="button"
+              onClick={() => onView(v.version)}
+              aria-pressed={v.version === shown.version}
+              className={`rounded-full border px-2 py-0.5 ${
+                v.version === shown.version
+                  ? "border-primary text-primary"
+                  : "border-zinc-300 text-zinc-600 hover:border-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
+              }`}
+            >
+              v{v.version}
+            </button>
+          ))}
+        </span>
+      </div>
+      {shown.changed_because && <p className="text-zinc-600 dark:text-zinc-300">Changed because: {shown.changed_because}</p>}
+      {shown.version === 1 && <p className="text-zinc-500">The original review, before the discussion below.</p>}
+    </div>
   );
 }

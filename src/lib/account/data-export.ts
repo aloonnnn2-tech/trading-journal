@@ -51,6 +51,22 @@ export const EXPORT_SECTIONS: ExportSection[] = [
   { name: "monthly_cost_postings", rows: own("monthly_cost_postings") },
   { name: "fees", rows: own("commission_rules") },
   { name: "ai_reviews", rows: own("ai_reviews") },
+  {
+    // Read leniently: the table arrives with 0071, applied by hand.
+    name: "ai_review_versions",
+    rows: (ctx) => own("ai_review_versions")(ctx).catch((err: unknown) => {
+      if (isMissingTableError(err)) return [];
+      throw err;
+    }),
+  },
+  {
+    // Read leniently: the table arrives with 0071, applied by hand.
+    name: "ai_review_discussions",
+    rows: (ctx) => own("ai_review_messages")(ctx).catch((err: unknown) => {
+      if (isMissingTableError(err)) return [];
+      throw err;
+    }),
+  },
   { name: "ai_conversations", rows: own("ai_conversations") },
   { name: "ai_messages", rows: own("ai_messages") },
   {
@@ -173,6 +189,8 @@ export const EXPORTED_TABLES = [
   "monthly_cost_postings",
   "commission_rules",
   "ai_reviews",
+  "ai_review_versions",
+  "ai_review_messages",
   "ai_conversations",
   "ai_messages",
   "ai_proposals",

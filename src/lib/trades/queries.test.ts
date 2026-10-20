@@ -69,6 +69,9 @@ describe("duplicateTrade", () => {
     expect(copy.result).toBe("open");
     expect(copy.exit_price).toBeNull();
     expect(copy.exit_date).toBeNull();
+    // The copy hasn't filled: the old trade's day would put its chart Entry
+    // on a candle the new fill never traded.
+    expect(copy.entry_date).toBeNull();
     expect(copy.commission).toBeNull();
     expect(copy.commission_manual).toBe(false);
     expect(copy.dollar_pl).toBeNull();

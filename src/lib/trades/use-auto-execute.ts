@@ -22,6 +22,8 @@ export function useAutoExecuteTrade(
   isInvestment: boolean,
   updateCoreField: (key: EditableCoreField, value: unknown) => void,
   flushNow: () => Promise<void>,
+  /** Takes up the saved trade when it turns out to be ahead of this page. */
+  adoptServerTrade?: (saved: Trade) => void,
 ) {
   const [message, setMessage] = useState<string | null>(null);
   // Guards against a second poll firing mid-flight while the PATCH from the
@@ -55,6 +57,7 @@ export function useAutoExecuteTrade(
   // on every autosave render (autosave returns a fresh object each save),
   // churning PriceChart's onPriceUpdate prop for no behavioral reason. The
   // decision only reads these fields, so they are the dependencies.
+  const tradeId = trade.id;
   const {
     mode,
     status,
@@ -89,15 +92,34 @@ export function useAutoExecuteTrade(
       if (!decision) return;
 
       executingRef.current = true;
-      for (const [key, value] of Object.entries(decision.changes)) {
-        updateCoreField(key as EditableCoreField, value);
-      }
-      void flushNow().finally(() => {
-        executingRef.current = false;
-      });
-      announce(describeAutoExecution(decision));
+      // Ask the server first: the background sweep may already have done
+      // this while the tab was hidden, and this page's copy is then stale.
+      // Applying it anyway raced the sweep and was refused as a conflict
+      // (a different fill time), blocking the next edits. Already advanced
+      // = nothing to do here; the page re-reads the trade on its own.
+      void (async () => {
+        try {
+          const res = await fetch(`/api/trades/${tradeId}`, { cache: "no-store" });
+          const saved = res.ok ? ((await res.json()) as Trade) : null;
+          if (saved && saved.status !== status) {
+            // Already done elsewhere (the background sweep): take up the
+            // saved trade, or this page keeps deciding -- and asking -- on
+            // every tick, and its next edit is checked against old values.
+            adoptServerTrade?.(saved);
+            return;
+          }
+          for (const [key, value] of Object.entries(decision.changes)) {
+            updateCoreField(key as EditableCoreField, value);
+          }
+          await flushNow();
+          announce(describeAutoExecution(decision));
+        } finally {
+          executingRef.current = false;
+        }
+      })();
     },
     [
+      tradeId,
       isInvestment,
       mode,
       status,
@@ -112,6 +134,7 @@ export function useAutoExecuteTrade(
       updateCoreField,
       flushNow,
       announce,
+      adoptServerTrade,
     ],
   );
 

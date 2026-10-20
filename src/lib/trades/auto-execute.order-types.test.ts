@@ -106,18 +106,19 @@ describe("stop orders", () => {
 describe("stop-limit orders", () => {
   const buy = { order_type: "stop_limit" as const, direction: "long" as const, limit_price: 102 };
 
-  it("fills at the LIMIT price, not at the stop price -- and records it as the entry", () => {
-    // The stop only triggers the order. The fill happens at the limit, and
-    // that is the price the journal must carry as the entry: the first
-    // version reported 102 in the banner but left entry_price at the stop.
+  it("opens without touching the entry price: the stop stays, and the card asks for the real fill", () => {
+    // It used to overwrite the stop with the limit -- the worst price the
+    // order allowed -- and the typed stop vanished from the card (Alon,
+    // 2026-10-17). The real fill is between the legs; only the broker knows.
     const d = decideAutoExecution(resting(buy), { dayLow: 99, dayHigh: 105 }, NOW);
-    expect(d?.price).toBe(102);
-    expect(d?.changes.entry_price).toBe(102);
+    expect(d?.changes.status).toBe("open");
+    expect(d?.changes).not.toHaveProperty("entry_price");
+    expect(describeAutoExecution(d!)).toMatch(/Enter the price it actually filled at/);
   });
 
-  it("a plain limit or stop fill leaves entry_price alone -- it already is the fill", () => {
+  it("no fill of any type changes the entry price", () => {
     const d = decideAutoExecution(resting({ order_type: "limit", direction: "long" }), { dayLow: 98, dayHigh: 103 }, NOW);
-    expect(d?.changes.entry_price).toBeUndefined();
+    expect(d?.changes).not.toHaveProperty("entry_price");
   });
 
   it("does not fill when the stop was never touched", () => {

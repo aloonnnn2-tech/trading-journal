@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 const EMOTION_KEYS = {
   before: "emotion_before",
@@ -19,14 +18,6 @@ export interface EmotionHistoryEntry {
   dollarPL: number | null;
 }
 
-export interface EmotionBreakdown {
-  emotion: string;
-  trades: number;
-  wins: number;
-  winRate: number | null;
-  totalPL: number;
-}
-
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? (value.filter((v) => typeof v === "string") as string[]) : [];
 }
@@ -38,11 +29,16 @@ export async function getEmotionHistory(
   supabase: SupabaseClient,
   limit = 25,
 ): Promise<EmotionHistoryEntry[]> {
+  // Newest by the trade's own date, not by when it was logged, and read
+  // generously: it used to take the 25 newest trades and THEN drop those
+  // without emotions, so the list came up short (or empty) for anyone who
+  // logs emotions on some trades only.
   const { data, error } = await supabase
     .from("trades")
     .select("id, ticker, entry_date, dollar_pl, custom_fields")
+    .order("entry_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(Math.max(limit * 8, 200));
 
   if (error) throw error;
 
@@ -67,59 +63,6 @@ export async function getEmotionHistory(
         : null,
       dollarPL: row.dollar_pl,
     }))
-    .filter((entry) => entry.before.length > 0 || entry.during.length > 0 || entry.after.length > 0 || entry.intensity !== null);
-}
-
-// Win rate / P/L broken down by "emotion before trade" value, across all
-// closed trades -- the data Pattern Recognition (Milestone 4) needs to
-// flag emotion-linked patterns, and also useful as its own view.
-export async function getEmotionBreakdown(supabase: SupabaseClient): Promise<EmotionBreakdown[]> {
-  // fetchAllRows defeats the silent 1,000-row page cap, and the jsonb
-  // projection (alias:column->key) pulls just the one emotion key server-
-  // side instead of shipping every closed trade's whole custom_fields blob
-  // -- the same fix listDistinctEmotions already got (-78% payload there).
-  //
-  // .not("exit_date", "is", null): matches getWinRate (dashboard) and
-  // every other stats module -- a closed trade with no exit date sits in
-  // this denominator but not theirs, which previously made this the one
-  // place in the app showing a different picture for the same trades.
-  // .neq("mode", "investment"): investment trades' dollar_pl is always
-  // null, which the `?? 0` below would silently count as a loss for
-  // whatever emotion tag it carries, inflating that emotion's apparent
-  // loss rate with trades that can never "win".
-  const data = await fetchAllRows<{ dollar_pl: number | null; emotion_before: unknown }>((from, to) =>
-    supabase
-      .from("trades")
-      .select("dollar_pl, emotion_before:custom_fields->emotion_before")
-      .eq("status", "closed")
-      .not("exit_date", "is", null)
-      .neq("mode", "investment")
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
-
-  const rows = data;
-  const byEmotion = new Map<string, { trades: number; wins: number; totalPL: number }>();
-
-  for (const row of rows) {
-    const pl = row.dollar_pl ?? 0;
-    const emotions = asStringArray(row.emotion_before);
-    for (const emotion of emotions) {
-      const bucket = byEmotion.get(emotion) ?? { trades: 0, wins: 0, totalPL: 0 };
-      bucket.trades += 1;
-      if (pl > 0) bucket.wins += 1;
-      bucket.totalPL += pl;
-      byEmotion.set(emotion, bucket);
-    }
-  }
-
-  return Array.from(byEmotion.entries())
-    .map(([emotion, stats]) => ({
-      emotion,
-      trades: stats.trades,
-      wins: stats.wins,
-      winRate: stats.trades > 0 ? stats.wins / stats.trades : null,
-      totalPL: stats.totalPL,
-    }))
-    .sort((a, b) => b.trades - a.trades);
+    .filter((entry) => entry.before.length > 0 || entry.during.length > 0 || entry.after.length > 0 || entry.intensity !== null)
+    .slice(0, limit);
 }

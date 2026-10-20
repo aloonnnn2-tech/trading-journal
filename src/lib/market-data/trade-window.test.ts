@@ -13,6 +13,8 @@ import {
   locate,
   priceMismatch,
   tradeMarkers,
+  tradeMoment,
+  candleMoment,
   visibleRange,
   zoneOffset,
   type Bar,
@@ -320,5 +322,76 @@ describe("formatQuoteAge", () => {
   it("adds the date for an older quote, so a Friday close never reads as live", () => {
     const monday = new Date(2026, 9, 19, 9, 0);
     expect(formatQuoteAge(new Date(2026, 9, 16, 16, 0), monday)).toBe("Oct 16, 4:00 PM");
+  });
+});
+
+describe("tradeMoment", () => {
+  const daily = [at(2026, 10, 6, 13, 30), at(2026, 10, 7, 13, 30), at(2026, 10, 8, 13, 30)].map((time) => ({
+    time,
+    open: 1,
+    high: 1,
+    low: 1,
+    close: 1,
+  }));
+
+  it("reads a date with no time as that day on the exchange, not the evening before", () => {
+    // "2026-10-08" is stored as midnight UTC = 8pm on 7 Oct in New York. It
+    // used to land on 7 Oct's candle -- the screenshot's false warning.
+    for (const value of ["2026-10-08", "2026-10-08T00:00:00+00:00", "2026-10-08T00:00:00.000Z", "2026-10-08 00:00:00+00"]) {
+      expect(locate(daily, tradeMoment(value, NY)!, "1d", NY), value).toEqual({ index: 2, inside: true });
+    }
+  });
+
+  it("keeps a real time of day exactly as it is", () => {
+    expect(tradeMoment("2026-10-08T15:45:00Z", NY)).toBe(Date.parse("2026-10-08T15:45:00Z") / 1000);
+    expect(tradeMoment("2026-10-08T00:00:00-04:00", NY)).toBe(Date.parse("2026-10-08T04:00:00Z") / 1000);
+  });
+
+  it("is the same calendar day for a UTC market (crypto)", () => {
+    const m = tradeMoment("2026-10-08", "UTC")!;
+    expect(new Date(m * 1000).toISOString().slice(0, 10)).toBe("2026-10-08");
+  });
+
+  it("is null for nothing or nonsense", () => {
+    expect(tradeMoment(null, NY)).toBeNull();
+    expect(tradeMoment("soon", NY)).toBeNull();
+  });
+});
+
+describe("candleMoment", () => {
+  // 9 Oct 2026 daily bar, opening 09:30 New York (13:30 UTC, EDT).
+  const oct9 = { time: at(2026, 10, 9, 13, 30) };
+
+  it("moves only the DAY of a daily pick, keeping the trade's time of day on the exchange clock", () => {
+    // Entered 15:45 New York on the wrong day (7 Oct) -> 15:45 on 9 Oct.
+    expect(candleMoment(oct9, "1d", NY, "2026-10-07T19:45:00Z")).toBe("2026-10-09T19:45:00.000Z");
+  });
+
+  it("uses the candle's own time when the trade had no time of day", () => {
+    expect(candleMoment(oct9, "1d", NY, "2026-10-07")).toBe("2026-10-09T13:30:00.000Z");
+    expect(candleMoment(oct9, "1d", NY, "2026-10-07T00:00:00+00:00")).toBe("2026-10-09T13:30:00.000Z");
+    expect(candleMoment(oct9, "1d", NY, null)).toBe("2026-10-09T13:30:00.000Z");
+  });
+
+  it("an intraday pick is the candle's start", () => {
+    expect(candleMoment({ time: at(2026, 10, 9, 15) }, "5m", NY, "2026-10-07")).toBe("2026-10-09T15:00:00.000Z");
+  });
+
+  it("refuses weekly and monthly candles, which can't say which day", () => {
+    expect(candleMoment(oct9, "1wk", NY, null)).toBeNull();
+    expect(candleMoment(oct9, "1mo", NY, null)).toBeNull();
+  });
+
+  it("lands on the picked candle when the chart reads it back", () => {
+    const daily = [at(2026, 10, 8, 13, 30), at(2026, 10, 9, 13, 30)].map((time) => ({ time, open: 1, high: 1, low: 1, close: 1 }));
+    const saved = candleMoment(daily[1], "1d", NY, "2026-10-07T19:45:00Z")!;
+    expect(locate(daily, tradeMoment(saved, NY)!, "1d", NY)).toEqual({ index: 1, inside: true });
+  });
+});
+
+describe("tradeMoment on a UTC market", () => {
+  it("keeps a real midnight-UTC crypto entry where it is, and still reads a bare date as that day", () => {
+    expect(tradeMoment("2026-10-08T00:00:00Z", "UTC")).toBe(Date.parse("2026-10-08T00:00:00Z") / 1000);
+    expect(new Date(tradeMoment("2026-10-08", "UTC")! * 1000).toISOString().slice(0, 10)).toBe("2026-10-08");
   });
 });

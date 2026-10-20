@@ -36,3 +36,33 @@ export function holdingDays(trade: BehaviourInput): number | null {
   const ms = new Date(trade.exit_date).getTime() - new Date(trade.entry_date).getTime();
   return Number.isFinite(ms) ? ms / 86_400_000 : null;
 }
+
+interface ClosedForStreak {
+  id: string;
+  exit_date: string | null;
+  dollar_pl: number | null;
+}
+
+/**
+ * The trades that had already closed when a trade was entered, newest exit
+ * first. The one definition behind "the run of results before this trade",
+ * shared by the Emotions page's tilt card and the AI review, so the two can
+ * never disagree about whether a trade came after a losing streak.
+ */
+export function closedBefore<T extends ClosedForStreak>(entryDate: string | null, trades: T[], excludeId?: string): T[] {
+  const entered = entryDate ? Date.parse(entryDate) : NaN;
+  if (!Number.isFinite(entered)) return [];
+  return trades
+    .filter((t) => t.id !== excludeId && t.exit_date != null && Date.parse(t.exit_date) <= entered)
+    .sort((a, b) => Date.parse(b.exit_date!) - Date.parse(a.exit_date!));
+}
+
+/** Consecutive losses (net P&L below zero) among closedBefore, newest first; break-even ends a streak. */
+export function lossStreakBefore(entryDate: string | null, trades: ClosedForStreak[], excludeId?: string): number {
+  let streak = 0;
+  for (const t of closedBefore(entryDate, trades, excludeId)) {
+    if ((t.dollar_pl ?? 0) < 0) streak += 1;
+    else break;
+  }
+  return streak;
+}
