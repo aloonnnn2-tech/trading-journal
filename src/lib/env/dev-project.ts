@@ -50,9 +50,10 @@ export function loadDevProject(root: string): DevProject {
  *  real key is ever encrypted with it. */
 export const THROWAWAY_ENCRYPTION_SECRET = Buffer.alloc(32, 7).toString("base64");
 
-/** Cloudflare's published always-pass test sitekey: the widget renders and
- *  hands over a dummy token, which the dev project (no CAPTCHA) ignores. */
-export const TURNSTILE_TEST_SITEKEY = "1x00000000000000000000AA";
+// Cloudflare's always-pass test keys: the widget hands over a dummy token,
+// which the dev project (no CAPTCHA) ignores and our own check accepts.
+export { TURNSTILE_TEST_SECRET, TURNSTILE_TEST_SITEKEY } from "./turnstile-test-keys";
+import { TURNSTILE_TEST_SECRET, TURNSTILE_TEST_SITEKEY } from "./turnstile-test-keys";
 
 /**
  * Environment for a `next dev` that talks to the dev project. Values already
@@ -65,6 +66,7 @@ export function devServerEnv(dev: DevProject): Record<string, string> {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: dev.anonKey,
     SUPABASE_SERVICE_ROLE_KEY: dev.serviceRoleKey,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: TURNSTILE_TEST_SITEKEY,
+    TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET,
     AI_KEY_ENCRYPTION_SECRET: THROWAWAY_ENCRYPTION_SECRET,
   };
 }

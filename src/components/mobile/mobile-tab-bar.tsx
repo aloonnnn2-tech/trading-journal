@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Download, FileUp, LayoutDashboard, List, Menu, Moon, Plus, Sun, UserCircle, X } from "lucide-react";
+import { BarChart3, Download, FileUp, LayoutDashboard, LifeBuoy, List, Menu, Moon, Plus, Sun, UserCircle, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { PUBLIC_PATHS } from "@/lib/public-paths";
 import { NAV_GROUPS, PRIMARY_LINKS, navLinkTourId } from "@/lib/nav/links";
@@ -227,6 +227,12 @@ function MoreLinks({ pathname }: { pathname: string }) {
           className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2.5 text-sm text-zinc-700 dark:border-subtle dark:text-zinc-200"
         >
           <UserCircle className="h-4 w-4" /> Account
+        </Link>
+        <Link
+          href={`/help?from=${encodeURIComponent(pathname)}`}
+          className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2.5 text-sm text-zinc-700 dark:border-subtle dark:text-zinc-200"
+        >
+          <LifeBuoy className="h-4 w-4" /> Get help
         </Link>
         <button
           type="button"

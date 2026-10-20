@@ -404,6 +404,16 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                   </span>
                   <span className="block text-[11px] text-zinc-500">1–5 stars and a comment, any time</span>
                 </Link>
+                <Link
+                  href={`/help?from=${encodeURIComponent(pathname)}`}
+                  data-track="nav-help"
+                  onClick={() => setAccountOpen(false)}
+                  className="relative block px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <PendingLinkHint className="rounded-md" />
+                  <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">Get help</span>
+                  <span className="block text-[11px] text-zinc-500">Ask us anything, we reply by email</span>
+                </Link>
 
                 {/* Only below the nav breakpoint, where these are not in the
                     bar. Hidden with CSS rather than a width check in JS so

@@ -99,6 +99,8 @@ interface TurnstileApi {
       "after-interactive-callback"?: () => void;
       theme?: "auto" | "light" | "dark";
       appearance?: "always" | "execute" | "interaction-only";
+      /** Bound into the token; our own server check compares it (the help form). */
+      action?: string;
     },
   ) => string;
   reset: (widgetId: string) => void;
@@ -168,8 +170,8 @@ export interface TurnstileHandle {
  * therefore `reset()` after EVERY completed call, not only failed ones; the
  * expiry case is handled here by `expired-callback`.
  */
-export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
-  function Turnstile({ className }, ref) {
+export const Turnstile = forwardRef<TurnstileHandle, { className?: string; action?: string }>(
+  function Turnstile({ className, action }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const widgetIdRef = useRef<string | null>(null);
     const tokenRef = useRef<string | null>(null);
@@ -206,6 +208,7 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
           if (cancelled || !containerRef.current || !window.turnstile) return;
           widgetIdRef.current = window.turnstile.render(containerRef.current, {
             sitekey: SITE_KEY,
+            ...(action ? { action } : {}),
             callback: (token) => {
               setStatus("passed");
               errorCodeRef.current = null;
@@ -289,7 +292,7 @@ export const Turnstile = forwardRef<TurnstileHandle, { className?: string }>(
           widgetIdRef.current = null;
         }
       };
-    }, [settle, setStatus]);
+    }, [settle, setStatus, action]);
 
     useImperativeHandle(
       ref,
