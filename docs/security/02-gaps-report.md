@@ -44,7 +44,7 @@ overrode them:
 | G-1 | **High** | `supabase/migrations/0042_rate_limit_counters.sql:44,87`; `0043_*.sql:293,310` | `rate_limit_hit` is SECURITY DEFINER and anyone with the public anon key can call it. **Confirmed on dev** (the call returned `allowed:true`). The app-wide market-data ceiling uses one fixed bucket, `upstream:yahoo` (`src/lib/rate-limits/daily.ts:79`), so anyone could use it up and stop charts, fills and excursions for every user. `prune_click_events` has the same grant pattern (it deletes click analytics) and was not executed. Cause: `revoke … from public` does not remove Supabase's direct grants to `anon`/`authenticated`. | **fixed in migration 0073 (Phase 2); applies once pasted** | `select has_function_privilege('anon','rate_limit_hit(text,int,int)','execute');` on live; after the fix, an anon RPC call returns permission denied |
 | G-2 | **High** | 0012 storage policies; `src/app/api/trades/[id]/images/route.ts`; `src/app/api/account/delete/route.ts:33-39` | Signed-in users can upload straight to their own `trade-images` folder through the Storage API. That skips the 4 MB limit, the magic-byte check, the re-encode and EXIF strip, the rate limit and the row cap. Only the bucket's 10 MB and MIME checks apply, and there is no per-user byte quota. Account deletion removes only files listed in `trade_images`, so directly uploaded files outlive the account. | **fixed: 0073 drops the direct insert/update policies; the route uploads with the service role (Phase 2). Deletion by folder done in Phase 5 (`src/lib/account/delete-account.ts`).** | an e2e test: direct upload refused, or counted and removed on delete |
 | G-3 | **High** | `.github/workflows/ci.yml:47`; `scripts/check-bundle-secrets.ts:65,81-84` | **CI has failed on every run** (latest on main: 2026-10-13, run 38379096549). The bundle-secrets step reads only `.env.local`, which CI never has, and exits 1. A red CI hides real failures. | **fixed (Phase 3): the check reads the declared names from the environment when there is no .env.local; verified locally and CI-like** | CI green on the branch |
-| G-4 | Medium | `src/lib/supabase/cookie-options.ts:18-21`; `@supabase/ssr` default maxAge 400 days | The session cookie is readable by scripts, by design: about 10 browser-side auth calls need it. Any XSS becomes account takeover. Mitigated by the nonce CSP with `strict-dynamic` and no unsafe HTML on AI paths. | needs Alon (Q1) | — |
+| G-4 | Medium | `src/lib/supabase/cookie-options.ts:18-21`; `@supabase/ssr` default maxAge 400 days | The session cookie is readable by scripts, by design: about 10 browser-side auth calls need it. Any XSS becomes account takeover. Mitigated by the nonce CSP with `strict-dynamic` and no unsafe HTML on AI paths. | **fixed (Phase 1b, 2026-10-19): sign-in, sign-up, sign-out, password reset, resend and Google run on the server (`src/app/api/auth/*`); the browser Supabase client is gone; the cookie is HttpOnly (kill switch `AUTH_COOKIE_HTTPONLY=false`); our own per-IP and per-address limits; `Sb-Forwarded-For` when an `sb_secret_` key is set** | `e2e/auth-httponly.spec.ts` (no `sb-` cookie in `document.cookie`), `src/lib/supabase/no-browser-client.test.ts` |
 | G-5 | Low | `src/lib/auth/error-messages.ts:46-52`; `src/app/sign-up/page.tsx:84-92` | **Alon (2026-10-18): email confirmation is ON in production.** `docs/dev-accounts.md:34-36` says it's off ("matches production"), which is wrong. With confirmation on, Supabase answers a sign-up for an already-confirmed email with an obfuscated user and no error, so the page shows "check your inbox" either way: not enumerable. The "An account already exists" mapping only fires on projects with confirmation off (the dev project). | mostly closed; doc fix → Phase 1 | e2e on a confirmation-on project, or Alon signs up twice with one address on live and sees the same screen |
 | G-6 | Medium | `src/app/api/commission-rules/recalculate/route.ts:118,140`; `src/app/api/ocr/parse/route.ts:93-96`; `src/lib/ocr/pipeline.ts:180,196` | Raw Supabase or internal error text is returned to the browser. There is no shared "log the detail, return a generic error" helper. | **fixed (Phase 3): `src/lib/api/server-error.ts`; the three leaks replaced; a forced DB error is tested not to leak** | test: a forced DB error does not reach the response |
 | G-7 | Medium | `scripts/db-tables.ts` | The nightly backup leaves out `ai_proposals` (0070), `ai_review_versions` and `ai_review_messages` (0071), and nothing tests the list against the migrations (the data export has such a drift test). | **fixed (Phase 6): the four tables added (`admin_audit_log` too); `BACKUP_EXCLUDED` names every table left out and why; `src/lib/backup/db-tables.drift.test.ts` fails on a table in neither list and on a child listed before its parent (which found G-21)** | the drift test |
@@ -146,9 +146,7 @@ a disposition that differs from the brief's default, with the reason.
 
 From the brief:
 1. ~~HttpOnly session cookie?~~ **Answered (2026-10-18): yes, move the auth
-   flows to the server** so the cookie can be HttpOnly. It is its own carefully
-   tested step, proposed in detail before any change, because a mistake locks
-   people out.
+   flows to the server.** **Done in Phase 1b (2026-10-19)**, see G-4.
 2. Do BYOK providers allow a custom base URL? **The code answers this:** no.
    Fixed hosts only, so the custom-endpoint SSRF rules are N/A unless one is
    added later. Now pinned by `fixed-hosts.security.test.ts` (Phase 7).
@@ -198,10 +196,11 @@ New, from this audit:
 What stays true even with all of the above merged and pushed. The order is
 how much each could hurt, not how likely it is.
 
-1. **Any XSS is still account takeover** until Phase 1b makes the session
-   cookie HttpOnly (G-4). The CSP (`strict-dynamic`, nonces, pinned by a
-   test now) and the absence of unsafe HTML on the AI paths are the
-   defence meanwhile.
+1. **An XSS can no longer steal the session** (Phase 1b: the cookie is
+   HttpOnly), but it can still act as the user while their page is open,
+   by calling the app's own API from that page. The CSP (`strict-dynamic`,
+   nonces, pinned by a test) and the absence of unsafe HTML on the AI paths
+   remain the defence against that.
 2. **Nothing here is live until it's pushed.** Production still runs `main`
    from before this pass and earlier unpushed work: 0072/0073 are in the
    live database, but the code that relies on them isn't deployed yet,

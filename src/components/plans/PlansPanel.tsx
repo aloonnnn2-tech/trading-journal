@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useDialog } from "@/lib/a11y/use-dialog";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { BorderBeam } from "@/components/landing/v2/BorderBeam";
 import { FREE_FEATURES, PAID_FEATURES, type PaidFeatureId } from "@/lib/plans/paid-features";
@@ -65,14 +65,14 @@ export function PlansPanel({
   const [email, setEmail] = useState<string | undefined>(undefined);
 
   // The account's address, so joining the waitlist is one click. Read from
-  // the session already in the browser; no request if it isn't there.
+  // the server (the session cookie is HttpOnly, so the page can't).
   useEffect(() => {
     if (!open || email !== undefined) return;
     let live = true;
-    createClient()
-      .auth.getSession()
-      .then(({ data }) => {
-        if (live) setEmail(data.session?.user.email ?? "");
+    authApi
+      .session()
+      .then(({ email }) => {
+        if (live) setEmail(email ?? "");
       })
       .catch(() => {
         if (live) setEmail("");

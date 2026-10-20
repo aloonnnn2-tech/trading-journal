@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { authApi } from "@/lib/auth/client-api";
 import { authErrorMessage } from "@/lib/auth/error-messages";
 import { CAPTCHA_ENABLED, type TurnstileHandle } from "@/components/turnstile";
 
@@ -46,20 +46,13 @@ export function ResendConfirmation({
       setSending(false);
       return;
     }
-    const { error } = await createClient().auth.resend({
-      type: "signup",
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard`,
-        captchaToken: captchaToken ?? undefined,
-      },
-    });
+    const { error } = await authApi.resendConfirmation(email, captchaToken ?? undefined);
     captcha.current?.reset();
     setSending(false);
     if (error) {
       onError(authErrorMessage(error));
       // Supabase's own limit was hit: wait it out before the next try.
-      if (error.code === "over_email_send_rate_limit") {
+      if ((error as { code?: unknown }).code === "over_email_send_rate_limit") {
         setLastSent(Date.now());
         setNow(Date.now());
       }

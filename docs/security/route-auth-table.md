@@ -21,6 +21,11 @@ How the caller is known:
 
 | Route | Methods | Check |
 |---|---|---|
+| auth/sign-in, auth/sign-up, auth/forgot-password, auth/resend | POST | none (signed-out by nature); per-IP and per-address limits (`src/lib/auth/server-auth.ts`), CAPTCHA passed to Supabase, cross-site writes refused by the proxy (Phase 1b) |
+| auth/oauth | POST | none; per-IP limit; provider from a fixed list |
+| auth/sign-out | POST | none needed (clears this browser's cookies only) |
+| auth/update-password | POST | U, 10/hour per user |
+| auth/session | GET | U for the email; signed-out callers get `signedIn: false` |
 | account/consent | POST | U |
 | account/delete | DELETE | U |
 | account/export | GET | U |

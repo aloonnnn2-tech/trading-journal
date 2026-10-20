@@ -239,6 +239,29 @@ by a lawyer before being relied upon, particularly for EU/EEA/UK users.
 
 ---
 
+## 4b. The session cookie is HttpOnly (security gaps pass, Phase 1b)
+
+The browser never talks to Supabase. Sign-in, sign-up, sign-out, password
+reset, resend and "Continue with Google" are server routes
+(`src/app/api/auth/*`, shared code in `src/lib/auth/server-auth.ts`), so
+the session cookie is written `HttpOnly; SameSite=Lax; Secure` and no script
+on the page can read it. `src/lib/supabase/no-browser-client.test.ts` fails
+if a browser Supabase client comes back.
+
+- **Limits:** these calls now reach Supabase from our server's IP, so its
+  per-IP auth limits would be one bucket for everyone. The routes add their
+  own, per visitor IP and per address (the address is hashed in the
+  counter). CAPTCHA tokens are passed through as before.
+- **Optional:** with one of Supabase's new secret keys in
+  `SUPABASE_AUTH_SECRET_KEY` (and forwarding switched on in the dashboard),
+  the routes send the visitor's IP as `Sb-Forwarded-For`, so Supabase's own
+  limits count real visitors again.
+- **Kill switch:** `AUTH_COOKIE_HTTPONLY=false` writes the cookie
+  script-readable again without a code change. Sign-in works either way.
+- **What it doesn't stop:** a script injected into an open page can still
+  call this app's API as that user while the page is open. It just can't
+  carry the session away. The CSP is still the control for that.
+
 ## 5. File upload posture
 
 Already sound before this pass; recorded so it is not weakened by accident.
