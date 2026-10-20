@@ -76,6 +76,8 @@ export const TABLES = [
   // Backed up since 2026-10-19 (Alon's decision, gaps report Q13); losing it
   // lost the list for good. No foreign keys.
   "waitlist",
+  // The Get help form (0075). user_id is null for requests sent signed out.
+  "help_requests",
 
   // --- Depends on user_api_keys (0047) ----------------------------------
   // Chat transcripts: the model's tool results here are the user's own

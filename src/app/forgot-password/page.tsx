@@ -119,6 +119,12 @@ export default function ForgotPasswordPage() {
             Back to sign in
           </Link>
         </p>
+        <p className="text-center text-xs text-zinc-500">
+          No email arriving, or no access to it?{" "}
+          <Link href="/help?from=/forgot-password" className="hover:text-zinc-600 dark:hover:text-zinc-300">
+            Get help
+          </Link>
+        </p>
       </form>
     </div>
   );

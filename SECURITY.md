@@ -262,6 +262,29 @@ if a browser Supabase client comes back.
   call this app's API as that user while the page is open. It just can't
   carry the session away. The CSP is still the control for that.
 
+## 4c. The Get help form (signed-out writes)
+
+`/help` and `POST /api/help` (2026-10-20) are the one place a visitor with
+no account writes to our database, so the form is built to be spammed:
+
+- **Robot check, for everyone**, verified by our own server with Cloudflare
+  (`src/lib/help/turnstile-verify.ts`; secret `TURNSTILE_SECRET_KEY`). It
+  checks pass, hostname, the `help` action and age. In production a
+  missing secret, or Cloudflare's always-pass test secret, refuses the form
+  (fails closed).
+- **Limits** before the check: 5/hour per IP, 3/hour per address (hashed),
+  10/day per account, **200/day for the whole site**.
+- **A honeypot field**: a filled one is answered "sent" and stored nowhere.
+- **The table** (`help_requests`, 0075): service role only, no RLS
+  policies, grants revoked, a size check on every column, a 20,000-row
+  ceiling. `user_id` comes only from the verified session.
+- **Admin side** (`/admin/help`, `/api/admin/help`): admin gate, a fixed
+  path with the id in the body, audited. Messages render as text, never
+  HTML.
+
+It can't be used to get into an account: it reads nothing back and changes
+no account. The worst a determined bot gets is 200 junk rows a day.
+
 ## 5. File upload posture
 
 Already sound before this pass; recorded so it is not weakened by accident.

@@ -25,6 +25,8 @@ How the caller is known:
 | auth/oauth | POST | none; per-IP limit; provider from a fixed list |
 | auth/sign-out | POST | none needed (clears this browser's cookies only) |
 | auth/update-password | POST | U, 10/hour per user |
+| help | POST | none (open to signed-out visitors by design); Turnstile verified by our server for everyone, per-IP / per-address / per-account limits and a site-wide daily ceiling, honeypot (`src/app/api/help/route.ts`) |
+| admin/help | PATCH, DELETE | A; id in the body, fixed path; audited |
 | auth/session | GET | U for the email; signed-out callers get `signedIn: false` |
 | account/consent | POST | U |
 | account/delete | DELETE | U |

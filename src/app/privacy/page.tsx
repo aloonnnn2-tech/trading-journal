@@ -75,6 +75,24 @@ export default function PrivacyPage() {
           </a>
           .
         </p>
+        {/* Added with the Get help form (0075, 2026-10-20). Every clause is a
+            promise -- keep them true. */}
+        <p className={BODY}>
+          <strong className="text-zinc-800 dark:text-zinc-200">Help requests:</strong> if you use the
+          Get help form, we store the email address and name you enter, your message, its topic, the
+          page you came from, when you sent it, and, if you were signed in, which account sent it. We
+          use it only to answer you. It isn&apos;t shared or sold. A request sent while signed in is
+          deleted with your account and included when you download your data; to have any other
+          request removed, email{" "}
+          <a
+            href="mailto:TradingLenzSupport@proton.me"
+            className="font-medium text-primary hover:underline"
+          >
+            TradingLenzSupport@proton.me
+          </a>
+          . The form uses Cloudflare Turnstile to check you&apos;re not a bot, the same check as on
+          sign-in.
+        </p>
         {/* Added with reviews (0064, 2026-10-11). Every clause is a promise. */}
         <p className={BODY}>
           <strong className="text-zinc-800 dark:text-zinc-200">Reviews of Trading Lens:</strong> if you rate

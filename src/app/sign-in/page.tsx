@@ -12,6 +12,7 @@ import { FormError } from "@/components/form-error";
 import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages";
 import { endSession, useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
+import { HELP_EMAIL } from "@/lib/help/config";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -169,12 +170,13 @@ function SignInForm() {
             card sits around 2.6:1 against the background -- below the 4.5:1
             WCAG AA minimum for text this size. */}
         <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-zinc-500">
-          <a href="mailto:TradingLenzSupport@proton.me" className="hover:text-zinc-600 dark:hover:text-zinc-300">
-            Contact support
-          </a>
+          {/* The help form works signed out: the way in for someone who can't sign in. */}
+          <Link href="/help?from=/sign-in" className="hover:text-zinc-600 dark:hover:text-zinc-300">
+            Get help
+          </Link>
           <span aria-hidden="true">·</span>
           <a
-            href="mailto:TradingLenzSupport@proton.me?subject=Account%20deletion%20request&body=Please%20delete%20my%20Trading%20Lens%20account%20associated%20with%20this%20email%20address."
+            href={`mailto:${HELP_EMAIL}?subject=Account%20deletion%20request&body=Please%20delete%20my%20Trading%20Lens%20account%20associated%20with%20this%20email%20address.`}
             className="hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             Delete my account

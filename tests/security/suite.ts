@@ -44,6 +44,10 @@ export const SECURITY_SUITE: Record<string, string[]> = {
     "src/lib/trades/create-limits.test.ts",
     "src/app/api/trades/[id]/images/route.test.ts",
     "src/app/api/folders/route.test.ts",
+    // The Get help form: open to signed-out visitors (2026-10-20).
+    "src/app/api/help/route.test.ts",
+    "src/lib/help/turnstile-verify.test.ts",
+    "src/app/api/admin/help/route.test.ts",
   ],
   // Requests our server makes on a user's behalf.
   "SSRF and outbound requests": [
@@ -59,6 +63,7 @@ export const SECURITY_SUITE: Record<string, string[]> = {
     "src/lib/trades/export.security.test.ts",
     "src/lib/trades/export.xlsx.security.test.ts",
     "src/lib/ocr/preprocess.security.test.ts",
+    "src/lib/help/schema.test.ts",
   ],
   "error and secret leaks": [
     "src/lib/api/server-error.test.ts",

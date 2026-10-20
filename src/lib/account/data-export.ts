@@ -116,6 +116,26 @@ export const EXPORT_SECTIONS: ExportSection[] = [
           )
         : [],
   },
+  {
+    // Help requests sent while signed in (0075). Service-role only, like the
+    // usage events; one sent signed out carries no account, so it can't be
+    // told apart from anyone else's and isn't here. Read leniently: the
+    // table arrives with 0075, applied by hand.
+    name: "help_requests",
+    rows: async ({ admin, userId }) => {
+      if (!admin) return [];
+      const { data, error } = await admin
+        .from("help_requests")
+        .select("created_at, email, name, topic, message, page, status, handled_at")
+        .eq("user_id", userId)
+        .order("created_at");
+      if (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+      return data ?? [];
+    },
+  },
 ];
 
 /**
@@ -159,4 +179,5 @@ export const EXPORTED_TABLES = [
   "trade_images",
   "analytics_events",
   "analytics_sessions",
+  "help_requests",
 ];

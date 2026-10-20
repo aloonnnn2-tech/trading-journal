@@ -46,6 +46,8 @@ describe("auditRow", () => {
         "waitlist_remove",
         "account_export",
         "account_delete",
+        "help_update",
+        "help_remove",
       ]),
     );
   });

@@ -18,7 +18,7 @@ import { MINIMUM_AGE, TERMS_VERSION } from "@/lib/legal/terms";
 // Not shown on the pages it asks you to agree to, so they can be read first.
 // Escape does nothing: the only ways out are agreeing or signing out.
 
-const READABLE_WITHOUT_AGREEING = new Set(["/terms", "/privacy", "/cookies", "/contact"]);
+const READABLE_WITHOUT_AGREEING = new Set(["/terms", "/privacy", "/cookies", "/contact", "/help"]);
 
 export function ConsentGate() {
   const pathname = usePathname();

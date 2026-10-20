@@ -225,6 +225,12 @@ export default function SignUpPage() {
             Sign in
           </Link>
         </p>
+        <p className="text-center text-xs text-zinc-500">
+          Stuck?{" "}
+          <Link href="/help?from=/sign-up" className="hover:text-zinc-600 dark:hover:text-zinc-300">
+            Get help
+          </Link>
+        </p>
         {/* The Terms and Privacy Policy are agreed to by the checkbox above;
             the Cookies Policy is information, not an agreement, so it stays
             a plain link. */}

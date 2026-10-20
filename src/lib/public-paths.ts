@@ -13,5 +13,7 @@ export const PUBLIC_PATHS = [
   "/terms",
   "/cookies",
   "/contact",
+  // Help must work for someone who can't sign in.
+  "/help",
   "/paid-plan",
 ];
