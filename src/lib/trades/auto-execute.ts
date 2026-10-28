@@ -7,6 +7,81 @@ export interface PriceLevels {
   dayLow: number | null;
   /** When this snapshot's quote was last updated, if known. */
   quoteTime?: Date | null;
+  /** The latest price. Stands in for the range when a level was set too
+   *  recently for the day's high/low to be trusted and no bars are given. */
+  currentPrice?: number | null;
+  /**
+   * One-minute bars (unix seconds, bar start), regular hours only, covering
+   * at least the time since the most recently set level. The background
+   * sweep passes them; the trade page doesn't, and falls back to the live
+   * price. See rangeSince.
+   */
+  minuteBars?: { time: number; high: number; low: number }[] | null;
+}
+
+/**
+ * How long ago a level must have been set for the day's high/low to count in
+ * full. The session's range includes everything since it opened, so a stop
+ * moved up after a rally was "hit" by a dip from hours before the move (Alon,
+ * 2026-10-28: a stop raised above the entry closed the trade at once). A
+ * session is shorter than a day, so anything set more than 24 hours ago was
+ * set before today's session began and the whole range is fair game.
+ */
+const RECENT_LEVEL_MS = 24 * 60 * 60 * 1000;
+
+interface Range {
+  high: number;
+  low: number;
+}
+
+function latest(...times: (string | null | undefined)[]): number | null {
+  let max: number | null = null;
+  for (const t of times) {
+    const ms = t ? Date.parse(t) : NaN;
+    if (Number.isFinite(ms) && (max === null || ms > max)) max = ms;
+  }
+  return max;
+}
+
+/**
+ * The earliest moment (ms) this trade needs one-minute bars from, or null
+ * when every level it watches is old enough for the day's range. The sweep
+ * uses it to fetch bars only for the few trades that need them, and only as
+ * far back as they need.
+ */
+export function minuteBarsNeededSince(trade: AutoExecutableTrade, now: Date = new Date()): number | null {
+  const starts =
+    trade.status === "pending"
+      ? [latest(trade.entry_levels_set_at, trade.created_at)]
+      : [
+          trade.stop_loss != null ? latest(trade.stop_loss_set_at, trade.entry_date) : null,
+          trade.take_profit != null ? latest(trade.take_profit_set_at, trade.entry_date) : null,
+        ];
+  const recent = starts.filter((s): s is number => s !== null && now.getTime() - s < RECENT_LEVEL_MS);
+  return recent.length > 0 ? Math.min(...recent) : null;
+}
+
+/**
+ * The prices a level can fairly be judged against: only those after `since`
+ * (when it was set, or when the position opened). Null when there's nothing
+ * to judge yet -- never the day's range for a recent level, because that is
+ * exactly the range that holds prices from before the level existed.
+ */
+function rangeSince(since: number | null, levels: PriceLevels, now: Date, day: Range): Range | null {
+  if (since === null || now.getTime() - since >= RECENT_LEVEL_MS) return day;
+  if (levels.minuteBars) {
+    // Bars starting at or after `since`: the bar the level was set in also
+    // holds the seconds before it, so it doesn't count.
+    const after = levels.minuteBars.filter((b) => b.time * 1000 >= since);
+    if (after.length > 0) {
+      return {
+        high: Math.max(...after.map((b) => b.high)),
+        low: Math.min(...after.map((b) => b.low)),
+      };
+    }
+  }
+  const price = levels.currentPrice;
+  return price != null && Number.isFinite(price) ? { high: price, low: price } : null;
 }
 
 // dayHigh/dayLow are the *session's* range and don't reset until the next
@@ -31,7 +106,13 @@ export type AutoExecutableTrade = Pick<
   | "order_type"
   | "limit_price"
   | "time_in_force"
-> & { created_at?: string };
+> & {
+  created_at?: string;
+  /** When each level was last set (0078; the database stamps these). */
+  entry_levels_set_at?: string | null;
+  stop_loss_set_at?: string | null;
+  take_profit_set_at?: string | null;
+};
 
 /**
  * Whether the session's range satisfies this order type, for this direction.
@@ -152,8 +233,13 @@ export function decideAutoExecution(
   // pending -> open: the session's range brackets the entry price. Checked
   // as a bracket rather than a directional cross because the app stores a
   // single trigger price, not a limit-vs-stop order sub-type.
+  const day: Range = { high: dayHigh, low: dayLow };
+
   if (trade.status === "pending") {
-    const filled = fillPrice(trade, dayHigh, dayLow);
+    // Only prices since the order was placed or last changed can fill it.
+    const range = rangeSince(latest(trade.entry_levels_set_at, trade.created_at), levels, now, day);
+    if (!range) return null;
+    const filled = fillPrice(trade, range.high, range.low);
     if (filled == null) return null;
     return {
       changes: {
@@ -187,10 +273,19 @@ export function decideAutoExecution(
   if (trade.status !== "open" || !trade.direction) return null;
 
   const long = trade.direction === "long";
+  // Each level is judged only on prices since it was set -- and never on
+  // prices from before the position was opened.
+  const stopRange =
+    trade.stop_loss != null ? rangeSince(latest(trade.stop_loss_set_at, trade.entry_date), levels, now, day) : null;
+  const targetRange =
+    trade.take_profit != null
+      ? rangeSince(latest(trade.take_profit_set_at, trade.entry_date), levels, now, day)
+      : null;
   const stopHit =
-    trade.stop_loss != null && (long ? dayLow <= trade.stop_loss : dayHigh >= trade.stop_loss);
+    stopRange != null && (long ? stopRange.low <= trade.stop_loss! : stopRange.high >= trade.stop_loss!);
   const targetHit =
-    trade.take_profit != null && (long ? dayHigh >= trade.take_profit : dayLow <= trade.take_profit);
+    targetRange != null &&
+    (long ? targetRange.high >= trade.take_profit! : targetRange.low <= trade.take_profit!);
 
   if (!stopHit && !targetHit) return null;
 

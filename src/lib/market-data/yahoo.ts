@@ -249,17 +249,25 @@ export interface YahooBarsResult {
  */
 export async function fetchYahooBars(
   symbol: string,
-  request: { interval: BarInterval; period1: number; period2: number },
+  request: {
+    interval: BarInterval;
+    period1: number;
+    period2: number;
+    /** Include pre- and after-market bars (intraday only). Default true, for
+     *  the chart; the order sweep turns it off, since stops and targets
+     *  normally only trigger in regular hours. */
+    prePost?: boolean;
+  },
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<YahooBarsResult | null> {
-  const { interval, period1, period2 } = request;
+  const { interval, period1, period2, prePost = true } = request;
   if (!isSafeYahooSymbol(symbol) || !Number.isInteger(period1) || !Number.isInteger(period2)) return null;
   const url =
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
     `?period1=${period1}&period2=${period2}&interval=${interval}` +
     // Pre- and after-market bars for intraday views: plenty of fills happen
     // outside regular hours, and without them those trades have no bar.
-    (isCalendarInterval(interval) ? "" : "&includePrePost=true");
+    (isCalendarInterval(interval) || !prePost ? "" : "&includePrePost=true");
   const settled = period2 < nowSeconds - 86_400;
   const res = await fetchYahoo(url, settled ? 86_400 : 300);
   if (!res.ok) return null;

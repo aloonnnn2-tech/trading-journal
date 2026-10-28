@@ -69,11 +69,42 @@ export function useAutoExecuteTrade(
     order_type,
     limit_price,
     time_in_force,
+    created_at,
+    entry_levels_set_at,
+    stop_loss_set_at,
+    take_profit_set_at,
   } = trade;
+
+  // When a level was changed ON THIS PAGE. The database stamps the time too
+  // (0078), but this page's copy of the trade only sees it after the save
+  // round trip -- and a price tick in between would judge the new stop
+  // against the day's whole range: the very bug (Alon, 2026-10-28: a stop
+  // raised above the entry closed the trade at once). The later of the two
+  // times is used.
+  const changedHereRef = useRef<{ entry?: string; stop?: string; target?: string }>({});
+  const seenRef = useRef<{ entry: string; stop: unknown; target: unknown } | null>(null);
+  useEffect(() => {
+    const entry = JSON.stringify([entry_price, limit_price, order_type]);
+    const seen = seenRef.current;
+    if (seen) {
+      const nowIso = new Date().toISOString();
+      if (seen.entry !== entry) changedHereRef.current.entry = nowIso;
+      if (seen.stop !== stop_loss) changedHereRef.current.stop = nowIso;
+      if (seen.target !== take_profit) changedHereRef.current.target = nowIso;
+    }
+    seenRef.current = { entry, stop: stop_loss, target: take_profit };
+  }, [entry_price, limit_price, order_type, stop_loss, take_profit]);
+
   const handlePriceUpdate = useCallback(
     (snapshot: PriceSnapshot) => {
       if (isInvestment || executingRef.current) return;
 
+      const here = changedHereRef.current;
+      const later = (a: string | null | undefined, b: string | undefined) =>
+        !a ? (b ?? null) : !b ? a : Date.parse(a) >= Date.parse(b) ? a : b;
+      // No minute bars on this page: a level set within the last day is
+      // judged on the live price only, and the background sweep (which has
+      // the bars) covers what happened between ticks.
       const decision = decideAutoExecution(
         {
           mode,
@@ -86,6 +117,10 @@ export function useAutoExecuteTrade(
           order_type,
           limit_price,
           time_in_force,
+          created_at,
+          entry_levels_set_at: later(entry_levels_set_at, here.entry),
+          stop_loss_set_at: later(stop_loss_set_at, here.stop),
+          take_profit_set_at: later(take_profit_set_at, here.target),
         },
         snapshot,
       );
@@ -131,6 +166,10 @@ export function useAutoExecuteTrade(
       order_type,
       limit_price,
       time_in_force,
+      created_at,
+      entry_levels_set_at,
+      stop_loss_set_at,
+      take_profit_set_at,
       updateCoreField,
       flushNow,
       announce,
