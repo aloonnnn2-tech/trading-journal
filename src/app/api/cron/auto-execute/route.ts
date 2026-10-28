@@ -3,11 +3,12 @@ import { serverSecret } from "@/lib/server-env";
 import { isMissingColumnError } from "@/lib/supabase/errors";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchDayRange, guessYahooSymbol } from "@/lib/market-data/yahoo";
+import { fetchDayRange, fetchYahooBars, guessYahooSymbol } from "@/lib/market-data/yahoo";
 import { takeYahooSlot } from "@/lib/rate-limits/daily";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import {
   decideAutoExecution,
+  minuteBarsNeededSince,
   hasLapsed,
   describeAutoExecution,
   isWatchable,
@@ -115,6 +116,9 @@ export async function POST(request: Request) {
   // The fee chosen on a trade (0056). Without it a background fill or close
   // was re-priced by automatic matching, silently replacing the user's choice.
   const FEE_COLUMNS = `${ORDER_COLUMNS}, commission_rule_id`;
+  // When each level was last set (0078), so a level is judged only on
+  // prices since then -- see decideAutoExecution.
+  const LEVEL_COLUMNS = `${FEE_COLUMNS}, entry_levels_set_at, stop_loss_set_at, take_profit_set_at`;
 
   const loadTrades = (columns: string) =>
     fetchAllRows<WatchedTrade>((from, to) =>
@@ -133,7 +137,7 @@ export async function POST(request: Request) {
   // Fullest column list first, then one migration fewer at a time, so a
   // pending 0056 doesn't also cost the order-type columns of 0039.
   let data: WatchedTrade[] | null = null;
-  for (const columns of [FEE_COLUMNS, ORDER_COLUMNS, LEGACY_COLUMNS]) {
+  for (const columns of [LEVEL_COLUMNS, FEE_COLUMNS, ORDER_COLUMNS, LEGACY_COLUMNS]) {
     try {
       data = await loadTrades(columns);
       break;
@@ -202,7 +206,29 @@ export async function POST(request: Request) {
   // rather than per trade -- several users watching AAPL is one request.
   const symbolFor = (t: WatchedTrade) => guessYahooSymbol(t.ticker, t.asset_type);
   const symbols = [...new Set(watched.map(symbolFor).filter(Boolean))];
-  const prices = new Map<string, { dayHigh: number | null; dayLow: number | null; quoteTime: Date | null }>();
+  const prices = new Map<
+    string,
+    {
+      dayHigh: number | null;
+      dayLow: number | null;
+      quoteTime: Date | null;
+      currentPrice: number | null;
+      minuteBars?: { time: number; high: number; low: number }[] | null;
+    }
+  >();
+
+  // A level set within the last day is judged on prices since it was set,
+  // which takes one-minute bars (the day's high/low includes the minutes
+  // before it existed). Earliest time needed per symbol, so one request
+  // covers every such trade on it.
+  const barsSince = new Map<string, number>();
+  for (const trade of watched) {
+    const since = minuteBarsNeededSince(trade, new Date());
+    if (since === null) continue;
+    const symbol = symbolFor(trade);
+    const prev = barsSince.get(symbol);
+    if (prev === undefined || since < prev) barsSince.set(symbol, since);
+  }
 
   for (let i = 0; i < symbols.length; i += PRICE_CONCURRENCY) {
     const batch = symbols.slice(i, i + PRICE_CONCURRENCY);
@@ -216,8 +242,26 @@ export async function POST(request: Request) {
         }
         try {
           const range = await fetchDayRange(symbol);
-          if (range) prices.set(symbol, range);
-          else failures.push(`${symbol}: no price data`);
+          if (!range) {
+            failures.push(`${symbol}: no price data`);
+            return;
+          }
+          const since = barsSince.get(symbol);
+          let minuteBars: { time: number; high: number; low: number }[] | null = null;
+          if (since !== undefined && (await takeYahooSlot())) {
+            // Regular hours only: stops and targets normally don't trigger
+            // pre- or after-market. A failed fetch leaves null, and the
+            // decision falls back to the live price -- never the day range.
+            const result = await fetchYahooBars(symbol, {
+              interval: "1m",
+              period1: Math.floor(since / 1000) - 60,
+              period2: Math.floor(Date.now() / 1000),
+              prePost: false,
+            }).catch(() => null);
+            minuteBars = result ? result.bars.map((b) => ({ time: b.time, high: b.high, low: b.low })) : null;
+            if (!result) failures.push(`${symbol}: no minute bars (live price used)`);
+          }
+          prices.set(symbol, { ...range, minuteBars });
         } catch (err) {
           failures.push(`${symbol}: ${(err as Error).message}`);
         }

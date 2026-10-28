@@ -84,6 +84,12 @@ export interface Trade {
   // { [strategyId]: { [fieldKey]: value } }.
   strategy_field_values: Record<string, Record<string, unknown>>;
 
+  // When each level was last set (0078). Stamped by the database, never sent
+  // by the app; absent until that migration is applied.
+  entry_levels_set_at?: string | null;
+  stop_loss_set_at?: string | null;
+  take_profit_set_at?: string | null;
+
   created_at: string;
   updated_at: string;
 }
