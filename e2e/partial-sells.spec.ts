@@ -90,7 +90,8 @@ test("sell part of an open trade, then close the rest: the P&L counts both", asy
   const statsRow = (Array.isArray(stats.data) ? stats.data[0] : stats.data) as { trade_pl: number; committed_cash: number };
   expect(Number(statsRow.trade_pl)).toBe(400); // the sale's profit, counted while the rest is held
   expect(Number(statsRow.committed_cash)).toBeCloseTo(3000); // 60% of the 5,000 position
-  await asUser.auth.signOut();
+  // Local only: the default signs out every session, the browser's too.
+  await asUser.auth.signOut({ scope: "local" });
 
   // You can't sell more than you hold -- refused by the server, said plainly.
   const tooMany = await page.request.post(`/api/trades/${id}/partial-exits`, {
