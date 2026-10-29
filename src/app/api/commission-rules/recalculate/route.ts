@@ -50,11 +50,17 @@ export async function POST() {
       );
     // commission_rule_id (a fee chosen on the trade) arrives with 0056; until
     // it is applied, recalculate as before, by matching alone.
+    // partial_exits (0079) the same way: each sale pays its own exit fee.
     try {
-      trades = (await load(`${BASE}, commission_rule_id`)) as unknown as Trade[];
+      trades = (await load(`${BASE}, commission_rule_id, partial_exits`)) as unknown as Trade[];
     } catch (error) {
       if ((error as { code?: string }).code !== "42703") throw error;
-      trades = (await load(BASE)) as unknown as Trade[];
+      try {
+        trades = (await load(`${BASE}, commission_rule_id`)) as unknown as Trade[];
+      } catch (inner) {
+        if ((inner as { code?: string }).code !== "42703") throw inner;
+        trades = (await load(BASE)) as unknown as Trade[];
+      }
     }
   } catch (error) {
     const code = (error as { code?: string }).code;
@@ -95,6 +101,7 @@ export async function POST() {
           shares: trade.shares,
           order_type: trade.order_type,
           commission_rule_id: (trade as { commission_rule_id?: string | null }).commission_rule_id ?? null,
+          partial_exits: trade.partial_exits,
         });
 
         const derived = computeDerivedFields({

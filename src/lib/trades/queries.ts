@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { computeDerivedFields } from "./compute";
 import { resultForClosedTrade } from "./result";
-import type { EditableCoreField, Trade, TradeCoreFields } from "./types";
+import type { EditableCoreField, PartialExit, Trade, TradeCoreFields } from "./types";
+import { partialExitsProblem, readPartialExits, sortSales } from "./partial-exits";
 import type { StreakTrade } from "./streak";
 import { listCommissionRules } from "@/lib/commissions/queries";
 import { resolveCommission } from "@/lib/commissions/calculate";
@@ -86,6 +87,18 @@ export class TradeConflictError extends Error {
   }
 }
 
+/** The change would leave the trade's partial sells impossible (more sold
+ *  than held, a sale before the entry...). The message is for the user. */
+export class PartialExitsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PartialExitsError";
+  }
+}
+
+// Edits that can make existing sales impossible, so they are checked again.
+const SALE_SENSITIVE_FIELDS = ["mode", "status", "entry_price", "shares", "entry_date", "exit_date"] as const;
+
 export async function updateTrade(
   supabase: SupabaseClient,
   id: string,
@@ -93,6 +106,10 @@ export async function updateTrade(
     core?: Partial<Record<EditableCoreField, unknown>>;
     customFields?: Record<string, unknown>;
     strategyFieldValues?: Record<string, Record<string, unknown>>;
+    /** Partial sells: given the sales as saved now, the list to save.
+     *  Applied to the freshly read row on every attempt, so two sales
+     *  logged at once both land. See /api/trades/[id]/partial-exits. */
+    partialExits?: (current: PartialExit[]) => PartialExit[];
   },
   options: { base?: TradePatch } = {},
 ): Promise<Trade> {
@@ -131,7 +148,16 @@ async function writeMergedTrade(
   changes: Parameters<typeof updateTrade>[2],
 ): Promise<Trade | null> {
 
-  const mergedCore = { ...existing, ...changes.core };
+  const currentSales = readPartialExits(existing.partial_exits);
+  const nextSales = changes.partialExits ? sortSales(changes.partialExits(currentSales)) : currentSales;
+  const mergedCore = { ...existing, ...changes.core, partial_exits: nextSales };
+  const touchesSales =
+    changes.partialExits != null ||
+    SALE_SENSITIVE_FIELDS.some((key) => changes.core != null && Object.prototype.hasOwnProperty.call(changes.core, key));
+  if (touchesSales && nextSales.length > 0) {
+    const problem = partialExitsProblem(mergedCore as unknown as Trade, nextSales);
+    if (problem) throw new PartialExitsError(problem);
+  }
   const mergedCustomFields = changes.customFields
     ? { ...existing.custom_fields, ...changes.customFields }
     : existing.custom_fields;
@@ -184,6 +210,7 @@ async function writeMergedTrade(
       shares: merged.shares,
       order_type: merged.order_type,
       commission_rule_id: merged.commission_rule_id ?? null,
+      partial_exits: merged.partial_exits,
     });
   }
 
@@ -196,6 +223,7 @@ async function writeMergedTrade(
     ...(changes.core ?? {}),
     custom_fields: mergedCustomFields,
     strategy_field_values: mergedStrategyFieldValues,
+    ...(changes.partialExits ? { partial_exits: nextSales } : {}),
     ...derived,
   };
   // `commission` can arrive via changes.core (it's an editable core field).
@@ -306,6 +334,8 @@ export async function duplicateTrade(supabase: SupabaseClient, id: string): Prom
       exit_date: null,
       commission: null,
       commission_manual: false,
+      // Nor the sales (0079), when the column exists to carry any.
+      ...(Object.prototype.hasOwnProperty.call(rest, "partial_exits") ? { partial_exits: [] } : {}),
       dollar_pl: null,
       percent_return: null,
       r_multiple: null,

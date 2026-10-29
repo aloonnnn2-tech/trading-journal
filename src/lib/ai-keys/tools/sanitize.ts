@@ -1,5 +1,6 @@
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { Strategy } from "@/lib/strategies/types";
+import { describePartialExits, readPartialExits } from "@/lib/trades/partial-exits";
 import { renderValue } from "../context";
 import { dateOnly, strategyNames, type Row } from "./filter";
 
@@ -30,6 +31,9 @@ export function compactRow(t: Row): Record<string, unknown> {
   }
   const strat = strategyNames(t);
   if (strat.length) out.strategies = strat;
+  // Closed in pieces: the exit price is only the last piece. get_trade has the sales.
+  const sales = readPartialExits(t.partial_exits);
+  if (sales.length) out.partial_sells = sales.length;
   return out;
 }
 
@@ -64,6 +68,11 @@ export function compactTradeDetail(
     if (v != null) out[k] = v;
   }
   if (t.updated_at) out.updated_at = t.updated_at;
+
+  // Each partial sell with its P&L, reason, note and the shares left, worked
+  // out here so the model never does the maths (same text the AI review gets).
+  const sales = describePartialExits(t as unknown as Parameters<typeof describePartialExits>[0]);
+  if (sales.length) out.partial_sells = sales;
 
   // Custom fields under their labels. Notes, emotions, mistakes all live here.
   const defs = t.mode === "investment" ? fields.investment : fields.trade;

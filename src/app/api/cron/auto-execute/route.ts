@@ -119,6 +119,9 @@ export async function POST(request: Request) {
   // When each level was last set (0078), so a level is judged only on
   // prices since then -- see decideAutoExecution.
   const LEVEL_COLUMNS = `${FEE_COLUMNS}, entry_levels_set_at, stop_loss_set_at, take_profit_set_at`;
+  // Partial sells (0079): a stop or target after some sales closes only the
+  // shares left, and the P&L must count the sales.
+  const PARTIAL_COLUMNS = `${LEVEL_COLUMNS}, partial_exits`;
 
   const loadTrades = (columns: string) =>
     fetchAllRows<WatchedTrade>((from, to) =>
@@ -137,7 +140,7 @@ export async function POST(request: Request) {
   // Fullest column list first, then one migration fewer at a time, so a
   // pending 0056 doesn't also cost the order-type columns of 0039.
   let data: WatchedTrade[] | null = null;
-  for (const columns of [LEVEL_COLUMNS, FEE_COLUMNS, ORDER_COLUMNS, LEGACY_COLUMNS]) {
+  for (const columns of [PARTIAL_COLUMNS, LEVEL_COLUMNS, FEE_COLUMNS, ORDER_COLUMNS, LEGACY_COLUMNS]) {
     try {
       data = await loadTrades(columns);
       break;
@@ -335,6 +338,7 @@ export async function POST(request: Request) {
               shares: merged.shares,
               order_type: merged.order_type,
               commission_rule_id: (merged as { commission_rule_id?: string | null }).commission_rule_id ?? null,
+              partial_exits: merged.partial_exits,
             });
 
         const derived = computeDerivedFields({

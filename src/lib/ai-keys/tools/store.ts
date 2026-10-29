@@ -9,6 +9,7 @@ import { listFieldDefinitions, listAllStrategyFieldDefinitions } from "@/lib/fie
 import type { FieldDefinition } from "@/lib/fields/types";
 import { listFolders, listAllTradeFolderLinks } from "@/lib/folders/queries";
 import type { Folder } from "@/lib/folders/types";
+import { isMissingColumnError } from "@/lib/supabase/errors";
 import { ROW_COLUMNS, type Row } from "./filter";
 
 /**
@@ -41,14 +42,21 @@ export class TradeStore {
 
   /** Every trade, newest first, with an explicit column list -- never `*`. */
   trades(): Promise<Row[]> {
-    this.tradesP ??= fetchAllRows<Row>((from, to) =>
-      this.supabase
-        .from("trades")
-        .select(ROW_COLUMNS)
-        .order("entry_date", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: false })
-        .range(from, to),
-    );
+    const load = (columns: string) =>
+      fetchAllRows<Row>((from, to) =>
+        // A runtime column list: the client can't type it, so it is cast once here.
+        this.supabase
+          .from("trades")
+          .select(columns)
+          .order("entry_date", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false })
+          .range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: { code?: string } | null }>,
+      );
+    // Partial sells (0079) when the column exists; before that, none.
+    this.tradesP ??= load(`${ROW_COLUMNS}, partial_exits`).catch((error: unknown) => {
+      if (!isMissingColumnError(error)) throw error;
+      return load(ROW_COLUMNS);
+    });
     return this.tradesP;
   }
 

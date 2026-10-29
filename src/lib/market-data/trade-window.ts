@@ -327,14 +327,21 @@ export function tradeMarkers(
   entryIndex: number,
   exitIndex: number,
   direction: "long" | "short" | null,
+  /** Partial sells (0079): each on its bar, pointing the way the exit does. */
+  sales: { index: number; text: string }[] = [],
 ): TradeMarker[] {
   const up = { position: "belowBar", shape: "arrowUp" } as const;
   const down = { position: "aboveBar", shape: "arrowDown" } as const;
   const short = direction === "short";
   const markers: TradeMarker[] = [];
   if (entryIndex >= 0) markers.push({ time: bars[entryIndex].time, ...(short ? down : up), text: "Entry" });
+  for (const sale of sales) {
+    if (sale.index >= 0) markers.push({ time: bars[sale.index].time, ...(short ? up : down), text: sale.text });
+  }
   if (exitIndex >= 0) markers.push({ time: bars[exitIndex].time, ...(short ? up : down), text: "Exit" });
-  return markers;
+  // The chart wants markers in time order; a stable sort keeps Entry first
+  // and Exit last on a shared bar.
+  return markers.sort((a, b) => a.time - b.time);
 }
 
 /** How far outside a bar's range still counts as on it: rounding, and the

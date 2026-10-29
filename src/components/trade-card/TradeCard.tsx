@@ -46,6 +46,8 @@ import type { EditableCoreField, Trade } from "@/lib/trades/types";
 import { formatMoney } from "@/lib/format/money";
 import { fillQuestion } from "@/lib/trades/fill-check";
 import { FillPricePrompt } from "./FillPricePrompt";
+import { PartialSellsPanel } from "./partial-sells-panel";
+import { readPartialExits } from "@/lib/trades/partial-exits";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -89,6 +91,8 @@ export function TradeCard({
   const { trade, status, conflict, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade, resolveConflict } =
     useAutosaveTrade(initialTrade);
   const [feeSaving, setFeeSaving] = useState(false);
+  // The chart's latest price, to prefill a partial sell.
+  const [livePrice, setLivePrice] = useState<number | null>(null);
   const [feeError, setFeeError] = useState<string | null>(null);
 
   // Which fee this trade pays: automatic, a chosen one, or none. Pending
@@ -888,7 +892,11 @@ export function TradeCard({
         direction={trade.direction}
         breakevenPrice={breakevenPrice}
         watchForAutoExecution={watchForAutoExecution}
-        onPriceUpdate={handlePriceUpdate}
+        onPriceUpdate={(snapshot) => {
+          setLivePrice(snapshot.currentPrice);
+          handlePriceUpdate(snapshot);
+        }}
+        partialExits={isInvestment ? undefined : readPartialExits(trade.partial_exits)}
         // The chart put the trade on the wrong candle: picking the right one
         // corrects the date itself, so holding time and stats follow (Alon's
         // choice). Saved like any edit, so it's in the trade's history.
@@ -898,6 +906,23 @@ export function TradeCard({
             : (which, date) => updateCoreField(which === "entry" ? "entry_date" : "exit_date", date)
         }
       />
+
+      {!isInvestment && (
+        <PartialSellsPanel
+          trade={trade}
+          commissionRule={commissionRule}
+          livePrice={livePrice}
+          flushNow={flushNow}
+          onSaved={applyServerTrade}
+          onCloseRest={async (price, date) => {
+            // Selling what's left is the normal close.
+            updateCoreField("exit_price", price);
+            updateCoreField("exit_date", date);
+            updateCoreField("status", "closed");
+            await flushNow();
+          }}
+        />
+      )}
 
       {!isInvestment && (
         <Card standalone={false} hoverable={false}>

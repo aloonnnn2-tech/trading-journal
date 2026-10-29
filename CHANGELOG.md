@@ -8,6 +8,9 @@ version (see docs/production-readiness.md, item 50).
 ## 0.2.0 — unreleased
 
 ### Added
+- **Partial sells.** Sell part of an open trade (before earnings, to cut risk, to take some profit) and keep
+  the rest: "Sell part" on the trade, with 25/50/75% buttons and a reason. Each sale counts in the trade's
+  P&L, frees its cash at once, gets its own fee and chart marker, and the AI review and Ask judge each one.
 - **Continue with Google** on sign-in and sign-up. It appears only once Google is switched on in Supabase.
 - **Edit conflicts are caught.** When the same field of a trade is changed in another tab, the page asks
   whether to keep your change or use the saved version, instead of silently overwriting it.

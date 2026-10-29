@@ -395,3 +395,25 @@ describe("tradeMoment on a UTC market", () => {
     expect(new Date(tradeMoment("2026-10-08", "UTC")! * 1000).toISOString().slice(0, 10)).toBe("2026-10-08");
   });
 });
+
+describe("tradeMarkers with partial sells", () => {
+  const bars = [0, 1, 2, 3, 4].map((i) => ({ time: 1000 + i * 60, open: 1, high: 1, low: 1, close: 1 }));
+
+  it("marks each sale between the entry and the exit, in time order", () => {
+    const markers = tradeMarkers(bars, 0, 4, "long", [
+      { index: 3, text: "Sold 20" },
+      { index: 1, text: "Sold 40" },
+    ]);
+    expect(markers.map((m) => m.text)).toEqual(["Entry", "Sold 40", "Sold 20", "Exit"]);
+    expect(markers[1]).toMatchObject({ position: "aboveBar", shape: "arrowDown" });
+  });
+
+  it("points a short's buy-backs up, like its exit, and skips a sale off the bars", () => {
+    const markers = tradeMarkers(bars, 0, -1, "short", [
+      { index: 2, text: "Covered 10" },
+      { index: -1, text: "Covered 5" },
+    ]);
+    expect(markers.map((m) => m.text)).toEqual(["Entry", "Covered 10"]);
+    expect(markers[1]).toMatchObject({ position: "belowBar", shape: "arrowUp" });
+  });
+});

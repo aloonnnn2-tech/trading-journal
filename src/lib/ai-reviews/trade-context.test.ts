@@ -349,3 +349,37 @@ describe("TRADE_REVIEW_SYSTEM_PROMPT", () => {
     expect(TRADE_REVIEW_SYSTEM_PROMPT).toContain("Do not predict future results");
   });
 });
+
+describe("buildTradeReviewContext — partial sells (0079)", () => {
+  it("lists each sale with its P&L, reason, note and what was left", async () => {
+    const text = await build(
+      makeTrade({
+        partial_exits: [
+          {
+            id: "s1",
+            date: makeTrade().entry_date!,
+            shares: 40,
+            price: 122,
+            reason: "earnings",
+            note: "earnings after the close",
+          },
+        ],
+      }),
+    );
+    expect(text).toContain("exit $124.90 (for the shares left after the partial sells)");
+    expect(text).toContain("Partial sells: 1, 40 of 100 shares, realized +$144.00 before fees");
+    expect(text).toContain('sold 40 at 122; P&L +$144.00 before fees; reason: Earnings coming up; note: "earnings after the close"; 60 left after it');
+    expect(text).toContain("The remaining 60 shares were closed at 124.9 (the exit price).");
+  });
+
+  it("says nothing about sales on a trade without any", async () => {
+    const text = await build(makeTrade());
+    expect(text).not.toContain("Partial sells");
+    expect(text).not.toContain("left after the partial sells");
+  });
+
+  it("tells the reviewer to judge each sale as its own decision", () => {
+    expect(TRADE_REVIEW_SYSTEM_PROMPT).toContain("partial sells");
+    expect(TRADE_REVIEW_SYSTEM_PROMPT).toContain("Judge each sale as its own decision");
+  });
+});

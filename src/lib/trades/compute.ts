@@ -1,3 +1,4 @@
+import { readPartialExits, salePl } from "./partial-exits";
 import type { TradeCoreFields } from "./types";
 
 export interface DerivedFields {
@@ -37,9 +38,16 @@ export function computeDerivedFields(trade: TradeCoreFields): DerivedFields {
   const sign = direction === "short" ? -1 : 1;
   const fees = commission != null && Number.isFinite(Number(commission)) ? Number(commission) : 0;
 
+  // Partial sells (0079): each sale's profit, plus the rest at the exit
+  // price. 100 bought at 50, 40 sold at 60 (+400), the other 60 at 55
+  // (+300): +700. With no sales this is exactly the old formula.
+  const sales = readPartialExits(trade.partial_exits);
   let dollar_pl: number | null = null;
   if (entry_price != null && exit_price != null && shares != null) {
-    dollar_pl = (exit_price - entry_price) * shares * sign - fees;
+    const sold = sales.reduce((sum, s) => sum + s.shares, 0);
+    const realized = sales.reduce((sum, s) => sum + salePl(s, entry_price, direction), 0);
+    const remaining = shares < 0 ? shares + sold : shares - sold;
+    dollar_pl = realized + (exit_price - entry_price) * remaining * sign - fees;
   }
 
   // Cost basis is a magnitude. A negative share count is not a valid way to

@@ -1,6 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { MONTHLY_COST_NOTE_PREFIX, isMonthlyCostNote } from "@/lib/monthly-costs/due";
+import { isMissingColumnError } from "@/lib/supabase/errors";
+import { summarizePartialExits } from "@/lib/trades/partial-exits";
+import type { TradeDirection } from "@/lib/trades/types";
+
+interface CommittedRow {
+  mode: string;
+  entry_price: number | null;
+  shares: number | null;
+  position_size: number | null;
+  custom_fields: Record<string, unknown> | null;
+  direction: TradeDirection | null;
+  partial_exits?: unknown;
+}
 
 export interface AccountTransaction {
   id: string;
@@ -93,6 +106,20 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
   // the single worst number in the app to get wrong, since position-size
   // prefill spends it. The `.order("id")` on each keeps offset pagination
   // deterministic.
+  const loadCommitted = (columns: string) =>
+    fetchAllRows<CommittedRow>((from, to) =>
+      // A runtime column list: the client can't type it, so it is cast once here.
+      supabase
+        .from("trades")
+        .select(columns)
+        .in("status", ["open", "pending"])
+        .order("id")
+        .range(from, to) as unknown as PromiseLike<{
+        data: CommittedRow[] | null;
+        error: { message?: string; code?: string } | null;
+      }>,
+    );
+
   const [txRows, plRows, committedRows] = await Promise.all([
     fetchAllRows<{ amount: number; note: string | null }>((from, to) =>
       supabase.from("account_transactions").select("amount, note").order("id").range(from, to),
@@ -123,19 +150,12 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
     // into "open". Excluding pending orders here made availableCash --
     // and the new-trade prefill that spends it -- overstate what's
     // actually free by however much was sitting in pending orders.
-    fetchAllRows<{
-      mode: string;
-      entry_price: number | null;
-      shares: number | null;
-      position_size: number | null;
-      custom_fields: Record<string, unknown> | null;
-    }>((from, to) =>
-      supabase
-        .from("trades")
-        .select("mode, entry_price, shares, position_size, custom_fields")
-        .in("status", ["open", "pending"])
-        .order("id")
-        .range(from, to),
+    // partial_exits (0079) when it exists; before that, no trade has sales.
+    loadCommitted("mode, entry_price, shares, position_size, custom_fields, direction, partial_exits").catch(
+      (error: unknown) => {
+        if (!isMissingColumnError(error)) throw error;
+        return loadCommitted("mode, entry_price, shares, position_size, custom_fields, direction");
+      },
     ),
   ]);
 
@@ -151,11 +171,21 @@ export async function getAccountBalance(supabase: SupabaseClient): Promise<Accou
   }
 
   const deposited = txRows.reduce((sum, row) => sum + Number(row.amount), 0);
-  const tradePL = plRows.reduce((sum, row) => sum + Number(row.dollar_pl ?? 0), 0);
-  const committedCash = committedRows.reduce(
-    (sum, row) => sum + (row.mode === "investment" ? investmentCostOf(row.custom_fields) : costOf(row)),
-    0,
-  );
+  // Partial sells on positions still open: the profit has landed (gross --
+  // an open trade's fees aren't counted here yet, as before), and the sold
+  // part no longer ties up cash. Once the trade closes, its dollar_pl above
+  // carries all of it.
+  let openRealized = 0;
+  const closedPL = plRows.reduce((sum, row) => sum + Number(row.dollar_pl ?? 0), 0);
+  const committedCash = committedRows.reduce((sum, row) => {
+    if (row.mode === "investment") return sum + investmentCostOf(row.custom_fields);
+    const summary = summarizePartialExits(row);
+    if (summary.sales.length === 0 || row.shares == null || Number(row.shares) === 0) return sum + costOf(row);
+    openRealized += summary.realizedGross ?? 0;
+    const heldFraction = Math.max(summary.remainingShares ?? 0, 0) / Math.abs(Number(row.shares));
+    return sum + costOf(row) * heldFraction;
+  }, 0);
+  const tradePL = closedPL + openRealized;
 
   const balance = deposited + tradePL;
 
