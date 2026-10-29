@@ -68,6 +68,12 @@ export async function restoreTradeVersion(
     if (!rule) (rest as { commission_rule_id?: string | null }).commission_rule_id = null;
   }
 
+  // A version from before partial sells (0079) had none. Restoring it takes
+  // today's sales off too -- left on, the row would keep sales its restored
+  // P&L ignores.
+  const assumedNoSales = !Object.prototype.hasOwnProperty.call(rest, "partial_exits");
+  if (assumedNoSales) (rest as { partial_exits?: unknown }).partial_exits = [];
+
   // Re-derive P&L from the restored values instead of trusting the snapshot's
   // stored dollar_pl. A snapshot taken before commissions existed carries a
   // *gross* dollar_pl and no commission key at all -- writing that back
@@ -102,6 +108,15 @@ export async function restoreTradeVersion(
   // Same pre-migration window as updateTrade: the commission columns only
   // exist once 0022 has been applied by hand.
   if (!isMissingColumn(error)) throw error;
+
+  // Or 0079 isn't applied: there are no sales to take off.
+  if (assumedNoSales) {
+    const { partial_exits: _sales, ...withoutSales } = restored as typeof restored & { partial_exits?: unknown };
+    const again = await supabase.from("trades").update(withoutSales).eq("id", tradeId).select().single();
+    if (!again.error) return again.data as Trade;
+    if (!isMissingColumn(again.error)) throw again.error;
+    delete (rest as { partial_exits?: unknown }).partial_exits;
+  }
 
   const grossDerived = computeDerivedFields({
     ...(rest as unknown as TradeCoreFields),

@@ -5,7 +5,7 @@ import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { buildCustomFieldsSchema } from "@/lib/fields/schema";
 import { listFieldDefinitions, listFieldDefinitionsForStrategies } from "@/lib/fields/definitions";
 import { coreFieldsSchema } from "@/lib/trades/schema";
-import { deleteTrade, getTrade, TradeConflictError, updateTrade } from "@/lib/trades/queries";
+import { deleteTrade, getTrade, PartialExitsError, TradeConflictError, updateTrade } from "@/lib/trades/queries";
 import { pickEditableCore } from "@/lib/trades/pick-core";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -130,6 +130,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         },
         { status: 409 },
       );
+    }
+    // E.g. shares lowered below what was already sold: the user's to fix.
+    if (err instanceof PartialExitsError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     // Log the real failure and surface its Postgres/PostgREST code (safe --
     // it's an identifier, not data). Previously every cause collapsed into

@@ -130,3 +130,73 @@ describe("getAccountBalance", () => {
     expect(result.availableCash).toBe(0);
   });
 });
+
+describe("getAccountBalance with partial sells (0079)", () => {
+  const sale = { id: "s1", date: "2026-10-20T15:00:00Z", shares: 40, price: 60, reason: "reduce_risk" };
+
+  it("frees the sold part's cost and counts its profit at once", async () => {
+    const supabase = fakeSupabase({
+      account_transactions: [{ amount: 10000 }],
+      trades: [
+        {
+          status: "open",
+          mode: "trade",
+          direction: "long",
+          position_size: 5000,
+          entry_price: 50,
+          shares: 100,
+          custom_fields: null,
+          partial_exits: [sale],
+        },
+      ],
+    });
+    const result = await getAccountBalance(supabase);
+    expect(result.tradePL).toBe(400); // 40 x (60 - 50)
+    expect(result.balance).toBe(10400);
+    expect(result.committedCash).toBe(3000); // 60% of 5,000 still held
+    expect(result.availableCash).toBe(7400);
+  });
+
+  it("doesn't count an open trade's sales twice once it closes", async () => {
+    const supabase = fakeSupabase({
+      account_transactions: [{ amount: 10000 }],
+      trades: [
+        // dollar_pl already includes the sale (+400) and the rest (+300).
+        { status: "closed", mode: "trade", dollar_pl: 700, partial_exits: [sale] },
+      ],
+    });
+    const result = await getAccountBalance(supabase);
+    expect(result.tradePL).toBe(700);
+    expect(result.committedCash).toBe(0);
+  });
+
+  it("still works before 0079 is applied (no partial_exits column)", async () => {
+    let first = true;
+    const supabase = {
+      from: (table: string) => {
+        const rows =
+          table === "trades"
+            ? [{ status: "open", mode: "trade", position_size: 2000, entry_price: null, shares: null, custom_fields: null }]
+            : [{ amount: 5000 }];
+        const builder = fakeTable(rows);
+        return {
+          ...builder,
+          select: (columns: string) => {
+            if (table === "trades" && columns.includes("partial_exits") && first) {
+              first = false;
+              const failing = {
+                in: () => failing,
+                order: () => failing,
+                range: () => Promise.resolve({ data: null, error: { code: "42703", message: "no column" } }),
+              };
+              return failing;
+            }
+            return builder;
+          },
+        };
+      },
+    } as unknown as SupabaseClient;
+    const result = await getAccountBalance(supabase);
+    expect(result.committedCash).toBe(2000);
+  });
+});

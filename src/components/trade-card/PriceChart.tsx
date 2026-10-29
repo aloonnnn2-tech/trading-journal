@@ -92,6 +92,7 @@ export function PriceChart({
   watchForAutoExecution = false,
   onPriceUpdate,
   onPickCandle,
+  partialExits,
 }: {
   ticker: string;
   assetType: string | null;
@@ -120,6 +121,8 @@ export function PriceChart({
    * gets the date to save (candleMoment in trade-window.ts).
    */
   onPickCandle?: (which: "entry" | "exit", date: string) => void;
+  /** Partial sells (0079), each marked on its candle. */
+  partialExits?: { date: string; shares: number }[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -347,6 +350,13 @@ export function PriceChart({
     return TIMEFRAMES.map((interval) => ({ interval, ...timeframeAvailability(interval, entry, openedAt) }));
   }, [debouncedDates, openedAt]);
 
+  // A string, so a new array with the same sales (every autosave) doesn't
+  // rebuild the chart.
+  const salesKey =
+    partialExits && partialExits.length > 0
+      ? JSON.stringify(partialExits.map((sale) => ({ date: sale.date, shares: sale.shares })))
+      : "";
+
   // Where the trade sits on those bars. Everything here is a pure function of
   // the bars and the trade -- see trade-window.ts for each rule.
   const holdingView = useMemo(() => {
@@ -360,15 +370,21 @@ export function PriceChart({
     };
     const entry = at(debouncedDates.entry);
     const exit = at(debouncedDates.exit);
+    const sales = salesKey
+      ? (JSON.parse(salesKey) as { date: string; shares: number }[]).map((sale) => ({
+          index: at(sale.date).index,
+          text: `${direction === "short" ? "Covered" : "Sold"} ${sale.shares}`,
+        }))
+      : [];
     return {
       bars,
       timeZone,
       interval,
       range: visibleRange(bars, entry.index, exit.index),
-      markers: tradeMarkers(bars, entry.index, exit.index, direction),
+      markers: tradeMarkers(bars, entry.index, exit.index, direction, sales),
       mismatch: priceMismatch(bars, { entryPrice, entry, exitPrice, exit }),
     };
-  }, [holding, debouncedDates, direction, entryPrice, exitPrice]);
+  }, [holding, debouncedDates, direction, entryPrice, exitPrice, salesKey]);
 
   // The price scale keeps the trade's own levels in view: read through refs
   // by the series' autoscale provider, so a keystroke in the form rescales

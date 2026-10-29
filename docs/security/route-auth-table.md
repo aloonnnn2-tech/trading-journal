@@ -94,6 +94,7 @@ How the caller is known:
 | trades/[id]/fee | PUT | U |
 | trades/[id]/fill-confirmed | POST | U |
 | trades/[id]/folders | PUT | U |
+| trades/[id]/partial-exits | POST, PATCH, DELETE | U |
 | trades/[id]/history | GET | U |
 | trades/[id]/history/[historyId]/restore | POST | U |
 | trades/[id]/images | POST | U |

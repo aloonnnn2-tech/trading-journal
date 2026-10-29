@@ -24,6 +24,25 @@ export type TradeTimeInForce = "gtc" | "day";
 export type TradeResult = "open" | "win" | "loss" | "break_even";
 export type TradeDirection = "long" | "short";
 
+/** Why part of a position was sold -- the reasons the "Sell part" form offers. */
+export type PartialExitReason = "earnings" | "reduce_risk" | "partial_profit" | "target" | "other";
+
+/**
+ * Part of an open position sold (bought back, for a short) before the rest
+ * (0079). The rest is closed by exit_price/exit_date as usual; dollar_pl
+ * counts every sale -- see src/lib/trades/compute.ts.
+ */
+export interface PartialExit {
+  id: string;
+  date: string;
+  shares: number;
+  price: number;
+  reason: PartialExitReason;
+  note?: string | null;
+  /** This sale's fee as the user typed it. Null/absent: from the fee rule. */
+  fee?: number | null;
+}
+
 export interface Trade {
   id: string;
   user_id: string;
@@ -84,6 +103,10 @@ export interface Trade {
   // { [strategyId]: { [fieldKey]: value } }.
   strategy_field_values: Record<string, Record<string, unknown>>;
 
+  /** Sales of part of the position, oldest first (0079). Absent until that
+   *  migration is applied, which means none. */
+  partial_exits?: PartialExit[] | null;
+
   // When each level was last set (0078). Stamped by the database, never sent
   // by the app; absent until that migration is applied.
   entry_levels_set_at?: string | null;
@@ -104,6 +127,7 @@ export type TradeCoreFields = Pick<
   | "risk_amount"
   | "direction"
   | "commission"
+  | "partial_exits"
 >;
 
 // Columns a client is allowed to PATCH directly. Derived P/L columns are
@@ -134,6 +158,9 @@ export const EDITABLE_CORE_FIELDS = [
   "entry_date",
   "exit_date",
 ] as const;
+// partial_exits is deliberately not here: sales go through their own route
+// (/api/trades/[id]/partial-exits), which validates the whole list against
+// the trade, so CSV import/export, autosave and field toggles never see it.
 
 export type EditableCoreField = (typeof EDITABLE_CORE_FIELDS)[number];
 

@@ -6,6 +6,7 @@ import { listTradeHistory } from "@/lib/trades/history";
 import { detectAdjustments } from "@/lib/trades/adjustments";
 import { closedBefore, exitedBeforeTarget, holdingDays, lossStreakBefore } from "@/lib/trades/behaviour";
 import type { Trade } from "@/lib/trades/types";
+import { describePartialExits } from "@/lib/trades/partial-exits";
 import { getExcursion } from "@/lib/excursions/queries";
 import { listRulesForStrategies } from "@/lib/plan-rules/queries";
 import { planAdherenceFor } from "@/lib/plan-rules/trade-adherence";
@@ -220,14 +221,21 @@ export async function buildTradeReviewContext(
   const held = holdingDays(trade);
   if (held != null) lines.push(`- Held for: ${num(held, 1)} days`);
 
+  const partialSells = describePartialExits(trade);
   lines.push(
-    `- Prices: entry ${money(trade.entry_price)}, exit ${money(trade.exit_price)}, ` +
-      `stop ${money(trade.stop_loss)}, target ${money(trade.take_profit)}`,
+    `- Prices: entry ${money(trade.entry_price)}, exit ${money(trade.exit_price)}` +
+      (partialSells.length > 0 ? " (for the shares left after the partial sells)" : "") +
+      `, stop ${money(trade.stop_loss)}, target ${money(trade.take_profit)}`,
   );
   lines.push(
     `- Size: ${num(trade.shares)} units, position ${money(trade.position_size)}` +
       (trade.dollar_amount != null ? `, amount ${money(trade.dollar_amount)}` : ""),
   );
+  // Each sale with its own P&L, reason and what was left, worked out here
+  // so the model never has to do the maths.
+  if (partialSells.length > 0) {
+    lines.push(`- ${partialSells[0]}`, ...partialSells.slice(1).map((line) => `  ${line}`));
+  }
   lines.push(
     `- Risk: ${money(trade.risk_amount)} risked` +
       (trade.risk_percent != null ? ` (${num(trade.risk_percent)}% of account)` : "") +
@@ -576,6 +584,12 @@ export const TRADE_REVIEW_SYSTEM_PROMPT = [
   "  count from their baselines). If you can't point to one, leave it out.",
   "- Use the MAE/MFE, rule results, emotion record and the run of trades before",
   "  this one when they are given: they are measured, not guessed.",
+  "- When the trade lists partial sells, the position was closed in pieces: the",
+  "  exit price is only what the REST went for, and the P&L already counts every",
+  "  sale. Judge each sale as its own decision under exit_management: its reason",
+  "  and note, its price against the entry, stop and target, and what the shares",
+  "  still held did afterwards. Say whether trimming helped or cost them, with",
+  "  the numbers given.",
   "- Score each sub-score on this scale, and null when the data can't support it:",
   "  90-100 textbook; 70-89 sound with a minor flaw; 50-69 mixed; 30-49 a clear",
   "  mistake; 0-29 no risk control or the plan broken outright. The overall score",

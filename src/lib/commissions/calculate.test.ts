@@ -68,7 +68,7 @@ describe("which sides get charged", () => {
   });
 
   it("splits the breakdown into entry and exit", () => {
-    expect(computeCommission(rule(), trade())).toEqual({ entryFee: 2.5, exitFee: 2.5, total: 5 });
+    expect(computeCommission(rule(), trade())).toEqual({ entryFee: 2.5, exitFee: 2.5, partialFees: 0, total: 5 });
   });
 
   it("honours an entry-only rule", () => {
@@ -231,5 +231,49 @@ describe("resolveCommission — what actually gets stored", () => {
 
   it("treats an absent mode as a normal trade", () => {
     expect(resolveCommission(rules, trade({ mode: undefined }))).toBe(5);
+  });
+});
+
+describe("partial sells (0079)", () => {
+  const sale = (over: Record<string, unknown> = {}) => ({
+    id: "s1",
+    date: "2026-10-20T15:00:00Z",
+    shares: 40,
+    price: 60,
+    reason: "reduce_risk",
+    ...over,
+  });
+
+  it("charges each sale as an exit, and the final exit only on the shares left", () => {
+    const perShare = rule({ rule_type: "per_unit", amount: 0.01 });
+    const b = computeCommission(
+      perShare,
+      trade({ shares: 100, entry_price: 50, exit_price: 55, partial_exits: [sale()] }),
+    );
+    expect(b.entryFee).toBeCloseTo(1); // 100 shares
+    expect(b.partialFees).toBeCloseTo(0.4); // 40 shares
+    expect(b.exitFee).toBeCloseTo(0.6); // the 60 left
+    expect(b.total).toBeCloseTo(2);
+  });
+
+  it("uses a fee typed on the sale instead of the rule", () => {
+    const b = computeCommission(rule(), trade({ shares: 100, partial_exits: [sale({ fee: 7 })] }));
+    expect(b.partialFees).toBe(7);
+    expect(b.total).toBe(2.5 + 7 + 2.5);
+  });
+
+  it("charges an open trade for entry and its sales, not the exit still to come", () => {
+    const b = computeCommission(rule(), trade({ status: "open", exit_price: null, shares: 100, partial_exits: [sale()] }));
+    expect(b).toEqual({ entryFee: 2.5, exitFee: 0, partialFees: 2.5, total: 5 });
+  });
+
+  it("counts fees typed on sales even when no rule matches", () => {
+    expect(resolveCommission([], trade({ shares: 100, partial_exits: [sale({ fee: 3 })] }))).toBe(3);
+    expect(resolveCommission([], trade({ shares: 100, partial_exits: [sale()] }))).toBeNull();
+  });
+
+  it("ignores malformed sales rather than failing", () => {
+    const b = computeCommission(rule(), trade({ shares: 100, partial_exits: [{ shares: "lots" }, null] }));
+    expect(b.total).toBe(5);
   });
 });

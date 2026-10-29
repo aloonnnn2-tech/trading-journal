@@ -1,3 +1,4 @@
+import { readPartialExits } from "@/lib/trades/partial-exits";
 import type { CommissionRule, FeeComponent, FeeSide } from "./types";
 
 export interface CommissionTradeInput {
@@ -17,6 +18,9 @@ export interface CommissionTradeInput {
    * matching would pick. Null/absent: matched automatically as before.
    */
   commission_rule_id?: string | null;
+  /** Sales of part of the position (0079): each pays an exit fee, and the
+   *  final exit pays only on the shares left. */
+  partial_exits?: unknown;
 }
 
 export interface CommissionBreakdown {
@@ -24,7 +28,9 @@ export interface CommissionBreakdown {
   entryFee: number;
   /** Fee charged to close it (0 until the trade is closed). */
   exitFee: number;
-  /** entryFee + exitFee -- what to store on trades.commission. */
+  /** Fees on partial sells: the fee typed on a sale, else the rule's. */
+  partialFees: number;
+  /** entryFee + partialFees + exitFee -- what to store on trades.commission. */
   total: number;
 }
 
@@ -240,15 +246,27 @@ export function computeCommission(
   rule: CommissionRule | null,
   trade: CommissionTradeInput,
 ): CommissionBreakdown {
-  const none = { entryFee: 0, exitFee: 0, total: 0 };
-  if (!rule) return none;
+  const none = { entryFee: 0, exitFee: 0, partialFees: 0, total: 0 };
   if (trade.status === "pending") return none;
+  const sales = trade.status === "open" || trade.status === "closed" ? readPartialExits(trade.partial_exits) : [];
+  if (!rule) {
+    // No rule: only the fees typed on sales.
+    const typed = sales.reduce((sum, s) => sum + (s.fee ?? 0), 0);
+    return { ...none, partialFees: typed, total: typed };
+  }
 
   const entryFee = sideFee(rule, "entry", trade.entry_price, trade.shares, trade.direction, trade.order_type);
+  const partialFees = sales.reduce(
+    (sum, s) => sum + (s.fee ?? sideFee(rule, "exit", s.price, s.shares, trade.direction, trade.order_type)),
+    0,
+  );
+  // The final exit sells only what the sales left.
+  const sold = sales.reduce((sum, s) => sum + s.shares, 0);
+  const remaining = trade.shares != null && sold > 0 ? Math.max(Math.abs(trade.shares) - sold, 0) : trade.shares;
   const exitFee =
-    trade.status === "closed" ? sideFee(rule, "exit", trade.exit_price, trade.shares, trade.direction, trade.order_type) : 0;
+    trade.status === "closed" ? sideFee(rule, "exit", trade.exit_price, remaining, trade.direction, trade.order_type) : 0;
 
-  return { entryFee, exitFee, total: entryFee + exitFee };
+  return { entryFee, exitFee, partialFees, total: entryFee + partialFees + exitFee };
 }
 
 /**
@@ -272,7 +290,11 @@ export function resolveCommission(
   if (trade.mode === "investment") return null;
   if (trade.status === "pending") return null;
   const rule = matchCommissionRule(rules, trade);
-  if (!rule) return null;
+  if (!rule) {
+    // Fees typed on partial sells count even with no rule to match.
+    const typed = computeCommission(null, trade);
+    return typed.partialFees > 0 ? typed.total : null;
+  }
   return computeCommission(rule, trade).total;
 }
 

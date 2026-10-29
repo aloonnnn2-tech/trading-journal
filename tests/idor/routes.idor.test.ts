@@ -125,6 +125,15 @@ const CASES: Case[] = [
     noControl: "only acts on a trade whose order just filled (0063); the world's trades never were",
   },
   {
+    name: "POST trades/[id]/partial-exits",
+    load: () => import("@/app/api/trades/[id]/partial-exits/route"),
+    method: "POST",
+    params: id,
+    body: () => ({ sale: { date: new Date().toISOString(), shares: 1, price: 10, reason: "reduce_risk" } }),
+    guard: tradeGuard,
+    noControl: "the world's trade has no entry price or shares to sell from",
+  },
+  {
     name: "PUT trades/[id]/fee",
     load: () => import("@/app/api/trades/[id]/fee/route"),
     method: "PUT",
