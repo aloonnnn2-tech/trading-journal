@@ -70,6 +70,28 @@ test("sell part of an open trade, then close the rest: the P&L counts both", asy
     expect.objectContaining({ shares: 40, price: 60, reason: "earnings", note: "earnings Thursday" }),
   ]);
 
+  // The dashboard's database function counts the open sale. It once failed
+  // here (0079 passed the direction enum where text was expected, fixed by
+  // 0080) and the page hid it behind its fallback, so it's asked directly.
+  const asUser = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const signedIn = await asUser.auth.signInWithPassword({ email: user.email, password: user.password });
+  if (signedIn.error) throw signedIn.error;
+  const now = Date.now();
+  const stats = await asUser.rpc("dashboard_stats", {
+    p_today_start: new Date(now - 86_400_000).toISOString(),
+    p_today_end: new Date(now + 86_400_000).toISOString(),
+    p_month_start: new Date(now - 30 * 86_400_000).toISOString(),
+    p_month_end: new Date(now + 86_400_000).toISOString(),
+    p_timezone: "UTC",
+  });
+  expect(stats.error).toBeNull();
+  const statsRow = (Array.isArray(stats.data) ? stats.data[0] : stats.data) as { trade_pl: number; committed_cash: number };
+  expect(Number(statsRow.trade_pl)).toBe(400); // the sale's profit, counted while the rest is held
+  expect(Number(statsRow.committed_cash)).toBeCloseTo(3000); // 60% of the 5,000 position
+  await asUser.auth.signOut();
+
   // You can't sell more than you hold -- refused by the server, said plainly.
   const tooMany = await page.request.post(`/api/trades/${id}/partial-exits`, {
     data: { sale: { date: new Date().toISOString(), shares: 70, price: 61, reason: "reduce_risk" } },
