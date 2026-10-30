@@ -1,5 +1,6 @@
 import type { FieldDefinition } from "@/lib/fields/types";
 import type { StrategyAdherence } from "@/lib/plan-rules/types";
+import type { RuleCheck } from "@/lib/overall-rules/types";
 import type { Trade } from "@/lib/trades/types";
 
 // The trade side panel on /trades (Phase 4A of docs/design-audit.md): what
@@ -13,6 +14,8 @@ export interface TradePanelData {
    *  "tagged, but no rules". */
   hasStrategies: boolean;
   adherences: StrategyAdherence[];
+  /** The overall rules (0081), as stored -- the panel never fetches prices. */
+  overallRules: RuleCheck[];
   images: { id: string; url: string }[];
   /** Notes and other text-like custom fields that have a value, in the
    *  user's field order. */

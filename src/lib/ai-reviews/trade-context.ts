@@ -7,6 +7,7 @@ import { detectAdjustments } from "@/lib/trades/adjustments";
 import { closedBefore, exitedBeforeTarget, holdingDays, lossStreakBefore } from "@/lib/trades/behaviour";
 import type { Trade } from "@/lib/trades/types";
 import { describePartialExits } from "@/lib/trades/partial-exits";
+import { loadTradeRuleChecks } from "@/lib/overall-rules/load";
 import { getExcursion } from "@/lib/excursions/queries";
 import { listRulesForStrategies } from "@/lib/plan-rules/queries";
 import { planAdherenceFor } from "@/lib/plan-rules/trade-adherence";
@@ -299,13 +300,14 @@ export async function buildTradeReviewContext(
 
   // Shared with the plan-rule engine so both agree on what a moved stop is.
   // listTradeHistory returns newest-first; the detector wants oldest-first.
-  const { adjustments } = detectAdjustments(
+  const tradeAdjustments = detectAdjustments(
     [...history].reverse().map((h) => ({
       stop_loss: h.snapshot?.stop_loss ?? null,
       take_profit: h.snapshot?.take_profit ?? null,
     })),
     trade,
   );
+  const { adjustments } = tradeAdjustments;
   if (adjustments.length > 0) {
     lines.push(
       "",
@@ -416,6 +418,34 @@ export async function buildTradeReviewContext(
       }
       lines.push("Use these results for rule_adherence; a rule not listed here was not checked.");
     }
+  }
+
+  // ---- 5b2. The trader's overall rules (0081) ----------------------------
+  //
+  // Checked by the app against this trade (moving-average rules from real
+  // daily prices, refreshed for a few seconds at most). Rules in words have
+  // no app result: the model judges those and says so.
+  const overall = await loadTradeRuleChecks(supabase, trade.user_id, trade, tradeAdjustments, {
+    waitMs: 4_000,
+  }).catch(() => null);
+  if (overall?.ready && overall.checks.length > 0) {
+    lines.push("", "## The trader's overall rules, as checked by the app against this trade");
+    for (const check of overall.checks) {
+      const result =
+        check.outcome === "followed"
+          ? "FOLLOWED"
+          : check.outcome === "broken"
+            ? "BROKEN"
+            : check.outcome === "not_triggered"
+              ? "did not come up on this trade"
+              : check.outcome === "ai"
+                ? "a rule in words, no app result: judge it yourself from the data and notes, and say how sure you are"
+                : "could not be checked";
+      lines.push(`- "${check.rule.label.replace(/\s+/g, " ")}": ${result}. ${check.detail.summary}`);
+    }
+    lines.push(
+      "Use these in rule_adherence too. The app's results are facts; 'did not come up' and 'could not be checked' are not broken rules.",
+    );
   }
 
   // ---- 5c. How far the trade went for and against (MAE / MFE) ------------

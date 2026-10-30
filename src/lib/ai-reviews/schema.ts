@@ -302,6 +302,41 @@ const strategyBreakdown = z
   );
 
 /**
+ * How the trader kept their overall rules (0081). `judged_by` says whether a
+ * verdict rests on the app's own checks or is the model's reading of a rule
+ * written in words -- the card labels the latter, so a guess never reads like
+ * a measurement. Anything but "ai" is treated as the app's.
+ */
+const overallRuleReview = z.unknown().transform((v) => {
+  const obj = (typeof v === "object" && v !== null ? v : {}) as Record<string, unknown>;
+  const rules = Array.isArray(obj.rules) ? obj.rules.slice(0, 60) : [];
+  return {
+    summary: typeof obj.summary === "string" ? obj.summary.trim().slice(0, 1200) : "",
+    rules: rules
+      .map((item) => {
+        const r = (typeof item === "object" && item !== null ? item : {}) as Record<string, unknown>;
+        return {
+          rule: typeof r.rule === "string" ? r.rule.trim().slice(0, 300) : "",
+          verdict: typeof r.verdict === "string" ? r.verdict.trim().slice(0, 600) : "",
+          evidence: typeof r.evidence === "string" ? r.evidence.trim().slice(0, 600) : "",
+          judged_by: (r.judged_by === "ai" ? "ai" : "app") as "ai" | "app",
+          confidence: confidence.parse(r.confidence),
+        };
+      })
+      .filter((r) => r.rule !== "")
+      .slice(0, 20),
+    fixes: Array.isArray(obj.fixes)
+      ? obj.fixes
+          .map((f) => (typeof f === "string" ? f.trim().slice(0, 400) : ""))
+          .filter(Boolean)
+          .slice(0, 3)
+      : [],
+  };
+});
+
+export type RuleAdherenceReview = z.infer<typeof overallRuleReview>;
+
+/**
  * The full period review.
  *
  * Only `performance_summary` is required. A genuinely quiet period should
@@ -325,6 +360,8 @@ export const periodReviewContentSchema = z.object({
   period_comparison: optionalProse(1200),
   priorities: findings.nullish().transform((v) => v ?? []),
   missing_information: findings.nullish().transform((v) => v ?? []),
+  // Absent on reviews written before 0081, and when the trader has no rules.
+  rule_adherence: overallRuleReview.nullish().transform((v) => (v && (v.summary || v.rules.length > 0) ? v : null)),
 });
 
 export type PeriodReviewContent = z.infer<typeof periodReviewContentSchema>;

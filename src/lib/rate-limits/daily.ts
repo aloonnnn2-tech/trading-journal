@@ -34,6 +34,7 @@ export const DAILY_CAPS = {
   import: { limit: 100, what: "imports" },
   export: { limit: 200, what: "exports" },
   excursions: { limit: 50, what: "excursion recalculations" },
+  "rule-checks": { limit: 50, what: "rule checks of all your trades" },
   "market-data": { limit: 3000, what: "price lookups" },
   "image-upload": { limit: MAX_IMAGE_UPLOADS_PER_DAY, what: "screenshot uploads" },
 } as const;

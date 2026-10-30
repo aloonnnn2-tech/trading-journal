@@ -6,6 +6,7 @@ import { isPaidUser } from "@/lib/settings/plan";
 import { Card } from "@/components/ui/Card";
 import { buildTradingReport, resolveReportPeriod, REPORT_PRESETS, type ReportPreset } from "@/lib/report/build";
 import { ReportView } from "./report-view";
+import { loadPeriodRuleAdherence } from "@/lib/overall-rules/load";
 
 import { SeePlansButton } from "@/components/plans/SeePlansButton";
 function isPreset(value: string | undefined): value is ReportPreset {
@@ -60,9 +61,19 @@ export default async function ReportsPage({
 
   // Degrades rather than breaking: the report reads several hand-applied
   // migrations, and a pending one must not take the page down.
-  const report = period
-    ? await buildTradingReport(supabase, period, settings.timezone).catch(() => null)
-    : null;
+  const [report, rules] = period
+    ? await Promise.all([
+        buildTradingReport(supabase, period, settings.timezone).catch(() => null),
+        // The overall rules (0081) for the same window, prices checked for at
+        // most a few seconds. Absent before the migration or with no rules.
+        loadPeriodRuleAdherence(
+          supabase,
+          userId,
+          { start: period.startIso, end: period.endIso },
+          { maxSymbols: 15, waitMs: 5_000 },
+        ).catch(() => null),
+      ])
+    : [null, null];
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8 print:max-w-none print:p-0">
@@ -81,7 +92,7 @@ export default async function ReportsPage({
 
       {/* useSearchParams needs a Suspense boundary in a server-rendered page. */}
       <Suspense fallback={<p className="text-sm text-zinc-500">Loading…</p>}>
-        <ReportView report={report} preset={preset} />
+        <ReportView report={report} preset={preset} ruleAdherence={rules?.adherence ?? null} />
       </Suspense>
     </div>
   );

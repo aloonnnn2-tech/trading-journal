@@ -12,6 +12,7 @@ import { getUserSettings } from "@/lib/settings/queries";
 import { generateStructured, StructuredOutputError } from "@/lib/ai-reviews/parse";
 import { isMissingTableError, savePeriodReview } from "@/lib/ai-reviews/queries";
 import { periodReviewContentSchema, periodReviewSchema } from "@/lib/ai-reviews/schema";
+import { loadPeriodRuleAdherence } from "@/lib/overall-rules/load";
 import {
   resolveRequestedPeriod,
   type PeriodKind,
@@ -132,7 +133,16 @@ export async function POST(request: Request) {
   const ready = await preflightProviderCall(gate.supabase, parsed.data.keyId, gate.userId);
   if (!ready.ok) return ready.response;
 
-  const context = await buildPeriodContext(gate.supabase, period, settings.timezone);
+  // The overall rules (0081) for the period, prices refreshed for a few
+  // seconds at most so the provider call keeps its time budget. Never the
+  // reason a review fails.
+  const rules = await loadPeriodRuleAdherence(
+    gate.supabase,
+    gate.userId,
+    { start: period.startIso, end: period.endIso },
+    { maxSymbols: 15, waitMs: 5_000 },
+  ).catch(() => null);
+  const context = await buildPeriodContext(gate.supabase, period, settings.timezone, rules?.adherence ?? null);
   const provider = getProvider(ready.provider);
 
   let content;

@@ -284,6 +284,29 @@ function PanelBody({ data }: { data: TradePanelData }) {
         </div>
       </dl>
 
+      {(data.overallRules ?? []).length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Your rules</h3>
+          <ul className="flex flex-col gap-1.5">
+            {data.overallRules.map((check) => (
+              <li key={check.rule.id} className="flex items-start gap-2 text-sm">
+                <span
+                  className={`mt-0.5 w-4 shrink-0 text-center font-mono ${
+                    check.outcome === "followed" ? "text-profit" : check.outcome === "broken" ? "text-loss" : "text-zinc-400"
+                  }`}
+                >
+                  {check.outcome === "followed" ? "✓" : check.outcome === "broken" ? "✕" : check.outcome === "ai" ? "·" : "–"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="break-words text-zinc-800 dark:text-zinc-200">{check.rule.label}</span>
+                  <span className="block text-xs text-zinc-500">{check.detail.summary}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="flex flex-col gap-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Plan adherence</h3>
         {data.adherences.length === 0 ? (

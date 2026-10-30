@@ -75,6 +75,9 @@ How the caller is known:
 | monthly-costs | GET, POST | U |
 | monthly-costs/[id] | PATCH, DELETE | U |
 | ocr/ai | POST | P |
+| overall-rules | GET, POST | U |
+| overall-rules/[id] | PATCH, DELETE | U |
+| overall-rules/check | POST | U |
 | ocr/parse | POST | U |
 | reviews/mine | GET, PUT, DELETE | U |
 | reviews/prompt | GET, PATCH | U |

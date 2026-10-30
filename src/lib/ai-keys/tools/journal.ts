@@ -1,3 +1,5 @@
+import { evaluateOverallRules } from "@/lib/overall-rules/evaluate";
+import { listOverallRules, listStoredChecks } from "@/lib/overall-rules/queries";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Trade } from "@/lib/trades/types";
@@ -217,6 +219,28 @@ export async function getTrade(ctx: ToolContext, args: z.infer<typeof getTradeSc
       };
     });
 
+  // The trader's overall rules (0081): field rules live, moving-average
+  // rules as stored (Ask never waits on a price fetch). Text rules are left
+  // for the model to judge, and say so.
+  const overallRules = await listOverallRules(ctx.supabase).catch(() => null);
+  const overall =
+    overallRules && overallRules.length > 0
+      ? evaluateOverallRules({
+          trade: {
+            ...match,
+            custom_fields: match.custom_fields ?? {},
+            strategy_field_values: match.strategy_field_values ?? {},
+          } as unknown as Trade,
+          rules: overallRules,
+          adjustments,
+          stored: await listStoredChecks(ctx.supabase, [match.id]).catch(() => []),
+        }).map((c) => ({
+          rule: c.rule.label,
+          outcome: c.outcome === "ai" ? "judge_yourself" : c.outcome,
+          detail: c.detail.summary,
+        }))
+      : [];
+
   return {
     found: true,
     ...(otherMatches > 0
@@ -237,6 +261,7 @@ export async function getTrade(ctx: ToolContext, args: z.infer<typeof getTradeSc
       historyMayBeTruncated: adjustments.mayBeTruncated,
     },
     ...(adherence.length ? { rule_adherence: adherence } : {}),
+    ...(overall.length ? { overall_rules: overall } : {}),
   };
 }
 

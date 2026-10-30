@@ -220,3 +220,33 @@ describe("periodReviewContentSchema", () => {
     expect(parsed.risk_review).toHaveLength(10);
   });
 });
+
+describe("periodReviewContentSchema — rule_adherence (0081)", () => {
+  it("keeps the rules, defaults judged_by to the app, and caps the fixes", () => {
+    const parsed = periodReviewContentSchema.parse({
+      performance_summary: "x",
+      rule_adherence: {
+        summary: "Kept the SMA exit half the time.",
+        rules: [
+          { rule: "Exit below SMA 150", verdict: "Often held on", evidence: "1 of 2", judged_by: "app" },
+          { rule: "No early trades", verdict: "Mostly kept", judged_by: "ai", confidence: "medium" },
+          { rule: "Unlabelled", verdict: "?", judged_by: "the model" },
+          { verdict: "no rule name" },
+        ],
+        fixes: ["a", "b", "c", "d"],
+      },
+    });
+    expect(parsed.rule_adherence?.rules.map((r) => [r.rule, r.judged_by])).toEqual([
+      ["Exit below SMA 150", "app"],
+      ["No early trades", "ai"],
+      ["Unlabelled", "app"],
+    ]);
+    expect(parsed.rule_adherence?.rules[1].confidence).toBe("medium");
+    expect(parsed.rule_adherence?.fixes).toHaveLength(3);
+  });
+
+  it("is null when absent or empty, as on reviews from before it existed", () => {
+    expect(periodReviewContentSchema.parse({ performance_summary: "x" }).rule_adherence).toBeNull();
+    expect(periodReviewContentSchema.parse({ performance_summary: "x", rule_adherence: {} }).rule_adherence).toBeNull();
+  });
+});

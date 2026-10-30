@@ -38,6 +38,7 @@
  *   trade_excursions    -> trades
  *   ai_reviews          -> trades
  *   strategy_rules      -> strategies
+ *   trade_rule_checks   -> trades, overall_rules (0081)
  *   analytics_events    -> analytics_sessions
  *   ai_conversations    -> user_api_keys  (key_id, on delete set null)
  *   ai_messages         -> ai_conversations
@@ -58,6 +59,8 @@ export const TABLES = [
   "commission_rules",
   "monthly_costs",
   "ai_provider_consents",
+  // The user's overall rules (0081).
+  "overall_rules",
   // Encrypted with AI_KEY_ENCRYPTION_SECRET (see src/lib/ai-keys/crypto.ts),
   // so a dump alone yields no usable provider key -- but it is still the most
   // sensitive table here, and the reason backups must never be stored
@@ -99,6 +102,8 @@ export const TABLES = [
   "trade_folders",
   "trade_strategies",
   "trade_excursions",
+  // Moving-average rule results (0081): reference trades and overall_rules.
+  "trade_rule_checks",
   "ai_reviews",
   // Ask's suggested changes (0070): reference ai_conversations and trades.
   "ai_proposals",

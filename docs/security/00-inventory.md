@@ -85,6 +85,9 @@ applies to that route.
 | `/api/market-data/fx` | GET | user | none (Yahoo) | yes | manual / none | – |
 | `/api/monthly-costs/[id]` | PATCH DELETE | user | user (RLS) | yes | zod | account_transactions, monthly_cost_postings, monthly_costs |
 | `/api/monthly-costs` | GET POST | user | user (RLS) | yes | zod | account_transactions, monthly_cost_postings, monthly_costs |
+| `/api/overall-rules` | GET POST | user (free by design) | user (RLS) | yes (60/min writes) | zod | overall_rules |
+| `/api/overall-rules/[id]` | PATCH DELETE | user | user (RLS) | yes (60/min) | uuid + zod | overall_rules |
+| `/api/overall-rules/check` | POST | user (free) | user (RLS) | 3/5 min + daily 50 + Yahoo ceiling | none | overall_rules, trades, trade_rule_checks; one Yahoo daily-bars request per symbol (at most 30 per run) |
 | `/api/ocr/parse` | POST | user | user (RLS) | yes | manual / none | analytics_events, trade_images |
 | `/api/ocr/ai` | POST | paid + consent `screenshot_v1` | user (RLS) + vault | 10/min + daily | zod key id, image bytes, size | user_api_keys (vault), trades (duplicate check); sends the image to the user's own AI provider |
 | `/api/reviews/mine` | GET PUT DELETE | user (not the shared demo) | user (RLS), own row only | 10/min | zod | app_reviews, analytics_events (2026-10-11) |

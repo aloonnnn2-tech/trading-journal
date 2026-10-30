@@ -8,6 +8,8 @@ import { PRESET_LABELS, REPORT_PRESETS, type ReportPreset, type TradingReport } 
 import { formatDateTime } from "@/lib/dates/format";
 import { useMounted } from "@/lib/use-mounted";
 import { formatMoney } from "@/lib/format/money";
+import { RuleAdherenceTable } from "@/components/rules/rule-adherence-table";
+import type { PeriodAdherence } from "@/lib/overall-rules/month";
 
 // The report document, and the controls for choosing what it covers.
 //
@@ -78,9 +80,12 @@ function Row({
 export function ReportView({
   report,
   preset,
+  ruleAdherence = null,
 }: {
   report: TradingReport | null;
   preset: ReportPreset;
+  /** The overall rules for the same period; null with none set. */
+  ruleAdherence?: PeriodAdherence | null;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -221,6 +226,15 @@ export function ReportView({
               value={`${report.summary.longestWinStreak} / ${report.summary.longestLossStreak}`}
             />
           </section>
+
+          {ruleAdherence && (
+            <section>
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+                Your rules
+              </h3>
+              <RuleAdherenceTable adherence={ruleAdherence} />
+            </section>
+          )}
 
           <section>
             <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">

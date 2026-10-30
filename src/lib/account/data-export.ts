@@ -41,6 +41,22 @@ export const EXPORT_SECTIONS: ExportSection[] = [
   { name: "strategies", rows: own("strategies") },
   { name: "trade_strategies", rows: own("trade_strategies", "*", "trade_id") },
   { name: "strategy_rules", rows: own("strategy_rules") },
+  // Overall rules and their stored results (0081), read leniently: the
+  // tables arrive with a hand-applied migration.
+  {
+    name: "overall_rules",
+    rows: (ctx) => own("overall_rules")(ctx).catch((err: unknown) => {
+      if (isMissingTableError(err)) return [];
+      throw err;
+    }),
+  },
+  {
+    name: "rule_checks",
+    rows: (ctx) => own("trade_rule_checks", "*", "computed_at")(ctx).catch((err: unknown) => {
+      if (isMissingTableError(err)) return [];
+      throw err;
+    }),
+  },
   { name: "folders", rows: own("folders") },
   { name: "trade_folders", rows: own("trade_folders", "*", "trade_id") },
   { name: "custom_fields", rows: own("field_definitions") },
@@ -179,6 +195,8 @@ export const EXPORTED_TABLES = [
   "strategies",
   "trade_strategies",
   "strategy_rules",
+  "overall_rules",
+  "trade_rule_checks",
   "folders",
   "trade_folders",
   "field_definitions",

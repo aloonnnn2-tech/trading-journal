@@ -214,6 +214,44 @@ export function PeriodReviewCard({
         </Section>
       )}
 
+      {c.rule_adherence && (
+        <Section title="Your rules">
+          {c.rule_adherence.summary && <AnswerText text={c.rule_adherence.summary} />}
+          {c.rule_adherence.rules.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-2.5">
+              {c.rule_adherence.rules.map((r, i) => (
+                <li key={i}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="break-words text-sm font-medium text-zinc-800 dark:text-zinc-200">{r.rule}</span>
+                    {/* A rule in words is the model's reading, never a
+                        measurement: said on the rule itself. */}
+                    {r.judged_by === "ai" ? (
+                      <>
+                        <span className="rounded-full border border-zinc-400/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                          Judged by AI
+                        </span>
+                        <ConfidenceBadge level={r.confidence} />
+                      </>
+                    ) : (
+                      <span className="rounded-full border border-zinc-400/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Checked by the app
+                      </span>
+                    )}
+                  </div>
+                  {r.verdict && <p className="text-sm text-zinc-600 dark:text-zinc-400">{r.verdict}</p>}
+                  {r.evidence && <p className="mt-0.5 text-xs text-zinc-500">{r.evidence}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {c.rule_adherence.fixes.length > 0 && (
+            <div className="mt-2">
+              <Bullets items={c.rule_adherence.fixes} marker="→" />
+            </div>
+          )}
+        </Section>
+      )}
+
       {c.risk_review.length > 0 && (
         <Section title="Risk management">
           <Bullets items={c.risk_review} marker="•" />

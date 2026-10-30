@@ -36,6 +36,8 @@ export interface Journal {
   keyId: string;
   conversationId: string;
   reviewId: string;
+  /** An overall rule (0081) and its stored result on tradeId. */
+  overallRuleId: string;
   /** Unique text planted in this user's rows; must never appear in the other user's responses. */
   marker: string;
 }
@@ -168,6 +170,29 @@ async function seedJournal(a: SupabaseClient, userId: string, tag: string): Prom
       .select("trade_id"),
   );
 
+  // Overall rules (0081): a moving-average rule and its stored result.
+  const overallRuleId = await one("overall rule", "overall_rules", {
+    label: `${marker} overall rule`,
+    kind: "ma_exit",
+    ma_type: "sma",
+    ma_period: 150,
+  });
+  must(
+    "rule check",
+    await a
+      .from("trade_rule_checks")
+      .insert({
+        trade_id: tradeId,
+        rule_id: overallRuleId,
+        user_id: userId,
+        outcome: "broken",
+        detail: { summary: `${marker} check` },
+        trade_updated_at: new Date().toISOString(),
+        rule_updated_at: new Date().toISOString(),
+      })
+      .select("trade_id"),
+  );
+
   return {
     tradeId,
     historyId,
@@ -184,6 +209,7 @@ async function seedJournal(a: SupabaseClient, userId: string, tag: string): Prom
     keyId,
     conversationId,
     reviewId,
+    overallRuleId,
     marker,
   };
 }
