@@ -134,6 +134,22 @@ const CASES: Case[] = [
     noControl: "the world's trade has no entry price or shares to sell from",
   },
   {
+    name: "PATCH overall-rules/[id]",
+    load: () => import("@/app/api/overall-rules/[id]/route"),
+    method: "PATCH",
+    params: (u) => ({ id: u.journal.overallRuleId }),
+    body: (u) => ({ kind: "ma_exit", label: `${u.journal.marker} overall rule`, ma_type: "sma", ma_period: 100 }),
+    guard: (u) => ["overall_rules", "id", u.journal.overallRuleId],
+  },
+  {
+    name: "DELETE overall-rules/[id]",
+    load: () => import("@/app/api/overall-rules/[id]/route"),
+    method: "DELETE",
+    params: (u) => ({ id: u.journal.overallRuleId }),
+    guard: (u) => ["overall_rules", "id", u.journal.overallRuleId],
+    deletes: true,
+  },
+  {
     name: "PUT trades/[id]/fee",
     load: () => import("@/app/api/trades/[id]/fee/route"),
     method: "PUT",

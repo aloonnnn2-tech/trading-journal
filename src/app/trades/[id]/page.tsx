@@ -20,6 +20,8 @@ import { TradeCard } from "@/components/trade-card/TradeCard";
 import { TradeHistoryPanel } from "@/components/trade-card/trade-history-panel";
 import { AiReviewPanel } from "@/components/trade-card/ai-review-panel";
 import { PlanAdherencePanel } from "@/components/trade-card/plan-adherence-panel";
+import { OverallRulesPanel } from "@/components/trade-card/overall-rules-panel";
+import { loadTradeRuleChecks } from "@/lib/overall-rules/load";
 import { TradeExcursionPanel } from "@/components/trade-card/excursion-panel";
 import { TradeTimeline } from "@/components/trade-card/trade-timeline";
 import { TagSuggestionsPanel } from "@/components/trade-card/tag-suggestions-panel";
@@ -116,6 +118,18 @@ export default async function TradeDetailPage({
     history,
   });
 
+  // The user's overall rules (0081): field rules live, moving-average rules
+  // from real daily prices (worked out now if missing or stale). Never the
+  // reason the page fails.
+  const overallRules =
+    trade.mode === "investment"
+      ? { ready: false, checks: [], hasRules: false }
+      : await loadTradeRuleChecks(supabase, userId, trade, adjustments).catch(() => ({
+          ready: false,
+          checks: [],
+          hasRules: false,
+        }));
+
   // Tags the app can offer on this trade. Needs the same adjustments, so it
   // sits after them. Degrades to none rather than throwing: it reads the
   // journal for the trader's median risk, and a suggestion strip is not worth
@@ -188,6 +202,17 @@ export default async function TradeDetailPage({
           isPaid={isPaidUser(settings)}
         />
       </section>
+
+      {overallRules.ready && (
+        <section className="flex flex-col gap-2">
+          <OverallRulesPanel
+            key={`overall-rules-${id}`}
+            checks={overallRules.checks}
+            hasRules={overallRules.hasRules}
+            ready={overallRules.ready}
+          />
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <PlanAdherencePanel

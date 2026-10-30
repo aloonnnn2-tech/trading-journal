@@ -41,6 +41,8 @@ const OWNED: [table: string, key: string, id: (u: TestUser) => string][] = [
   ["ai_messages", "conversation_id", (u) => u.journal.conversationId],
   ["ai_reviews", "id", (u) => u.journal.reviewId],
   ["trade_excursions", "trade_id", (u) => u.journal.tradeId],
+  ["overall_rules", "id", (u) => u.journal.overallRuleId],
+  ["trade_rule_checks", "rule_id", (u) => u.journal.overallRuleId],
   ["user_settings", "user_id", (u) => u.id],
 ];
 
@@ -119,6 +121,28 @@ describe("A cannot point its own rows at B's records (0059)", () => {
         provider: "openai",
         model: "m",
         content: {},
+      }),
+    ],
+    [
+      "rule result on B's trade",
+      "trade_rule_checks",
+      () => ({
+        trade_id: B.journal.tradeId,
+        rule_id: A.journal.overallRuleId,
+        outcome: "followed",
+        trade_updated_at: new Date().toISOString(),
+        rule_updated_at: new Date().toISOString(),
+      }),
+    ],
+    [
+      "rule result for B's rule",
+      "trade_rule_checks",
+      () => ({
+        trade_id: A.journal.tradeId,
+        rule_id: B.journal.overallRuleId,
+        outcome: "followed",
+        trade_updated_at: new Date().toISOString(),
+        rule_updated_at: new Date().toISOString(),
       }),
     ],
     ["excursion on B's trade", "trade_excursions", () => ({ trade_id: B.journal.tradeId, symbol: "X", status: "ok" })],

@@ -9,6 +9,7 @@ import { listTradeImages } from "@/lib/images/queries";
 import { listStrategies, listTradeStrategyIds } from "@/lib/strategies/queries";
 import { listRulesForStrategies } from "@/lib/plan-rules/queries";
 import { planAdherenceFor } from "@/lib/plan-rules/trade-adherence";
+import { loadTradeRuleChecks } from "@/lib/overall-rules/load";
 import { isTradeId, panelTextFields, type TradePanelData } from "@/lib/trades/panel";
 
 // The trade side panel's data (Phase 4A). Read-only: everything here is also
@@ -56,7 +57,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   ]);
 
   const rulesByStrategy = await listRulesForStrategies(supabase, strategyIds);
-  const { adherences } = planAdherenceFor({ trade, strategyIds, strategies, rulesByStrategy, history });
+  const { adherences, adjustments } = planAdherenceFor({ trade, strategyIds, strategies, rulesByStrategy, history });
+  // Stored results only: arrowing through trades must not fetch prices.
+  const overall =
+    trade.mode === "investment"
+      ? null
+      : await loadTradeRuleChecks(supabase, userId, trade, adjustments, { refresh: false }).catch(() => null);
 
   // One batched call for every screenshot, as on the trade page.
   const signed =
@@ -74,6 +80,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     strategyNames: strategyIds.map((sid) => nameById.get(sid)).filter((n): n is string => Boolean(n)),
     hasStrategies: strategyIds.length > 0,
     adherences,
+    overallRules: overall?.checks ?? [],
     images: rawImages
       .map((img) => ({ id: img.id, url: urlByPath.get(img.storage_path) ?? "" }))
       .filter((img) => img.url),

@@ -9,6 +9,11 @@ import { Card } from "@/components/ui/Card";
 import { FieldManager } from "@/app/fields/field-manager";
 import { StrategyManager } from "./strategy-manager";
 import { RuleManager } from "./rule-manager";
+import { OverallRulesManager } from "./overall-rules-manager";
+import { listOverallRules } from "@/lib/overall-rules/queries";
+import { loadPeriodRuleAdherence } from "@/lib/overall-rules/load";
+import { resolveReportPeriod } from "@/lib/report/build";
+import { RuleAdherenceTable } from "@/components/rules/rule-adherence-table";
 import { listRulesForStrategy } from "@/lib/plan-rules/queries";
 import { getScorecards } from "@/lib/scorecards/queries";
 import { isPaidUser } from "@/lib/settings/plan";
@@ -32,10 +37,32 @@ export default async function StrategiesPage({
   const paid = isPaidUser(settings);
   const scorecards = paid ? await getScorecards(supabase, settings.timezone).catch(() => null) : null;
 
-  const [breakdown, strategies] = await Promise.all([
+  const [breakdown, strategies, overallRules, tradeFields] = await Promise.all([
     getStrategyBreakdown(supabase),
     listStrategies(supabase),
+    listOverallRules(supabase).catch(() => []),
+    listFieldDefinitions(supabase, "trade"),
   ]);
+
+  // This month and last month against the overall rules: free, like the
+  // rules themselves. Prices are checked for at most a few seconds here;
+  // anything not done yet reads "couldn't check" and is stored for next time.
+  const months =
+    overallRules && overallRules.some((r) => r.enabled)
+      ? await Promise.all(
+          (["this_month", "last_month"] as const).map(async (preset) => {
+            const period = resolveReportPeriod(preset, settings.timezone);
+            if (!period) return null;
+            const result = await loadPeriodRuleAdherence(
+              supabase,
+              userId,
+              { start: period.startIso, end: period.endIso },
+              { maxSymbols: 10, waitMs: 4_000 },
+            ).catch(() => null);
+            return result?.adherence ? { label: preset === "this_month" ? "This month" : "Last month", adherence: result.adherence } : null;
+          }),
+        )
+      : [];
 
   const activeStrategy = activeStrategyId ? strategies.find((s) => s.id === activeStrategyId) : undefined;
 
@@ -102,6 +129,34 @@ export default async function StrategiesPage({
               ))}
             </tbody>
           </table>
+          </div>
+        )}
+      </Card>
+
+      <Card hoverable={false}>
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
+          Your overall rules
+        </h2>
+        <p className="mb-4 mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          The rules you trade by, whatever the strategy. Every trade shows which ones you kept, and the monthly report
+          and AI review add it up.
+        </p>
+        <OverallRulesManager
+          ready={overallRules !== null}
+          initialRules={overallRules ?? []}
+          customFields={tradeFields.map((f) => ({ key: f.key, label: f.label, field_type: f.field_type }))}
+        />
+        {months.some(Boolean) && (
+          <div className="mt-6 grid gap-6 border-t border-zinc-200 pt-4 dark:border-subtle lg:grid-cols-2">
+            {months.map(
+              (m) =>
+                m && (
+                  <div key={m.label}>
+                    <h3 className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">{m.label}</h3>
+                    <RuleAdherenceTable adherence={m.adherence} compact />
+                  </div>
+                ),
+            )}
           </div>
         )}
       </Card>
