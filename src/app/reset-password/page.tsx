@@ -6,6 +6,7 @@ import { authApi } from "@/lib/auth/client-api";
 import { BrandMark } from "@/components/brand-mark";
 import { FormError } from "@/components/form-error";
 import { authErrorMessage } from "@/lib/auth/error-messages";
+import { PasswordInput } from "@/components/auth/password-input";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -116,8 +117,7 @@ export default function ResetPasswordPage() {
         </div>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
           New password
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={8}
             autoComplete="new-password"
@@ -128,8 +128,7 @@ export default function ResetPasswordPage() {
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
           Confirm password
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={8}
             autoComplete="new-password"

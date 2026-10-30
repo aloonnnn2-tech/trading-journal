@@ -11,6 +11,7 @@ import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 import { MINIMUM_AGE } from "@/lib/legal/terms";
+import { PasswordInput } from "@/components/auth/password-input";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -177,8 +178,7 @@ export default function SignUpPage() {
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
           Password
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={8}
             autoComplete="new-password"
