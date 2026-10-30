@@ -13,6 +13,7 @@ import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages
 import { endSession, useAnalytics } from "@/lib/tracking/useAnalytics";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 import { HELP_EMAIL } from "@/lib/help/config";
+import { PasswordInput } from "@/components/auth/password-input";
 
 const INPUT_CLASS =
   "rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -141,8 +142,7 @@ function SignInForm() {
               Forgot password?
             </Link>
           </div>
-          <input
-            type="password"
+          <PasswordInput
             required
             autoComplete="current-password"
             value={password}
