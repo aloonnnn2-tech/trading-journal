@@ -16,4 +16,7 @@ export const PUBLIC_PATHS = [
   // Help must work for someone who can't sign in.
   "/help",
   "/paid-plan",
+  // Free tools, found through search. Signed-in visitors see them too.
+  "/position-size-calculator",
+  "/how-to-journal-a-swing-trade",
 ];

@@ -2,7 +2,7 @@
 #
 # Deliberately minimal: build command, publish directory and the Next.js
 # runtime all stay configured in the Netlify UI. Anything named here would
-# override the dashboard, so only the setting that has to live in the repo is
+# override the dashboard, so only settings that have to live in the repo are
 # present.
 
 [build.environment]
@@ -37,3 +37,12 @@
   # change that genuinely inlines a secret into a page, chunk or function
   # still fails the build.
   SECRETS_SCAN_OMIT_PATHS = ".next/cache/**,.netlify/.next/cache/**"
+
+# The journal template linked from /how-to-journal-a-swing-trade. Files in
+# public/ are served by Netlify's CDN, not by Next, so next.config.ts headers
+# do not reliably reach them; this pins the type so the download opens as a
+# spreadsheet rather than an unknown binary.
+[[headers]]
+  for = "/*.xlsx"
+  [headers.values]
+    Content-Type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

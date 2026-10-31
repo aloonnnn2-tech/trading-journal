@@ -38,7 +38,8 @@
     "accounts:summary": "tsx --env-file=.env.local scripts/accounts-summary.ts",
     "seed:fake": "tsx scripts/seed-fake-data.mjs",
     "dev:devdb": "tsx scripts/dev-on-dev-project.ts",
-    "ocr:web": "tsx scripts/ocr-eval/web-replay.ts"
+    "ocr:web": "tsx scripts/ocr-eval/web-replay.ts",
+    "template:journal": "tsx scripts/generate-journal-template.ts"
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",

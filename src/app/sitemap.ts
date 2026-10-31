@@ -7,6 +7,8 @@ import { SITE_URL } from "@/lib/site";
 // Everything behind sign-in is useless to a search engine, so it isn't here.
 const PAGES: { path: string; priority: number }[] = [
   { path: "/", priority: 1 },
+  { path: "/position-size-calculator", priority: 0.8 },
+  { path: "/how-to-journal-a-swing-trade", priority: 0.8 },
   { path: "/paid-plan", priority: 0.7 },
   { path: "/sign-up", priority: 0.6 },
   { path: "/help", priority: 0.5 },
