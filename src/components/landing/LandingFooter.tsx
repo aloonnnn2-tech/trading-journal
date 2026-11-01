@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { SOCIAL_ICON_PATHS } from "@/components/landing/social-icons";
+import { FREE_TOOLS, FREE_TOOLS_HUB } from "@/lib/free-tools";
 
 // The public site's footer, shared by /, /contact, /cookies, /paid-plan,
 // /privacy, /terms and the two free-tool pages. Phase 2C of docs/design-audit.md made it the full
@@ -27,10 +28,11 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
     ],
   },
   {
+    // A few by name, the rest through the hub (src/lib/free-tools.ts).
     heading: "Free tools",
     links: [
-      { href: "/position-size-calculator", label: "Position size calculator" },
-      { href: "/how-to-journal-a-swing-trade", label: "How to journal a swing trade" },
+      ...FREE_TOOLS.filter((t) => t.inFooter).map((t) => ({ href: t.path, label: t.name })),
+      { href: FREE_TOOLS_HUB, label: "All free tools" },
     ],
   },
   {
@@ -62,7 +64,7 @@ const LINK = "text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-zinc-200 px-6 py-12 dark:border-subtle sm:px-10">
+    <footer className="border-t border-zinc-200 px-6 py-12 dark:border-subtle sm:px-10 print:hidden">
       <div className="mx-auto flex max-w-6xl flex-col gap-10">
         {/* Two columns on a phone, brand block across the top: a single
             column made this footer 782px tall at 630px wide. */}

@@ -27,7 +27,7 @@ export function LandingHeader() {
   // with the header.
   return (
     <header
-      className="sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 dark:border-subtle bg-white/85 dark:bg-background/85 px-6 py-3.5 backdrop-blur-md sm:px-10"
+      className="sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 dark:border-subtle bg-white/85 dark:bg-background/85 px-6 py-3.5 backdrop-blur-md sm:px-10 print:hidden"
     >
       <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
         <BrandMark className="h-6 w-6" />

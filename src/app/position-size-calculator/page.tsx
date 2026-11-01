@@ -2,8 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
-import { FREE_TOOL_SECTION, FreeToolCta, JsonLd, SignUpButton } from "@/components/landing/free-tools";
-import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
+import {
+  FREE_TOOL_SECTION,
+  FreeToolCta,
+  FreeToolHero,
+  freeToolMetadata,
+  JsonLd,
+  MoreFreeTools,
+  SignUpButton,
+  webAppJsonLd,
+} from "@/components/landing/free-tools";
 import { PositionSizeCalculator } from "./calculator";
 
 // A free public tool, here to be found in search ("position size
@@ -18,27 +26,13 @@ const TITLE = "Position Size & R-Multiple Calculator for Swing Traders | Trading
 const DESCRIPTION =
   "Free position size calculator. Enter your account size, risk %, entry and stop to get the number of shares, your 1R, and 1R/2R/3R targets. No sign-up.";
 
-export const metadata: Metadata = {
-  title: { absolute: TITLE },
-  description: DESCRIPTION,
-  alternates: { canonical: PATH },
-  openGraph: { ...BASE_OPEN_GRAPH, url: PATH, title: TITLE, description: DESCRIPTION },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
-};
+export const metadata: Metadata = freeToolMetadata({ path: PATH, title: TITLE, description: DESCRIPTION });
 
-const JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
+const JSON_LD = webAppJsonLd({
+  path: PATH,
   name: "Position Size & R-Multiple Calculator",
-  url: `${SITE_URL}${PATH}`,
   description: DESCRIPTION,
-  applicationCategory: "FinanceApplication",
-  operatingSystem: "Any",
-  browserRequirements: "Requires JavaScript",
-  isAccessibleForFree: true,
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
-};
+});
 
 const H2 = "text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
 const P = "mt-3 leading-relaxed text-zinc-700 dark:text-zinc-300";
@@ -49,17 +43,11 @@ export default function PositionSizeCalculatorPage() {
       <JsonLd data={JSON_LD} />
       <LandingHeader />
 
-      <section className={`${FREE_TOOL_SECTION} pt-12 pb-8 sm:pt-16`}>
-        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary">Free tool</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-4xl">
-          Position size calculator
-        </h1>
-        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-          Enter your account size, how much of it you will risk, and your entry and stop. You get the
-          number of shares to buy, what one R is worth in dollars, and where your 1R, 2R and 3R
-          targets sit. Long or short. No sign-up, and nothing you type leaves your browser.
-        </p>
-      </section>
+      <FreeToolHero kicker="Free tool" title="Position size calculator">
+        Enter your account size, how much of it you will risk, and your entry and stop. You get the
+        number of shares to buy, what one R is worth in dollars, and where your 1R, 2R and 3R
+        targets sit. Long or short. No sign-up, and nothing you type leaves your browser.
+      </FreeToolHero>
 
       <section className={`${FREE_TOOL_SECTION} pb-14`} aria-label="Calculator">
         <PositionSizeCalculator />
@@ -140,6 +128,7 @@ export default function PositionSizeCalculatorPage() {
         </p>
       </FreeToolCta>
 
+      <MoreFreeTools current={PATH} />
       <LandingFooter />
     </div>
   );

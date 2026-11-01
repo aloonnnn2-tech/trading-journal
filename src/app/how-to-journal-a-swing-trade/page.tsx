@@ -3,13 +3,16 @@ import Link from "next/link";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import {
+  articleJsonLd,
   FREE_TOOL_SECTION,
   FreeToolCta,
+  freeToolMetadata,
   JsonLd,
+  MoreFreeTools,
+  PROSE,
   SECONDARY_BUTTON,
   SignUpButton,
 } from "@/components/landing/free-tools";
-import { BASE_OPEN_GRAPH, SITE_NAME, SITE_URL } from "@/lib/site";
 
 // A public guide, here to be found in search ("how to journal swing trades")
 // and to lead to the template download and sign-up. Fully server-rendered:
@@ -29,41 +32,16 @@ const DESCRIPTION =
 const PUBLISHED = "2026-10-31";
 const TEMPLATE = "/Swing-Trading-Journal-Template.xlsx";
 
-export const metadata: Metadata = {
-  title: { absolute: TITLE },
+export const metadata: Metadata = freeToolMetadata({
+  path: PATH,
+  title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: PATH },
-  openGraph: {
-    ...BASE_OPEN_GRAPH,
-    type: "article",
-    url: PATH,
-    title: TITLE,
-    description: DESCRIPTION,
-    publishedTime: PUBLISHED,
-  },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
-};
+  article: { published: PUBLISHED },
+});
 
-const JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "Article",
-  headline: HEADLINE,
-  description: DESCRIPTION,
-  url: `${SITE_URL}${PATH}`,
-  mainEntityOfPage: `${SITE_URL}${PATH}`,
-  image: `${SITE_URL}/opengraph-image`,
-  datePublished: PUBLISHED,
-  dateModified: PUBLISHED,
-  author: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
-  publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
-};
+const JSON_LD = articleJsonLd({ path: PATH, headline: HEADLINE, description: DESCRIPTION, published: PUBLISHED });
 
-const H2 = "mt-12 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
-const H3 = "mt-8 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50";
-const P = "mt-4 leading-relaxed text-zinc-700 dark:text-zinc-300";
-const UL = "mt-4 flex list-disc flex-col gap-2 pl-5 leading-relaxed text-zinc-700 marker:text-zinc-400 dark:text-zinc-300";
-const B = "font-semibold text-zinc-900 dark:text-zinc-50";
-const A = "font-medium text-primary hover:underline";
+const { h2: H2, h3: H3, p: P, ul: UL, b: B, a: A } = PROSE;
 
 /** A two-column field/value table for the worked example. */
 function ExampleTable({ caption, rows }: { caption: string; rows: [string, string][] }) {
@@ -308,6 +286,7 @@ export default function HowToJournalASwingTradePage() {
         </p>
       </FreeToolCta>
 
+      <MoreFreeTools current={PATH} />
       <LandingFooter />
     </div>
   );
