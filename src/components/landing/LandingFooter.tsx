@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { SOCIAL_ICON_PATHS } from "@/components/landing/social-icons";
+import { FREE_TOOLS, FREE_TOOLS_HUB } from "@/lib/free-tools";
 
 // The public site's footer, shared by /, /contact, /cookies, /paid-plan,
-// /privacy and /terms. Phase 2C of docs/design-audit.md made it the full
+// /privacy, /terms and the two free-tool pages. Phase 2C of docs/design-audit.md made it the full
 // footer the audit asked for.
 //
 // Only links to pages that exist. The spec's "Compare" column arrives with
@@ -24,6 +25,14 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
       { href: "/#pricing", label: "Pricing" },
       { href: "/paid-plan", label: "Paid plan" },
       { href: "/#waitlist", label: "Join the waitlist" },
+    ],
+  },
+  {
+    // A few by name, the rest through the hub (src/lib/free-tools.ts).
+    heading: "Free tools",
+    links: [
+      ...FREE_TOOLS.filter((t) => t.inFooter).map((t) => ({ href: t.path, label: t.name })),
+      { href: FREE_TOOLS_HUB, label: "All free tools" },
     ],
   },
   {
@@ -55,11 +64,11 @@ const LINK = "text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-zinc-200 px-6 py-12 dark:border-subtle sm:px-10">
+    <footer className="border-t border-zinc-200 px-6 py-12 dark:border-subtle sm:px-10 print:hidden">
       <div className="mx-auto flex max-w-6xl flex-col gap-10">
         {/* Two columns on a phone, brand block across the top: a single
             column made this footer 782px tall at 630px wide. */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-[1.4fr_1fr_1fr_1fr] sm:gap-10">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-[1.4fr_1fr_1fr_1fr_1fr] sm:gap-10">
           <div className="col-span-2 flex flex-col gap-3 sm:col-span-1">
             <Link
               href="/"
