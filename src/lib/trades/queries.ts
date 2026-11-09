@@ -90,7 +90,13 @@ export class TradeConflictError extends Error {
 /** The change would leave the trade's partial sells impossible (more sold
  *  than held, a sale before the entry...). The message is for the user. */
 export class PartialExitsError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** The edited core fields the sales were checked against (none when the
+     *  change was to the sales themselves), so the trade page can set those
+     *  aside and still save the rest. See save-refusal.ts. */
+    readonly fields: string[] = [],
+  ) {
     super(message);
     this.name = "PartialExitsError";
   }
@@ -151,12 +157,13 @@ async function writeMergedTrade(
   const currentSales = readPartialExits(existing.partial_exits);
   const nextSales = changes.partialExits ? sortSales(changes.partialExits(currentSales)) : currentSales;
   const mergedCore = { ...existing, ...changes.core, partial_exits: nextSales };
-  const touchesSales =
-    changes.partialExits != null ||
-    SALE_SENSITIVE_FIELDS.some((key) => changes.core != null && Object.prototype.hasOwnProperty.call(changes.core, key));
+  const saleSensitiveEdits = SALE_SENSITIVE_FIELDS.filter(
+    (key) => changes.core != null && Object.prototype.hasOwnProperty.call(changes.core, key),
+  );
+  const touchesSales = changes.partialExits != null || saleSensitiveEdits.length > 0;
   if (touchesSales && nextSales.length > 0) {
     const problem = partialExitsProblem(mergedCore as unknown as Trade, nextSales);
-    if (problem) throw new PartialExitsError(problem);
+    if (problem) throw new PartialExitsError(problem, saleSensitiveEdits);
   }
   const mergedCustomFields = changes.customFields
     ? { ...existing.custom_fields, ...changes.customFields }

@@ -27,6 +27,7 @@ import type { Strategy } from "@/lib/strategies/types";
 import { useAutosaveTrade, type SaveStatus } from "@/lib/trades/use-autosave-trade";
 import { newIdempotencyKey } from "@/lib/http/idempotency-key";
 import { conflictFieldLabel } from "@/lib/trades/conflicts";
+import { fieldLabel } from "@/lib/trades/save-refusal";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { isWatchable } from "@/lib/trades/auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
@@ -88,8 +89,20 @@ export function TradeCard({
   accountBalance?: number | null;
 }) {
   const router = useRouter();
-  const { trade, status, conflict, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade, resolveConflict } =
-    useAutosaveTrade(initialTrade);
+  const {
+    trade,
+    status,
+    conflict,
+    refused,
+    updateCoreField,
+    updateCustomField,
+    updateStrategyField,
+    flushNow,
+    applyServerTrade,
+    resolveConflict,
+    undoRefused,
+    savedIfRefused,
+  } = useAutosaveTrade(initialTrade);
   const [feeSaving, setFeeSaving] = useState(false);
   // The chart's latest price, to prefill a partial sell.
   const [livePrice, setLivePrice] = useState<number | null>(null);
@@ -172,14 +185,17 @@ export function TradeCard({
   // directly shouldn't have entry price x shares silently overwrite it).
   const applyMoneyFieldEdits = (edits: [EditableCoreField, unknown][]) => {
     for (const [key, value] of edits) updateCoreField(key, value);
+    // Worked out from saved values where the one on screen was refused by
+    // the server: moving a stop must not save a risk amount for a share
+    // count that never saved (use-autosave-trade.ts, savedIfRefused).
     const derived = deriveBatchedMoneyFields(
       edits,
       {
-        entry_price: trade.entry_price,
-        shares: trade.shares,
-        dollar_amount: trade.dollar_amount,
-        stop_loss: trade.stop_loss,
-        risk_amount: trade.risk_amount,
+        entry_price: savedIfRefused("entry_price", trade.entry_price),
+        shares: savedIfRefused("shares", trade.shares),
+        dollar_amount: savedIfRefused("dollar_amount", trade.dollar_amount),
+        stop_loss: savedIfRefused("stop_loss", trade.stop_loss),
+        risk_amount: savedIfRefused("risk_amount", trade.risk_amount),
       },
       accountBalance,
     );
@@ -403,6 +419,30 @@ export function TradeCard({
               Keep my change
             </button>
           </div>
+        </div>
+      )}
+      {refused && (
+        // A save the server refused, with its reason. It used to show as a
+        // small "Save failed" and nothing else, while the refused value sat
+        // on screen and blocked every later edit (save-refusal.ts).
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-lg border border-loss/40 bg-loss/10 px-3.5 py-3 text-sm text-zinc-900 dark:text-zinc-100 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p>
+            <span className="font-medium">
+              {refused.fields.map(fieldLabel).join(", ")} {refused.fields.length === 1 ? "isn't" : "aren't"} saved.
+            </span>{" "}
+            {refused.message} Change {refused.fields.length === 1 ? "it" : "them"}, or put the saved{" "}
+            {refused.fields.length === 1 ? "value" : "values"} back.
+          </p>
+          <button
+            type="button"
+            onClick={undoRefused}
+            className="shrink-0 rounded-lg border border-loss/40 px-3 py-1.5 text-xs font-medium hover:bg-loss/10"
+          >
+            Put the saved {refused.fields.length === 1 ? "value" : "values"} back
+          </button>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1195,6 +1235,7 @@ function SaveStatusBadge({ status }: { status: SaveStatus }) {
     saved: "Saved",
     error: "Save failed",
     conflict: "Not saved: changed elsewhere",
+    refused: "Not saved: see above",
   }[status];
 
   const color = {
@@ -1203,6 +1244,7 @@ function SaveStatusBadge({ status }: { status: SaveStatus }) {
     saved: "text-profit",
     error: "text-loss",
     conflict: "text-amber-600 dark:text-amber-400",
+    refused: "text-loss",
   }[status];
 
   return (
