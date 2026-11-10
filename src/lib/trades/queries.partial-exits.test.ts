@@ -136,6 +136,27 @@ describe("updateTrade with partial sells", () => {
     );
   });
 
+  // The whole request is refused, so anything saved along with a refused
+  // share count is lost with it -- a stop-loss move included. The trade page
+  // therefore has to stop sending the refused field (save-refusal.ts), and
+  // the error names it so the page knows which one that is.
+  it("writes nothing from a request that carries a refused share count, and names the field", async () => {
+    const db = fakeSupabase(openTrade({ partial_exits: [sale()] }));
+    const refused = await updateTrade(db.client, "trade-1", { core: { shares: 30, stop_loss: 48 } }).catch((e) => e);
+    expect(refused).toBeInstanceOf(PartialExitsError);
+    expect((refused as PartialExitsError).fields).toEqual(["shares"]);
+    expect(db.writes).toHaveLength(0);
+    expect(db.current().stop_loss).toBe(45);
+  });
+
+  it("names no field when the refused change is to the sales themselves", async () => {
+    const db = fakeSupabase(openTrade({ partial_exits: [sale({ shares: 70 })] }));
+    const refused = await updateTrade(db.client, "trade-1", {
+      partialExits: (cur) => [...cur, sale({ id: "s2", shares: 40 })],
+    }).catch((e) => e);
+    expect((refused as PartialExitsError).fields).toEqual([]);
+  });
+
   it("refuses moving a trade with sales back to pending", async () => {
     const db = fakeSupabase(openTrade({ partial_exits: [sale()] }));
     await expect(updateTrade(db.client, "trade-1", { core: { status: "pending" } })).rejects.toBeInstanceOf(

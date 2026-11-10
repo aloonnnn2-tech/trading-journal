@@ -3,8 +3,40 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditableCoreField, Trade } from "./types";
 import type { ConflictField } from "./conflicts";
+import { readRefusal, refusedFieldNames, type SaveRefusal } from "./save-refusal";
 
-export type SaveStatus = "idle" | "saving" | "saved" | "error" | "conflict";
+export type SaveStatus = "idle" | "saving" | "saved" | "error" | "conflict" | "refused";
+
+/** Edits the server refused (save-refusal.ts): on screen, not saved, and no
+ *  longer being sent. `fields` are the ones to name. */
+export interface RefusedEdits {
+  message: string;
+  fields: string[];
+}
+
+/** One request's worth of edits, or the edits set aside after a refusal. */
+interface EditSet {
+  core: Partial<Record<EditableCoreField, unknown>>;
+  custom: Record<string, unknown>;
+  strategy: Record<string, Record<string, unknown>>;
+}
+
+function isEmpty(edits: EditSet): boolean {
+  return (
+    Object.keys(edits.core).length === 0 &&
+    Object.keys(edits.custom).length === 0 &&
+    Object.values(edits.strategy).every((values) => Object.keys(values).length === 0)
+  );
+}
+
+/** `over` on top of `under`, one level deep for strategy fields. */
+function layer(under: EditSet, over: EditSet): EditSet {
+  const strategy: Record<string, Record<string, unknown>> = {};
+  for (const id of new Set([...Object.keys(under.strategy), ...Object.keys(over.strategy)])) {
+    strategy[id] = { ...under.strategy[id], ...over.strategy[id] };
+  }
+  return { core: { ...under.core, ...over.core }, custom: { ...under.custom, ...over.custom }, strategy };
+}
 
 /** A save the server refused because the same field changed elsewhere (409). */
 export interface SaveConflict {
@@ -118,6 +150,27 @@ export function useAutosaveTrade(initialTrade: Trade) {
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
   // The same, readable inside callbacks without re-creating them.
   const conflictRef = useRef<SaveConflict | null>(null);
+  // Edits the server refused. They stay on screen but are in no queue: sent
+  // again they would only be refused again, and -- riding in the same request
+  // -- take every later edit on the page down with them (save-refusal.ts).
+  // Typing in one of them again puts the lot back in the queue; undoRefused()
+  // puts the saved values back on screen.
+  const setAsideRef = useRef<EditSet>({ core: {}, custom: {}, strategy: {} });
+  const [refused, setRefused] = useState<RefusedEdits | null>(null);
+  // The fields the refusal is about (`refused.fields`), for callbacks. The
+  // rest of what's set aside only travelled with them.
+  const refusedNamesRef = useRef<Set<string>>(new Set());
+
+  /** Everything typed here that the server doesn't have: queued or set aside. */
+  const unsaved = useCallback(
+    (): EditSet =>
+      layer(setAsideRef.current, {
+        core: pendingCoreRef.current,
+        custom: pendingCustomRef.current,
+        strategy: pendingStrategyFieldsRef.current,
+      }),
+    [],
+  );
 
   const flush = useCallback(async (isRetry = false) => {
     // One save at a time: wait for the one in flight, then send whatever is
@@ -209,7 +262,43 @@ export function useAutosaveTrade(initialTrade: Trade) {
           throw new Error("Save conflicted");
         }
 
-        if (!res.ok) throw new Error("Save failed");
+        if (!res.ok) {
+          // Refused, not failed: this request can never pass, so no retry.
+          const refusal: SaveRefusal | null = readRefusal(await res.json().catch(() => null));
+          if (!refusal) throw new Error("Save failed");
+
+          // Set this request's edits aside -- except any typed again while it
+          // was out: that newer value is queued and still to be tried.
+          const aside = setAsideRef.current;
+          for (const key of Object.keys(core) as EditableCoreField[]) {
+            if (coreKeyOwnerRef.current[key] === seq && !(key in pendingCoreRef.current)) aside.core[key] = core[key];
+          }
+          for (const key of Object.keys(customFields)) {
+            if (customKeyOwnerRef.current[key] === seq && !(key in pendingCustomRef.current)) {
+              aside.custom[key] = customFields[key];
+            }
+          }
+          for (const strategyId of strategyIds) {
+            for (const key of Object.keys(strategyFieldValues[strategyId])) {
+              const typedAgain = key in (pendingStrategyFieldsRef.current[strategyId] ?? {});
+              if (strategyFieldOwnerRef.current[strategyFieldOwnerKey(strategyId, key)] === seq && !typedAgain) {
+                (aside.strategy[strategyId] ??= {})[key] = strategyFieldValues[strategyId][key];
+              }
+            }
+          }
+          if (isEmpty(aside)) return;
+          const names = [
+            ...Object.keys(aside.core),
+            ...Object.keys(aside.custom),
+            ...Object.values(aside.strategy).flatMap((values) => Object.keys(values)),
+          ];
+          const fields = refusedFieldNames(names, refusal);
+          refusedNamesRef.current = new Set(fields);
+          setRefused({ message: refusal.message, fields });
+          setStatus("refused");
+          retryCountRef.current = 0;
+          return;
+        }
         const updated = (await res.json()) as Trade;
         confirmedRef.current = updated;
 
@@ -222,8 +311,10 @@ export function useAutosaveTrade(initialTrade: Trade) {
         // request, so `updated` (computed from the pre-keystroke value) is
         // stale for it -- keep the local value (already in `prev`) instead
         // of letting the server response clobber what the user just typed.
-        setTrade((prev) => mergeServerTrade(prev, updated, pendingCoreRef.current, pendingCustomRef.current, pendingStrategyFieldsRef.current));
-        setStatus("saved");
+        const held = unsaved();
+        setTrade((prev) => mergeServerTrade(prev, updated, held.core, held.custom, held.strategy));
+        // Another edit saving doesn't make the refused one saved.
+        setStatus(isEmpty(setAsideRef.current) ? "saved" : "refused");
         retryCountRef.current = 0;
       } catch {
         requeue();
@@ -245,11 +336,72 @@ export function useAutosaveTrade(initialTrade: Trade) {
     } finally {
       if (inFlightRef.current === run) inFlightRef.current = null;
     }
-  }, [trade.id]);
+  }, [trade.id, unsaved]);
 
   useEffect(() => {
     flushRef.current = flush;
   }, [flush]);
+
+  /**
+   * Called for every edit, before it is queued. Editing a field the refusal
+   * was about is the user fixing it: everything set aside goes back in the
+   * queue, behind the new value, to be tried again. Editing a field that only
+   * travelled with it just takes that one out of the set -- the new value
+   * saves on its own, and the refused field must not ride along with it.
+   */
+  const reviveSetAside = useCallback((isHere: (aside: EditSet) => boolean, name: string, drop: (aside: EditSet) => void) => {
+    const aside = setAsideRef.current;
+    if (!isHere(aside)) return;
+    if (refusedNamesRef.current.has(name)) {
+      pendingCoreRef.current = { ...aside.core, ...pendingCoreRef.current };
+      pendingCustomRef.current = { ...aside.custom, ...pendingCustomRef.current };
+      for (const [strategyId, values] of Object.entries(aside.strategy)) {
+        pendingStrategyFieldsRef.current[strategyId] = { ...values, ...pendingStrategyFieldsRef.current[strategyId] };
+      }
+      setAsideRef.current = { core: {}, custom: {}, strategy: {} };
+    } else {
+      drop(aside);
+    }
+    if (isEmpty(setAsideRef.current)) {
+      refusedNamesRef.current = new Set();
+      setRefused(null);
+    }
+  }, []);
+
+  /**
+   * The value to work other fields out from: the saved one while this field
+   * is set aside. A share count the server refused is still on screen, and a
+   * stop moved meanwhile must not save a risk amount worked out from it.
+   */
+  const savedIfRefused = useCallback(<T,>(key: EditableCoreField, onScreen: T): T => {
+    if (!(key in setAsideRef.current.core)) return onScreen;
+    return (confirmedRef.current as unknown as Record<string, T>)[key];
+  }, []);
+
+  /** Puts the saved values back on screen for everything set aside. */
+  const undoRefused = useCallback(() => {
+    const aside = setAsideRef.current;
+    if (isEmpty(aside)) return;
+    const saved = confirmedRef.current;
+    setTrade((prev) => {
+      const next = { ...prev } as Record<string, unknown>;
+      for (const key of Object.keys(aside.core)) next[key] = (saved as unknown as Record<string, unknown>)[key];
+      const custom = { ...prev.custom_fields };
+      for (const key of Object.keys(aside.custom)) custom[key] = saved.custom_fields?.[key];
+      next.custom_fields = custom;
+      const strategy = { ...prev.strategy_field_values };
+      for (const [strategyId, values] of Object.entries(aside.strategy)) {
+        strategy[strategyId] = { ...strategy[strategyId] };
+        for (const key of Object.keys(values)) strategy[strategyId][key] = saved.strategy_field_values?.[strategyId]?.[key];
+      }
+      next.strategy_field_values = strategy;
+      return next as unknown as Trade;
+    });
+    setAsideRef.current = { core: {}, custom: {}, strategy: {} };
+    refusedNamesRef.current = new Set();
+    setRefused(null);
+    setStatus("idle");
+  }, []);
 
   const schedule = useCallback(() => {
     // A fresh, user-triggered edit -- worth trying at full speed again
@@ -262,10 +414,11 @@ export function useAutosaveTrade(initialTrade: Trade) {
   const updateCoreField = useCallback(
     (key: EditableCoreField, value: unknown) => {
       setTrade((prev) => ({ ...prev, [key]: value }));
+      reviveSetAside((aside) => key in aside.core, key, (aside) => delete aside.core[key]);
       pendingCoreRef.current[key] = value;
       schedule();
     },
-    [schedule],
+    [schedule, reviveSetAside],
   );
 
   const updateCustomField = useCallback(
@@ -274,10 +427,11 @@ export function useAutosaveTrade(initialTrade: Trade) {
         ...prev,
         custom_fields: { ...prev.custom_fields, [key]: value },
       }));
+      reviveSetAside((aside) => key in aside.custom, key, (aside) => delete aside.custom[key]);
       pendingCustomRef.current[key] = value;
       schedule();
     },
-    [schedule],
+    [schedule, reviveSetAside],
   );
 
   const updateStrategyField = useCallback(
@@ -289,13 +443,18 @@ export function useAutosaveTrade(initialTrade: Trade) {
           [strategyId]: { ...prev.strategy_field_values[strategyId], [key]: value },
         },
       }));
+      reviveSetAside(
+        (aside) => key in (aside.strategy[strategyId] ?? {}),
+        key,
+        (aside) => delete aside.strategy[strategyId][key],
+      );
       pendingStrategyFieldsRef.current[strategyId] = {
         ...pendingStrategyFieldsRef.current[strategyId],
         [key]: value,
       };
       schedule();
     },
-    [schedule],
+    [schedule, reviveSetAside],
   );
 
   const flushNow = useCallback(async () => {
@@ -309,10 +468,12 @@ export function useAutosaveTrade(initialTrade: Trade) {
   // is unsaved or in flight, or the fresher server snapshot would clobber it.
   useEffect(() => {
     if (initialTrade.updated_at === appliedUpdatedAtRef.current) return;
+    // Set-aside edits count: they are on screen and not saved.
     const hasPendingEdits =
       Object.keys(pendingCoreRef.current).length > 0 ||
       Object.keys(pendingCustomRef.current).length > 0 ||
-      Object.keys(pendingStrategyFieldsRef.current).length > 0;
+      Object.keys(pendingStrategyFieldsRef.current).length > 0 ||
+      !isEmpty(setAsideRef.current);
     if (hasPendingEdits || status === "saving") return;
     appliedUpdatedAtRef.current = initialTrade.updated_at;
     confirmedRef.current = initialTrade;
@@ -336,6 +497,7 @@ export function useAutosaveTrade(initialTrade: Trade) {
         Object.keys(pendingCoreRef.current).length === 0 &&
         Object.keys(pendingCustomRef.current).length === 0 &&
         Object.keys(pendingStrategyFieldsRef.current).length === 0 &&
+        isEmpty(setAsideRef.current) &&
         !inFlightRef.current &&
         !conflictRef.current;
       if (!idle()) return;
@@ -462,10 +624,14 @@ export function useAutosaveTrade(initialTrade: Trade) {
 
   // A trade saved through another route (e.g. choosing its fee) comes back
   // through the same merge, so nothing being typed is lost.
-  const applyServerTrade = useCallback((updated: Trade) => {
-    confirmedRef.current = updated;
-    setTrade((prev) => mergeServerTrade(prev, updated, pendingCoreRef.current, pendingCustomRef.current, pendingStrategyFieldsRef.current));
-  }, []);
+  const applyServerTrade = useCallback(
+    (updated: Trade) => {
+      confirmedRef.current = updated;
+      const held = unsaved();
+      setTrade((prev) => mergeServerTrade(prev, updated, held.core, held.custom, held.strategy));
+    },
+    [unsaved],
+  );
 
   /**
    * The user's answer to a conflict. "mine": save this page's edits over
@@ -489,12 +655,26 @@ export function useAutosaveTrade(initialTrade: Trade) {
       confirmedRef.current = current.server;
       conflictRef.current = null;
       setConflict(null);
-      setTrade((prev) => mergeServerTrade(prev, current.server, pendingCoreRef.current, pendingCustomRef.current, pendingStrategyFieldsRef.current));
-      setStatus("idle");
+      const held = unsaved();
+      setTrade((prev) => mergeServerTrade(prev, current.server, held.core, held.custom, held.strategy));
+      setStatus(isEmpty(setAsideRef.current) ? "idle" : "refused");
       void flushRef.current(false);
     },
-    [],
+    [unsaved],
   );
 
-  return { trade, status, conflict, updateCoreField, updateCustomField, updateStrategyField, flushNow, applyServerTrade, resolveConflict };
+  return {
+    trade,
+    status,
+    conflict,
+    refused,
+    updateCoreField,
+    updateCustomField,
+    updateStrategyField,
+    flushNow,
+    applyServerTrade,
+    resolveConflict,
+    undoRefused,
+    savedIfRefused,
+  };
 }

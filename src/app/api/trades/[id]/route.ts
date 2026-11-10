@@ -7,6 +7,7 @@ import { listFieldDefinitions, listFieldDefinitionsForStrategies } from "@/lib/f
 import { coreFieldsSchema } from "@/lib/trades/schema";
 import { deleteTrade, getTrade, PartialExitsError, TradeConflictError, updateTrade } from "@/lib/trades/queries";
 import { pickEditableCore } from "@/lib/trades/pick-core";
+import { firstIssueMessage, refusalBody } from "@/lib/trades/save-refusal";
 import { logEvent, SERVER_SESSION_ID } from "@/lib/tracking/log";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/observability/log";
@@ -77,9 +78,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   const body = envelope.data;
 
+  // Every validation failure below is a refusal (save-refusal.ts): the page
+  // shows the reason and stops re-sending the value, instead of retrying a
+  // request that can never pass.
   const parsedCore = coreFieldsSchema.safeParse(pickEditableCore(body.core));
   if (!parsedCore.success) {
-    return NextResponse.json({ error: parsedCore.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      refusalBody(
+        firstIssueMessage(parsedCore.error.issues),
+        [...new Set(parsedCore.error.issues.map((issue) => String(issue.path[0])))],
+        parsedCore.error.flatten(),
+      ),
+      { status: 400 },
+    );
   }
   const core = parsedCore.data;
 
@@ -89,7 +100,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const schema = buildCustomFieldsSchema(fieldDefinitions);
     const parsed = schema.safeParse(body.customFields);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      // No core fields named: the page can't tell which value it was, so it
+      // sets the whole request aside.
+      return NextResponse.json(refusalBody(firstIssueMessage(parsed.error.issues), [], parsed.error.flatten()), {
+        status: 400,
+      });
     }
     customFields = parsed.data;
   }
@@ -109,7 +124,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const schema = buildCustomFieldsSchema(fieldsByStrategy[strategyId] ?? []);
       const parsed = schema.safeParse(values);
       if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+        return NextResponse.json(refusalBody(firstIssueMessage(parsed.error.issues), [], parsed.error.flatten()), {
+          status: 400,
+        });
       }
       strategyFieldValues[strategyId] = parsed.data;
     }
@@ -133,7 +150,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     // E.g. shares lowered below what was already sold: the user's to fix.
     if (err instanceof PartialExitsError) {
-      return NextResponse.json({ error: err.message }, { status: 400 });
+      return NextResponse.json(refusalBody(err.message, err.fields), { status: 400 });
     }
     // Log the real failure and surface its Postgres/PostgREST code (safe --
     // it's an identifier, not data). Previously every cause collapsed into
