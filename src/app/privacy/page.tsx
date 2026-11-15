@@ -68,10 +68,10 @@ export default function PrivacyPage() {
           when. We use it only to tell you when the paid plan launches &mdash; it isn&apos;t shared
           or sold, and it isn&apos;t linked to a Trading Lens account. To be removed, email{" "}
           <a
-            href="mailto:TradingLenzSupport@proton.me"
+            href="mailto:tradinglenz@gmail.com"
             className="font-medium text-primary hover:underline"
           >
-            TradingLenzSupport@proton.me
+            tradinglenz@gmail.com
           </a>
           .
         </p>
@@ -85,10 +85,10 @@ export default function PrivacyPage() {
           deleted with your account and included when you download your data; to have any other
           request removed, email{" "}
           <a
-            href="mailto:TradingLenzSupport@proton.me"
+            href="mailto:tradinglenz@gmail.com"
             className="font-medium text-primary hover:underline"
           >
-            TradingLenzSupport@proton.me
+            tradinglenz@gmail.com
           </a>
           . The form uses Cloudflare Turnstile to check you&apos;re not a bot, the same check as on
           sign-in.
@@ -243,8 +243,8 @@ export default function PrivacyPage() {
         <h2 className={SECTION_HEADING}>Contact</h2>
         <p className={BODY}>
           Questions about this policy or your data:{" "}
-          <a href="mailto:TradingLenzSupport@proton.me" className="font-medium text-primary hover:underline">
-            TradingLenzSupport@proton.me
+          <a href="mailto:tradinglenz@gmail.com" className="font-medium text-primary hover:underline">
+            tradinglenz@gmail.com
           </a>
         </p>
       </div>

@@ -229,10 +229,10 @@ export default function CookiesPage() {
         <p className={BODY}>
           Questions about this policy:{" "}
           <a
-            href="mailto:TradingLenzSupport@proton.me"
+            href="mailto:tradinglenz@gmail.com"
             className="font-medium text-primary hover:underline"
           >
-            TradingLenzSupport@proton.me
+            tradinglenz@gmail.com
           </a>
         </p>
       </div>

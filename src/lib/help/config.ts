@@ -5,7 +5,7 @@
  * contact page and the sign-in page all read it, so a new address is this
  * one line.
  */
-export const HELP_EMAIL = "TradingLenzSupport@proton.me";
+export const HELP_EMAIL = "tradinglenz@gmail.com";
 
 export const HELP_TOPICS = [
   { id: "account", label: "Account or sign-in" },

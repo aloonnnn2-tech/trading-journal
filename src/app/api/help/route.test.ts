@@ -78,7 +78,7 @@ describe("POST /api/help", () => {
     verifyCaptcha.mockResolvedValue({ ok: false, reason: "not_configured" });
     const res = await post(good);
     expect(res.status).toBe(503);
-    expect((await res.json()).error).toMatch(/TradingLenzSupport@proton\.me/);
+    expect((await res.json()).error).toMatch(/tradinglenz@gmail\.com/);
     expect(insert).not.toHaveBeenCalled();
   });
 

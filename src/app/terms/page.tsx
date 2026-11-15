@@ -46,8 +46,8 @@ export default function TermsPage() {
         <h2 className={SECTION_HEADING}>Contact</h2>
         <p className={BODY}>
           Questions about these terms:{" "}
-          <a href="mailto:TradingLenzSupport@proton.me" className="font-medium text-primary hover:underline">
-            TradingLenzSupport@proton.me
+          <a href="mailto:tradinglenz@gmail.com" className="font-medium text-primary hover:underline">
+            tradinglenz@gmail.com
           </a>
         </p>
       </div>
