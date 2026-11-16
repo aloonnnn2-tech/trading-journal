@@ -101,6 +101,7 @@ export const CLICK_LABELS: Record<string, string> = {
   "quick-status": "Chose the **status** in Quick trade",
   "quick-entry": "Used the **entry price** field in Quick trade",
   "quick-stop": "Used the **stop** field in Quick trade",
+  "quick-exit": "Used the **exit price** field in Quick trade",
   "quick-shares": "Used the **shares** field in Quick trade",
   "quick-create": "Created a trade with **Quick trade**",
   "folder tab": "Switched **folder tab** on the trade list",

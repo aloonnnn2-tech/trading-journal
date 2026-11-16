@@ -22,6 +22,8 @@ import { getRegimeReport } from "@/lib/regime/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { getExcursionReport } from "@/lib/excursions/report";
 import { formatMoney } from "@/lib/format/money";
+import { getClosedMissingExitDate } from "@/lib/trades/missing-exit-date";
+import { MissingExitDateNotice } from "@/components/missing-exit-date-notice";
 
 export default async function AnalyticsPage() {
   const userId = await requireUserId();
@@ -44,8 +46,9 @@ export default async function AnalyticsPage() {
   // market-data client and shared across every user -- unlike excursions, it
   // is the same request whoever asks. Each report falls back to an
   // unavailable state rather than breaking the page.
-  const [summary, [regimeReport, riskReport, equityCurve], excursionReport] = await Promise.all([
+  const [summary, missingExitDate, [regimeReport, riskReport, equityCurve], excursionReport] = await Promise.all([
     getAnalyticsSummary(supabase, settings.timezone),
+    getClosedMissingExitDate(supabase),
     paid
     ? Promise.all([
         getRegimeReport(supabase).catch(() => null),
@@ -69,6 +72,8 @@ export default async function AnalyticsPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Analytics</h1>
         <p className="mt-0.5 text-sm text-zinc-500">Every stat below is computed from your closed trades.</p>
       </div>
+
+      <MissingExitDateNotice missing={missingExitDate} />
 
       <StaggerGrid className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-6">
         <StatCard

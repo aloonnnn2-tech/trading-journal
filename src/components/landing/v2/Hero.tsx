@@ -85,7 +85,9 @@ export function Hero() {
             Every entry is checked against them, so you can see which setups earn their
             place and what your habits actually cost you.
           </p>
-          <div className="flex animate-rise-left flex-wrap gap-3" style={rise(280)}>
+          {/* data-hero-actions: the floating "Leave a review" button stays off
+              phones while these two are on screen (FloatingReviewButton). */}
+          <div data-hero-actions className="flex animate-rise-left flex-wrap gap-3" style={rise(280)}>
             <Link
               href="/sign-up"
               className="relative overflow-hidden rounded-lg bg-primary px-6 py-3 font-medium text-white dark:text-zinc-950 shadow-lg shadow-primary/25 hover:bg-primary-hover"

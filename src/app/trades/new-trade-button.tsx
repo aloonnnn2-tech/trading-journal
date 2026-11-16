@@ -10,6 +10,7 @@ import { signalQuickTradeClosed, signalQuickTradeOpened, signalTradeCreated } fr
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
 import { newIdempotencyKey } from "@/lib/http/idempotency-key";
+import { localToday } from "@/lib/trades/local-today";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary";
@@ -81,6 +82,14 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
   const [takeProfit, setTakeProfit] = useState("");
   const [shares, setShares] = useState("");
   const [dollarAmount, setDollarAmount] = useState("");
+  // Dates and the exit. A trade that is already over could not be logged
+  // here: Status offered "Closed" with nowhere to put the exit, so it saved
+  // with no P/L, read "Break Even", and Analytics said "No closed trades yet"
+  // about a trade logged a minute earlier. Both dates start at today (set when
+  // the dialog opens) and are shown, so a backfilled trade can be corrected.
+  const [entryDate, setEntryDate] = useState("");
+  const [exitPrice, setExitPrice] = useState("");
+  const [exitDate, setExitDate] = useState("");
   const createBusy = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +129,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
     setTakeProfit("");
     setShares("");
     setDollarAmount("");
+    setEntryDate("");
+    setExitPrice("");
+    setExitDate("");
   }
 
   // Shares, dollar amount, and entry price are linked (amount = shares × price).
@@ -155,12 +167,24 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
     // A ref, not `submitting`: a fast double click on Create fires both
     // handlers before the re-render that disables the button.
     if (createBusy.current) return;
+    const closing = !skipDetails && status === "closed";
+    // A closed trade is counted by its exit: without the price there is no
+    // P/L, and without the date it has no day to land on. Asked for here
+    // rather than saved half-finished and left out of every stat.
+    if (closing && (exitPrice === "" || exitDate === "")) {
+      setError("A closed trade needs its exit price and exit date. Still holding it? Set Status to Open.");
+      return;
+    }
+    if (closing && entryDate !== "" && exitDate < entryDate) {
+      setError("The exit date is before the entry date.");
+      return;
+    }
     createBusy.current = true;
     setSubmitting(true);
     setError(null);
     try {
       let core: Record<string, unknown> | null = null;
-      if (!skipDetails && (ticker || entryPrice || stopLoss || takeProfit || shares || dollarAmount)) {
+      if (!skipDetails && (ticker || entryPrice || stopLoss || takeProfit || shares || dollarAmount || closing)) {
         const entryPriceNum = entryPrice === "" ? null : Number(entryPrice);
         const stopLossNum = stopLoss === "" ? null : Number(stopLoss);
         const sharesNum = shares === "" ? null : Number(shares);
@@ -175,6 +199,9 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
           take_profit: takeProfit === "" ? null : Number(takeProfit),
           shares: sharesNum,
           dollar_amount: dollarAmountNum,
+          // A pending order has not entered yet; its entry date is the fill.
+          ...(status !== "pending" && entryDate !== "" ? { entry_date: entryDate } : {}),
+          ...(closing ? { exit_price: Number(exitPrice), exit_date: exitDate } : {}),
         };
 
         // This dialog has no Risk Amount field of its own -- it can only
@@ -236,6 +263,11 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
         data-tour-id="dashboard-quick-trade"
         onClick={() => {
           signalQuickTradeOpened();
+          // Set on open, not on mount: a tab left open overnight would
+          // otherwise offer yesterday as "today".
+          const today = localToday();
+          setEntryDate(today);
+          setExitDate(today);
           setOpen(true);
         }}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 shadow-[0_1px_2px_rgba(28,27,24,0.2)] hover:brightness-110"
@@ -385,10 +417,51 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
                     />
                   </div>
                 </div>
+                {status === "closed" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelClass} htmlFor={`${fieldId}-exit`}>Exit Price</label>
+                      <input
+                        id={`${fieldId}-exit`}
+                        type="number"
+                        step="any"
+                        data-tour-id="quick-exit"
+                        placeholder="0.00"
+                        className={inputClass}
+                        value={exitPrice}
+                        onChange={(e) => setExitPrice(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass} htmlFor={`${fieldId}-exit-date`}>Exit Date</label>
+                      <input
+                        id={`${fieldId}-exit-date`}
+                        type="date"
+                        className={inputClass}
+                        value={exitDate}
+                        onChange={(e) => setExitDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+                {status !== "pending" && (
+                  <div>
+                    <label className={labelClass} htmlFor={`${fieldId}-entry-date`}>Entry Date</label>
+                    <input
+                      id={`${fieldId}-entry-date`}
+                      type="date"
+                      className={inputClass}
+                      value={entryDate}
+                      onChange={(e) => setEntryDate(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
 
               <p className="mt-3 text-xs text-zinc-500">
-                All fields are optional. You can fill in notes, emotions, and everything else on the next screen.
+                {status === "closed"
+                  ? "A closed trade needs its exit price and date so it counts in your stats. Notes, emotions and everything else can wait for the next screen."
+                  : "All fields are optional. You can fill in notes, emotions, and everything else on the next screen."}
               </p>
 
               <FormError className="mt-3 rounded-lg border border-loss/30 bg-loss/5 px-3 py-2">

@@ -31,6 +31,7 @@ import { fieldLabel } from "@/lib/trades/save-refusal";
 import { useAutoExecuteTrade } from "@/lib/trades/use-auto-execute";
 import { isWatchable } from "@/lib/trades/auto-execute";
 import { getMissingFields, type MissingField } from "@/lib/trades/missing-fields";
+import { localToday } from "@/lib/trades/local-today";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import { pendingReason } from "@/lib/trades/pending-reason";
 import { entryPriceLabels } from "@/lib/trades/order-labels";
@@ -523,6 +524,16 @@ export function TradeCard({
                   // from the chart ("Set as entry candle").
                   if (trade.status === "pending" && (next === "open" || next === "closed") && !trade.entry_date) {
                     updateCoreField("entry_date", localToday());
+                  }
+                  // Closing by hand, same rule: today, only when blank.
+                  // Without an exit date a closed trade is counted as closed
+                  // but left out of win rate and Analytics, which read as
+                  // "Closed trades 1" next to "No closed trades yet". The
+                  // Dates panel opens so the stamped date is seen, not
+                  // assumed: a backfilled trade closed on another day.
+                  if (next === "closed" && trade.status !== "closed" && !trade.exit_date) {
+                    updateCoreField("exit_date", localToday());
+                    if (!isHidden("exit_date")) setActiveExtra("dates");
                   }
                 }}
               >
@@ -1111,13 +1122,6 @@ export function TradeCard({
       )}
     </div>
   );
-}
-
-/** Today as YYYY-MM-DD in the browser's zone -- the shape the date input stores.
- *  The chart reads a bare day as that day on the exchange (tradeMoment). */
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function Field({

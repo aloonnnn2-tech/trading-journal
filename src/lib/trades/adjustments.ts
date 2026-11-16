@@ -92,6 +92,14 @@ export function detectAdjustments(
       if (timeline.length === 0 || timeline[timeline.length - 1] !== value) timeline.push(value);
     }
 
+    // Setting a level for the first time is not moving it. Creating a trade
+    // saves a blank row and then its details (src/app/api/trades/route.ts), so
+    // the history's oldest snapshot is that blank row: every trade made with a
+    // stop read as "not set -> 185" and was flagged "Moved stop" on day one.
+    // Only the leading blank goes -- a stop that was set and later CLEARED is
+    // still a change.
+    if (timeline.length > 1 && timeline[0] === null) timeline.shift();
+
     if (timeline.length > 1) {
       adjustments.push({ key, label, timeline, changes: timeline.length - 1 });
     }
