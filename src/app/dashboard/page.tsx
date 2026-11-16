@@ -22,6 +22,8 @@ import { QuickTradeButton } from "@/app/trades/new-trade-button";
 import { ImportFirstTrade } from "@/app/trades/import-first-trade";
 import { TrackPageView } from "@/components/track-page-view";
 import { formatMoney } from "@/lib/format/money";
+import { getClosedMissingExitDate } from "@/lib/trades/missing-exit-date";
+import { MissingExitDateNotice } from "@/components/missing-exit-date-notice";
 
 export default async function DashboardPage() {
   const userId = await requireUserId();
@@ -38,7 +40,7 @@ export default async function DashboardPage() {
   // the instant settings resolve while the six row lists are still in
   // flight. Previously it queued behind all of them.
   const settingsPromise = getUserSettings(supabase, userId);
-  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions, streakTrades, stats] =
+  const [settings, recentTrades, performanceSeries, recentNotes, recentEmotions, accountTransactions, streakTrades, stats, missingExitDate] =
     await Promise.all([
       settingsPromise,
       getRecentTrades(supabase, 5),
@@ -48,6 +50,7 @@ export default async function DashboardPage() {
       listAccountTransactions(supabase),
       listTradesForStreak(supabase),
       settingsPromise.then((s) => getDashboardStats(supabase, s.timezone)),
+      getClosedMissingExitDate(supabase),
     ]);
 
   const { year: localYear, month: localMonth } = localDateParts(now, settings.timezone);
@@ -79,6 +82,9 @@ export default async function DashboardPage() {
       {counts.all === 0 && (
         <ImportFirstTrade accountBalance={accountBalance.hasTransactions ? accountBalance.balance : null} />
       )}
+
+      {/* "Closed trades 1" beside a blank win rate, explained. */}
+      <MissingExitDateNotice missing={missingExitDate} />
 
       {/* Phones: two columns (seven cards one-per-row was a screen and a half
           of scrolling), with the cash card -- the one with buttons -- across

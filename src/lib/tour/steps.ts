@@ -52,7 +52,7 @@ export const TOUR_STEPS: TourStep[] = [
     targetId: "quick-ticker",
     where: "Quick trade",
     title: "Just the essentials",
-    body: "Every other field is optional and lives on the trade page.",
+    body: "Already sold it? Set Status to Closed and the exit goes here too; everything else is optional.",
     action: "Type a symbol, pick long or short, then Create trade.",
     // Quick trade signals "created" or "closed" (src/lib/tour/signals.ts);
     // the tour no longer guesses from the form disappearing.
