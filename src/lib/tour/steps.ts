@@ -34,9 +34,10 @@ export interface TourStep {
 /** The tab bar buttons that open a sheet (data-tour-id in mobile-tab-bar.tsx). */
 export type PhoneOpener = "nav-add" | "nav-more";
 
-// The core tour. Nine stops, one sentence each, in the order a new account
-// meets them: log a trade, see where it lives, meet the rules that grade it,
-// then the three places the journal pays off. Every target renders on a
+// The core tour. Four stops: log a trade, see where it lives, then where the
+// help is. A new account gets the shortest path to a first trade; everything
+// else (strategies, screenshot import, Insights, Analytics) lives in the
+// second tour below, which the "?" menu offers. Every target renders on a
 // fresh account with zero trades except the two task steps, which wait.
 export const TOUR_STEPS: TourStep[] = [
   {
@@ -63,53 +64,18 @@ export const TOUR_STEPS: TourStep[] = [
     targetId: "trade-detail-hero",
     where: "Trade",
     title: "Everything about it lives here",
-    body: "Exit, notes, screenshots, strategy, how you felt. It saves as you type.",
-  },
-  {
-    pathPrefix: "/trades/",
-    targetId: "trade-plan-adherence",
-    where: "Trade",
-    title: "Your rules grade every trade",
-    body: "Tag a strategy and each of its rules is checked for you; the misses feed Mistakes and Insights.",
-  },
-  {
-    path: "/strategies",
-    targetId: "strategies-add",
-    where: "Strategies",
-    title: "Name the setups you trade",
-    body: "Add one, then write the rules you trade it by.",
-  },
-  {
-    path: "/trades",
-    targetId: "trades-screenshot",
-    where: "Trades",
-    title: "Or skip the typing",
-    body: "Drop in a broker screenshot and the app reads ticker, price and size itself. Import takes CSV and Excel.",
-    phoneVia: { opener: "nav-add", item: "From a screenshot" },
-  },
-  {
-    path: "/insights",
-    targetId: "tour-mistakes",
-    where: "Insights",
-    title: "Mistakes, counted from the data",
-    body: "Moved stops, oversized positions, early exits, read from your trades. Find My Edge below ranks what pays.",
-  },
-  {
-    path: "/analytics",
-    targetId: "analytics-header",
-    where: "Analytics",
-    title: "Where it pays off",
-    body: "Equity, drawdown, win rate, expectancy, all from closed trades. It fills in as you log.",
+    body: "Exit, notes, screenshots, strategy and its rules, how you felt. It saves as you type.",
   },
   {
     targetId: "nav-help",
     where: "Anywhere",
     title: "That's the core",
-    body: "Replay this any time from here. Goals, reports and the AI tools are one menu away.",
+    body: "Replay this any time from here, or take the full-toolkit tour for strategies, Insights and Analytics.",
   },
 ];
 
-// The second tour: the free features the core tour walked past, and only
+// The second tour: the free features the core tour walked past (strategies,
+// screenshot import, Insights and Analytics among them), and only
 // the free ones -- everything the paid plan unlocks has its own tour below.
 // It deliberately shares no stop with the core tour, so the two never look
 // alike: it opens on importing history, not on the Strategies button.
@@ -164,6 +130,35 @@ export const FEATURE_TOUR_STEPS: TourStep[] = [
     where: "Commissions",
     title: "Fees, so P/L is always net",
     body: "Pick your broker or enter your own fees once, and every trade is charged automatically.",
+  },
+  {
+    path: "/strategies",
+    targetId: "strategies-add",
+    where: "Strategies",
+    title: "Name the setups you trade",
+    body: "Add one, then write the rules you trade it by.",
+  },
+  {
+    path: "/trades",
+    targetId: "trades-screenshot",
+    where: "Trades",
+    title: "Or skip the typing",
+    body: "Drop in a broker screenshot and the app reads ticker, price and size itself. Import takes CSV and Excel.",
+    phoneVia: { opener: "nav-add", item: "From a screenshot" },
+  },
+  {
+    path: "/insights",
+    targetId: "tour-mistakes",
+    where: "Insights",
+    title: "Mistakes, counted from the data",
+    body: "Moved stops, oversized positions, early exits, read from your trades. Find My Edge below ranks what pays.",
+  },
+  {
+    path: "/analytics",
+    targetId: "analytics-header",
+    where: "Analytics",
+    title: "Where it pays off",
+    body: "Equity, drawdown, win rate, expectancy, all from closed trades. It fills in as you log.",
   },
 ];
 

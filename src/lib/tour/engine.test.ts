@@ -6,9 +6,7 @@ import { TOURS, TOUR_STEPS } from "./steps";
 const LOG_TRADE = 0; // Dashboard, task: open Quick trade
 const QUICK_FORM = 1; // inside the form, task: create the trade
 const TRADE_HERO = 2; // trade page
-const PLAN_ADHERENCE = 3; // trade page
-const STRATEGIES = 4;
-const HELP = 8; // route-less, the help button
+const HELP = 3; // route-less, the help button (the core tour is four stops)
 
 function ctx(over: Partial<EngineContext> = {}): EngineContext {
   return {
@@ -31,22 +29,30 @@ describe("the tour engine", () => {
     expect(nextStep(TOUR_STEPS, LOG_TRADE, open)).toEqual({ index: QUICK_FORM, mode: "here" });
   });
 
-  it("skipping the tasks with no trade made points the way to Strategies", () => {
-    expect(nextStep(TOUR_STEPS, LOG_TRADE, ctx())).toEqual({ index: STRATEGIES, mode: "go" });
+  it("skipping the tasks with no trade made goes straight to the help stop", () => {
+    const helpShown = ctx({ isShown: (id) => id === "nav-help" });
+    expect(nextStep(TOUR_STEPS, LOG_TRADE, helpShown)).toEqual({ index: HELP, mode: "here" });
+    // No trade, no help button on screen: nothing left to show, the tour ends.
+    expect(nextStep(TOUR_STEPS, LOG_TRADE, ctx())).toBeNull();
   });
 
-  it("Back from Strategies returns to the trade the tour created, never to step 1", () => {
-    const after = ctx({ pathname: "/strategies", doneTasks: new Set([LOG_TRADE, QUICK_FORM]), tradePath: "/trades/abc" });
-    expect(prevStep(TOUR_STEPS, STRATEGIES, after)).toEqual({ index: PLAN_ADHERENCE, mode: "go" });
+  it("Back from the help stop on another page returns to the trade the tour created, never to step 1", () => {
+    const after = ctx({
+      pathname: "/strategies",
+      isShown: (id) => id === "nav-help",
+      doneTasks: new Set([LOG_TRADE, QUICK_FORM]),
+      tradePath: "/trades/abc",
+    });
+    expect(prevStep(TOUR_STEPS, HELP, after)).toEqual({ index: TRADE_HERO, mode: "go" });
     // ...and on that trade's page, Back stays on the page, then stops: the
     // finished tasks are not offered again.
     const onTrade = { ...after, pathname: "/trades/abc" };
-    expect(prevStep(TOUR_STEPS, PLAN_ADHERENCE, onTrade)).toEqual({ index: TRADE_HERO, mode: "here" });
+    expect(prevStep(TOUR_STEPS, HELP, onTrade)).toEqual({ index: TRADE_HERO, mode: "here" });
     expect(prevStep(TOUR_STEPS, TRADE_HERO, onTrade)).toBeNull();
   });
 
-  it("without a remembered trade, Back from Strategies offers the unfinished task", () => {
-    expect(prevStep(TOUR_STEPS, STRATEGIES, ctx({ pathname: "/strategies" }))).toEqual({ index: LOG_TRADE, mode: "go" });
+  it("without a remembered trade, Back from the help stop offers the unfinished task", () => {
+    expect(prevStep(TOUR_STEPS, HELP, ctx({ pathname: "/strategies" }))).toEqual({ index: LOG_TRADE, mode: "go" });
   });
 
   it("Resume skips finished tasks", () => {
@@ -60,9 +66,13 @@ describe("the tour engine", () => {
     expect(nextStep(TOUR_STEPS, HELP, helpShown)).toBeNull();
   });
 
+  it("the core tour is four stops or fewer", () => {
+    expect(TOUR_STEPS.length).toBeLessThanOrEqual(4);
+  });
+
   it("closing the form returns to the step that opened it", () => {
     expect(openerOf(TOUR_STEPS, QUICK_FORM)).toBe(LOG_TRADE);
-    expect(openerOf(TOUR_STEPS, STRATEGIES)).toBeNull();
+    expect(openerOf(TOUR_STEPS, TRADE_HERO)).toBeNull();
   });
 
   it("only ever answers 'here' or 'go' -- there is no way to ask for a navigation", () => {

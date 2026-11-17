@@ -68,7 +68,7 @@ async function next(page: Page) {
   await card(page).getByRole("button", { name: "Next" }).tap();
 }
 
-test("the core tour runs start to finish on a 360px phone", async ({ page }) => {
+test("the four-stop core tour runs start to finish on a 360px phone", async ({ page }) => {
   test.setTimeout(240_000);
   await signIn(page, user);
   await page.getByRole("button", { name: /no thanks, start empty/i }).tap({ timeout: 30_000 });
@@ -88,11 +88,27 @@ test("the core tour runs start to finish on a 360px phone", async ({ page }) => 
   await page.waitForURL(/\/trades\/[0-9a-f-]{36}/, { timeout: 60_000 });
 
   await expect(card(page)).toContainText("Everything about it lives here", { timeout: 30_000 });
+  await expect(card(page)).toContainText("Step 3 of 4");
   await expectCardClearOfTarget(page, "trade hero");
   await next(page);
-  await expect(card(page)).toContainText("Your rules grade every trade");
-  await expectCardClearOfTarget(page, "plan adherence");
-  await next(page);
+
+  await expect(card(page)).toContainText("That's the core");
+  await expectCardClearOfTarget(page, "account menu");
+  await card(page).getByRole("button", { name: "Finish" }).tap();
+  await expect(card(page)).toBeHidden();
+});
+
+// The stops the core tour used to carry (Strategies, the screenshot importer,
+// Insights, Analytics) now close the full-toolkit tour. They are the ones that
+// had to be reached through the tab bar's More and + sheets, so the phone
+// walk-through stays here. Index 7 is Strategies.
+test("the full-toolkit tour's tab-bar stops work on a 360px phone", async ({ page }) => {
+  test.setTimeout(240_000);
+  await signIn(page, user);
+  await page.getByRole("button", { name: /explore on my own/i }).tap({ timeout: 10_000 }).catch(() => {});
+  await page.evaluate(() => localStorage.setItem("tl-tour", JSON.stringify({ tour: "features", step: 7 })));
+  await page.reload();
+  await page.getByRole("button", { name: "Resume" }).tap({ timeout: 30_000 });
 
   await tapMoreThen(page, "Strategies");
   await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
@@ -119,10 +135,6 @@ test("the core tour runs start to finish on a 360px phone", async ({ page }) => 
   await tapTab(page, "Analytics");
   await expect(card(page)).toContainText("Where it pays off", { timeout: 30_000 });
   await expectCardClearOfTarget(page, "Analytics");
-  await next(page);
-
-  await expect(card(page)).toContainText("That's the core");
-  await expectCardClearOfTarget(page, "account menu");
   await card(page).getByRole("button", { name: "Finish" }).tap();
   await expect(card(page)).toBeHidden();
 });

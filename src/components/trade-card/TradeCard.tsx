@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   Info,
   CalendarDays,
@@ -163,6 +164,20 @@ export function TradeCard({
   const watchForAutoExecution = isWatchable(trade);
 
   const missingFields = getMissingFields(trade, isInvestment, hiddenCoreFields);
+
+  // The "to fill" list is a way in, not a report: choosing an item scrolls to
+  // its box and puts the cursor there. The dates live behind a chip, so that
+  // panel is opened first (flushSync so the box exists, and is visible, by the
+  // time it is looked up).
+  const jumpToField = (key: EditableCoreField) => {
+    flushSync(() => {
+      setMissingOpen(false);
+      if (key === "entry_date" || key === "exit_date") setActiveExtra("dates");
+    });
+    const box = document.querySelector<HTMLElement>(`[data-trade-field="${key}"]`);
+    box?.scrollIntoView({ block: "center", behavior: "smooth" });
+    box?.querySelector<HTMLElement>("input, select")?.focus({ preventScroll: true });
+  };
   const isPending = trade.status === "pending";
   const priceLabels = entryPriceLabels(trade.order_type, isPending);
 
@@ -453,6 +468,8 @@ export function TradeCard({
             missing={missingFields}
             open={missingOpen}
             onToggle={() => setMissingOpen((o) => !o)}
+            onClose={() => setMissingOpen(false)}
+            onPick={jumpToField}
           />
           <a
             href={`/api/trades/${trade.id}/export?format=json`}
@@ -487,7 +504,7 @@ export function TradeCard({
               screens long. The P/L block moves above the fields there (below),
               instead of taking the right 40% of every row. */}
           <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
-            <Field label="Ticker">
+            <Field label="Ticker" fieldKey="ticker">
               <input
                 type="text"
                 className={`${inputClass} font-mono text-base font-semibold uppercase tracking-tight`}
@@ -497,7 +514,7 @@ export function TradeCard({
               />
             </Field>
             {!isInvestment && !isHidden("direction") && (
-              <Field label="Direction">
+              <Field label="Direction" fieldKey="direction">
                 <select
                   className={inputClass}
                   value={trade.direction ?? ""}
@@ -730,7 +747,7 @@ export function TradeCard({
                 <p className={`${inputClass} text-zinc-500`}>Set when the order fills</p>
               </Field>
             ) : (
-              <Field label="Entry Date">
+              <Field label="Entry Date" fieldKey="entry_date">
                 <input
                   type="date"
                   className={inputClass}
@@ -740,7 +757,7 @@ export function TradeCard({
               </Field>
             ))}
           {!isHidden("exit_date") && (
-            <Field label="Exit Date">
+            <Field label="Exit Date" fieldKey="exit_date">
               <input
                 type="date"
                 className={inputClass}
@@ -983,6 +1000,7 @@ export function TradeCard({
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
             {!isHidden("entry_price") && (
               <NumberField
+                fieldKey="entry_price"
                 label={priceLabels.entry}
                 tooltip={priceLabels.entryTip}
                 value={trade.entry_price}
@@ -995,6 +1013,7 @@ export function TradeCard({
                 cards lower -- which read as the order having only a limit. */}
             {trade.order_type === "stop_limit" && !isHidden("limit_price") && (
               <NumberField
+                fieldKey="limit_price"
                 label="Limit Price"
                 tooltip={
                   isPending
@@ -1007,6 +1026,7 @@ export function TradeCard({
             )}
             {!isHidden("exit_price") && (
               <NumberField
+                fieldKey="exit_price"
                 label="Exit Price"
                 value={trade.exit_price}
                 onChange={(v) => updateCoreField("exit_price", v)}
@@ -1014,6 +1034,7 @@ export function TradeCard({
             )}
             {!isHidden("stop_loss") && (
               <NumberField
+                fieldKey="stop_loss"
                 label="Stop Loss"
                 value={trade.stop_loss}
                 onChange={(v) => updateMoneyField("stop_loss", v)}
@@ -1028,6 +1049,7 @@ export function TradeCard({
             )}
             {!isHidden("shares") && (
               <NumberField
+                fieldKey="shares"
                 label="Number of Shares"
                 value={trade.shares}
                 onChange={(v) => updateMoneyField("shares", v)}
@@ -1035,6 +1057,7 @@ export function TradeCard({
             )}
             {!isHidden("position_size") && (
               <NumberField
+                fieldKey="position_size"
                 label="Position Size"
                 value={trade.position_size}
                 onChange={(v) => updateCoreField("position_size", v)}
@@ -1042,6 +1065,7 @@ export function TradeCard({
             )}
             {!isHidden("dollar_amount") && (
               <NumberField
+                fieldKey="dollar_amount"
                 label="Dollar Amount"
                 value={trade.dollar_amount}
                 onChange={(v) => updateMoneyField("dollar_amount", v)}
@@ -1128,13 +1152,16 @@ function Field({
   label,
   children,
   tooltip,
+  fieldKey,
 }: {
   label: string;
   children: React.ReactNode;
   tooltip?: string;
+  /** Which core field this is, so the "to fill" list can jump to it. */
+  fieldKey?: EditableCoreField;
 }) {
   return (
-    <div>
+    <div data-trade-field={fieldKey}>
       <label className={`${labelClass} flex items-center gap-1.5`}>
         {label}
         {tooltip && <InfoTip text={tooltip} />}
@@ -1149,11 +1176,13 @@ function NumberField({
   value,
   onChange,
   tooltip,
+  fieldKey,
 }: {
   label: string;
   value: number | null;
   onChange: (value: number | null) => void;
   tooltip?: string;
+  fieldKey?: EditableCoreField;
 }) {
   // `== null`, not `=== null`: a column the database doesn't have yet (a
   // migration applied by hand, so there's always a window) comes back
@@ -1177,7 +1206,7 @@ function NumberField({
   }
 
   return (
-    <Field label={label} tooltip={tooltip}>
+    <Field label={label} tooltip={tooltip} fieldKey={fieldKey}>
       <input
         type="text"
         inputMode="decimal"
@@ -1275,16 +1304,44 @@ function MissingFieldsIndicator({
   missing,
   open,
   onToggle,
+  onClose,
+  onPick,
 }: {
   missing: MissingField[];
   open: boolean;
   onToggle: () => void;
+  onClose: () => void;
+  onPick: (key: EditableCoreField) => void;
 }) {
   const complete = missing.length === 0;
+  const root = useRef<HTMLDivElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+
+  // Open means dismissable: Escape closes it (and hands focus back to the
+  // button), and so does a click or tap anywhere outside it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      onClose();
+      toggle.current?.focus();
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open, onClose]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={root}>
       <button
+        ref={toggle}
+        aria-expanded={open}
         onClick={onToggle}
         className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
           complete
@@ -1313,9 +1370,15 @@ function MissingFieldsIndicator({
           ) : (
             <ul className="flex flex-col gap-1.5">
               {missing.map((field) => (
-                <li key={field.key} className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                  {field.label}
+                <li key={field.key}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(field.key)}
+                    className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-sm text-zinc-700 hover:bg-amber-500/10 dark:text-zinc-300"
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                    {field.label}
+                  </button>
                 </li>
               ))}
             </ul>

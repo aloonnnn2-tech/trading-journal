@@ -178,6 +178,33 @@ describe("POST /api/auth/sign-up", () => {
     });
   });
 
+  it("records where the visitor came from on the account, and nothing else they send", async () => {
+    auth.signUp.mockResolvedValue({ data: { session: null }, error: null });
+    await signUp.POST(
+      post({
+        email: "a@example.com",
+        password: "pw-123456",
+        agreed: true,
+        attribution: { source: "TikTok", referrer: "https://t.co/abc?x=1", role: "admin", campaign: "<script>" },
+      }),
+    );
+    const sent = auth.signUp.mock.calls.at(-1)?.[0] as { options: { data: Record<string, unknown> } };
+    expect(sent.options.data).toEqual({
+      age_confirmed: true,
+      accepted_terms_version: TERMS_VERSION,
+      signup_source: "tiktok",
+      signup_referrer: "t.co",
+    });
+  });
+
+  it("still signs up when the attribution is junk", async () => {
+    auth.signUp.mockResolvedValue({ data: { session: null }, error: null });
+    const res = await signUp.POST(
+      post({ email: "a@example.com", password: "pw-123456", agreed: true, attribution: "nonsense" }),
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("says when a session came back (a project without confirmation)", async () => {
     auth.signUp.mockResolvedValue({ data: { session: { access_token: "x" } }, error: null });
     const res = await signUp.POST(post({ email: "a@example.com", password: "pw-123456", agreed: true }));
