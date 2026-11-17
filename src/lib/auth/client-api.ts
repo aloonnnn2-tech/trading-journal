@@ -4,6 +4,8 @@
 // isEmailNotConfirmed unchanged. A network failure comes back as the
 // TypeError fetch throws, which authErrorMessage already reads as "offline".
 
+import type { Attribution } from "@/lib/tracking/attribution";
+
 export interface AuthCallError {
   code: string | null;
   status: number | null;
@@ -34,8 +36,8 @@ async function call<T>(path: string, body?: unknown): Promise<AuthResult<T>> {
 export const authApi = {
   signIn: (email: string, password: string, captchaToken?: string) =>
     call("sign-in", { email, password, captchaToken }),
-  signUp: (email: string, password: string, captchaToken?: string) =>
-    call<{ session: boolean }>("sign-up", { email, password, captchaToken, agreed: true }),
+  signUp: (email: string, password: string, captchaToken?: string, attribution?: Attribution | null) =>
+    call<{ session: boolean }>("sign-up", { email, password, captchaToken, agreed: true, attribution }),
   signOut: () => call("sign-out"),
   forgotPassword: (email: string, captchaToken?: string) => call("forgot-password", { email, captchaToken }),
   resendConfirmation: (email: string, captchaToken?: string) => call("resend", { email, captchaToken }),

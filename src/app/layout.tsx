@@ -23,6 +23,7 @@ import { ConsentGate } from "@/components/legal/consent-gate";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { AttributionCapture } from "@/components/attribution-capture";
 import { TourOverlay } from "@/components/tour/tour-overlay";
 import { ReviewPrompt } from "@/components/reviews/ReviewPrompt";
 import { DemoBanner } from "@/components/demo/demo-banner";
@@ -173,6 +174,7 @@ export default async function RootLayout({
           {demoActive && <DemoBanner />}
           <KeyboardShortcuts />
           <AnalyticsTracker />
+          <AttributionCapture />
           <TourOverlay />
           {userId && <ReviewPrompt />}
           {consentNeeded && <ConsentGate />}

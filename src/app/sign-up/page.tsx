@@ -9,6 +9,7 @@ import { authErrorMessage, isEmailNotConfirmed } from "@/lib/auth/error-messages
 import { ResendConfirmation } from "@/components/auth/resend-confirmation";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { useAnalytics } from "@/lib/tracking/useAnalytics";
+import { readAttribution } from "@/lib/tracking/attribution";
 import { CAPTCHA_ENABLED, Turnstile, type TurnstileHandle } from "@/components/turnstile";
 import { MINIMUM_AGE } from "@/lib/legal/terms";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -56,7 +57,7 @@ export default function SignUpPage() {
     }
     // On the server (src/app/api/auth/sign-up/route.ts), which sets the
     // confirmation link and records the age and terms agreement (0061).
-    const result = await authApi.signUp(email, password, captchaToken ?? undefined);
+    const result = await authApi.signUp(email, password, captchaToken ?? undefined, readAttribution());
     const error = result.error;
 
     // Reset after every completed call -- the token is spent either way.

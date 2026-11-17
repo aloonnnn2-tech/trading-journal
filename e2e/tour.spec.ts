@@ -59,20 +59,13 @@ test("creating the trade from the first modal step carries the tour to the trade
   await page.waitForURL(/\/trades\/[0-9a-f-]{36}/, { timeout: 60_000 });
 
   await expect(card(page)).toContainText("Everything about it lives here", { timeout: 30_000 });
-  await expect(card(page)).toContainText("Step 3 of 9");
+  await expect(card(page)).toContainText("Step 3 of 4");
   expect(await completedFlag(page)).toBe(false);
 
-  // Next moves within the page to the Plan Adherence panel...
+  // Next stays on the page and lands on the last stop, the help button.
   await card(page).getByRole("button", { name: "Next" }).click();
-  await expect(card(page)).toContainText("Your rules grade every trade");
-
-  // ...then points the way to Strategies rather than going there itself.
-  await card(page).getByRole("button", { name: "Next" }).click();
-  await expect(card(page)).toContainText("Click Strategies in the menu", { timeout: 15_000 });
+  await expect(card(page)).toContainText("That's the core");
   await expect(page).toHaveURL(/\/trades\//);
-  await page.locator('header [data-tour-id="nav-strategies"]').first().click();
-  await page.waitForURL(/\/strategies/, { timeout: 30_000 });
-  await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
 });
 
 test("wandering off pauses the tour; Resume brings it back; a reload keeps the place", async ({ page }) => {
@@ -84,13 +77,12 @@ test("wandering off pauses the tour; Resume brings it back; a reload keeps the p
     .getByRole("button", { name: /explore on my own/i })
     .click({ timeout: 15_000 })
     .catch(() => {});
-  await page.getByTitle("Guided tours").click();
-  await page.getByRole("button", { name: /getting started/i }).click();
-  await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
-
-  // Skip the two task steps: "I'll do this later" points the way to
-  // Strategies, the first later step that has a page of its own.
-  await card(page).getByRole("button", { name: /do this later/i }).click();
+  // The core tour is four stops with only one page of its own, so the
+  // wandering is exercised on the full-toolkit tour, resumed at its
+  // Strategies stop (index 7).
+  await page.evaluate(() => localStorage.setItem("tl-tour", JSON.stringify({ tour: "features", step: 7 })));
+  await page.reload();
+  await page.getByRole("button", { name: "Resume" }).click({ timeout: 30_000 });
   await expect(card(page)).toContainText("Click Strategies in the menu", { timeout: 15_000 });
   await page.locator('header [data-tour-id="nav-strategies"]').first().click();
   await page.waitForURL(/\/strategies/, { timeout: 30_000 });
@@ -110,7 +102,7 @@ test("wandering off pauses the tour; Resume brings it back; a reload keeps the p
   // Reload: progress is kept.
   await page.reload();
   await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
-  await expect(card(page)).toContainText("Step 5 of 9");
+  await expect(card(page)).toContainText("Step 8 of 11");
 
   // Escape ends it only when no dialog is open; here none is.
   await page.keyboard.press("Escape");
@@ -174,14 +166,14 @@ test.describe("never guesses, never moves the page", () => {
     await expect(card(page)).toContainText("Everything about it lives here", { timeout: 30_000 });
     await page.unrouteAll({ behavior: "ignoreErrors" });
 
-    // On to Strategies through the menu.
+    // On to the help stop, which belongs to no page, then away through the menu.
     await card(page).getByRole("button", { name: "Next" }).click();
-    await expect(card(page)).toContainText("Your rules grade every trade");
-    await card(page).getByRole("button", { name: "Next" }).click();
+    await expect(card(page)).toContainText("That's the core");
     await page.locator('header [data-tour-id="nav-strategies"]').first().click();
-    await expect(card(page)).toContainText("Name the setups you trade", { timeout: 30_000 });
+    await page.waitForURL(/\/strategies/, { timeout: 30_000 });
+    await expect(card(page)).toContainText("That's the core");
 
-    // Back from Strategies: points at the trade it created -- never step 1,
+    // Back from another page: points at the trade it created -- never step 1,
     // and the page stays put until the user clicks.
     await card(page).getByRole("button", { name: "Back" }).click();
     await expect(card(page)).toContainText("Back: Trade", { timeout: 5_000 });
@@ -189,7 +181,7 @@ test.describe("never guesses, never moves the page", () => {
     await page.waitForTimeout(1000);
     await expect(page).toHaveURL(/\/strategies/);
     await card(page).getByRole("link", { name: "Open your trade" }).click();
-    await expect(card(page)).toContainText("Your rules grade every trade", { timeout: 30_000 });
+    await expect(card(page)).toContainText("Everything about it lives here", { timeout: 30_000 });
   });
 
   test("replaying from another page points the way instead of going there", async ({ page }) => {

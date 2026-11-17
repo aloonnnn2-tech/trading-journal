@@ -11,6 +11,7 @@ import {
   siteOrigin,
 } from "@/lib/auth/server-auth";
 import { TERMS_VERSION } from "@/lib/legal/terms";
+import { attributionMetadata, cleanAttribution } from "@/lib/tracking/attribution";
 
 // Sign-up, on the server (security gaps pass, Phase 1b). With email
 // confirmation on (production), Supabase answers with no session and the
@@ -23,6 +24,10 @@ const body = z.object({
   captchaToken: captchaField,
   // The age and terms checkbox. Required here too, not only in the form.
   agreed: z.literal(true),
+  // Where the visitor first came from (utm tags, referring host). Untrusted:
+  // only short plain tags survive cleanAttribution, and anything malformed is
+  // dropped rather than refusing the sign-up.
+  attribution: z.unknown().optional(),
 });
 
 export async function POST(request: Request) {
@@ -45,7 +50,11 @@ export async function POST(request: Request) {
       // Read by the database at account creation (migration 0061), which
       // records WHEN with its own clock. The terms version is ours, not the
       // browser's.
-      data: { age_confirmed: true, accepted_terms_version: TERMS_VERSION },
+      data: {
+        age_confirmed: true,
+        accepted_terms_version: TERMS_VERSION,
+        ...attributionMetadata(cleanAttribution(parsed.data.attribution)),
+      },
     },
   });
   if (error) return authFailure(error);

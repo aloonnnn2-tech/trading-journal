@@ -134,6 +134,11 @@ export default function CookiesPage() {
                 purpose="Records that the paid-features tour offer was already shown in this visit, so it appears at most once. Cleared when you close the tab."
               />
               <Row
+                name="tl-attribution"
+                type="Session storage (functional)"
+                purpose="Notes which link or website first brought you here (for example a campaign tag in the address, or the site's name), so that if you create an account we know where it came from. Kept only in this tab, sent nowhere while you browse, and cleared when you close the tab."
+              />
+              <Row
                 name="tl-paid-tour-offered"
                 type="Local storage (preference)"
                 purpose="An older version of the tour-offer answer. Read only, so an answer given before the change is still respected; nothing new is written to it."

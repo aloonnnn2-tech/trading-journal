@@ -9,6 +9,12 @@ import { scrubEvent, scrubValue } from "./scrub";
 // Everything that can leave for Sentry passes a scrubbing hook: errors,
 // transactions, spans and breadcrumbs (console output becomes breadcrumbs).
 export const SENTRY_PRIVACY = {
+  // Only the live site reports. A local `next dev` (and the e2e runs, which
+  // start their own) used the same project and DSN, so every test run's
+  // aborted request landed in Sentry as an "unhandled error" next to real
+  // ones -- found in the 2026-11-16 check of the outside review's "2 events
+  // per dashboard load", which turned out to be exactly that.
+  enabled: process.env.NODE_ENV === "production",
   // No IPs, cookies, request bodies or user details attached automatically.
   sendDefaultPii: false,
   // Long strings are where a pasted key would hide; cap them.
