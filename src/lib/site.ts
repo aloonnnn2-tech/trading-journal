@@ -18,10 +18,10 @@ import type { Metadata } from "next";
  */
 export const SITE_URL = "https://tradinglenz.netlify.app";
 
-export const SITE_NAME = "Trading Lens";
+export const SITE_NAME = "Trading Lenz";
 
 /** From docs/design-audit.md, issue 10, verbatim. */
-export const HOME_TITLE = "Trading Lens \u2014 Free Trading Journal That Grades Every Trade Against Your Rules";
+export const HOME_TITLE = "Trading Lenz \u2014 Free Trading Journal That Grades Every Trade Against Your Rules";
 
 /**
  * 140-160 characters, naming trading rules, mistake tracking, MAE/MFE,

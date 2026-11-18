@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { decideAutoExecution, minuteBarsNeededSince, type AutoExecutableTrade } from "./auto-execute";
 
 // Alon, 2026-10-28: "I enter a stock, it goes up, I set my stop above my
-// entry, and Trading Lens takes that as getting out of the stock." The day's
+// entry, and Trading Lenz takes that as getting out of the stock." The day's
 // low came from BEFORE the stop was moved. A level is now judged only on
 // prices since it was set (and since the position opened).
 

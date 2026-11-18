@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { ShowMoreOnPhone } from "@/components/mobile/show-more-on-phone";
@@ -55,7 +56,7 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
           />
           {card.strategy.name}
           <span className="font-mono text-xs font-normal text-zinc-500">
-            {s.trades} trades
+            {countOf(s.trades, "trade")}
           </span>
         </h3>
         <Link href={card.drillDownUrl} className="text-xs text-primary hover:underline">
@@ -112,7 +113,7 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
               <p className="text-zinc-600 dark:text-zinc-400">
                 <span className="text-profit">Best in</span> {card.bestCondition.value}{" "}
                 <span className="text-zinc-500">
-                  ({card.bestCondition.dimensionLabel}, {card.bestCondition.stats.trades} trades,{" "}
+                  ({card.bestCondition.dimensionLabel}, {countOf(card.bestCondition.stats.trades, "trade")},{" "}
                   {r(card.bestCondition.stats.expectancy)})
                 </span>
               </p>
@@ -121,7 +122,7 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
               <p className="text-zinc-600 dark:text-zinc-400">
                 <span className="text-loss">Worst in</span> {card.worstCondition.value}{" "}
                 <span className="text-zinc-500">
-                  ({card.worstCondition.dimensionLabel}, {card.worstCondition.stats.trades} trades,{" "}
+                  ({card.worstCondition.dimensionLabel}, {countOf(card.worstCondition.stats.trades, "trade")},{" "}
                   {r(card.worstCondition.stats.expectancy)})
                 </span>
               </p>
@@ -131,7 +132,7 @@ function Scorecard({ card }: { card: StrategyScorecard }) {
           // Explained rather than left blank: the reason is sample size, and
           // it resolves itself as the strategy accumulates trades.
           <p className="text-zinc-500">
-            No conditions to report yet. Splitting {s.trades} trades by day, risk band or exit
+            No conditions to report yet. Splitting {countOf(s.trades, "trade")} by day, risk band or exit
             behaviour leaves fewer than {MIN_SEGMENT_TRADES} in every group.
           </p>
         )}

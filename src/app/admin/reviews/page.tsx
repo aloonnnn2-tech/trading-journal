@@ -41,7 +41,7 @@ export default async function AdminReviewsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Reviews</h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          What users think of Trading Lens. Only reviews you switch on appear on the homepage, and only
+          What users think of Trading Lenz. Only reviews you switch on appear on the homepage, and only
           4–5 star reviews with a comment whose writer allowed it. The numbers here are for you; the
           homepage shows no average or count.
         </p>

@@ -221,7 +221,7 @@ export function FieldManager({
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-zinc-900 dark:text-zinc-100">{field.label}</span>
-                  <span className="ml-2 text-xs text-zinc-500">{field.field_type}</span>
+                  <span className="ml-2 text-xs text-zinc-500">{FIELD_TYPES.find((t) => t.value === field.field_type)?.label ?? field.field_type}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <button

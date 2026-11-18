@@ -1,5 +1,6 @@
 "use client";
 
+import { countOf } from "@/lib/format/count";
 import {
   Area,
   AreaChart,
@@ -74,7 +75,7 @@ export function PerformancePanel({ curve }: { curve: EquityCurve }) {
         <Stat
           label="Cumulative R"
           value={`${curve.finalR >= 0 ? "+" : ""}${curve.finalR.toFixed(1)}R`}
-          sub={`over ${curve.tradesWithR} of ${curve.trades} trades`}
+          sub={`over ${curve.tradesWithR} of ${countOf(curve.trades, "trade")}`}
         />
       </div>
 

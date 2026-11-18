@@ -6,7 +6,7 @@ const SUBJECT_KEYS = new Set([...CORE_SUBJECTS, ...DERIVED_SUBJECTS].map((s) => 
 const ALL_RULES = RULE_GROUPS.flatMap((g) => g.rules);
 
 describe("example trading rules", () => {
-  // The page tells visitors Trading Lens checks these automatically. That is
+  // The page tells visitors Trading Lenz checks these automatically. That is
   // only true if the app has a rule subject for it.
   it("only badges rules that map to a real plan-rule subject", () => {
     for (const rule of ALL_RULES.filter((r) => r.checksWith)) {

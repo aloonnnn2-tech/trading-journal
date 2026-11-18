@@ -21,7 +21,7 @@ import { RiskRewardCalculator } from "./calculator";
 // component, with the math in src/lib/risk-reward/calculate.ts under tests.
 
 const PATH = "/risk-reward-calculator";
-const TITLE = "Risk/Reward Ratio Calculator (With Break-Even Win Rate) | Trading Lens";
+const TITLE = "Risk/Reward Ratio Calculator (With Break-Even Win Rate) | Trading Lenz";
 const DESCRIPTION =
   "Free risk reward calculator for traders. Enter your entry, stop and target to get your reward:risk ratio, break-even win rate and dollar risk. No sign-up.";
 
@@ -134,7 +134,7 @@ export default function RiskRewardCalculatorPage() {
 
       <FreeToolCta heading="See your real reward : risk" actions={<SignUpButton />}>
         <p>
-          The plan says 2 : 1. What do your trades actually return? Trading Lens is a free trading
+          The plan says 2 : 1. What do your trades actually return? Trading Lenz is a free trading
           journal that works out the R multiple of every trade you log and checks it against your own
           rules. Free to use, no card.
         </p>

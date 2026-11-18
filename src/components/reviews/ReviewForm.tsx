@@ -119,7 +119,7 @@ export function ReviewForm({
           className="mt-0.5 h-4 w-4 accent-primary"
         />
         <span>
-          You may show this review on the Trading Lens homepage.
+          You may show this review on the Trading Lenz homepage.
           <span className="block text-xs text-zinc-500">Never your email. Only reviews picked by the team are shown.</span>
         </span>
       </label>
@@ -134,7 +134,7 @@ export function ReviewForm({
             value={displayName}
             maxLength={MAX_DISPLAY_NAME}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="e.g. Dan K. (blank shows “Trading Lens user”)"
+            placeholder="e.g. Dan K. (blank shows “Trading Lenz user”)"
             className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-primary dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
           />
         </div>

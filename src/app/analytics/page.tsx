@@ -22,6 +22,7 @@ import { getRegimeReport } from "@/lib/regime/queries";
 import { isPaidUser } from "@/lib/settings/plan";
 import { getExcursionReport } from "@/lib/excursions/report";
 import { formatMoney } from "@/lib/format/money";
+import { formatMonthKey } from "@/lib/format/count";
 import { getClosedMissingExitDate } from "@/lib/trades/missing-exit-date";
 import { MissingExitDateNotice } from "@/components/missing-exit-date-notice";
 
@@ -114,12 +115,12 @@ export default async function AnalyticsPage() {
         />
         <StatCard
           label="Best month"
-          value={summary.bestMonth === null ? "—" : summary.bestMonth.month}
+          value={summary.bestMonth === null ? "—" : formatMonthKey(summary.bestMonth.month)}
           hint={summary.bestMonth === null ? undefined : formatMoney(summary.bestMonth.totalPL)}
         />
         <StatCard
           label="Worst month"
-          value={summary.worstMonth === null ? "—" : summary.worstMonth.month}
+          value={summary.worstMonth === null ? "—" : formatMonthKey(summary.worstMonth.month)}
           hint={summary.worstMonth === null ? undefined : formatMoney(summary.worstMonth.totalPL)}
         />
         <StatCard

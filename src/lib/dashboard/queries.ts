@@ -164,6 +164,10 @@ export async function getBestWorstSetup(
       .from("trades")
       .select("dollar_pl, trade_strategies(strategies(name))")
       .eq("status", "closed")
+      // Same set as getWinRate and /analytics: a closed trade with no exit date
+      // is in none of their numbers, so it is not in this one either (it used
+      // to be, so a strategy's trade count here could exceed Analytics').
+      .not("exit_date", "is", null)
       .neq("mode", "investment")
       .order("id", { ascending: true })
       .range(from, to),

@@ -16,7 +16,7 @@ import { PAID_GROUPS } from "@/lib/plans/paid-features";
 // src/lib/plans/paid-features.ts (shared with the in-app Plans panel).
 
 export const metadata: Metadata = {
-  title: "What the paid plan does — Trading Lens",
+  title: "What the paid plan does — Trading Lenz",
   description:
     "Every paid feature explained: what it is, how it works, and how to use it. The free journal stays complete.",
 };

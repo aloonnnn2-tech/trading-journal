@@ -71,7 +71,7 @@ describe("GET: the CSV download", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
-    expect(res.headers.get("Content-Disposition")).toMatch(/^attachment; filename="trading-lens-waitlist-\d{4}-\d{2}-\d{2}\.csv"$/);
+    expect(res.headers.get("Content-Disposition")).toMatch(/^attachment; filename="trading-lenz-waitlist-\d{4}-\d{2}-\d{2}\.csv"$/);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.text()).toBe(
       "email,source,joined_at\r\na@example.com,home-paid-card,2026-09-27T10:00:00+00:00\r\n",

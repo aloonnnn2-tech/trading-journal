@@ -213,7 +213,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
           className="order-1 flex shrink-0 items-center gap-2.5 py-3.5 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
         >
           <BrandMark className="h-6 w-6" />
-          <span className="hidden sm:inline">Trading Lens</span>
+          <span className="hidden sm:inline">Trading Lenz</span>
         </Link>
         {/* Below `sm` (phones) these links live in the bottom tab bar and
             its More sheet (components/mobile/mobile-tab-bar.tsx) instead: here
@@ -400,7 +400,7 @@ export function NavBar({ isAdmin = false, isPaid = false }: { isAdmin?: boolean;
                 >
                   <PendingLinkHint className="rounded-md" />
                   <span className="block text-[13px] font-medium text-zinc-900 dark:text-zinc-50">
-                    Rate Trading Lens
+                    Rate Trading Lenz
                   </span>
                   <span className="block text-[11px] text-zinc-500">1–5 stars and a comment, any time</span>
                 </Link>

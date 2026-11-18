@@ -1,4 +1,4 @@
-// Trading Lens logo mark: a dark rounded tile so it reads correctly against
+// Trading Lenz logo mark: a dark rounded tile so it reads correctly against
 // both light and dark page backgrounds, regardless of theme.
 //
 // A 128px copy, not the 512px original: the mark is never shown larger than
@@ -7,5 +7,5 @@
 // stays for the share images (src/app/_og/share-card.tsx), which draw it big.
 export function BrandMark({ className = "h-6 w-6" }: { className?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/brand-mark-128.png" alt="Trading Lens" className={`${className} rounded-md`} />;
+  return <img src="/brand-mark-128.png" alt="Trading Lenz" className={`${className} rounded-md`} />;
 }

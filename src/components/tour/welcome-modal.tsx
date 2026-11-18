@@ -58,7 +58,7 @@ export function WelcomeModal({
             id={titleId}
             className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
           >
-            Welcome to Trading Lens
+            Welcome to Trading Lenz
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
             Thanks for joining. Want a quick tour of the app before you dive in?

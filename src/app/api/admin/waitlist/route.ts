@@ -54,7 +54,7 @@ export async function GET() {
   return new Response(waitlistToCsv(entries), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="trading-lens-waitlist-${stamp}.csv"`,
+      "Content-Disposition": `attachment; filename="trading-lenz-waitlist-${stamp}.csv"`,
       // Personal data: never let a proxy or the browser cache keep a copy.
       "Cache-Control": "no-store",
     },

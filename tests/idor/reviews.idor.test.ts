@@ -1,5 +1,5 @@
 /**
- * Reviews of Trading Lens (0064), against the DEV project as two real users:
+ * Reviews of Trading Lenz (0064), against the DEV project as two real users:
  * a review is its writer's alone, nobody but an admin can put one on the
  * homepage, the homepage function shows only picked reviews and never an
  * email, and editing takes a review back off. Skipped (with the reason)

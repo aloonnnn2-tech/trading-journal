@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { HomeV2 } from "@/components/landing/v2/HomeV2";
 import { BASE_OPEN_GRAPH, HOME_DESCRIPTION, HOME_TITLE } from "@/lib/site";
 
-// Issue 10 of docs/design-audit.md: the homepage was titled "Trading Lens"
+// Issue 10 of docs/design-audit.md: the homepage was titled "Trading Lenz"
 // and described in words that could belong to any journal. The strings are
 // in src/lib/site.ts, under a test, because they are claims.
 //

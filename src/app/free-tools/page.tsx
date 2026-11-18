@@ -17,7 +17,7 @@ import { SITE_URL } from "@/lib/site";
 // for the ones it doesn't name, and every tool's "More free tools" row ends
 // with a link back.
 
-const TITLE = "Free Trading Tools for Swing Traders | Trading Lens";
+const TITLE = "Free Trading Tools for Swing Traders | Trading Lenz";
 const DESCRIPTION =
   "Free trading tools: position size and risk/reward calculators, a pre-trade checklist, a trading plan template and practical guides. No sign-up.";
 
@@ -69,7 +69,7 @@ export default function FreeToolsPage() {
       <div className="pt-4">
         <FreeToolCta heading="Put it all in one journal" actions={<SignUpButton />}>
           <p>
-            Trading Lens is a free trading journal that works out the R multiple of every trade and
+            Trading Lenz is a free trading journal that works out the R multiple of every trade and
             checks each one against your own rules. Free to use, no card.
           </p>
         </FreeToolCta>

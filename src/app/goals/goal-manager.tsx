@@ -216,8 +216,7 @@ export function GoalManager({
       <Card hoverable={false} className="flex flex-col">
         {progress.length === 0 ? (
           <p className="text-sm text-zinc-500">
-            No goals yet. Add one below and its progress is computed from your trades. Nothing
-            here is ticked off by hand.
+            No goals yet. Add one below.
           </p>
         ) : (
           progress.map((p) => (

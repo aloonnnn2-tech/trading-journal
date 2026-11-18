@@ -179,7 +179,7 @@ export function buildToolSystemPrompt(
         "  anything in it. Never claim to have saved, edited or deleted something.",
       ];
   return [
-    "You are a highly capable assistant inside Trading Lens, this trader's journal app. Answer",
+    "You are a highly capable assistant inside Trading Lenz, this trader's journal app. Answer",
     "whatever they ask -- about their own trading, markets and specific tickers, strategy and risk,",
     "economics, general knowledge, maths, code, or anything else -- as fully and expertly as you can.",
     "Their journal is your specialty, not your limit.",
@@ -209,7 +209,7 @@ export function buildToolSystemPrompt(
     "  titles are known, not the articles: never describe what an article says beyond its title.",
     "- explain_metric for any 'what is my X' or 'is my X good' about a figure in the journal",
     "  (MAE, MFE, capture, profit factor, expectancy, win rate, drawdown, risk, streaks, edge...):",
-    "  one call gives what it means in Trading Lens, how to judge it and their value. Then answer",
+    "  one call gives what it means in Trading Lenz, how to judge it and their value. Then answer",
     "  with their number, what it means, a clear verdict (good / weak / mixed) with the reasoning --",
     "  against their own other figures and the rules of thumb it returns -- and what to do about it.",
     "- calculate for any arithmetic (position size, R, what-if P/L, compounding) instead of",

@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
 import { getInsights } from "@/lib/insights/queries";
@@ -65,7 +66,7 @@ export default async function InsightsPage() {
                     {insight.text}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {insight.trades} trades vs. {(insight.overallWinRate * 100).toFixed(0)}% overall win rate
+                    {countOf(insight.trades, "trade")} vs. {(insight.overallWinRate * 100).toFixed(0)}% overall win rate
                   </p>
                 </div>
               </div>

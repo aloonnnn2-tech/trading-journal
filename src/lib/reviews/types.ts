@@ -1,4 +1,4 @@
-// A review of Trading Lens itself (migration 0064). One per account.
+// A review of Trading Lenz itself (migration 0064). One per account.
 
 /** Where the review was asked for; kept so Alon can see which moments work. */
 export const REVIEW_SOURCES = ["closed_trades", "wow_import", "wow_ai_review", "two_weeks", "homepage", "account_menu"] as const;
@@ -38,7 +38,7 @@ export interface FeaturedReview {
 
 /** The name a homepage card shows. */
 export function shownName(displayName: string | null): string {
-  return displayName?.trim() || "Trading Lens user";
+  return displayName?.trim() || "Trading Lenz user";
 }
 
 /** Only a public, 4-5 star review with a quote can go on the homepage

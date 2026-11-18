@@ -12,7 +12,7 @@ import { REVIEW_WOW_EVENT } from "@/lib/reviews/signals";
 import { StarInput } from "./StarInput";
 import { ReviewForm } from "./ReviewForm";
 
-// "Enjoying Trading Lens?" -- a small corner card, asked at the moments Alon
+// "Enjoying Trading Lenz?" -- a small corner card, asked at the moments Alon
 // chose (src/lib/reviews/prompt.ts decides when). Never over the tour, a
 // dialog or the paid-plan card, never twice in a session, and only on the
 // overview pages: never while someone is in the middle of a form.
@@ -120,7 +120,7 @@ export function ReviewPrompt() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            aria-label="Rate Trading Lens"
+            aria-label="Rate Trading Lenz"
             className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-3 z-40 w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-primary/30 bg-white/95 p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.45)] backdrop-blur-md dark:bg-card/95 sm:bottom-4 sm:right-4"
           >
             <button
@@ -135,7 +135,7 @@ export function ReviewPrompt() {
             >
               <X className="h-4 w-4" strokeWidth={2} />
             </button>
-            <p className="pr-6 text-sm font-semibold text-zinc-900 dark:text-zinc-50">Enjoying Trading Lens?</p>
+            <p className="pr-6 text-sm font-semibold text-zinc-900 dark:text-zinc-50">Enjoying Trading Lenz?</p>
             <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">How would you rate it? It takes a few seconds.</p>
             <div className="mt-3">
               <StarInput
@@ -144,7 +144,7 @@ export function ReviewPrompt() {
                   setRating(n);
                   setDialogOpen(true);
                 }}
-                label="Rate Trading Lens"
+                label="Rate Trading Lenz"
               />
             </div>
             <div className="mt-3 flex gap-3 text-xs">
@@ -217,7 +217,7 @@ function ReviewDialog({ open, source, rating, onClose }: { open: boolean; source
               <X className="h-4 w-4" strokeWidth={2} />
             </button>
             <h2 id={titleId} className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Rate Trading Lens
+              Rate Trading Lenz
             </h2>
             <ReviewForm initial={null} initialRating={rating} source={source} />
           </motion.div>

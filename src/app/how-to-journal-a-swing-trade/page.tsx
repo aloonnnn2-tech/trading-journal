@@ -25,7 +25,7 @@ import {
 // (scripts/generate-journal-template.ts).
 
 const PATH = "/how-to-journal-a-swing-trade";
-const TITLE = "How to Journal a Swing Trade (With a Worked Example) | Trading Lens";
+const TITLE = "How to Journal a Swing Trade (With a Worked Example) | Trading Lenz";
 const HEADLINE = "How to journal a swing trade";
 const DESCRIPTION =
   "A step-by-step guide to journaling swing trades: what to write before, during and after each trade, with a worked breakout example and a free template.";
@@ -281,7 +281,7 @@ export default function HowToJournalASwingTradePage() {
       >
         <p>
           The spreadsheet template has every column from this guide, with the worked example filled in
-          and P/L and R worked out for you. Or use Trading Lens, a free trading journal that works out
+          and P/L and R worked out for you. Or use Trading Lenz, a free trading journal that works out
           your R multiple and checks each trade against your own rules. No card.
         </p>
       </FreeToolCta>

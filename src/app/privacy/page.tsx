@@ -4,7 +4,7 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Trading Lens",
+  title: "Privacy Policy — Trading Lenz",
   robots: { index: false },
 };
 
@@ -26,9 +26,9 @@ export default function PrivacyPage() {
         <p className="mt-4 text-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
 
         <p className={BODY}>
-          Trading Lens (&quot;we&quot;, &quot;us&quot;) is a personal trading journal. This
+          Trading Lenz (&quot;we&quot;, &quot;us&quot;) is a personal trading journal. This
           page explains what information we collect, how we use it, and the choices you have.
-          We built Trading Lens to hold your own trading data, not to monetize it. We don&apos;t
+          We built Trading Lenz to hold your own trading data, not to monetize it. We don&apos;t
           sell your information to anyone.
         </p>
 
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
           <strong className="text-zinc-800 dark:text-zinc-200">Paid-plan waitlist:</strong> if you
           join the waitlist, we store the email address you enter, the page you joined from, and
           when. We use it only to tell you when the paid plan launches &mdash; it isn&apos;t shared
-          or sold, and it isn&apos;t linked to a Trading Lens account. To be removed, email{" "}
+          or sold, and it isn&apos;t linked to a Trading Lenz account. To be removed, email{" "}
           <a
             href="mailto:tradinglenz@gmail.com"
             className="font-medium text-primary hover:underline"
@@ -95,12 +95,12 @@ export default function PrivacyPage() {
         </p>
         {/* Added with reviews (0064, 2026-10-11). Every clause is a promise. */}
         <p className={BODY}>
-          <strong className="text-zinc-800 dark:text-zinc-200">Reviews of Trading Lens:</strong> if you rate
-          Trading Lens, we store your stars, your comment, the name you chose to show (if any), whether you
+          <strong className="text-zinc-800 dark:text-zinc-200">Reviews of Trading Lenz:</strong> if you rate
+          Trading Lenz, we store your stars, your comment, the name you chose to show (if any), whether you
           allowed it to be shown publicly, and where you were asked. A review appears on our homepage only if
           you allowed it and we chose it, and then only the stars, the comment, the name you chose and the
           month &mdash; never your email. You can change or remove your review any time from the account menu
-          (Rate Trading Lens), and it is deleted with your account.
+          (Rate Trading Lenz), and it is deleted with your account.
         </p>
 
         <h2 className={SECTION_HEADING}>How screenshot processing works</h2>
@@ -118,7 +118,7 @@ export default function PrivacyPage() {
 
         <h2 className={SECTION_HEADING}>Where your data is stored</h2>
         <p className={BODY}>
-          Trading Lens is built on Supabase, which provides our database, file storage, and
+          Trading Lenz is built on Supabase, which provides our database, file storage, and
           authentication. Supabase acts as our infrastructure provider (a data processor) and
           does not use your data for its own purposes. Data is protected by access rules that
           restrict every account to seeing only its own data.
@@ -194,7 +194,7 @@ export default function PrivacyPage() {
 
         <h2 className={SECTION_HEADING}>The optional AI features</h2>
         <p className={BODY}>
-          Trading Lens can answer questions about your journal and write trade reviews using an
+          Trading Lenz can answer questions about your journal and write trade reviews using an
           AI provider. This is <strong className="text-zinc-800 dark:text-zinc-200">off by
           default</strong> and only works if you supply your own API key for a provider you
           choose. If you turn it on, the trade data needed to answer your question is sent to
@@ -230,7 +230,7 @@ export default function PrivacyPage() {
 
         <h2 className={SECTION_HEADING}>Children&apos;s privacy</h2>
         <p className={BODY}>
-          Trading Lens is not directed at, or intended for use by, anyone under 18. Creating an
+          Trading Lenz is not directed at, or intended for use by, anyone under 18. Creating an
           account requires confirming that you are 18 or older.
         </p>
 

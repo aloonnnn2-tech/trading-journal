@@ -3,7 +3,7 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Trading Lens",
+  title: "Terms of Service — Trading Lenz",
   robots: { index: false },
 };
 
@@ -25,11 +25,11 @@ export default function TermsPage() {
         <p className="mt-4 text-sm text-zinc-500">Last updated: {LAST_UPDATED}</p>
 
         <p className={BODY}>
-          By creating an account or using Trading Lens (&quot;the Service&quot;), you agree to
+          By creating an account or using Trading Lenz (&quot;the Service&quot;), you agree to
           these terms. If you don&apos;t agree, please don&apos;t use the Service.
         </p>
 
-        <h2 className={SECTION_HEADING}>Who can use Trading Lens</h2>
+        <h2 className={SECTION_HEADING}>Who can use Trading Lenz</h2>
         <p className={BODY}>
           You must be 18 or older to create an account or use the Service. By creating an
           account you confirm that you are.
@@ -37,7 +37,7 @@ export default function TermsPage() {
 
         <h2 className={SECTION_HEADING}>Not financial advice</h2>
         <p className={BODY}>
-          Trading Lens does not provide investment, financial, or trading advice. Any
+          Trading Lenz does not provide investment, financial, or trading advice. Any
           statistics, charts, or insights generated from your journal entries are for your own
           informational and record-keeping purposes only. Trading involves risk, including the
           risk of loss, and you are solely responsible for your own trading decisions.

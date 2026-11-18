@@ -5,7 +5,7 @@ import Link from "next/link";
 import { HELP_EMAIL } from "@/lib/help/config";
 
 export const metadata: Metadata = {
-  title: "Contact — Trading Lens",
+  title: "Contact — Trading Lenz",
   robots: { index: false },
 };
 

@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -107,7 +108,7 @@ export function RiskPanel({ report }: { report: FullRiskReport }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Median risk" value={pct(risk.median)} sub={`over ${risk.n} trades`} />
+        <Stat label="Median risk" value={pct(risk.median)} sub={`over ${countOf(risk.n, "trade")}`} />
         <Stat label="Average" value={pct(risk.mean)} />
         <Stat label="Range" value={`${pct(risk.min)} – ${pct(risk.max)}`} />
         <Stat

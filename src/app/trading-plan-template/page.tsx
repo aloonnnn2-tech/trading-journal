@@ -22,7 +22,7 @@ import { TradingPlanBuilder } from "./builder";
 // trading plan contains even though the builder starts empty.
 
 const PATH = "/trading-plan-template";
-const TITLE = "Free Trading Plan Template (Fill In, Print or Copy) | Trading Lens";
+const TITLE = "Free Trading Plan Template (Fill In, Print or Copy) | Trading Lenz";
 const DESCRIPTION =
   "A free trading plan template. Fill in your markets, setups, risk, entry and exit rules and routine, then print it or copy it. No sign-up, nothing saved.";
 
@@ -107,7 +107,7 @@ export default function TradingPlanTemplatePage() {
 
       <FreeToolCta heading="Check every trade against your plan" actions={<SignUpButton />}>
         <p>
-          A plan only helps if you follow it. Trading Lens is a free trading journal: add your rules
+          A plan only helps if you follow it. Trading Lenz is a free trading journal: add your rules
           and it checks each trade you log against them, so you can see where you drift from the plan.
           Free to use, no card.
         </p>

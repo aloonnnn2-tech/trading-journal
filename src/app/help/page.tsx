@@ -6,8 +6,8 @@ import { HELP_EMAIL } from "@/lib/help/config";
 import { HelpForm } from "./help-form";
 
 export const metadata: Metadata = {
-  title: "Get help — Trading Lens",
-  description: "Ask the Trading Lens team for help. No account needed.",
+  title: "Get help — Trading Lenz",
+  description: "Ask the Trading Lenz team for help. No account needed.",
 };
 
 // "Get help", open to everyone: no account and no sign-in needed, so it also

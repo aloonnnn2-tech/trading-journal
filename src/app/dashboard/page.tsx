@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
@@ -233,7 +234,7 @@ function SetupRow({
           />
         </div>
         <span className="text-xs text-zinc-500">
-          {stats.winRate !== null ? `${(stats.winRate * 100).toFixed(0)}% win` : "—"} · {stats.trades} trades
+          {stats.winRate !== null ? `${(stats.winRate * 100).toFixed(0)}% win` : "—"} · {countOf(stats.trades, "trade")}
         </span>
       </div>
     </div>
