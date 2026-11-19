@@ -45,12 +45,18 @@ export function UsersTable({
   const [desc, setDesc] = useState(true);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Test and demo accounts (excluded from analytics) are hidden from the list
+  // too, so the page shows real users only (Alon, 2026-11-20). One click
+  // brings them back -- the exclude toggle has to live somewhere.
+  const [showExcluded, setShowExcluded] = useState(false);
   // Date text is timezone- and clock-dependent; see use-mounted.ts.
   const mounted = useMounted();
 
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    const rows = q ? users.filter((u) => u.email.toLowerCase().includes(q)) : users.slice();
+    const rows = users.filter(
+      (u) => (showExcluded || !u.excluded) && (!q || u.email.toLowerCase().includes(q)),
+    );
     rows.sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
@@ -63,7 +69,7 @@ export function UsersTable({
       return desc ? bn - an : an - bn;
     });
     return rows;
-  }, [users, filter, sortKey, desc]);
+  }, [users, filter, sortKey, desc, showExcluded]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setDesc((d) => !d);
@@ -94,8 +100,9 @@ export function UsersTable({
     setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, excluded: next } : u)));
   }
 
-  const paid = users.filter((u) => u.plan === "paid").length;
-  const excluded = users.filter((u) => u.excluded).length;
+  const counted = users.filter((u) => !u.excluded);
+  const paid = counted.filter((u) => u.plan === "paid").length;
+  const excluded = users.length - counted.length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -107,8 +114,23 @@ export function UsersTable({
           onChange={(e) => setFilter(e.target.value)}
           className={inputClass}
         />
-        <p className="text-xs text-zinc-500">
-          {users.length} users · {paid} paid · {excluded} excluded from analytics · showing {visible.length}
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+          <span>
+            {counted.length} user{counted.length === 1 ? "" : "s"} · {paid} paid
+            {visible.length !== counted.length && <> · showing {visible.length}</>}
+          </span>
+          {excluded > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowExcluded((v) => !v)}
+              aria-pressed={showExcluded}
+              className="text-zinc-400 underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200"
+            >
+              {showExcluded
+                ? `Hide ${excluded} test account${excluded === 1 ? "" : "s"}`
+                : `${excluded} test account${excluded === 1 ? "" : "s"} hidden · show`}
+            </button>
+          )}
         </p>
       </div>
 
@@ -249,7 +271,7 @@ export function UsersTable({
             {visible.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS.length + 2} className="px-4 py-6 text-center text-sm text-zinc-500">
-                  {users.length === 0 ? "No users yet." : "No users match that filter."}
+                  {users.length === 0 ? "No users yet." : filter.trim() ? "No users match that filter." : "No real users yet."}
                 </td>
               </tr>
             )}
