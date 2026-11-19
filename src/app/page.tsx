@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { HomeV2 } from "@/components/landing/v2/HomeV2";
-import { BASE_OPEN_GRAPH, HOME_DESCRIPTION, HOME_TITLE } from "@/lib/site";
+import { BASE_OPEN_GRAPH, HOME_DESCRIPTION, HOME_TITLE, siteJsonLd } from "@/lib/site";
 
 // Issue 10 of docs/design-audit.md: the homepage was titled "Trading Lenz"
 // and described in words that could belong to any journal. The strings are
@@ -49,5 +49,14 @@ export default async function Home({
   searchParams: Promise<{ bg?: string | string[] }>;
 }) {
   const { bg } = await searchParams;
-  return <HomeV2 background={isBgVariant(bg) ? bg : "dots"} />;
+  return (
+    <>
+      {/* Not executed (a data block, not a script), so the CSP nonce isn't needed. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd()).replace(/</g, "\\u003c") }}
+      />
+      <HomeV2 background={isBgVariant(bg) ? bg : "dots"} />
+    </>
+  );
 }

@@ -1,32 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { HOME_DESCRIPTION, HOME_TITLE, SITE_URL } from "./site";
+import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, SITE_URL, SOCIAL_PROFILES, siteJsonLd } from "./site";
 
 describe("homepage metadata", () => {
-  it("uses the title the spec asks for, exactly", () => {
+  it("leads the title with the brand", () => {
     expect(HOME_TITLE).toBe(
-      "Trading Lenz \u2014 Free Trading Journal That Grades Every Trade Against Your Rules",
+      "Trading Lenz — Free Trading Journal That Grades Every Trade Against Your Rules",
     );
   });
 
   it("keeps the description between 140 and 160 characters", () => {
     // Shorter wastes the space search results give it; longer gets cut off
-    // mid-sentence, and the part that gets cut is the "No card".
+    // mid-sentence.
     expect(HOME_DESCRIPTION.length).toBeGreaterThanOrEqual(140);
     expect(HOME_DESCRIPTION.length).toBeLessThanOrEqual(160);
   });
 
-  it("names each thing the spec asks for", () => {
-    for (const phrase of ["rules", "mistake tracking", "MAE/MFE", "screenshot import", "free", "No card"]) {
-      expect(HOME_DESCRIPTION).toContain(phrase);
+  it("is the wording Alon chose on 2026-11-19, with the brand name in it", () => {
+    expect(HOME_DESCRIPTION).toBe(
+      "Free trading journal for swing traders. Snap your broker screenshot and Trading Lenz logs the trade, grades it against your rules and finds your mistakes.",
+    );
+    expect(HOME_DESCRIPTION).toContain(SITE_NAME);
+  });
+
+  it("never presents a paid feature as free", () => {
+    // MAE/MFE and the AI features are paid-only and the paid plan is not on
+    // sale. If a future edit names one, it must say it is coming/paid.
+    for (const paid of ["MAE/MFE", "AI review", "Find My Edge"]) {
+      if (HOME_DESCRIPTION.includes(paid)) expect(HOME_DESCRIPTION).toMatch(/paid plan/);
     }
   });
 
-  it("never presents MAE/MFE as included for free", () => {
-    // MAE/MFE is paid-only (FeatureGrid marks it paid; /analytics only fetches
-    // excursions for paid accounts) and the paid plan is not on sale. If a
-    // future edit drops the qualifier, this fails rather than shipping a claim
-    // the product cannot back.
-    expect(HOME_DESCRIPTION).toMatch(/MAE\/MFE coming on the paid plan/);
+  it("never uses the old spelling", () => {
+    expect(`${HOME_TITLE} ${HOME_DESCRIPTION} ${SITE_NAME}`).not.toMatch(/Lens/);
+  });
+});
+
+describe("site structured data", () => {
+  it("names the site Trading Lenz, with the spellings people type", () => {
+    const [site, org] = siteJsonLd();
+    expect(site).toMatchObject({ "@type": "WebSite", name: "Trading Lenz", url: `${SITE_URL}/` });
+    expect(site.alternateName).toContain("TradingLenz");
+    expect(org).toMatchObject({ "@type": "Organization", name: "Trading Lenz", sameAs: [...SOCIAL_PROFILES] });
+    expect(JSON.stringify(siteJsonLd())).not.toMatch(/Lens/);
   });
 });
 
