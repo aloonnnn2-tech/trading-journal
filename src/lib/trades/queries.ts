@@ -341,6 +341,9 @@ export async function duplicateTrade(supabase: SupabaseClient, id: string): Prom
       exit_date: null,
       commission: null,
       commission_manual: false,
+      // A copy is the user's own trade, even of a demo one, so it survives
+      // the switch to their own journal (0082).
+      ...(Object.prototype.hasOwnProperty.call(rest, "is_demo") ? { is_demo: false } : {}),
       // Nor the sales (0079), when the column exists to carry any.
       ...(Object.prototype.hasOwnProperty.call(rest, "partial_exits") ? { partial_exits: [] } : {}),
       dollar_pl: null,

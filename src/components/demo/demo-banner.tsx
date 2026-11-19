@@ -8,7 +8,7 @@ import { useDialog } from "@/lib/a11y/use-dialog";
 // 4D), so it's never mistaken for real results -- the spec's "clearly
 // labelled". Carries the one-time switch to the user's own journal, behind a
 // confirmation that says exactly what it clears.
-export function DemoBanner() {
+export function DemoBanner({ keepsOwnTrades = false }: { keepsOwnTrades?: boolean }) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -34,12 +34,12 @@ export function DemoBanner() {
           </button>
         </div>
       </div>
-      {confirming && <ConfirmSwitch onCancel={() => setConfirming(false)} />}
+      {confirming && <ConfirmSwitch keepsOwnTrades={keepsOwnTrades} onCancel={() => setConfirming(false)} />}
     </>
   );
 }
 
-function ConfirmSwitch({ onCancel }: { onCancel: () => void }) {
+function ConfirmSwitch({ keepsOwnTrades, onCancel }: { keepsOwnTrades: boolean; onCancel: () => void }) {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
@@ -82,8 +82,9 @@ function ConfirmSwitch({ onCancel }: { onCancel: () => void }) {
           Switch to your own journal?
         </h2>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          This clears the demo journal, including anything you added or changed while trying it: trades, strategies,
-          rules and notes. Your settings stay.
+          {keepsOwnTrades
+            ? "This removes the demo's sample trades, strategies and starting balance. Trades you logged yourself stay, and so do your settings."
+            : "This clears the demo journal, including anything you added or changed while trying it: trades, strategies, rules and notes. Your settings stay."}
         </p>
         <p className="mt-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
           The demo can&apos;t be brought back afterwards.
@@ -109,7 +110,7 @@ function ConfirmSwitch({ onCancel }: { onCancel: () => void }) {
             disabled={busy}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:brightness-110 disabled:opacity-60 dark:text-zinc-950"
           >
-            {busy ? "Switching…" : "Clear the demo and switch"}
+            {busy ? "Switching…" : keepsOwnTrades ? "Remove the demo and switch" : "Clear the demo and switch"}
           </button>
         </div>
       </div>

@@ -201,3 +201,10 @@ export async function getUserMetadata(id: string): Promise<Record<string, unknow
   if (error || !data.user) throw new Error(`could not read test user: ${error?.message}`);
   return data.user.user_metadata ?? {};
 }
+
+/** Every ticker in the account's journal, read with the service role. */
+export async function getUserTickers(id: string): Promise<string[]> {
+  const { data, error } = await admin.from("trades").select("ticker").eq("user_id", id);
+  if (error) throw new Error(`could not read trades: ${error.message}`);
+  return (data ?? []).map((r) => r.ticker as string).sort();
+}

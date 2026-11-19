@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createTestUser, deleteTestUser, signIn, type TestUser } from "./fixtures/test-user";
+import { createTestUser, deleteTestUser, getUserTickers, signIn, type TestUser } from "./fixtures/test-user";
 
 /**
  * First run (Alon, 2026-11-19), in this order:
@@ -107,17 +107,44 @@ test("'Type it in instead' opens Quick trade; closing it comes back; creating a 
   await expect(heardFrom(page)).toHaveCount(0);
 });
 
-test("choosing demo data: welcome, the question, then the demo journal, with no first-trade screen", async ({ page }) => {
-  test.setTimeout(180_000);
+test("choosing demo data: welcome, the question, then the first trade, which survives the switch to your own journal", async ({ page }) => {
+  test.setTimeout(240_000);
   await signIn(page, demoUser);
+  // Whether the database keeps a demo user's own trades (migration 0082). Asked,
+  // not assumed: until it is applied, demo users skip the first-trade screen.
+  const settings = (await (await page.request.get("/api/settings/tour")).json()) as { demoKeepsTrades?: boolean };
+  const keeps = settings.demoKeepsTrades === true;
+  test.info().annotations.push({ type: "migration 0082", description: keeps ? "applied" : "not applied: checking the fallback" });
+
   await expect(welcome(page)).toBeVisible({ timeout: 30_000 });
   await welcome(page).getByRole("button", { name: "Yes, show me demo data" }).click();
   await expect(heardFrom(page)).toBeVisible({ timeout: 60_000 });
-  await heardFrom(page).getByRole("button", { name: "Google search", exact: true }).click();
+  // Skipped, the way Alon met the bug: the first trade must still follow.
+  await heardFrom(page).getByRole("button", { name: "Skip" }).click();
   await expect(heardFrom(page)).toBeHidden();
-  await page.waitForTimeout(1500);
-  await expect(firstTrade(page)).toHaveCount(0);
-  // The demo journal is in: its trades are listed.
-  await page.goto("/trades");
-  await expect(page.getByRole("link", { name: /^[A-Z]{1,5}$/ }).first()).toBeVisible({ timeout: 30_000 });
+
+  if (!keeps) {
+    await page.waitForTimeout(1500);
+    await expect(firstTrade(page)).toHaveCount(0);
+    return;
+  }
+
+  // The first trade, explained, over the demo journal.
+  await expect(firstTrade(page)).toBeVisible({ timeout: 15_000 });
+  await expect(firstTrade(page)).toContainText("Take a screenshot");
+  await firstTrade(page).getByRole("button", { name: "Type it in instead" }).click();
+  const quick = page.getByRole("dialog", { name: "Quick Trade" });
+  await expect(quick).toBeVisible({ timeout: 15_000 });
+  await quick.getByLabel("Ticker").fill("ZZQD");
+  await quick.getByRole("button", { name: "Create trade" }).click();
+  await page.waitForURL(/\/trades\/[0-9a-f-]{36}/, { timeout: 60_000 });
+
+  // Switch to their own journal: the demo goes, their trade stays.
+  await page.getByRole("button", { name: "Switch to my own journal" }).click();
+  const confirm = page.getByRole("dialog", { name: "Switch to your own journal?" });
+  await expect(confirm).toContainText("Trades you logged yourself stay");
+  await confirm.getByRole("button", { name: "Remove the demo and switch" }).click();
+  await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
+
+  await expect.poll(() => getUserTickers(demoUser.id), { timeout: 15_000 }).toEqual(["ZZQD"]);
 });

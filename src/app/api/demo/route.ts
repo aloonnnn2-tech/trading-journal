@@ -54,7 +54,10 @@ export async function POST(request: Request) {
   // before the delete, removed after it succeeds.
   let imagePaths: string[] = [];
   if (action === "finish") {
-    const { data } = await supabase.from("trade_images").select("storage_path");
+    // Since 0082 the switch keeps the user's own trades, so only the demo
+    // trades' files may go; before it, every trade went, and so did every file.
+    const demoOnly = await supabase.from("trade_images").select("storage_path, trades!inner(is_demo)").eq("trades.is_demo", true);
+    const { data } = demoOnly.error ? await supabase.from("trade_images").select("storage_path") : demoOnly;
     imagePaths = (data ?? []).map((row) => row.storage_path as string).filter(Boolean);
   }
 

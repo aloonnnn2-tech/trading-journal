@@ -12,6 +12,7 @@ import {
 import { isPaidUser } from "@/lib/settings/plan";
 import { getDemoState, hasAnyTrades } from "@/lib/demo/queries";
 import { shouldOfferDemo } from "@/lib/demo/state";
+import { demoKeepsOwnTrades } from "@/lib/demo/keeps-own-trades";
 import { shouldAskHeardFrom } from "@/lib/onboarding/heard-from";
 
 // A snooze hides the offer until a real instant, never absurdly far off (the
@@ -54,6 +55,10 @@ export async function GET() {
         hasTrades,
         hasCompletedTour: settings.has_completed_tour,
       });
+  // Choosing demo data still leads to "Log your first trade" once the demo
+  // keeps the user's own trades (0082); before that it would be deleted with
+  // the demo, so demo users skip the screen.
+  const demoKeepsTrades = offerDemo ? await demoKeepsOwnTrades(supabase) : false;
   // A failed lookup means "don't ask".
   const askHeardFrom = settings.has_completed_tour
     ? false
@@ -64,6 +69,7 @@ export async function GET() {
   return NextResponse.json({
     hasCompletedTour: settings.has_completed_tour,
     offerDemo,
+    demoKeepsTrades,
     askHeardFrom,
     firstTrade,
     isPaid: isPaidUser(settings),

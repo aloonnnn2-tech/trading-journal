@@ -28,6 +28,7 @@ import { TourOverlay } from "@/components/tour/tour-overlay";
 import { ReviewPrompt } from "@/components/reviews/ReviewPrompt";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { getDemoState } from "@/lib/demo/queries";
+import { demoKeepsOwnTrades } from "@/lib/demo/keeps-own-trades";
 import { getPreferences } from "@/lib/settings/preferences-queries";
 import { PreferencesProvider } from "@/components/preferences/preferences-provider";
 import { MobileTabBar } from "@/components/mobile/mobile-tab-bar";
@@ -139,6 +140,7 @@ export default async function RootLayout({
   const admin = rolesFrom(settings).admin;
   const paid = settings ? isPaidUser(settings) : false;
   const demoActive = demoState === "active";
+  const demoKeepsTrades = demoActive && supabase ? await demoKeepsOwnTrades(supabase) : false;
 
   return (
     <html
@@ -171,7 +173,7 @@ export default async function RootLayout({
             Skip to main content
           </a>
           <NavBar isAdmin={admin} isPaid={paid} />
-          {demoActive && <DemoBanner />}
+          {demoActive && <DemoBanner keepsOwnTrades={demoKeepsTrades} />}
           <KeyboardShortcuts />
           <AnalyticsTracker />
           <AttributionCapture />

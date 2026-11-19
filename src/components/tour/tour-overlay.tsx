@@ -66,6 +66,8 @@ interface TourSettings {
   hasCompletedTour: boolean;
   /** The demo-data question belongs on the welcome card (Phase 4D rules). */
   offerDemo?: boolean;
+  /** Switching from the demo keeps the user's own trades (0082 applied). */
+  demoKeepsTrades?: boolean;
   /** "How did you hear about us?", asked right after the welcome. */
   askHeardFrom?: boolean;
   /** No trades yet: first run ends on "Log your first trade". */
@@ -292,6 +294,7 @@ export function TourOverlay() {
   const firstRunStarted = useRef(0);
   const [offerDemoOnWelcome, setOfferDemoOnWelcome] = useState(false);
   const firstTradeAfter = useRef(false);
+  const demoKeepsTradesRef = useRef(false);
   const [stepIndex, setStepIndex] = useState(0);
   const step: TourStep | undefined = steps[stepIndex];
 
@@ -502,9 +505,10 @@ export function TourOverlay() {
   );
 
   // After "How did you hear about us?" (or straight after the welcome when it
-  // is already answered): the first trade, unless the user chose demo data --
-  // switching to their own journal later deletes every trade in the account,
-  // so a first trade logged into the demo would be lost.
+  // is already answered): the first trade. With demo data too, once the demo
+  // keeps the user's own trades (0082) -- before that, switching to their own
+  // journal deleted every trade, so a demo user's first trade would be lost
+  // and the screen is skipped for them.
   const afterHeardFrom = useCallback(() => {
     if (firstTradeAfter.current) {
       firstRunStarted.current = Date.now();
@@ -516,7 +520,7 @@ export function TourOverlay() {
 
   const afterWelcome = useCallback(
     (choseDemo: boolean) => {
-      if (choseDemo) firstTradeAfter.current = false;
+      if (choseDemo) firstTradeAfter.current = demoKeepsTradesRef.current;
       if (askHeardFromAfter.current) setPhase("heard-from");
       else afterHeardFrom();
     },
@@ -588,6 +592,7 @@ export function TourOverlay() {
           askHeardFromAfter.current = data.askHeardFrom === true;
           setOfferDemoOnWelcome(data.offerDemo === true);
           firstTradeAfter.current = data.firstTrade === true;
+          demoKeepsTradesRef.current = data.demoKeepsTrades === true;
           setPhase("welcome");
           return;
         }
