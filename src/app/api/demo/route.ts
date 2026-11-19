@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserIdFromHeader } from "@/lib/supabase/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { buildDemoPayload } from "@/lib/demo/payload";
+import { demoKeepsOwnTrades } from "@/lib/demo/keeps-own-trades";
 
 // The optional demo journal (Phase 4D). Three answers, each a database
 // function from migration 0051 that checks the account's state itself and
@@ -56,9 +57,19 @@ export async function POST(request: Request) {
   if (action === "finish") {
     // Since 0082 the switch keeps the user's own trades, so only the demo
     // trades' files may go; before it, every trade went, and so did every file.
-    const demoOnly = await supabase.from("trade_images").select("storage_path, trades!inner(is_demo)").eq("trades.is_demo", true);
-    const { data } = demoOnly.error ? await supabase.from("trade_images").select("storage_path") : demoOnly;
-    imagePaths = (data ?? []).map((row) => row.storage_path as string).filter(Boolean);
+    // Decided by whether 0082 is in, never by a query failing: if listing the
+    // demo trades' files fails, no file is removed -- an orphaned file is
+    // invisible, a deleted screenshot of a kept trade is gone for good.
+    if (await demoKeepsOwnTrades(supabase)) {
+      const { data, error } = await supabase
+        .from("trade_images")
+        .select("storage_path, trades!inner(is_demo)")
+        .eq("trades.is_demo", true);
+      imagePaths = error ? [] : (data ?? []).map((row) => row.storage_path as string).filter(Boolean);
+    } else {
+      const { data } = await supabase.from("trade_images").select("storage_path");
+      imagePaths = (data ?? []).map((row) => row.storage_path as string).filter(Boolean);
+    }
   }
 
   const { error } =

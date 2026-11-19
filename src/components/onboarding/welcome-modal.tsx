@@ -15,7 +15,16 @@ import { useDialog } from "@/lib/a11y/use-dialog";
 // again, and "Yes" gives a sandbox the user swaps for their own journal once.
 // So Escape does nothing while the question is on the card; without it (the
 // demo isn't available, or was already answered) Escape just carries on.
-export function WelcomeModal({ offerDemo, onDone }: { offerDemo: boolean; onDone: (choseDemo: boolean) => void }) {
+export function WelcomeModal({
+  offerDemo,
+  demoKeepsTrades = false,
+  onDone,
+}: {
+  offerDemo: boolean;
+  /** Switching from the demo keeps trades the user logged (0082 applied). */
+  demoKeepsTrades?: boolean;
+  onDone: (choseDemo: boolean) => void;
+}) {
   const titleId = useId();
   const firstRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
@@ -86,8 +95,10 @@ export function WelcomeModal({ offerDemo, onDone }: { offerDemo: boolean; onDone
             <div className="w-full rounded-xl border border-zinc-200 p-4 text-left dark:border-subtle">
               <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Want to use demo data first?</p>
               <p className="mt-1 text-sm text-zinc-500">
-                About sixty sample trades on real market prices, so every page has something to show. When you&apos;re
-                ready, one click swaps it for your own empty journal. You can only do that once.
+                About sixty sample trades on real market prices, so every page has something to show.{" "}
+                {demoKeepsTrades
+                  ? "When you're ready, one click removes the samples and keeps any trades you logged yourself. You can only do that once."
+                  : "When you're ready, one click swaps it for your own empty journal. You can only do that once."}
               </p>
             </div>
             {failed && (

@@ -88,6 +88,12 @@ test("'Type it in instead' opens Quick trade; closing it comes back; creating a 
   await throughWelcome(page, "TikTok");
   await expect(firstTrade(page)).toBeVisible({ timeout: 15_000 });
 
+  // Only "Skip for now" skips: a stray Escape or backdrop tap leaves it open.
+  await page.keyboard.press("Escape");
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(500);
+  await expect(firstTrade(page)).toBeVisible();
+
   const quick = page.getByRole("dialog", { name: "Quick Trade" });
   await firstTrade(page).getByRole("button", { name: "Type it in instead" }).click();
   await expect(quick).toBeVisible({ timeout: 15_000 });
@@ -117,6 +123,9 @@ test("choosing demo data: welcome, the question, then the first trade, which sur
   test.info().annotations.push({ type: "migration 0082", description: keeps ? "applied" : "not applied: checking the fallback" });
 
   await expect(welcome(page)).toBeVisible({ timeout: 30_000 });
+  await expect(welcome(page)).toContainText(
+    keeps ? "keeps any trades you logged yourself" : "swaps it for your own empty journal",
+  );
   await welcome(page).getByRole("button", { name: "Yes, show me demo data" }).click();
   await expect(heardFrom(page)).toBeVisible({ timeout: 60_000 });
   // Skipped, the way Alon met the bug: the first trade must still follow.

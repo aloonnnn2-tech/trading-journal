@@ -293,6 +293,7 @@ export function TourOverlay() {
   const askHeardFromAfter = useRef(false);
   const firstRunStarted = useRef(0);
   const [offerDemoOnWelcome, setOfferDemoOnWelcome] = useState(false);
+  const [demoKeepsTradesOnWelcome, setDemoKeepsTradesOnWelcome] = useState(false);
   const firstTradeAfter = useRef(false);
   const demoKeepsTradesRef = useRef(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -593,6 +594,7 @@ export function TourOverlay() {
           setOfferDemoOnWelcome(data.offerDemo === true);
           firstTradeAfter.current = data.firstTrade === true;
           demoKeepsTradesRef.current = data.demoKeepsTrades === true;
+          setDemoKeepsTradesOnWelcome(data.demoKeepsTrades === true);
           setPhase("welcome");
           return;
         }
@@ -900,7 +902,7 @@ export function TourOverlay() {
     );
   }
   if (phase === "welcome") {
-    return <WelcomeModal offerDemo={offerDemoOnWelcome} onDone={afterWelcome} />;
+    return <WelcomeModal offerDemo={offerDemoOnWelcome} demoKeepsTrades={demoKeepsTradesOnWelcome} onDone={afterWelcome} />;
   }
   if (phase === "heard-from") {
     return <HeardFromModal onDone={afterHeardFrom} />;

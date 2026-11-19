@@ -181,11 +181,11 @@ export function ScreenshotTradeDialog({
 
   function close() {
     if (submitting || step === "scanning") return;
-    // First run: leaving the review goes back to the first screen, not out of
-    // onboarding altogether; leaving the first screen is a skip.
+    // First run: leaving the review goes back to the first screen. Leaving
+    // the first screen itself takes the "Skip for now" button -- a stray tap
+    // on the backdrop or Escape must not end onboarding for good.
     if (firstRun) {
-      reset();
-      if (step !== "review") firstRun.onSkip();
+      if (step === "review") reset();
       return;
     }
     reset();
