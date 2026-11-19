@@ -536,12 +536,34 @@ export function ScreenshotTradeDialog({
               >
                 {firstRun ? (sample ? "Your sample trade" : "Log your first trade") : "Trade from Screenshot"}
               </h2>
-              {firstRun ? (
+              {firstRun && sample ? (
                 <p className="mb-4 text-sm text-zinc-500">
-                  {sample
-                    ? "Read from an example order ticket, the way yours will be. Check it, then create it. It's a normal trade you can delete any time."
-                    : "Drop in a screenshot of a trade from your broker. The app reads the ticker, prices and size for you."}
+                  Read from an example order ticket, the way yours will be. Check it, then create it. It&apos;s a normal
+                  trade you can delete any time.
                 </p>
+              ) : firstRun ? (
+                // How to do it, in three plain steps, right after "How did you
+                // hear about us?" (Alon, 2026-11-19): a new user should know
+                // what to do before being asked to do it.
+                <ol className="mb-4 flex flex-col gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
+                  {[
+                    ["Take a screenshot", "of the trade in your broker's app: the order ticket, the fill, or the open position."],
+                    ["Drop it in the box below.", "The app reads the ticker, price, size, stop and target for you."],
+                    ["Check the details and tap Create trade.", "That's it, it's in your journal."],
+                  ].map(([lead, rest], i) => (
+                    <li key={lead} className="flex gap-3">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
+                      >
+                        {i + 1}
+                      </span>
+                      <span>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">{lead}</span> {rest}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
               ) : (
                 <p className="mb-4 text-xs text-zinc-500">
                   Upload a screenshot of your fill, order, or position. It&apos;s read by the app&apos;s built-in
@@ -585,6 +607,9 @@ export function ScreenshotTradeDialog({
                       >
                         {loadingSample ? "Loading the sample…" : "No screenshot handy? Try a sample trade"}
                       </button>
+                      <p className="text-center text-xs text-zinc-500">
+                        Or type it in yourself: a ticker, long or short, and a price is all it needs.
+                      </p>
                       <div className="flex items-center justify-between pt-1 text-sm">
                         <button
                           type="button"
@@ -610,7 +635,7 @@ export function ScreenshotTradeDialog({
                     </div>
                   )}
 
-                  <div className={`mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800 ${firstRun ? "hidden" : ""}`}>
+                  <div className="mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
                     <button
                       type="button"
                       onClick={() => setShowExample((v) => !v)}

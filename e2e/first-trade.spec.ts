@@ -53,8 +53,11 @@ test("welcome, then the question, then the sample trade: logged in under two min
   await expect(firstTrade(page)).toHaveCount(0);
   await throughWelcome(page, "YouTube");
 
-  // Then the first trade, not the tour.
+  // Then the first trade, not the tour -- explained in three steps first.
   await expect(firstTrade(page)).toBeVisible({ timeout: 15_000 });
+  await expect(firstTrade(page)).toContainText("Take a screenshot");
+  await expect(firstTrade(page)).toContainText("Drop it in the box below.");
+  await expect(firstTrade(page)).toContainText("Check the details and tap Create trade.");
   await expect(firstTrade(page).getByText("Click, paste, or drag a screenshot here")).toBeVisible();
   await expect(page.getByRole("region", { name: "Guided tour" })).toHaveCount(0);
 
