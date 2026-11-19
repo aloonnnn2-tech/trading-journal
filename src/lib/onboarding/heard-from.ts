@@ -49,3 +49,36 @@ export function tallyHeardFrom(answers: unknown[]): { label: string; count: numb
   }
   return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
 }
+
+export interface HeardFromSummary {
+  /** Every option, most answers first (ties keep the question's order), zeros included. */
+  channels: { label: string; count: number; pct: number }[];
+  answered: number;
+  skipped: number;
+  /** Accounts with no answer at all: signed up before the question, or never finished first run. */
+  notAsked: number;
+  /** utm_source or referring site from the sign-up link, most first. */
+  signupLinks: { source: string; count: number }[];
+}
+
+/** The admin Analytics card's numbers, from each counted account's stored answer and link source. */
+export function summarizeHeardFrom(rows: { answer: unknown; signupSource: string | null }[]): HeardFromSummary {
+  const counts = new Map<string, number>(HEARD_FROM_OPTIONS.map((o) => [o.value, 0]));
+  let skipped = 0;
+  let notAsked = 0;
+  const links = new Map<string, number>();
+  for (const row of rows) {
+    if (row.answer === "skipped") skipped += 1;
+    else if (isHeardFromAnswer(row.answer)) counts.set(row.answer, (counts.get(row.answer) ?? 0) + 1);
+    else notAsked += 1;
+    if (row.signupSource) links.set(row.signupSource, (links.get(row.signupSource) ?? 0) + 1);
+  }
+  const answered = [...counts.values()].reduce((a, b) => a + b, 0);
+  const channels = HEARD_FROM_OPTIONS.map((o, i) => ({ label: o.label, count: counts.get(o.value) ?? 0, order: i }))
+    .sort((a, b) => b.count - a.count || a.order - b.order)
+    .map(({ label, count }) => ({ label, count, pct: answered > 0 ? Math.round((count / answered) * 100) : 0 }));
+  const signupLinks = [...links.entries()]
+    .map(([source, count]) => ({ source, count }))
+    .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
+  return { channels, answered, skipped, notAsked, signupLinks };
+}

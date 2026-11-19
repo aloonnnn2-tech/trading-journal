@@ -11,9 +11,14 @@ import {
   getFeatureUsage,
   getRetentionCohorts,
   getPublicViews,
+  getUserDirectory,
   isAdmin,
   type PublicViewPoint,
 } from "@/lib/tracking/admin-queries";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getHeardFromByUser } from "@/lib/onboarding/heard-from-admin";
+import { summarizeHeardFrom, type HeardFromSummary } from "@/lib/onboarding/heard-from";
+import { HeardFromChart } from "./heard-from-chart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { StaggerGrid } from "@/components/motion/StaggerGrid";
@@ -67,6 +72,19 @@ export default async function AdminAnalyticsPage() {
     getRetentionCohorts(supabase, 8),
     getPublicViews(supabase, 30).catch((): PublicViewPoint[] => []),
   ]);
+  // "How did you hear about us?" -- answers live in auth metadata (service
+  // role, after the admin check above). Counted over the same accounts as
+  // every other number here: test-domain and hand-flagged ones are left out.
+  // Optional: if either read fails the card says so and the page still loads.
+  let heardFrom: HeardFromSummary | null = null;
+  try {
+    const [answers, directory] = await Promise.all([getHeardFromByUser(createAdminClient()), getUserDirectory(supabase)]);
+    const counted = directory.filter((u) => !u.excluded).map((u) => answers.get(u.id) ?? { answer: null, signupSource: null });
+    heardFrom = summarizeHeardFrom(counted);
+  } catch (err) {
+    console.error("[admin/analytics] heard-from load failed:", err instanceof Error ? err.message : err);
+  }
+
   const today = funnel(publicViews, 1);
   const week = funnel(publicViews, 7);
   const month = funnel(publicViews, 30);
@@ -147,6 +165,33 @@ export default async function AdminAnalyticsPage() {
           <FeatureUsageChart data={featureUsage} />
         </Card>
       </div>
+
+      <Card hoverable={false}>
+        <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
+          How did you hear about us?
+        </h2>
+        {heardFrom === null ? (
+          <p className="text-sm text-zinc-500">Couldn&apos;t load the answers right now.</p>
+        ) : (
+          <>
+            <p className="mb-4 text-xs text-zinc-500">
+              {heardFrom.answered} answered · {heardFrom.skipped} skipped · {heardFrom.notAsked} not asked (signed up
+              before the question, or haven&apos;t finished their first sign-in). Shares are of those who answered.
+            </p>
+            {heardFrom.answered === 0 ? (
+              <p className="py-6 text-center text-sm text-zinc-500">No answers yet. New accounts are asked on their first sign-in.</p>
+            ) : (
+              <HeardFromChart data={heardFrom.channels} />
+            )}
+            {heardFrom.signupLinks.length > 0 && (
+              <p className="mt-3 text-xs text-zinc-500">
+                Sign-up links (the tagged link or site their first visit came from):{" "}
+                {heardFrom.signupLinks.map((l) => `${l.source} ${l.count}`).join(" · ")}
+              </p>
+            )}
+          </>
+        )}
+      </Card>
 
       <Card hoverable={false}>
         <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 dark:text-zinc-400">

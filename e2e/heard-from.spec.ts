@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 import { createTestUser, deleteTestUser, getUserMetadata, signIn, type TestUser } from "./fixtures/test-user";
 
 /**
- * "How did you hear about us?" (Alon, 2026-11-19). Asked once first run ends,
- * so it never stands between a new account and its first trade (that screen
- * is first-trade.spec.ts). Saved on the account, never asked again.
+ * "How did you hear about us?" (Alon, 2026-11-19): asked right after the
+ * welcome card, before "Log your first trade" (first-trade.spec.ts has the
+ * whole order). Saved on the account, never asked again.
  */
 
 let fresh: TestUser;
@@ -18,17 +18,17 @@ test.afterAll(async () => {
   await deleteTestUser(skipper.id);
 });
 
+const welcome = (page: import("@playwright/test").Page) => page.getByRole("dialog", { name: "Welcome to Trading Lenz" });
 const question = (page: import("@playwright/test").Page) =>
   page.getByRole("dialog", { name: "How did you hear about us?" });
 const firstTrade = (page: import("@playwright/test").Page) =>
   page.getByRole("dialog", { name: "Log your first trade" });
 
-test("asked after the first-trade screen, answered with one tap, saved, and not asked again", async ({ page }) => {
+test("asked after the welcome, answered with one tap, saved, and not asked again", async ({ page }) => {
   await signIn(page, fresh);
-  // The first trade comes first; the question waits.
-  await expect(firstTrade(page)).toBeVisible({ timeout: 30_000 });
+  await expect(welcome(page)).toBeVisible({ timeout: 30_000 });
   await expect(question(page)).toHaveCount(0);
-  await firstTrade(page).getByRole("button", { name: "Skip for now" }).click();
+  await welcome(page).getByRole("button", { name: "No thanks, start empty" }).click();
 
   await expect(question(page)).toBeVisible({ timeout: 15_000 });
   for (const label of ["YouTube", "Instagram", "TikTok", "Google search", "Other"]) {
@@ -38,20 +38,24 @@ test("asked after the first-trade screen, answered with one tap, saved, and not 
   await expect(question(page)).toBeHidden();
   await expect.poll(async () => (await getUserMetadata(fresh.id)).heard_from, { timeout: 15_000 }).toBe("tiktok");
 
-  // A reload is not a second first sign-in: neither screen comes back.
+  // Next comes the first trade; skip it, and nothing comes back on a reload.
+  await expect(firstTrade(page)).toBeVisible({ timeout: 15_000 });
+  await firstTrade(page).getByRole("button", { name: "Skip for now" }).click();
   await page.reload();
   await expect(page.getByRole("button", { name: "Quick trade" }).first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1500);
+  await expect(welcome(page)).toHaveCount(0);
   await expect(question(page)).toHaveCount(0);
   await expect(firstTrade(page)).toHaveCount(0);
 });
 
 test("Escape skips it, and the skip is remembered", async ({ page }) => {
   await signIn(page, skipper);
-  await expect(firstTrade(page)).toBeVisible({ timeout: 30_000 });
-  await firstTrade(page).getByRole("button", { name: "Skip for now" }).click();
+  await expect(welcome(page)).toBeVisible({ timeout: 30_000 });
+  await welcome(page).getByRole("button", { name: "No thanks, start empty" }).click();
   await expect(question(page)).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press("Escape");
   await expect(question(page)).toBeHidden();
   await expect.poll(async () => (await getUserMetadata(skipper.id)).heard_from, { timeout: 15_000 }).toBe("skipped");
+  await expect(firstTrade(page)).toBeVisible({ timeout: 15_000 });
 });
