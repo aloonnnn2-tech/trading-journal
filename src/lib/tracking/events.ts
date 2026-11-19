@@ -186,6 +186,14 @@ export function clickName(label: unknown): ClickName {
 const PATH = z.string().min(1).max(300).regex(/^\//);
 const UUID_LIKE = z.string().max(64);
 const TOUR = z.enum(["basics", "features", "paid"]);
+// How a new account's first-run screen ended (onboarding, 2026-11-19).
+const FIRST_TRADE_PATH = z.enum(["screenshot", "sample", "typed", "skipped"]);
+function firstTradeWords(path: unknown): string {
+  if (path === "screenshot") return "from a **screenshot**";
+  if (path === "sample") return "with the **sample trade**";
+  if (path === "typed") return "by **typing it in**";
+  return "";
+}
 const NONE = z.object({}).strict();
 const REVIEW_SOURCE = z.enum(REVIEW_SOURCES);
 const reviewSourceName = (v: unknown): string =>
@@ -244,6 +252,15 @@ export const CLIENT_EVENTS = {
     countLabel: "Tours completed",
     props: z.object({ tour: TOUR, steps: z.number().int().min(0).max(100) }).strict(),
     sentence: (p) => `Finished the **${tourName(p.tour)}** tour (${num(p.steps) ?? "?"} steps)`,
+  },
+  first_trade: {
+    category: "tour",
+    countLabel: "First-run screens finished",
+    props: z.object({ path: FIRST_TRADE_PATH, seconds: z.number().int().min(0).max(86_400) }).strict(),
+    sentence: (p) =>
+      p.path === "skipped"
+        ? `Skipped logging a first trade (after ${num(p.seconds) ?? "?"}s)`
+        : `Logged their **first trade** ${firstTradeWords(p.path)} in ${num(p.seconds) ?? "?"}s`,
   },
   tour_skipped: {
     category: "tour",

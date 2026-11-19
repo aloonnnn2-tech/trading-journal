@@ -90,6 +90,11 @@ const NUMERIC_KEYS = new Set<OcrCoreField>([
 ]);
 const DATE_KEYS = new Set<OcrCoreField>(["entry_date", "exit_date"]);
 
+/** The entries that hold something, so a sample's defaults only fill blanks. */
+function dropBlank(values: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(values).filter(([, v]) => v !== ""));
+}
+
 function toInput(key: OcrCoreField, value: unknown): string {
   if (value == null) return "";
   if (DATE_KEYS.has(key)) return String(value).slice(0, 10);
@@ -104,9 +109,48 @@ export function ScreenshotTradeButton({
   accountBalance?: number | null;
   label?: string;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        data-tour-id="trades-screenshot"
+        className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500"
+      >
+        {label}
+      </button>
+      <ScreenshotTradeDialog open={open} onClose={() => setOpen(false)} accountBalance={accountBalance} />
+    </>
+  );
+}
+
+/**
+ * A new account's first screen (onboarding, 2026-11-19): the same dialog, as
+ * "Log your first trade", with a sample screenshot to try and a way out to
+ * typing it or skipping. Every path ends with the caller told what happened.
+ */
+export interface FirstRunHandlers {
+  onCreated: (tradeId: string, path: "screenshot" | "sample") => void;
+  onTypeInstead: () => void;
+  onSkip: () => void;
+}
+
+export function ScreenshotTradeDialog({
+  open,
+  onClose,
+  accountBalance = null,
+  firstRun,
+}: {
+  open: boolean;
+  onClose: () => void;
+  accountBalance?: number | null;
+  firstRun?: FirstRunHandlers;
+}) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("pick");
+  // Reading the bundled example rather than the user's own screenshot.
+  const [sample, setSample] = useState(false);
+  const [loadingSample, setLoadingSample] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [result, setResult] = useState<ParseResult | null>(null);
@@ -132,12 +176,38 @@ export function ScreenshotTradeButton({
     setShowMore(false);
     setShowExample(false);
     setCopied(false);
+    setSample(false);
   }
 
   function close() {
     if (submitting || step === "scanning") return;
-    setOpen(false);
+    // First run: leaving the review goes back to the first screen, not out of
+    // onboarding altogether; leaving the first screen is a skip.
+    if (firstRun) {
+      reset();
+      if (step !== "review") firstRun.onSkip();
+      return;
+    }
     reset();
+    onClose();
+  }
+
+  // "Try a sample trade": the example screenshot, read by the same reader a
+  // real one goes through, so the first thing a new user sees is the feature
+  // working, not a description of it.
+  async function trySample() {
+    if (loadingSample) return;
+    setLoadingSample(true);
+    setError(null);
+    try {
+      const blob = await (await fetch(exampleTradeScreenshot.src)).blob();
+      setSample(true);
+      await handleFile(new File([blob], "sample-trade.png", { type: blob.type || "image/png" }), true);
+    } catch {
+      setError("Couldn't load the sample. Try your own screenshot, or type the trade in.");
+    } finally {
+      setLoadingSample(false);
+    }
   }
 
   // Escape, focus trap, scroll lock and focus restore. This dialog had none of
@@ -170,7 +240,7 @@ export function ScreenshotTradeButton({
     setValues(next);
   }
 
-  async function handleFile(selected: File) {
+  async function handleFile(selected: File, isSample = false) {
     setError(null);
     if (!ALLOWED_IMAGE_TYPES.has(selected.type)) {
       setError("Unsupported image type. Use JPEG, PNG, WebP, or GIF.");
@@ -201,6 +271,13 @@ export function ScreenshotTradeButton({
       const parsed: ParseResult = { ...body, extra: body.extra ?? [], warnings: body.warnings ?? [] };
       setResult(parsed);
       applyDetected(parsed);
+      // The sample is a known picture: an AAPL limit buy (public/example-trade-
+      // screenshot.png). Whatever the reader leaves blank of the three fields
+      // a trade can't be saved without is filled from that, so trying the
+      // sample is one more click, not a form to work out.
+      if (isSample) {
+        setValues((prev) => ({ ticker: "AAPL", direction: "long", status: "open", ...dropBlank(prev) }));
+      }
       const detectedCount = Object.keys(parsed.core ?? {}).length;
       if (detectedCount === 0 && (parsed.extra?.length ?? 0) === 0) {
         setError("Couldn't read any trade details from the image. Fill them in below.");
@@ -301,8 +378,10 @@ export function ScreenshotTradeButton({
       }
 
       // A screenshot just became a trade: a good moment to ask for a review
-      // (the card waits until this dialog is gone).
-      signalReviewWow("wow_import");
+      // (the card waits until this dialog is gone). Not for the sample: the
+      // user hasn't imported anything of their own yet.
+      if (!sample) signalReviewWow("wow_import");
+      firstRun?.onCreated(trade.id, sample ? "sample" : "screenshot");
       router.push(`/trades/${trade.id}`);
     } catch {
       setError("Failed to create the trade. Check your connection and try again.");
@@ -426,14 +505,6 @@ export function ScreenshotTradeButton({
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        data-tour-id="trades-screenshot"
-        className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:border-zinc-500"
-      >
-        {label}
-      </button>
-
       <AnimatePresence>
         {open && (
           <motion.div
@@ -441,7 +512,9 @@ export function ScreenshotTradeButton({
             animate={{ opacity: 1, pointerEvents: "auto" }}
             // Click-through while it fades out, so it can't swallow the next click.
             exit={{ opacity: 0, pointerEvents: "none" }}
-            className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            className={`dialog-backdrop fixed inset-0 flex items-center justify-center p-4 ${
+              firstRun ? "z-[200] bg-black/70 backdrop-blur-sm" : "z-50 bg-black/40"
+            }`}
             onClick={close}
           >
             <motion.div
@@ -449,7 +522,7 @@ export function ScreenshotTradeButton({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.15 }}
-              className="dialog-panel w-full max-w-md rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
+              className="dialog-panel max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-6"
               onClick={(e) => e.stopPropagation()}
               ref={dialogRef}
               role="dialog"
@@ -461,13 +534,21 @@ export function ScreenshotTradeButton({
                 id={`${fieldId}-title`}
                 className="mb-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50"
               >
-                Trade from Screenshot
+                {firstRun ? (sample ? "Your sample trade" : "Log your first trade") : "Trade from Screenshot"}
               </h2>
-              <p className="mb-4 text-xs text-zinc-500">
-                Upload a screenshot of your fill, order, or position. It&apos;s read by the app&apos;s built-in
-                reader. It goes to an AI service only if you choose &ldquo;Read with AI&rdquo; (paid plan, your own
-                key).
-              </p>
+              {firstRun ? (
+                <p className="mb-4 text-sm text-zinc-500">
+                  {sample
+                    ? "Read from an example order ticket, the way yours will be. Check it, then create it. It's a normal trade you can delete any time."
+                    : "Drop in a screenshot of a trade from your broker. The app reads the ticker, prices and size for you."}
+                </p>
+              ) : (
+                <p className="mb-4 text-xs text-zinc-500">
+                  Upload a screenshot of your fill, order, or position. It&apos;s read by the app&apos;s built-in
+                  reader. It goes to an AI service only if you choose &ldquo;Read with AI&rdquo; (paid plan, your own
+                  key).
+                </p>
+              )}
 
               {step === "pick" && (
                 <>
@@ -494,7 +575,42 @@ export function ScreenshotTradeButton({
                     }}
                   />
 
-                  <div className="mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  {firstRun && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={trySample}
+                        disabled={loadingSample}
+                        className="w-full rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:brightness-110 disabled:opacity-60 dark:text-zinc-950"
+                      >
+                        {loadingSample ? "Loading the sample…" : "No screenshot handy? Try a sample trade"}
+                      </button>
+                      <div className="flex items-center justify-between pt-1 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            reset();
+                            firstRun.onTypeInstead();
+                          }}
+                          className="text-zinc-600 hover:text-primary dark:text-zinc-300"
+                        >
+                          Type it in instead
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            reset();
+                            firstRun.onSkip();
+                          }}
+                          className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                        >
+                          Skip for now
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`mt-3 rounded-lg border border-zinc-200 dark:border-zinc-800 ${firstRun ? "hidden" : ""}`}>
                     <button
                       type="button"
                       onClick={() => setShowExample((v) => !v)}
@@ -556,7 +672,11 @@ export function ScreenshotTradeButton({
                     }}
                   />
 
-                  {result && result.warnings.length > 0 && (
+                  {/* Not for the sample: the example image prints a risk/reward
+                      (8.42) its own prices don't give (2.14), and a new user's
+                      first look at the reader shouldn't be a warning about our
+                      picture. A real screenshot's warnings always show. */}
+                  {result && !sample && result.warnings.length > 0 && (
                     <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2">
                       <p className="mb-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400">Check before saving</p>
                       <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-zinc-600 dark:text-zinc-300">
@@ -659,7 +779,9 @@ export function ScreenshotTradeButton({
                       create the trade.
                     </p>
                   )}
-                  <div className="mt-2 flex items-center justify-between">
+                  {/* Pinned to the bottom of the dialog, so on a phone Create
+                      trade is in reach without scrolling past every field. */}
+                  <div className="sticky -bottom-6 -mx-6 mt-2 flex items-center justify-between border-t border-zinc-200 bg-white px-6 pb-6 pt-3 dark:border-subtle dark:bg-card">
                     <button onClick={reset} disabled={submitting} className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50">
                       Try another image
                     </button>

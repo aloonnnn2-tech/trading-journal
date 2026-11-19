@@ -10,8 +10,7 @@ import {
   setTourCompleted,
 } from "@/lib/settings/queries";
 import { isPaidUser } from "@/lib/settings/plan";
-import { getDemoState, hasAnyTrades } from "@/lib/demo/queries";
-import { shouldOfferDemo } from "@/lib/demo/state";
+import { hasAnyTrades } from "@/lib/demo/queries";
 import { shouldAskHeardFrom } from "@/lib/onboarding/heard-from";
 
 // A snooze hides the offer until a real instant, never absurdly far off (the
@@ -40,18 +39,13 @@ export async function GET() {
   const supabase = await createClient();
 
   const settings = await getUserSettings(supabase, userId);
-  // Only worked out for someone who hasn't seen the first tour: everyone else
-  // is past the point where the demo question could be asked.
-  const offerDemo = settings.has_completed_tour
-    ? false
-    : shouldOfferDemo({
-        demoState: await getDemoState(supabase, userId).catch(() => "unavailable" as const),
-        hasTrades: await hasAnyTrades(supabase).catch(() => true),
-        hasCompletedTour: settings.has_completed_tour,
-      });
-  // "How did you hear about us?", asked before everything else on a new
-  // account's first sign-in. Only looked up while the first-run flow is still
-  // ahead; a failed lookup means "don't ask" rather than blocking the app.
+  // First run (onboarding, 2026-11-19) opens on "Log your first trade" for an
+  // account that has not finished it and has no trades yet. A failed count
+  // reads as "has trades": better to skip the screen than to show it to
+  // someone with a journal already.
+  const firstTrade = settings.has_completed_tour ? false : !(await hasAnyTrades(supabase).catch(() => true));
+  // "How did you hear about us?", asked once first run ends. Only looked up
+  // while first run is still ahead; a failed lookup means "don't ask".
   const askHeardFrom = settings.has_completed_tour
     ? false
     : await supabase.auth
@@ -61,8 +55,7 @@ export async function GET() {
   return NextResponse.json({
     hasCompletedTour: settings.has_completed_tour,
     askHeardFrom,
-    // Phase 4D: ask "Start with a demo journal?" before the welcome.
-    offerDemo,
+    firstTrade,
     isPaid: isPaidUser(settings),
     // Null on both means migration 0049 has not been applied: the client
     // falls back to localStorage rather than reading a missing column as

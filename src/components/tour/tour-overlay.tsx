@@ -12,10 +12,16 @@ import { TOURS, isTourName, stepMatchesPath, type PhoneOpener, type TourName, ty
 import { PHONE_EDGE, phoneDock, phoneScrollDelta } from "@/lib/tour/phone-placement";
 import { navDirections, type NavDirections } from "@/lib/tour/nav-target";
 import { nextStep, openerOf, placeStep, prevStep, resumeStep, type EngineContext } from "@/lib/tour/engine";
-import { QUICK_TRADE_CLOSED_EVENT, QUICK_TRADE_OPENED_EVENT, TRADE_CREATED_EVENT, signalCloseSheets } from "@/lib/tour/signals";
-import { WelcomeModal } from "./welcome-modal";
+import {
+  QUICK_TRADE_CLOSED_EVENT,
+  QUICK_TRADE_HASH,
+  QUICK_TRADE_OPENED_EVENT,
+  TRADE_CREATED_EVENT,
+  requestQuickTrade,
+  signalCloseSheets,
+} from "@/lib/tour/signals";
+import { ScreenshotTradeDialog } from "@/app/trades/screenshot-trade-button";
 import { usePreferences } from "@/components/preferences/preferences-provider";
-import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
 import { HeardFromModal } from "@/components/onboarding/heard-from-modal";
 
 // The guided tour.
@@ -57,9 +63,9 @@ const PAID_OFFER_SESSION_KEY = "tl-paid-tour-offer-seen";
 
 interface TourSettings {
   hasCompletedTour: boolean;
-  /** Phase 4D: ask "Start with a demo journal?" before the welcome. */
-  offerDemo?: boolean;
-  /** "How did you hear about us?", asked before the demo question. */
+  /** A new account with no trades: open on "Log your first trade". */
+  firstTrade?: boolean;
+  /** "How did you hear about us?", asked once the first trade is in (or skipped). */
   askHeardFrom?: boolean;
   isPaid: boolean;
   paidTourDismissed: boolean | null;
@@ -198,7 +204,9 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-type Phase = "idle" | "heard-from" | "demo-offer" | "welcome" | "paid-offer" | "touring";
+// First run (onboarding, 2026-11-19): "first-trade" is the screenshot screen;
+// "first-trade-typing" is Quick trade opened from it, waiting for the trade.
+type Phase = "idle" | "first-trade" | "first-trade-typing" | "heard-from" | "paid-offer" | "touring";
 
 interface Saved {
   tour: TourName;
@@ -273,8 +281,10 @@ export function TourOverlay() {
   const [tour, setTour] = useState<TourName>("basics");
   const steps = TOURS[tour];
   const [phase, setPhase] = useState<Phase>("idle");
-  // Whether the demo question follows "How did you hear about us?".
-  const offerDemoAfter = useRef(false);
+  // First run: whether to ask "How did you hear about us?" once it ends, and
+  // when it started, for the time-to-first-trade the analytics event carries.
+  const askHeardFromAfter = useRef(false);
+  const firstRunStarted = useRef(0);
   const [stepIndex, setStepIndex] = useState(0);
   const step: TourStep | undefined = steps[stepIndex];
 
@@ -351,7 +361,7 @@ export function TourOverlay() {
   const { track } = useAnalytics();
   useEffect(() => {
     const root = document.documentElement;
-    const inTour = phase === "heard-from" || phase === "demo-offer" || phase === "welcome" || phase === "touring";
+    const inTour = phase === "first-trade" || phase === "first-trade-typing" || phase === "heard-from" || phase === "touring";
     if (inTour && !offRoute) root.dataset.tour = "active";
     else delete root.dataset.tour;
     return () => {
@@ -360,10 +370,10 @@ export function TourOverlay() {
   }, [phase, offRoute]);
 
   const finish = useCallback((outcome: "completed" | "skipped") => {
-    if (phase === "touring" || phase === "welcome") {
+    if (phase === "touring") {
       track(outcome === "completed" ? "tour_completed" : "tour_skipped", {
         tour,
-        ...(outcome === "completed" ? { steps: steps.length } : { atStep: phase === "welcome" ? 0 : stepIndex + 1 }),
+        ...(outcome === "completed" ? { steps: steps.length } : { atStep: stepIndex + 1 }),
       });
     }
     setPhase("idle");
@@ -467,6 +477,39 @@ export function TourOverlay() {
     };
   }, [phase, step, stepIndex, steps, engineContext, markDone, show]);
 
+  // First run over, however it ended: recorded once, never shown again, then
+  // "How did you hear about us?" if that is still unanswered.
+  const endFirstRun = useCallback(
+    (path: "screenshot" | "sample" | "typed" | "skipped") => {
+      const seconds = Math.max(0, Math.min(86_400, Math.round((Date.now() - firstRunStarted.current) / 1000)));
+      track("first_trade", { path, seconds });
+      fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {});
+      setPhase(askHeardFromAfter.current ? "heard-from" : "idle");
+    },
+    [track],
+  );
+
+  // "Type it in instead": Quick trade, on this page when it has one, else the
+  // dashboard's (a client navigation, so this state survives the trip).
+  const typeInstead = useCallback(() => {
+    setPhase("first-trade-typing");
+    if (!requestQuickTrade()) router.push(`/dashboard${QUICK_TRADE_HASH}`);
+  }, [router]);
+
+  // While typing it: a created trade ends first run; closing the form without
+  // one goes back to the first screen rather than leaving the user nowhere.
+  useEffect(() => {
+    if (phase !== "first-trade-typing") return;
+    const onCreated = () => endFirstRun("typed");
+    const onClosed = () => setPhase("first-trade");
+    window.addEventListener(TRADE_CREATED_EVENT, onCreated);
+    window.addEventListener(QUICK_TRADE_CLOSED_EVENT, onClosed);
+    return () => {
+      window.removeEventListener(TRADE_CREATED_EVENT, onCreated);
+      window.removeEventListener(QUICK_TRADE_CLOSED_EVENT, onClosed);
+    };
+  }, [phase, endFirstRun]);
+
   // Replay requests from the "?" menu.
   useEffect(() => {
     const onReplay = (e: Event) => {
@@ -503,10 +546,19 @@ export function TourOverlay() {
       .then((data: TourSettings | null) => {
         if (!data) return;
         if (!data.hasCompletedTour) {
-          // "How did you hear about us?" first, then the demo question, so
-          // the tour runs over whichever journal the user chose.
-          offerDemoAfter.current = data.offerDemo === true;
-          setPhase(data.askHeardFrom ? "heard-from" : data.offerDemo ? "demo-offer" : "welcome");
+          // First run is one screen: log a trade (onboarding, 2026-11-19).
+          // The demo journal, the welcome card and the auto-started tour used
+          // to stand in front of it; the tour is still one click away in the
+          // "?" menu. An account that already has trades (imported before its
+          // first sign-in) has nothing to be walked to, so first run just ends.
+          askHeardFromAfter.current = data.askHeardFrom === true;
+          if (data.firstTrade) {
+            firstRunStarted.current = Date.now();
+            setPhase("first-trade");
+          } else {
+            fetch("/api/settings/tour", { method: "PATCH" }).catch(() => {});
+            setPhase(data.askHeardFrom ? "heard-from" : "idle");
+          }
           return;
         }
 
@@ -799,14 +851,21 @@ export function TourOverlay() {
     };
   }, [stripH]);
 
+  if (phase === "first-trade") {
+    return (
+      <ScreenshotTradeDialog
+        open
+        onClose={() => endFirstRun("skipped")}
+        firstRun={{
+          onCreated: (_id, path) => endFirstRun(path),
+          onTypeInstead: typeInstead,
+          onSkip: () => endFirstRun("skipped"),
+        }}
+      />
+    );
+  }
   if (phase === "heard-from") {
-    return <HeardFromModal onDone={() => setPhase(offerDemoAfter.current ? "demo-offer" : "welcome")} />;
-  }
-  if (phase === "demo-offer") {
-    return <DemoOfferModal onDone={() => setPhase("welcome")} />;
-  }
-  if (phase === "welcome") {
-    return <WelcomeModal stepCount={TOURS.basics.length} onAccept={() => begin("basics")} onDecline={() => finish("skipped")} />;
+    return <HeardFromModal onDone={() => setPhase("idle")} />;
   }
   if (phase === "paid-offer" && prefs.tourOffers) {
     // Both answers write locally first and tell the server second. The local

@@ -104,11 +104,16 @@ function throwawayEmail(): string {
 }
 
 /**
- * `askHeardFrom: true` leaves "How did you hear about us?" unanswered, so the
- * first sign-in asks it. Every other spec gets an account that already
- * answered, so the question never stands between it and what it tests.
+ * By default the account has already been through first run (the "Log your
+ * first trade" screen) and answered "How did you hear about us?", so neither
+ * stands between a spec and what it tests.
+ *
+ * `firstRun: true` is a brand-new account: its first sign-in opens on the
+ * first-trade screen, then asks how they heard about us. `askHeardFrom`
+ * alone leaves only the question unanswered.
  */
-export async function createTestUser(options: { askHeardFrom?: boolean } = {}): Promise<TestUser> {
+export async function createTestUser(options: { firstRun?: boolean; askHeardFrom?: boolean } = {}): Promise<TestUser> {
+  const askHeardFrom = options.askHeardFrom ?? options.firstRun ?? false;
   const email = throwawayEmail();
   const password = `E2e!${Math.random().toString(36).slice(2)}Aa1`;
 
@@ -123,10 +128,19 @@ export async function createTestUser(options: { askHeardFrom?: boolean } = {}): 
     user_metadata: {
       age_confirmed: true,
       accepted_terms_version: TERMS_VERSION,
-      ...(options.askHeardFrom ? {} : { heard_from: "other" }),
+      ...(askHeardFrom ? {} : { heard_from: "other" }),
     },
   });
   if (error || !data.user) throw new Error(`could not create test user: ${error?.message}`);
+
+  if (!options.firstRun) {
+    // The sign-up trigger (0003) has just made the settings row.
+    const { error: settingsError } = await admin
+      .from("user_settings")
+      .update({ has_completed_tour: true })
+      .eq("user_id", data.user.id);
+    if (settingsError) throw new Error(`could not finish first run for test user: ${settingsError.message}`);
+  }
 
   return { id: data.user.id, email, password };
 }
