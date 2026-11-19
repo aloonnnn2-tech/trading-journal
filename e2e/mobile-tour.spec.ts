@@ -71,8 +71,12 @@ async function next(page: Page) {
 test("the four-stop core tour runs start to finish on a 360px phone", async ({ page }) => {
   test.setTimeout(240_000);
   await signIn(page, user);
-  await page.getByRole("button", { name: /no thanks, start empty/i }).tap({ timeout: 30_000 });
-  await page.getByRole("button", { name: /show me around/i }).tap({ timeout: 30_000 });
+  // First run opens on the "Log your first trade" screen now, not the tour
+  // (first-trade.spec.ts); the tour is started from its saved place here.
+  // Step 1 lives on the dashboard, where this lands, so it picks up by itself
+  // with no Resume to tap.
+  await page.evaluate(() => localStorage.setItem("tl-tour", JSON.stringify({ tour: "basics", step: 0 })));
+  await page.reload();
 
   await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
   await expectCardClearOfTarget(page, "Quick trade button");

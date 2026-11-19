@@ -38,3 +38,16 @@ export const QUICK_TRADE_OPENED_EVENT = "trading-lens:tour-quick-trade-opened";
 export function signalQuickTradeOpened() {
   window.dispatchEvent(new CustomEvent(QUICK_TRADE_OPENED_EVENT));
 }
+
+// First-run onboarding's "Type it in instead": open Quick trade wherever it is
+// on the page. Returns whether a Quick trade button answered; when none is on
+// this page the caller sends the user to the dashboard's, with #quick-trade so
+// it opens there on arrival.
+export const OPEN_QUICK_TRADE_EVENT = "trading-lens:open-quick-trade";
+export const QUICK_TRADE_HASH = "#quick-trade";
+
+export function requestQuickTrade(): boolean {
+  const detail = { handled: false };
+  window.dispatchEvent(new CustomEvent(OPEN_QUICK_TRADE_EVENT, { detail }));
+  return detail.handled;
+}

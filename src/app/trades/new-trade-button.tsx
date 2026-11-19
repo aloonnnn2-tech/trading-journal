@@ -1,12 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FormError } from "@/components/form-error";
 import { failureMessage } from "@/lib/api/failure-message";
 import { useDialog } from "@/lib/a11y/use-dialog";
-import { signalQuickTradeClosed, signalQuickTradeOpened, signalTradeCreated } from "@/lib/tour/signals";
+import {
+  OPEN_QUICK_TRADE_EVENT,
+  QUICK_TRADE_HASH,
+  signalQuickTradeClosed,
+  signalQuickTradeOpened,
+  signalTradeCreated,
+} from "@/lib/tour/signals";
 import { deriveBatchedMoneyFields } from "@/lib/trades/derive-inputs";
 import type { EditableCoreField } from "@/lib/trades/types";
 import { newIdempotencyKey } from "@/lib/http/idempotency-key";
@@ -257,19 +263,56 @@ export function QuickTradeButton({ accountBalance = null }: { accountBalance?: n
     }
   }
 
+  function openForm() {
+    signalQuickTradeOpened();
+    // Set on open, not on mount: a tab left open overnight would
+    // otherwise offer yesterday as "today".
+    const today = localToday();
+    setEntryDate(today);
+    setExitDate(today);
+    setOpen(true);
+  }
+
+  // Opened from first-run onboarding ("Type it in instead"): by an event when
+  // this button is on the page, or by #quick-trade when the user was sent here
+  // for it. A page can hold two of these (the page's own and the phone tab
+  // bar's), so only a button that is actually showing answers, and only the
+  // first. A hidden one's form would open inside a hidden parent.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // openForm's work, with only stable setters, so the listener never goes stale.
+    const openNow = () => {
+      signalQuickTradeOpened();
+      const today = localToday();
+      setEntryDate(today);
+      setExitDate(today);
+      setOpen(true);
+    };
+    const showing = () => (buttonRef.current?.getClientRects().length ?? 0) > 0;
+    const onRequest = (e: Event) => {
+      const detail = (e as CustomEvent<{ handled: boolean }>).detail;
+      if (!detail || detail.handled || !showing()) return;
+      detail.handled = true;
+      openNow();
+    };
+    window.addEventListener(OPEN_QUICK_TRADE_EVENT, onRequest);
+    if (window.location.hash === QUICK_TRADE_HASH && showing()) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      const timer = window.setTimeout(() => openNow(), 0);
+      return () => {
+        window.clearTimeout(timer);
+        window.removeEventListener(OPEN_QUICK_TRADE_EVENT, onRequest);
+      };
+    }
+    return () => window.removeEventListener(OPEN_QUICK_TRADE_EVENT, onRequest);
+  }, []);
+
   return (
     <>
       <button
+        ref={buttonRef}
         data-tour-id="dashboard-quick-trade"
-        onClick={() => {
-          signalQuickTradeOpened();
-          // Set on open, not on mount: a tab left open overnight would
-          // otherwise offer yesterday as "today".
-          const today = localToday();
-          setEntryDate(today);
-          setExitDate(today);
-          setOpen(true);
-        }}
+        onClick={openForm}
         className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white dark:text-zinc-950 shadow-[0_1px_2px_rgba(28,27,24,0.2)] hover:brightness-110"
       >
         Quick trade

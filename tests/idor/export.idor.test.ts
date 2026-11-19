@@ -40,7 +40,7 @@ describe("GET /api/account/export", () => {
     const { GET } = await import("@/app/api/account/export/route");
     const res = await GET();
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="trading-lens-data-/);
+    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="trading-lenz-data-/);
 
     const text = await res.text();
     const doc = JSON.parse(text) as { sections: Record<string, unknown[]>; user_id: string };

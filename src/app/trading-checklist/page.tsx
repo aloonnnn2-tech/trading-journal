@@ -22,7 +22,7 @@ import { TradingChecklist } from "./checklist";
 // in the HTML a crawler reads.
 
 const PATH = "/trading-checklist";
-const TITLE = "Pre-Trade Checklist for Swing Traders (Free & Printable) | Trading Lens";
+const TITLE = "Pre-Trade Checklist for Swing Traders (Free & Printable) | Trading Lenz";
 const DESCRIPTION = `A free pre-trade checklist: ${CHECKLIST_COUNT} questions on setup, risk, size and mindset to answer before every entry. Tick them off online or print it.`;
 
 export const metadata: Metadata = freeToolMetadata({ path: PATH, title: TITLE, description: DESCRIPTION });
@@ -95,7 +95,7 @@ export default function TradingChecklistPage() {
 
       <FreeToolCta heading="Find out which boxes you skip" actions={<SignUpButton />}>
         <p>
-          Trading Lens is a free trading journal that checks every trade you log against your own
+          Trading Lenz is a free trading journal that checks every trade you log against your own
           rules, so you can see which ones you break and what it costs you. Free to use, no card.
         </p>
       </FreeToolCta>

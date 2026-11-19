@@ -121,14 +121,14 @@ export const CLICK_LABELS: Record<string, string> = {
   "conversation-open": "Opened a **conversation** in Ask",
   "conversation-delete": "Deleted a **conversation** in Ask",
 
-  // Reviews of Trading Lens.
-  "review-submit": "Sent or updated their **review** of Trading Lens",
-  "review-remove": "Removed their **review** of Trading Lens",
+  // Reviews of Trading Lenz.
+  "review-submit": "Sent or updated their **review** of Trading Lenz",
+  "review-remove": "Removed their **review** of Trading Lenz",
   "review-prompt-not-now": "Said **Not now** to a review request",
   "review-prompt-never": "Said **Don't ask again** to review requests",
   "review-cta": "Clicked **Leave a review** on the homepage",
   "review-cta-floating": "Clicked the floating **Leave a review** button on the homepage",
-  "nav-review": "Opened **Rate Trading Lens** from the account menu",
+  "nav-review": "Opened **Rate Trading Lenz** from the account menu",
 
   // Paid plan.
   "see-plans": "Opened **Plans** from a paid feature",
@@ -186,6 +186,14 @@ export function clickName(label: unknown): ClickName {
 const PATH = z.string().min(1).max(300).regex(/^\//);
 const UUID_LIKE = z.string().max(64);
 const TOUR = z.enum(["basics", "features", "paid"]);
+// How a new account's first-run screen ended (onboarding, 2026-11-19).
+const FIRST_TRADE_PATH = z.enum(["screenshot", "sample", "typed", "skipped"]);
+function firstTradeWords(path: unknown): string {
+  if (path === "screenshot") return "from a **screenshot**";
+  if (path === "sample") return "with the **sample trade**";
+  if (path === "typed") return "by **typing it in**";
+  return "";
+}
 const NONE = z.object({}).strict();
 const REVIEW_SOURCE = z.enum(REVIEW_SOURCES);
 const reviewSourceName = (v: unknown): string =>
@@ -245,6 +253,15 @@ export const CLIENT_EVENTS = {
     props: z.object({ tour: TOUR, steps: z.number().int().min(0).max(100) }).strict(),
     sentence: (p) => `Finished the **${tourName(p.tour)}** tour (${num(p.steps) ?? "?"} steps)`,
   },
+  first_trade: {
+    category: "tour",
+    countLabel: "First-run screens finished",
+    props: z.object({ path: FIRST_TRADE_PATH, seconds: z.number().int().min(0).max(86_400) }).strict(),
+    sentence: (p) =>
+      p.path === "skipped"
+        ? `Skipped logging a first trade (after ${num(p.seconds) ?? "?"}s)`
+        : `Logged their **first trade** ${firstTradeWords(p.path)} in ${num(p.seconds) ?? "?"}s`,
+  },
   tour_skipped: {
     category: "tour",
     countLabel: "Tours skipped",
@@ -274,7 +291,7 @@ export const SERVER_EVENTS = {
     countLabel: "Reviews written or edited",
     props: z.object({ rating: z.number().int().min(1).max(5), allowPublic: z.boolean(), source: REVIEW_SOURCE }).strict(),
     sentence: (p) =>
-      `Rated Trading Lens **${"★".repeat(num(p.rating) ?? 0) || "?"}**` + (p.allowPublic === true ? " (may be shown publicly)" : ""),
+      `Rated Trading Lenz **${"★".repeat(num(p.rating) ?? 0) || "?"}**` + (p.allowPublic === true ? " (may be shown publicly)" : ""),
   },
   trade_created: {
     category: "trades",

@@ -103,7 +103,17 @@ function throwawayEmail(): string {
   return `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@tradinglens-e2e.invalid`;
 }
 
-export async function createTestUser(): Promise<TestUser> {
+/**
+ * By default the account has already been through first run (the "Log your
+ * first trade" screen) and answered "How did you hear about us?", so neither
+ * stands between a spec and what it tests.
+ *
+ * `firstRun: true` is a brand-new account: its first sign-in opens on the
+ * first-trade screen, then asks how they heard about us. `askHeardFrom`
+ * alone leaves only the question unanswered.
+ */
+export async function createTestUser(options: { firstRun?: boolean; askHeardFrom?: boolean } = {}): Promise<TestUser> {
+  const askHeardFrom = options.askHeardFrom ?? options.firstRun ?? false;
   const email = throwawayEmail();
   const password = `E2e!${Math.random().toString(36).slice(2)}Aa1`;
 
@@ -115,9 +125,22 @@ export async function createTestUser(): Promise<TestUser> {
     email_confirm: true,
     // What the sign-up checkbox sends (migration 0061 records it), so the
     // one-time consent prompt never covers the pages these tests drive.
-    user_metadata: { age_confirmed: true, accepted_terms_version: TERMS_VERSION },
+    user_metadata: {
+      age_confirmed: true,
+      accepted_terms_version: TERMS_VERSION,
+      ...(askHeardFrom ? {} : { heard_from: "other" }),
+    },
   });
   if (error || !data.user) throw new Error(`could not create test user: ${error?.message}`);
+
+  if (!options.firstRun) {
+    // The sign-up trigger (0003) has just made the settings row.
+    const { error: settingsError } = await admin
+      .from("user_settings")
+      .update({ has_completed_tour: true })
+      .eq("user_id", data.user.id);
+    if (settingsError) throw new Error(`could not finish first run for test user: ${settingsError.message}`);
+  }
 
   return { id: data.user.id, email, password };
 }
@@ -170,4 +193,18 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
   // Opening the link spends nothing; the button does (src/app/auth/confirm).
   await page.getByRole("button", { name: "Confirm my email" }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+}
+
+/** The account's stored metadata, for checking what the app saved on it. */
+export async function getUserMetadata(id: string): Promise<Record<string, unknown>> {
+  const { data, error } = await admin.auth.admin.getUserById(id);
+  if (error || !data.user) throw new Error(`could not read test user: ${error?.message}`);
+  return data.user.user_metadata ?? {};
+}
+
+/** Every ticker in the account's journal, read with the service role. */
+export async function getUserTickers(id: string): Promise<string[]> {
+  const { data, error } = await admin.from("trades").select("ticker").eq("user_id", id);
+  if (error) throw new Error(`could not read trades: ${error.message}`);
+  return (data ?? []).map((r) => r.ticker as string).sort();
 }

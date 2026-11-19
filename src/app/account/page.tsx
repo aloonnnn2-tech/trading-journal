@@ -22,7 +22,7 @@ export default async function AccountPage() {
           Your data
         </h2>
         <p className="mb-4 text-sm text-zinc-500">
-          Download everything Trading Lens stores about your account as one file: trades and their
+          Download everything Trading Lenz stores about your account as one file: trades and their
           edit history, strategies, notes, settings, AI reviews and conversations, a list of your
           screenshots, and the usage events recorded for your account.
         </p>

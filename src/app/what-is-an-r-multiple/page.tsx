@@ -21,7 +21,7 @@ import { RConverter } from "./converter";
 
 const PATH = "/what-is-an-r-multiple";
 const PUBLISHED = "2026-11-01";
-const TITLE = "What Is an R Multiple in Trading? (With Examples) | Trading Lens";
+const TITLE = "What Is an R Multiple in Trading? (With Examples) | Trading Lenz";
 const HEADLINE = "What is an R multiple?";
 const DESCRIPTION =
   "An R multiple measures a trade's result in units of the risk you took. Learn the formula, see worked examples, and use R to compare trades fairly.";
@@ -185,7 +185,7 @@ export default function WhatIsAnRMultiplePage() {
 
       <FreeToolCta heading="Get your R multiple on every trade, automatically" actions={<SignUpButton />}>
         <p>
-          Trading Lens is a free trading journal. Log your entry, stop, size and exit, and it works out
+          Trading Lenz is a free trading journal. Log your entry, stop, size and exit, and it works out
           the R multiple of every trade for you. Free to use, no card.
         </p>
       </FreeToolCta>

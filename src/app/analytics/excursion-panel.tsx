@@ -1,5 +1,6 @@
 "use client";
 
+import { countOf } from "@/lib/format/count";
 import { useState } from "react";
 import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
@@ -60,7 +61,7 @@ function AveragesRow({ title, stats }: { title: string; stats: ExcursionAverages
     <div className="border-t border-zinc-200 py-3 dark:border-subtle">
       <p className="mb-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
         {title}
-        <span className="ml-2 font-mono text-xs text-zinc-500">{stats.trades} trades</span>
+        <span className="ml-2 font-mono text-xs text-zinc-500">{countOf(stats.trades, "trade")}</span>
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Avg MAE" value={pct(stats.avgMaePercent)} sub={r(stats.avgMaeR)} />
@@ -114,7 +115,7 @@ function ExitEfficiency({ stats }: { stats: ExcursionAverages }) {
       <p className="mb-2 text-sm font-medium text-zinc-900 dark:text-zinc-50">
         Exit efficiency
         <span className="ml-2 font-mono text-xs text-zinc-500">
-          {stats.captureSample} trades
+          {countOf(stats.captureSample, "trade")}
         </span>
       </p>
 

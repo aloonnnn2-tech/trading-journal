@@ -179,7 +179,7 @@ export function FreeToolCta({
   );
 }
 
-export function SignUpButton({ children = "Try Trading Lens free" }: { children?: React.ReactNode }) {
+export function SignUpButton({ children = "Try Trading Lenz free" }: { children?: React.ReactNode }) {
   return (
     <Link href="/sign-up" className={PRIMARY_BUTTON}>
       {children}

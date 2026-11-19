@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { ShowMoreOnPhone } from "@/components/mobile/show-more-on-phone";
@@ -75,7 +76,7 @@ function MistakeRow({ summary }: { summary: MistakeSummary }) {
             <p className="mt-0.5 font-mono text-sm text-zinc-800 dark:text-zinc-200">
               {formatR(withoutMistake.expectancy)}
               <span className="ml-2 text-xs text-zinc-500">
-                over {withoutMistake.withR} trades
+                over {countOf(withoutMistake.withR, "trade")}
               </span>
             </p>
           </div>

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { FeaturedReview, MyReview, ReviewInput } from "./types";
 
-// Reviews of Trading Lens (migration 0064). Every read and write here goes
+// Reviews of Trading Lenz (migration 0064). Every read and write here goes
 // through the caller's own RLS client: a user's review is theirs alone, and
 // the admin functions check is_admin in the database themselves.
 

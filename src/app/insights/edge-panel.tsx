@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -60,7 +61,7 @@ function SegmentRow({
 
       {/* Every figure the conclusion rests on, so it can be checked. */}
       <p className="mt-1 font-mono text-xs text-zinc-500">
-        {stats.trades} trades
+        {countOf(stats.trades, "trade")}
         {!WINNERS_ONLY_DIMENSIONS.has(segment.dimensionId) && (
           <>
             {" · "}

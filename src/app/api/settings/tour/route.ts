@@ -12,6 +12,8 @@ import {
 import { isPaidUser } from "@/lib/settings/plan";
 import { getDemoState, hasAnyTrades } from "@/lib/demo/queries";
 import { shouldOfferDemo } from "@/lib/demo/state";
+import { demoKeepsOwnTrades } from "@/lib/demo/keeps-own-trades";
+import { shouldAskHeardFrom } from "@/lib/onboarding/heard-from";
 
 // A snooze hides the offer until a real instant, never absurdly far off (the
 // client snoozes for days, not years).
@@ -39,19 +41,37 @@ export async function GET() {
   const supabase = await createClient();
 
   const settings = await getUserSettings(supabase, userId);
-  // Only worked out for someone who hasn't seen the first tour: everyone else
-  // is past the point where the demo question could be asked.
+  // First run (Alon, 2026-11-19): welcome card with the demo-data question,
+  // "How did you hear about us?", then "Log your first trade" for an account
+  // with no trades yet. All of it is only worked out while first run is still
+  // ahead. A failed trade count reads as "has trades": better to skip the
+  // first-trade screen than to show it over a journal that exists.
+  const hasTrades = settings.has_completed_tour ? true : await hasAnyTrades(supabase).catch(() => true);
+  const firstTrade = !settings.has_completed_tour && !hasTrades;
   const offerDemo = settings.has_completed_tour
     ? false
     : shouldOfferDemo({
         demoState: await getDemoState(supabase, userId).catch(() => "unavailable" as const),
-        hasTrades: await hasAnyTrades(supabase).catch(() => true),
+        hasTrades,
         hasCompletedTour: settings.has_completed_tour,
       });
+  // Choosing demo data still leads to "Log your first trade" once the demo
+  // keeps the user's own trades (0082); before that it would be deleted with
+  // the demo, so demo users skip the screen.
+  const demoKeepsTrades = offerDemo ? await demoKeepsOwnTrades(supabase) : false;
+  // A failed lookup means "don't ask".
+  const askHeardFrom = settings.has_completed_tour
+    ? false
+    : await supabase.auth
+        .getUser()
+        .then(({ data }) => (data.user ? shouldAskHeardFrom(false, data.user.user_metadata) : false))
+        .catch(() => false);
   return NextResponse.json({
     hasCompletedTour: settings.has_completed_tour,
-    // Phase 4D: ask "Start with a demo journal?" before the welcome.
     offerDemo,
+    demoKeepsTrades,
+    askHeardFrom,
+    firstTrade,
     isPaid: isPaidUser(settings),
     // Null on both means migration 0049 has not been applied: the client
     // falls back to localStorage rather than reading a missing column as

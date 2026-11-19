@@ -24,7 +24,7 @@ function LeaveReview() {
       data-track="review-cta"
       className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:border-primary/50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-200 dark:hover:text-zinc-50"
     >
-      Using Trading Lens? Leave a review
+      Using Trading Lenz? Leave a review
       <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
     </Link>
   );
@@ -42,7 +42,7 @@ export function Reviews({ reviews }: { reviews: FeaturedReview[] }) {
   return (
     <section aria-labelledby="reviews-heading" className="pb-16 pt-6">
       <div id="reviews-heading">
-        <SectionHeadline kicker="Reviews">From people using Trading Lens</SectionHeadline>
+        <SectionHeadline kicker="Reviews">From people using Trading Lenz</SectionHeadline>
       </div>
       <div className="mx-auto -mt-8 max-w-6xl px-6 sm:px-10">
         <p className="mb-6 text-center text-xs text-zinc-500">Selected reviews, shared with permission.</p>

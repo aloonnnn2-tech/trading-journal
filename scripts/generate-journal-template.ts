@@ -64,7 +64,7 @@ function formulas(row: number) {
 
 async function main() {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Trading Lens";
+  wb.creator = "Trading Lenz";
   wb.title = "Swing Trading Journal";
   // exceljs writes formulas without computed values; this makes Excel and
   // LibreOffice work them out on open instead of showing blanks.

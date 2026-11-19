@@ -1,5 +1,6 @@
 "use client";
 
+import { countOf } from "@/lib/format/count";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Cell } from "recharts";
 import { CHART, TICK, TOOLTIP_STYLE } from "@/lib/theme/colors";
 
@@ -33,7 +34,7 @@ export function InsightChart({
         />
         <Tooltip
           cursor={{ fill: "var(--color-subtle)", opacity: 0.35 }}
-          formatter={(value, _name, item) => [`${value}% (${item.payload.trades} trades)`, "Win rate"]}
+          formatter={(value, _name, item) => [`${value}% (${countOf(item.payload.trades, "trade")})`, "Win rate"]}
           contentStyle={TOOLTIP_STYLE}
         />
         <Bar dataKey="winRatePercent" radius={[4, 4, 0, 0]} maxBarSize={24} animationDuration={500}>

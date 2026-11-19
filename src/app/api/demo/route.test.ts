@@ -10,13 +10,22 @@ const enforceRateLimit = vi.fn();
 const rpc = vi.fn();
 const remove = vi.fn();
 const imageRows = vi.fn();
+// The demo trades' files only (0082 applied).
+const demoImageRows = vi.fn();
+// Whether 0082 is applied: the is_demo probe on trades answers without error.
+const keepsOwnTrades = vi.fn();
 
 vi.mock("@/lib/supabase/auth", () => ({ getUserIdFromHeader: () => getUserIdFromHeader() }));
 vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: (...a: unknown[]) => enforceRateLimit(...a) }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     rpc: (...a: unknown[]) => rpc(...a),
-    from: () => ({ select: async () => ({ data: imageRows() }) }),
+    from: (table: string) => ({
+      select: () =>
+        table === "trades"
+          ? { limit: async () => (keepsOwnTrades() ? { error: null } : { error: { code: "42703" } }) }
+          : Object.assign(Promise.resolve({ data: imageRows() }), { eq: async () => demoImageRows() }),
+    }),
     storage: { from: () => ({ remove: (...a: unknown[]) => remove(...a) }) },
   }),
 }));
@@ -33,6 +42,8 @@ beforeEach(() => {
   rpc.mockResolvedValue({ error: null });
   remove.mockResolvedValue({ error: null });
   imageRows.mockReturnValue([]);
+  demoImageRows.mockReturnValue({ data: [], error: null });
+  keepsOwnTrades.mockReturnValue(false);
 });
 
 describe("POST /api/demo", () => {
@@ -68,6 +79,25 @@ describe("POST /api/demo", () => {
     expect(rpc).toHaveBeenCalledWith("finish_demo_journal");
     expect(remove).toHaveBeenCalledWith(["user-1/a.png", "user-1/b.png"]);
     expect(await res.json()).toEqual({ ok: true, state: "done" });
+  });
+
+  it("with 0082 applied, removes only the demo trades' screenshots: the user's own trades stay, and so do theirs", async () => {
+    keepsOwnTrades.mockReturnValue(true);
+    imageRows.mockReturnValue([{ storage_path: "user-1/demo.png" }, { storage_path: "user-1/mine.png" }]);
+    demoImageRows.mockReturnValue({ data: [{ storage_path: "user-1/demo.png" }], error: null });
+    const res = await call({ action: "finish" });
+    expect(rpc).toHaveBeenCalledWith("finish_demo_journal");
+    expect(remove).toHaveBeenCalledWith(["user-1/demo.png"]);
+    expect(await res.json()).toEqual({ ok: true, state: "done" });
+  });
+
+  it("with 0082 applied, removes no file at all if listing the demo trades' files fails", async () => {
+    keepsOwnTrades.mockReturnValue(true);
+    imageRows.mockReturnValue([{ storage_path: "user-1/mine.png" }]);
+    demoImageRows.mockReturnValue({ data: null, error: { code: "PGRST100", message: "boom" } });
+    const res = await call({ action: "finish" });
+    expect(res.status).toBe(200);
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("leaves the files alone when the database refuses", async () => {

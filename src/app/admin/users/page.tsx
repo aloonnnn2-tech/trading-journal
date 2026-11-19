@@ -7,6 +7,9 @@ import { getUserDirectory, isAdmin, type UserDirectoryRow } from "@/lib/tracking
 import { Card } from "@/components/ui/Card";
 import { AdminTabs } from "../admin-tabs";
 import { UsersTable } from "./users-table";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getHeardFromByUser, type HeardFromRow } from "@/lib/onboarding/heard-from-admin";
+import { tallyHeardFrom } from "@/lib/onboarding/heard-from";
 
 export const metadata: Metadata = {
   title: "Users — Admin",
@@ -40,6 +43,19 @@ export default async function AdminUsersPage() {
     console.error("[admin/users] directory load failed:", loadError);
   }
 
+  // "How did you hear about us?" answers, from auth metadata (service role,
+  // after the admin check above). Optional: a failure here leaves the
+  // directory as it was rather than taking the page down.
+  let heardFrom = new Map<string, HeardFromRow>();
+  try {
+    heardFrom = await getHeardFromByUser(createAdminClient());
+  } catch (err) {
+    console.error("[admin/users] heard-from load failed:", err instanceof Error ? err.message : err);
+  }
+  const heardTally = tallyHeardFrom(
+    users.filter((u) => !u.excluded).map((u) => heardFrom.get(u.id)?.answer),
+  );
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <AdminTabs active="users" />
@@ -64,7 +80,27 @@ export default async function AdminUsersPage() {
           <code className="font-mono text-xs">{loadError}</code>
         </Card>
       ) : (
-        <UsersTable users={users} currentUserId={userId} />
+        <>
+          <Card hoverable={false} className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">How people heard about us</h2>
+            {heardTally.length === 0 ? (
+              <p className="text-sm text-zinc-500">No answers yet. New accounts are asked on their first sign-in.</p>
+            ) : (
+              <p className="flex flex-wrap gap-2 text-sm">
+                {heardTally.map((t) => (
+                  <span key={t.label} className="rounded-full bg-zinc-500/10 px-2.5 py-0.5 text-zinc-700 dark:text-zinc-300">
+                    {t.label} <span className="font-mono tabular-nums">{t.count}</span>
+                  </span>
+                ))}
+              </p>
+            )}
+          </Card>
+          <UsersTable
+            users={users}
+            currentUserId={userId}
+            heardFrom={Object.fromEntries(heardFrom)}
+          />
+        </>
       )}
     </div>
   );

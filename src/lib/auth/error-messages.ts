@@ -21,7 +21,7 @@ import type { AuthError } from "@supabase/supabase-js";
 
 const GENERIC = "Something went wrong. Please try again.";
 
-const OFFLINE = "Couldn't reach Trading Lens. Check your internet connection and try again.";
+const OFFLINE = "Couldn't reach Trading Lenz. Check your internet connection and try again.";
 
 /**
  * Keyed by Supabase's stable `code` field rather than by message text, which
@@ -84,7 +84,7 @@ const MESSAGES: Record<string, string> = {
   bad_json: GENERIC,
 
   // --- Server-side faults ----------------------------------------------
-  unexpected_failure: "Trading Lens had a problem on our end. Please try again in a moment.",
+  unexpected_failure: "Trading Lenz had a problem on our end. Please try again in a moment.",
   request_timeout: "That took too long to respond. Please try again.",
   captcha_failed: "The security check didn't pass. Reload the page and try again.",
 };

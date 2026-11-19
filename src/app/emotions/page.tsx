@@ -1,3 +1,4 @@
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/supabase/auth";
@@ -241,7 +242,7 @@ function OverTimeCard({ periods }: { periods: EmotionReport["periods"] }) {
           >
             <span className="text-sm text-zinc-900 dark:text-zinc-100 sm:w-36">{p.label}</span>
             <span className="tnum font-mono text-xs text-zinc-500 sm:w-28">
-              {p.trades} trades · {p.logged} logged
+              {countOf(p.trades, "trade")} · {p.logged} logged
             </span>
             <span className="flex flex-1 flex-wrap gap-1 text-xs">
               {p.topEmotions.length === 0 ? (

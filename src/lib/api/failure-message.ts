@@ -45,4 +45,4 @@ export async function failureMessage(response: Response, fallback: string): Prom
  * comes back: without the catch, a thrown fetch skipped the reset and left
  * it disabled until the page was reloaded.
  */
-export const NETWORK_FAILURE = "Couldn't reach Trading Lens. Check your connection and try again.";
+export const NETWORK_FAILURE = "Couldn't reach Trading Lenz. Check your connection and try again.";

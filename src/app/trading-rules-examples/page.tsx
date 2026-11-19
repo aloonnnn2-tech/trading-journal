@@ -24,7 +24,7 @@ import { RULE_GROUPS, rulesAsText } from "@/lib/free-tools/trading-rules";
 const PATH = "/trading-rules-examples";
 const PUBLISHED = "2026-11-01";
 const RULE_COUNT = RULE_GROUPS.reduce((n, g) => n + g.rules.length, 0);
-const TITLE = `Trading Rules Examples: ${RULE_COUNT} Rules for Swing Traders | Trading Lens`;
+const TITLE = `Trading Rules Examples: ${RULE_COUNT} Rules for Swing Traders | Trading Lenz`;
 const HEADLINE = "Trading rules examples";
 const DESCRIPTION =
   "Example trading rules for risk, entries, exits, position management and mindset, each with why it matters. Copy them into your own trading plan.";
@@ -76,8 +76,8 @@ export default function TradingRulesExamplesPage() {
           <p className="mt-6 flex items-start gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm leading-relaxed text-zinc-600 dark:border-subtle dark:bg-card dark:text-zinc-400">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
             <span>
-              Rules marked <span className={B}>Trading Lens checks this</span> can be added to Trading
-              Lens, which then checks every trade you log against them. The numbers are examples:
+              Rules marked <span className={B}>Trading Lenz checks this</span> can be added to Trading
+              Lenz, which then checks every trade you log against them. The numbers are examples:
               set them to your own account.
             </span>
           </p>
@@ -109,7 +109,7 @@ export default function TradingRulesExamplesPage() {
                     // primary-hover in light mode: plain primary on this tint is 4.48:1, just under AA.
                     <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-hover dark:text-primary">
                       <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                      Trading Lens checks this
+                      Trading Lenz checks this
                     </p>
                   )}
                 </li>
@@ -146,7 +146,7 @@ export default function TradingRulesExamplesPage() {
 
       <FreeToolCta heading="Have every trade checked against your rules" actions={<SignUpButton />}>
         <p>
-          Trading Lens is a free trading journal. Write your rules once and it checks each trade you
+          Trading Lenz is a free trading journal. Write your rules once and it checks each trade you
           log against them, so broken rules show up on their own. Free to use, no card.
         </p>
       </FreeToolCta>

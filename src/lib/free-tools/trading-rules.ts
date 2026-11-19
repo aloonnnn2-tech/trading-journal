@@ -1,8 +1,8 @@
 // The example rules on /trading-rules-examples.
 //
 // `checksWith` names the plan-rule subject (src/lib/plan-rules/subjects.ts)
-// that lets Trading Lens check the rule on every trade, and the page badges
-// those rules "Trading Lens checks this automatically". It is a claim, so it
+// that lets Trading Lenz check the rule on every trade, and the page badges
+// those rules "Trading Lenz checks this automatically". It is a claim, so it
 // sits under a test (trading-rules.test.ts) that fails if a key isn't a real
 // subject. A rule without the key gets no badge; leave it off unless the
 // app can genuinely evaluate the rule as written.

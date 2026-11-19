@@ -51,7 +51,7 @@ export function DeleteAccountSection({ email }: { email: string }) {
     captcha.current?.reset();
     setSending(false);
     if (!res) {
-      setError("Couldn't reach Trading Lens. Check your internet connection and try again.");
+      setError("Couldn't reach Trading Lenz. Check your internet connection and try again.");
       return;
     }
     const body = (await res.json().catch(() => null)) as { error?: unknown } | null;

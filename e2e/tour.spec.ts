@@ -32,21 +32,19 @@ test.afterAll(async () => {
 
 const card = (page: Page) => page.getByRole("region", { name: "Guided tour" });
 
-async function completedFlag(page: Page): Promise<boolean> {
-  const res = await page.request.get("/api/settings/tour");
-  expect(res.ok()).toBe(true);
-  return ((await res.json()) as { hasCompletedTour: boolean }).hasCompletedTour;
+
+// First run no longer starts the tour (onboarding, 2026-11-19: it opens on
+// the "Log your first trade" screen instead, first-trade.spec.ts). The tour is
+// taken from the "?" menu, which is where these start it.
+async function startCoreTour(page: Page) {
+  await page.getByTitle("Guided tours").click({ timeout: 30_000 });
+  await page.getByRole("button", { name: /getting started/i }).click();
+  await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
 }
 
-test("creating the trade from the first modal step carries the tour to the trade page", async ({ page }) => {
+test("creating the trade from the first tour step carries the tour to the trade page", async ({ page }) => {
   await signIn(page, user);
-
-  // A fresh account is first asked about the demo journal. Start empty.
-  await page.getByRole("button", { name: /no thanks, start empty/i }).click({ timeout: 30_000 });
-
-  // Then offered the tour. Take it.
-  await page.getByRole("button", { name: /show me around/i }).click({ timeout: 30_000 });
-  await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
+  await startCoreTour(page);
 
   // Step 1 is a task: the tour advances when Quick Trade opens.
   await page.getByRole("button", { name: /quick trade/i }).first().click();
@@ -60,7 +58,6 @@ test("creating the trade from the first modal step carries the tour to the trade
 
   await expect(card(page)).toContainText("Everything about it lives here", { timeout: 30_000 });
   await expect(card(page)).toContainText("Step 3 of 4");
-  expect(await completedFlag(page)).toBe(false);
 
   // Next stays on the page and lands on the last stop, the help button.
   await card(page).getByRole("button", { name: "Next" }).click();
@@ -135,9 +132,7 @@ test.describe("never guesses, never moves the page", () => {
   test("closing the form goes back; a slow trade page is waited for; Back points the way", async ({ page }) => {
     test.setTimeout(180_000);
     await signIn(page, fresh);
-    await page.getByRole("button", { name: /no thanks, start empty/i }).click({ timeout: 30_000 });
-    await page.getByRole("button", { name: /show me around/i }).click({ timeout: 30_000 });
-    await expect(card(page)).toContainText("Log your first trade", { timeout: 30_000 });
+    await startCoreTour(page);
 
     // Closing Quick trade without creating anything: straight back to step 1,
     // on the same page.

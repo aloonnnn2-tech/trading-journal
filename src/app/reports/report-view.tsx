@@ -1,5 +1,6 @@
 "use client";
 
+import { countOf } from "@/lib/format/count";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -173,7 +174,7 @@ export function ReportView({
               <Row
                 label="Best strategy"
                 value={report.bestStrategy.value}
-                detail={`${r(report.bestStrategy.stats.expectancy)} over ${report.bestStrategy.stats.trades} trades`}
+                detail={`${r(report.bestStrategy.stats.expectancy)} over ${countOf(report.bestStrategy.stats.trades, "trade")}`}
                 href={report.bestStrategy.drillDownUrl ?? undefined}
               />
             ) : (
@@ -186,7 +187,7 @@ export function ReportView({
               <Row
                 label="Worst strategy"
                 value={report.worstStrategy.value}
-                detail={`${r(report.worstStrategy.stats.expectancy)} over ${report.worstStrategy.stats.trades} trades`}
+                detail={`${r(report.worstStrategy.stats.expectancy)} over ${countOf(report.worstStrategy.stats.trades, "trade")}`}
                 href={report.worstStrategy.drillDownUrl ?? undefined}
               />
             )}
@@ -199,7 +200,7 @@ export function ReportView({
             <Row
               label="Most frequent mistake"
               value={report.biggestMistake?.label ?? "None recorded this period"}
-              detail={report.biggestMistake ? `${report.biggestMistake.trades} trades` : undefined}
+              detail={report.biggestMistake ? countOf(report.biggestMistake.trades, "trade") : undefined}
             />
             {report.bestTrade && (
               <Row
@@ -243,7 +244,7 @@ export function ReportView({
             <Row
               label="Median risk per trade"
               value={report.risk.median === null ? "Not recorded" : `${report.risk.median.toFixed(2)}%`}
-              detail={report.risk.recorded > 0 ? `over ${report.risk.recorded} trades` : undefined}
+              detail={report.risk.recorded > 0 ? `over ${countOf(report.risk.recorded, "trade")}` : undefined}
             />
             <Row
               label="Largest risk"

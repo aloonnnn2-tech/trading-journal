@@ -4,7 +4,7 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export const metadata: Metadata = {
-  title: "Cookies Policy — Trading Lens",
+  title: "Cookies Policy — Trading Lenz",
   robots: { index: false },
 };
 
@@ -56,13 +56,13 @@ export default function CookiesPage() {
           role="note"
         >
           <strong className="font-semibold">Pending legal review.</strong> This page accurately
-          describes what Trading Lens stores in your browser today, but it has not yet been
+          describes what Trading Lenz stores in your browser today, but it has not yet been
           reviewed by a lawyer. If you need a formal compliance statement, please contact us
           before relying on this page.
         </p>
 
         <p className={BODY}>
-          This page explains what Trading Lens stores in your browser, why, and what you can do
+          This page explains what Trading Lenz stores in your browser, why, and what you can do
           about it. It covers cookies and the two closely-related browser storage mechanisms we
           use, <span className="font-medium">local storage</span> and{" "}
           <span className="font-medium">session storage</span>, because from your point of view
@@ -174,7 +174,7 @@ export default function CookiesPage() {
 
         <h2 className={SECTION_HEADING}>About our usage analytics</h2>
         <p className={BODY}>
-          Trading Lens counts feature usage using its own database — not Google Analytics, and not
+          Trading Lenz counts feature usage using its own database — not Google Analytics, and not
           any third-party analytics or advertising service. These per-account counts only run
           when you are signed in; they are switched off on the home page, the sign-in and
           sign-up pages, and the legal pages. We record which pages of the app were opened and
@@ -213,7 +213,7 @@ export default function CookiesPage() {
         <h2 className={SECTION_HEADING}>Your choices</h2>
         <p className={BODY}>
           Every browser lets you view, block, and delete cookies and site data, usually under
-          Settings → Privacy. You can clear Trading Lens&apos;s stored data at any time. Be aware
+          Settings → Privacy. You can clear Trading Lenz&apos;s stored data at any time. Be aware
           that blocking the authentication cookie will sign you out and prevent you from signing
           back in, because that cookie is what keeps your session alive — it is not optional in
           the way a preference is.

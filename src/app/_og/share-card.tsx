@@ -20,7 +20,7 @@ import { ImageResponse } from "next/og";
 
 export const SHARE_CARD_SIZE = { width: 1200, height: 630 };
 export const SHARE_CARD_ALT =
-  "Trading Lens. Free, no credit card. See the pattern behind every trade.";
+  "Trading Lenz. Free, no credit card. See the pattern behind every trade.";
 
 // The spec's tokens (docs/design-audit.md, "Design tokens").
 const BG = "#101010";
@@ -74,7 +74,7 @@ export async function renderShareCard(): Promise<ImageResponse> {
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={markSrc} width={56} height={56} style={{ borderRadius: 12 }} alt="" />
-          <span style={{ fontSize: 34, color: INK, letterSpacing: -0.5 }}>Trading Lens</span>
+          <span style={{ fontSize: 34, color: INK, letterSpacing: -0.5 }}>Trading Lenz</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>

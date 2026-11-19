@@ -26,6 +26,7 @@ const SAMPLES: Record<string, Record<string, unknown>> = {
   review_prompt_dismissed: {},
   review_submitted: { rating: 5, allowPublic: true, source: "wow_import" },
   tour_skipped: { tour: "basics", atStep: 2 },
+  first_trade: { path: "sample", seconds: 48 },
   dashboard_viewed: {},
   analytics_panel_viewed: {},
   settings_viewed: {},

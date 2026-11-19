@@ -55,9 +55,9 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
 
 // The URLs from "Facts Alon supplies" in docs/design-audit.md.
 const SOCIALS = [
-  { href: "https://www.instagram.com/tradinglenz/", label: "Trading Lens on Instagram", icon: SOCIAL_ICON_PATHS.instagram },
-  { href: "https://www.tiktok.com/@trading_lenz", label: "Trading Lens on TikTok", icon: SOCIAL_ICON_PATHS.tiktok },
-  { href: "https://www.youtube.com/@TradingLenz", label: "Trading Lens on YouTube", icon: SOCIAL_ICON_PATHS.youtube },
+  { href: "https://www.instagram.com/tradinglenz/", label: "Trading Lenz on Instagram", icon: SOCIAL_ICON_PATHS.instagram },
+  { href: "https://www.tiktok.com/@trading_lenz", label: "Trading Lenz on TikTok", icon: SOCIAL_ICON_PATHS.tiktok },
+  { href: "https://www.youtube.com/@TradingLenz", label: "Trading Lenz on YouTube", icon: SOCIAL_ICON_PATHS.youtube },
 ];
 
 const LINK = "text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100";
@@ -75,7 +75,7 @@ export function LandingFooter() {
               className="flex items-center gap-2 font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
             >
               <BrandMark className="h-5 w-5" />
-              Trading Lens
+              Trading Lenz
             </Link>
             <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
               A trading journal that checks every trade against your own rules. Free, no card.
@@ -106,7 +106,7 @@ export function LandingFooter() {
               should confirm it (security hardening brief, Part B). */}
           <div className="flex flex-col items-center gap-1 text-center sm:items-start sm:text-left">
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              © {new Date().getFullYear()} Trading Lens
+              © {new Date().getFullYear()} Trading Lenz
             </span>
             <span className="max-w-md text-xs text-zinc-500 dark:text-zinc-400">
               A trading journal and education tool. Not financial advice.
