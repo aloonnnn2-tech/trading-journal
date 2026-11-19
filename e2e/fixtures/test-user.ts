@@ -103,7 +103,12 @@ function throwawayEmail(): string {
   return `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@tradinglens-e2e.invalid`;
 }
 
-export async function createTestUser(): Promise<TestUser> {
+/**
+ * `askHeardFrom: true` leaves "How did you hear about us?" unanswered, so the
+ * first sign-in asks it. Every other spec gets an account that already
+ * answered, so the question never stands between it and what it tests.
+ */
+export async function createTestUser(options: { askHeardFrom?: boolean } = {}): Promise<TestUser> {
   const email = throwawayEmail();
   const password = `E2e!${Math.random().toString(36).slice(2)}Aa1`;
 
@@ -115,7 +120,11 @@ export async function createTestUser(): Promise<TestUser> {
     email_confirm: true,
     // What the sign-up checkbox sends (migration 0061 records it), so the
     // one-time consent prompt never covers the pages these tests drive.
-    user_metadata: { age_confirmed: true, accepted_terms_version: TERMS_VERSION },
+    user_metadata: {
+      age_confirmed: true,
+      accepted_terms_version: TERMS_VERSION,
+      ...(options.askHeardFrom ? {} : { heard_from: "other" }),
+    },
   });
   if (error || !data.user) throw new Error(`could not create test user: ${error?.message}`);
 
@@ -170,4 +179,11 @@ export async function signIn(page: Page, user: TestUser): Promise<void> {
   // Opening the link spends nothing; the button does (src/app/auth/confirm).
   await page.getByRole("button", { name: "Confirm my email" }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+}
+
+/** The account's stored metadata, for checking what the app saved on it. */
+export async function getUserMetadata(id: string): Promise<Record<string, unknown>> {
+  const { data, error } = await admin.auth.admin.getUserById(id);
+  if (error || !data.user) throw new Error(`could not read test user: ${error?.message}`);
+  return data.user.user_metadata ?? {};
 }

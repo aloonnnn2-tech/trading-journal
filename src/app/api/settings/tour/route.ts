@@ -12,6 +12,7 @@ import {
 import { isPaidUser } from "@/lib/settings/plan";
 import { getDemoState, hasAnyTrades } from "@/lib/demo/queries";
 import { shouldOfferDemo } from "@/lib/demo/state";
+import { shouldAskHeardFrom } from "@/lib/onboarding/heard-from";
 
 // A snooze hides the offer until a real instant, never absurdly far off (the
 // client snoozes for days, not years).
@@ -48,8 +49,18 @@ export async function GET() {
         hasTrades: await hasAnyTrades(supabase).catch(() => true),
         hasCompletedTour: settings.has_completed_tour,
       });
+  // "How did you hear about us?", asked before everything else on a new
+  // account's first sign-in. Only looked up while the first-run flow is still
+  // ahead; a failed lookup means "don't ask" rather than blocking the app.
+  const askHeardFrom = settings.has_completed_tour
+    ? false
+    : await supabase.auth
+        .getUser()
+        .then(({ data }) => (data.user ? shouldAskHeardFrom(false, data.user.user_metadata) : false))
+        .catch(() => false);
   return NextResponse.json({
     hasCompletedTour: settings.has_completed_tour,
+    askHeardFrom,
     // Phase 4D: ask "Start with a demo journal?" before the welcome.
     offerDemo,
     isPaid: isPaidUser(settings),

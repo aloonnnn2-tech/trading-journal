@@ -7,6 +7,7 @@ import type { UserDirectoryRow } from "@/lib/tracking/admin-queries";
 import { formatDate } from "@/lib/dates/format";
 import { formatActive, formatRelative } from "./format";
 import { useMounted } from "@/lib/use-mounted";
+import type { HeardFromRow } from "@/lib/onboarding/heard-from-admin";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-primary sm:max-w-sm";
@@ -31,9 +32,12 @@ const TEST_DOMAIN = /@[^@]+\.(test|invalid|example|localhost)$/i;
 export function UsersTable({
   users: initialUsers,
   currentUserId,
+  heardFrom = {},
 }: {
   users: UserDirectoryRow[];
   currentUserId: string;
+  /** "How did you hear about us?" and the sign-up link source, by user id. */
+  heardFrom?: Record<string, HeardFromRow>;
 }) {
   const [users, setUsers] = useState(initialUsers);
   const [filter, setFilter] = useState("");
@@ -173,6 +177,19 @@ export function UsersTable({
                         {u.admin && (
                           <span className="rounded-full bg-primary/10 px-1.5 py-px font-medium text-primary">
                             admin
+                          </span>
+                        )}
+                        {heardFrom[u.id]?.heardFrom && (
+                          <span
+                            title="Their answer to “How did you hear about us?”"
+                            className="rounded-full bg-accent/10 px-1.5 py-px font-medium text-accent"
+                          >
+                            {heardFrom[u.id].heardFrom}
+                          </span>
+                        )}
+                        {heardFrom[u.id]?.signupSource && (
+                          <span title="The link or site their first visit came from" className="text-zinc-500">
+                            via {heardFrom[u.id].signupSource}
                           </span>
                         )}
                         {u.excluded && (

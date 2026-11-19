@@ -16,6 +16,7 @@ import { QUICK_TRADE_CLOSED_EVENT, QUICK_TRADE_OPENED_EVENT, TRADE_CREATED_EVENT
 import { WelcomeModal } from "./welcome-modal";
 import { usePreferences } from "@/components/preferences/preferences-provider";
 import { DemoOfferModal } from "@/components/demo/demo-offer-modal";
+import { HeardFromModal } from "@/components/onboarding/heard-from-modal";
 
 // The guided tour.
 //
@@ -58,6 +59,8 @@ interface TourSettings {
   hasCompletedTour: boolean;
   /** Phase 4D: ask "Start with a demo journal?" before the welcome. */
   offerDemo?: boolean;
+  /** "How did you hear about us?", asked before the demo question. */
+  askHeardFrom?: boolean;
   isPaid: boolean;
   paidTourDismissed: boolean | null;
   paidTourSnoozedUntil: string | null;
@@ -195,7 +198,7 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-type Phase = "idle" | "demo-offer" | "welcome" | "paid-offer" | "touring";
+type Phase = "idle" | "heard-from" | "demo-offer" | "welcome" | "paid-offer" | "touring";
 
 interface Saved {
   tour: TourName;
@@ -270,6 +273,8 @@ export function TourOverlay() {
   const [tour, setTour] = useState<TourName>("basics");
   const steps = TOURS[tour];
   const [phase, setPhase] = useState<Phase>("idle");
+  // Whether the demo question follows "How did you hear about us?".
+  const offerDemoAfter = useRef(false);
   const [stepIndex, setStepIndex] = useState(0);
   const step: TourStep | undefined = steps[stepIndex];
 
@@ -346,7 +351,7 @@ export function TourOverlay() {
   const { track } = useAnalytics();
   useEffect(() => {
     const root = document.documentElement;
-    const inTour = phase === "demo-offer" || phase === "welcome" || phase === "touring";
+    const inTour = phase === "heard-from" || phase === "demo-offer" || phase === "welcome" || phase === "touring";
     if (inTour && !offRoute) root.dataset.tour = "active";
     else delete root.dataset.tour;
     return () => {
@@ -498,9 +503,10 @@ export function TourOverlay() {
       .then((data: TourSettings | null) => {
         if (!data) return;
         if (!data.hasCompletedTour) {
-          // The demo question comes first, so the tour runs over whichever
-          // journal the user chose.
-          setPhase(data.offerDemo ? "demo-offer" : "welcome");
+          // "How did you hear about us?" first, then the demo question, so
+          // the tour runs over whichever journal the user chose.
+          offerDemoAfter.current = data.offerDemo === true;
+          setPhase(data.askHeardFrom ? "heard-from" : data.offerDemo ? "demo-offer" : "welcome");
           return;
         }
 
@@ -793,6 +799,9 @@ export function TourOverlay() {
     };
   }, [stripH]);
 
+  if (phase === "heard-from") {
+    return <HeardFromModal onDone={() => setPhase(offerDemoAfter.current ? "demo-offer" : "welcome")} />;
+  }
   if (phase === "demo-offer") {
     return <DemoOfferModal onDone={() => setPhase("welcome")} />;
   }
