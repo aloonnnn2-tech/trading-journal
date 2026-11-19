@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { countOf } from "@/lib/format/count";
 import Papa from "papaparse";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -154,7 +155,7 @@ export function ImportWizard({
       console.error("[import] failed to read file:", err);
       setParseError(
         extension === "json"
-          ? "That JSON file couldn't be read. Check it's valid JSON exported from Trading Lens."
+          ? "That JSON file couldn't be read. Check it's valid JSON exported from Trading Lenz."
           : "That file couldn't be read. Check it opens correctly, then try again.",
       );
     } finally {
@@ -317,7 +318,7 @@ export function ImportWizard({
 
       {result && (
         <div className="rounded-lg border border-zinc-200 dark:border-subtle bg-white dark:bg-card p-4">
-          <p className="text-sm text-profit">Imported {result.imported} trades.</p>
+          <p className="text-sm text-profit">Imported {countOf(result.imported, "trade")}.</p>
           {result.errors.length > 0 && (
             <div className="mt-2">
               <p className="text-sm text-amber-400">{result.errors.length} row issue(s):</p>

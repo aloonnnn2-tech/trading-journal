@@ -1,4 +1,4 @@
-// What every figure in Trading Lens means, exactly as the app computes it,
+// What every figure in Trading Lenz means, exactly as the app computes it,
 // and how to judge it -- so Ask can answer "what's my MAE, and is that good?"
 // for anything in the journal (Alon, 2026-10-17), without the model guessing
 // at a definition or reading a bare field name.
@@ -33,7 +33,7 @@ export interface MetricEntry {
   aliases: string[];
   /** Where it appears in the app. */
   where: string;
-  /** How Trading Lens computes it. */
+  /** How Trading Lenz computes it. */
   definition: string;
   /** Which direction is better, and common rules of thumb (labelled as such). */
   howToRead: string;

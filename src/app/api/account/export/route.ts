@@ -63,7 +63,7 @@ export async function GET() {
           `{"exported_at":${JSON.stringify(exportedAt)},"user_id":${JSON.stringify(userId)},` +
             `"account":${JSON.stringify(account)},` +
             `"note":${JSON.stringify(
-              "Everything Trading Lens stores about this account. Screenshot links expire after one hour." +
+              "Everything Trading Lenz stores about this account. Screenshot links expire after one hour." +
                 (admin ? "" : " Usage events could not be included on this server.") +
                 (account ? "" : " The sign-in record (account) could not be read; ask support for it."),
             )},"sections":{`,
@@ -89,7 +89,7 @@ export async function GET() {
   return new Response(stream, {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="trading-lens-data-${day}.json"`,
+      "Content-Disposition": `attachment; filename="trading-lenz-data-${day}.json"`,
       "Cache-Control": "no-store",
     },
   });

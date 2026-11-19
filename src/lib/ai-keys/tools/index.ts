@@ -215,7 +215,7 @@ const DEFS: Def[] = [
   {
     name: "explain_metric",
     compactSet: true,
-    full: "Explain any figure in the journal and give this trader's value in one call: what it means and exactly how Trading Lens computes it, how to judge it (direction, common rules of thumb), its caveats, where it is in the app, and their current value. Use for 'what is my X / is my X good'. Accepts names and aliases (MAE, MFE, capture, profit factor, expectancy, win rate, drawdown, risk per trade, streaks, edge, mistakes, R multiple, ...). Per-trade metrics take `trade` ({id} or {ticker, date}). An unknown name returns the list of known ones.",
+    full: "Explain any figure in the journal and give this trader's value in one call: what it means and exactly how Trading Lenz computes it, how to judge it (direction, common rules of thumb), its caveats, where it is in the app, and their current value. Use for 'what is my X / is my X good'. Accepts names and aliases (MAE, MFE, capture, profit factor, expectancy, win rate, drawdown, risk per trade, streaks, edge, mistakes, R multiple, ...). Per-trade metrics take `trade` ({id} or {ticker, date}). An unknown name returns the list of known ones.",
     compact: "Meaning, how to judge, and their value for any figure (MAE, PF, win rate...).",
     parameters: {
       type: "object",

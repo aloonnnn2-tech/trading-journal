@@ -8,7 +8,7 @@ import { METRIC_IDS, findMetric, type MetricEntry } from "../metrics/catalog";
 import { getTrade, getTradeSchema, type ToolContext } from "./journal";
 import { getReport } from "./reports";
 
-// explain_metric: what a figure means in Trading Lens, how to judge it, and
+// explain_metric: what a figure means in Trading Lenz, how to judge it, and
 // this trader's own value -- in ONE call, because a free key gets three
 // lookups per question and "what's my MAE and is it good?" should not spend
 // two of them (Alon, 2026-10-17).

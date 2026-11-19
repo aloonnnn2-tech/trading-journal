@@ -22,7 +22,7 @@ import { PositionSizeCalculator } from "./calculator";
 // in src/lib/position-size/calculate.ts, under its own tests.
 
 const PATH = "/position-size-calculator";
-const TITLE = "Position Size & R-Multiple Calculator for Swing Traders | Trading Lens";
+const TITLE = "Position Size & R-Multiple Calculator for Swing Traders | Trading Lenz";
 const DESCRIPTION =
   "Free position size calculator. Enter your account size, risk %, entry and stop to get the number of shares, your 1R, and 1R/2R/3R targets. No sign-up.";
 
@@ -123,7 +123,7 @@ export default function PositionSizeCalculatorPage() {
 
       <FreeToolCta heading="Track every trade in R" actions={<SignUpButton />}>
         <p>
-          Trading Lens is a free trading journal. Log your entry, stop and exit, and it works out your
+          Trading Lenz is a free trading journal. Log your entry, stop and exit, and it works out your
           R multiple and checks each trade against your own rules. Free to use, no card.
         </p>
       </FreeToolCta>

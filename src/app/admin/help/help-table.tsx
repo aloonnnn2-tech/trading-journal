@@ -14,7 +14,7 @@ const STATUS_STYLE: Record<HelpStatus, string> = {
 
 /** A mailto: link that can't be bent by what's in the request: every part encoded. */
 function replyHref(r: HelpRequestRow): string {
-  const subject = `Re: your Trading Lens help request (${topicLabel(r.topic)})`;
+  const subject = `Re: your Trading Lenz help request (${topicLabel(r.topic)})`;
   return `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent(subject)}`;
 }
 

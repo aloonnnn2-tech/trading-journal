@@ -67,7 +67,7 @@ export const FAQ: readonly FaqItem[] = [
     // No native app exists. The second sentence rests on the site working at
     // phone width, which was checked at 390px when this shipped.
     question: "Is there a mobile app?",
-    answer: "Not yet. Trading Lens runs in your browser, on a computer or a phone.",
+    answer: "Not yet. Trading Lenz runs in your browser, on a computer or a phone.",
   },
 ];
 

@@ -6,12 +6,12 @@ import { getMyReview } from "@/lib/reviews/queries";
 import { Card } from "@/components/ui/Card";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 
-// Rate Trading Lens: reached from the homepage's "Leave a review" button and
+// Rate Trading Lenz: reached from the homepage's "Leave a review" button and
 // the account menu. Signed out, sign-in brings you back here (next=/review,
 // an allowlisted path -- src/lib/auth/next-path.ts).
 
 export const metadata: Metadata = {
-  title: "Rate Trading Lens",
+  title: "Rate Trading Lenz",
   robots: { index: false },
 };
 
@@ -24,7 +24,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   return (
     <div className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 py-5 sm:p-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Rate Trading Lens</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Rate Trading Lenz</h1>
         <p className="mt-0.5 text-sm text-zinc-500">
           {review
             ? "Here is your review. Change anything, or remove it."

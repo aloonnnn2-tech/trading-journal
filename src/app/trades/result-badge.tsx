@@ -11,6 +11,7 @@ export function ResultBadge({ result, status }: { result: Trade["result"]; statu
   // A resting order has no result yet. Its row stores "open" (the enum's
   // neutral value) but showing that reads as a live position; the badge
   // follows the status instead.
-  const label = status === "pending" ? "pending" : result;
+  // "break_even" is the stored value, not a word to show anyone.
+  const label = status === "pending" ? "pending" : result === "break_even" ? "break even" : result;
   return <span className={`rounded-full px-2 py-0.5 text-xs ${colors[result]}`}>{label}</span>;
 }

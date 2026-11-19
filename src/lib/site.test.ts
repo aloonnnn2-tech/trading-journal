@@ -4,7 +4,7 @@ import { HOME_DESCRIPTION, HOME_TITLE, SITE_URL } from "./site";
 describe("homepage metadata", () => {
   it("uses the title the spec asks for, exactly", () => {
     expect(HOME_TITLE).toBe(
-      "Trading Lens \u2014 Free Trading Journal That Grades Every Trade Against Your Rules",
+      "Trading Lenz \u2014 Free Trading Journal That Grades Every Trade Against Your Rules",
     );
   });
 

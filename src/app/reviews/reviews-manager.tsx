@@ -1,5 +1,6 @@
 "use client";
 
+import { countOf } from "@/lib/format/count";
 import { useCallback, useEffect, useState } from "react";
 import { FormError } from "@/components/form-error";
 import Link from "next/link";
@@ -352,7 +353,7 @@ export function ReviewsManager({
         {confirming && preview ? (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
             <p className="text-sm text-amber-700 dark:text-amber-400">
-              This review will analyse {preview.trades} trades from {preview.period.label}, using
+              This review will analyse {countOf(preview.trades, "trade")} from {preview.period.label}, using
               your own {selected && PROVIDER_LABELS[selected.provider]} key. Continue?
             </p>
             <div className="mt-2 flex items-center gap-3">

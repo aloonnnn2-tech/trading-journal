@@ -84,7 +84,7 @@ export function ConsentGate() {
             One quick confirmation
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
-            We&apos;ve updated our Terms and Privacy Policy, and Trading Lens is for adults only. Please
+            We&apos;ve updated our Terms and Privacy Policy, and Trading Lenz is for adults only. Please
             confirm both to keep using your account.
           </p>
         </div>

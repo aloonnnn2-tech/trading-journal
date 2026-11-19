@@ -24,7 +24,8 @@ export default async function ImportPage() {
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Upload a CSV or Excel file from your broker, or re-import a journal you
-          previously exported as JSON.
+          previously exported as JSON. Any broker that lets you export your trades works: you
+          match its columns to ours on the next step, and nothing is saved until you confirm.
         </p>
       </div>
       <ImportWizard

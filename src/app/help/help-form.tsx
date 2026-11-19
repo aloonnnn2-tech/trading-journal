@@ -80,7 +80,7 @@ export function HelpForm() {
     captcha.current?.reset();
     setSending(false);
     if (!res) {
-      setError("Couldn't reach Trading Lens. Check your internet connection and try again.");
+      setError("Couldn't reach Trading Lenz. Check your internet connection and try again.");
       return;
     }
     if (!res.ok) {

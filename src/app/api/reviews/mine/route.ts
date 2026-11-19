@@ -7,7 +7,7 @@ import { deleteMyReview, getMyReview, getPromptState, isMissingReviews, saveMyRe
 import { reviewInputSchema } from "@/lib/reviews/schema";
 import { log } from "@/lib/observability/log";
 
-// The caller's own review of Trading Lens (migration 0064): read, write or
+// The caller's own review of Trading Lenz (migration 0064): read, write or
 // remove. Only ever their own row -- the RLS client and the user id from the
 // auth header, nothing from the request body.
 

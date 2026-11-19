@@ -24,7 +24,7 @@ export function ConfirmDeleteButton({ token }: { token: string }) {
     }
     if (!res || !res.ok) {
       const body = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : {};
-      setError(body.error ?? "Couldn't reach Trading Lens. Check your internet connection and try again.");
+      setError(body.error ?? "Couldn't reach Trading Lenz. Check your internet connection and try again.");
       setDeleting(false);
       return;
     }

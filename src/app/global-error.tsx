@@ -48,7 +48,7 @@ export default function GlobalError({
           }}
         >
           <h1 style={{ margin: "0 0 0.5rem", fontSize: "1.25rem", fontWeight: 600 }}>
-            Trading Lens couldn&apos;t start
+            Trading Lenz couldn&apos;t start
           </h1>
           <p style={{ margin: "0 0 1rem", fontSize: "0.875rem", color: "#71717a" }}>
             Something failed while loading the app itself. Reloading usually fixes it.

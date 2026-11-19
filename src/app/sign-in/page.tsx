@@ -176,7 +176,7 @@ function SignInForm() {
           </Link>
           <span aria-hidden="true">·</span>
           <a
-            href={`mailto:${HELP_EMAIL}?subject=Account%20deletion%20request&body=Please%20delete%20my%20Trading%20Lens%20account%20associated%20with%20this%20email%20address.`}
+            href={`mailto:${HELP_EMAIL}?subject=Account%20deletion%20request&body=Please%20delete%20my%20Trading%20Lenz%20account%20associated%20with%20this%20email%20address.`}
             className="hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             Delete my account
