@@ -18,6 +18,8 @@ export const PUBLIC_PATHS = [
   // Help must work for someone who can't sign in.
   "/help",
   "/paid-plan",
+  // The unsubscribe link in onboarding emails; opened signed out as often as not.
+  "/unsubscribe",
   // Free tools, found through search. Signed-in visitors see them too.
   ...FREE_TOOL_PATHS,
 ];
