@@ -62,7 +62,7 @@ export default async function AdminUsersPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Users</h1>
         <p className="mt-0.5 text-sm text-zinc-500">
-          Every account, with what it has done. Counts and timestamps only — no trade contents,
+          Every real account, with what it has done (test and demo accounts are hidden). Counts and timestamps only — no trade contents,
           notes or figures ever reach this page. Click a row for the full activity breakdown. Not
           linked from the app nav.
         </p>
