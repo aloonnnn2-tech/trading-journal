@@ -10,7 +10,7 @@ import { FloatingCards } from "@/components/landing/v2/FloatingCards";
 // untouched so the current homepage is unaffected. What changes is scale --
 // the headline steps up one size at every breakpoint and the mono eyebrow is
 // large enough to read as a typographic choice rather than a label -- and
-// motion: the headline arrives a word at a time, "pattern" carries a slow
+// motion: the headline arrives a word at a time, its last words carry a slow
 // shimmer, the primary button catches a light every few seconds, and the
 // capability strip runs as a ticker.
 //
@@ -24,9 +24,13 @@ import { FloatingCards } from "@/components/landing/v2/FloatingCards";
 // ships as opacity 0 and waits for hydration. The text column comes in from
 // the left and the panel from the right -- each side from its own side.
 
-// "every trade." is one token (non-breaking space) so the line breaks where
-// it always did.
-const HEADLINE = ["See", "the", "pattern", "behind", "every trade."];
+// For beginner swing traders, 0-50 trades in, who don't know their numbers
+// yet (Alon chose option B, 2026-11-21). "actually working." is one token
+// with an ordinary space: one line where there is room, and it wraps inside
+// its own block on a phone (a non-breaking space ran off a 390px screen).
+const HEADLINE = ["Find", "out", "if", "your", "trades", "are", "actually working."];
+/** The token that carries the slow shimmer. */
+const SHIMMER: ReadonlySet<string> = new Set(["actually working."]);
 
 const CAPABILITIES = [
   "equity curve",
@@ -51,7 +55,7 @@ export function Hero() {
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
         <div className="flex flex-col items-start gap-6 text-left">
           <span className="animate-rise-left font-mono text-xs uppercase tracking-[0.2em] text-primary sm:text-sm">
-            Free · No credit card
+            Free · Built for new swing traders
           </span>
           <h1 className="max-w-2xl text-5xl font-bold leading-[1.02] tracking-heading text-zinc-900 dark:text-zinc-50 sm:text-6xl lg:text-7xl">
             {HEADLINE.map((word, i) => (
@@ -60,7 +64,7 @@ export function Hero() {
                     trailing space collapses and the words run together. */}
                 {i > 0 && " "}
                 <span className="inline-block animate-rise-left" style={rise(40 + i * 40)}>
-                  {word === "pattern" ? (
+                  {SHIMMER.has(word) ? (
                     <span
                       className="animate-text-shimmer bg-[length:200%_auto] bg-clip-text text-transparent"
                       style={{
@@ -68,7 +72,7 @@ export function Hero() {
                           "linear-gradient(90deg, var(--color-primary), var(--color-accent), var(--color-primary))",
                       }}
                     >
-                      pattern
+                      {word}
                     </span>
                   ) : (
                     word
@@ -81,9 +85,9 @@ export function Hero() {
             className="max-w-lg animate-rise-left text-lg leading-relaxed text-zinc-600 dark:text-zinc-400"
             style={rise(220)}
           >
-            Record a trade in about a minute, then write down the rules you trade by.
-            Every entry is checked against them, so you can see which setups earn their
-            place and what your habits actually cost you.
+            Snap a screenshot from your broker and Trading Lenz logs the trade for you.
+            As your trades add up, you&apos;ll see your real win rate, your best setups and
+            the mistakes that cost you most.
           </p>
           {/* data-hero-actions: the floating "Leave a review" button stays off
               phones while these two are on screen (FloatingReviewButton). */}
@@ -96,7 +100,7 @@ export function Hero() {
                 aria-hidden
                 className="pointer-events-none absolute inset-0 animate-shimmer bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.35)_50%,transparent_65%)]"
               />
-              <span className="relative">Start journaling free</span>
+              <span className="relative">Log your first trade free</span>
             </Link>
             {/* Phase 3A: "See how it works" in place of "Log in", which the
                 nav already carries. Scrolls to the three steps. */}
