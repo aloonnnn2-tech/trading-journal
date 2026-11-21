@@ -3,7 +3,7 @@ import type { Config } from "@netlify/functions";
 /**
  * Hourly trigger for the onboarding emails (day-0 welcome, day-2 nudge).
  * Thin, like auto-execute-cron.mts: it only calls /api/cron/onboarding-emails
- * with CRON_SECRET. Until GMAIL_USER and GMAIL_APP_PASSWORD are set in
+ * with CRON_SECRET. Until BREVO_API_KEY is set in
  * Netlify, that route runs as a dry run and sends nothing.
  */
 export default async function handler() {

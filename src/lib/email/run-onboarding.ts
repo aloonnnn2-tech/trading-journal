@@ -1,7 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { accountGroup } from "@/lib/accounts/classify";
 import { demoKeepsOwnTrades } from "@/lib/demo/keeps-own-trades";
-import type { SendMail } from "./gmail";
+import type { SendMail } from "./send";
 import {
   onboardingEmail,
   pickOnboardingEmail,
@@ -12,7 +12,7 @@ import {
 } from "./onboarding";
 import { oneClickUnsubscribeUrl, unsubscribeUrl } from "./unsubscribe-token";
 
-/** Gmail allows ~500 a day; an hourly run never needs anywhere near this. */
+/** Brevo free allows 300 a day; an hourly run never needs anywhere near this. */
 export const MAX_SENDS_PER_RUN = 40;
 
 export interface OnboardingRunResult {
@@ -64,7 +64,7 @@ async function hasOwnTrade(admin: SupabaseClient, userId: string, demoMarked: bo
 
 /**
  * Sends whatever onboarding email each account is due. Records the send on
- * the account BEFORE sending and undoes the record if Gmail refuses, so a
+ * the account BEFORE sending and undoes the record if the send is refused, so a
  * failed write can never cause the same email to go out every hour.
  */
 export async function runOnboardingEmails({ admin, send, secret, now, dryRun }: Options): Promise<OnboardingRunResult> {

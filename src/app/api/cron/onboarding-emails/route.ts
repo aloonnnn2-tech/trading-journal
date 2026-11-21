@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { serverSecret } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { gmailSender } from "@/lib/email/gmail";
+import { brevoSender } from "@/lib/email/send";
 import { runOnboardingEmails } from "@/lib/email/run-onboarding";
 
 // The day-0 welcome and day-2 nudge emails (src/lib/email/onboarding.ts).
@@ -27,12 +27,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const send = gmailSender();
+  const send = brevoSender();
   const dryRun = new URL(request.url).searchParams.get("dryRun") === "1" || send === null;
 
   try {
     const result = await runOnboardingEmails({ admin: createAdminClient(), send, secret, now: new Date(), dryRun });
-    return NextResponse.json({ ...result, gmailConfigured: send !== null });
+    return NextResponse.json({ ...result, senderConfigured: send !== null });
   } catch (err) {
     console.error("[cron/onboarding-emails]", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Run failed" }, { status: 500 });

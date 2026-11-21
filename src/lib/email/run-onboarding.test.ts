@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runOnboardingEmails } from "./run-onboarding";
-import type { OutgoingMail } from "./gmail";
+import type { OutgoingMail } from "./send";
 
 const NOW = new Date("2026-11-20T12:00:00Z");
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600_000).toISOString();
@@ -104,19 +104,19 @@ describe("runOnboardingEmails", () => {
     expect(sent.map((m) => m.to)).toEqual(["empty@gmail.com"]);
   });
 
-  it("undoes the record when Gmail refuses, so the next run tries again", async () => {
+  it("undoes the record when the send is refused, so the next run tries again", async () => {
     const { admin, updates } = fakeAdmin([user("new1")]);
     const res = await runOnboardingEmails({
       admin,
       send: vi.fn(async () => {
-        throw new Error("535 bad credentials");
+        throw new Error("Brevo 401: unauthorized");
       }),
       secret: "s",
       now: NOW,
       dryRun: false,
     });
     expect(res.welcome).toBe(0);
-    expect(res.failures[0]).toContain("535");
+    expect(res.failures[0]).toContain("Brevo 401");
     expect(updates.at(-1)?.app_metadata).toMatchObject({ onboarding_emails: {} });
   });
 
