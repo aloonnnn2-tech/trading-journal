@@ -109,14 +109,14 @@ describe("runOnboardingEmails", () => {
     const res = await runOnboardingEmails({
       admin,
       send: vi.fn(async () => {
-        throw new Error("Brevo 401: unauthorized");
+        throw new Error("Gmail script 200: unauthorized");
       }),
       secret: "s",
       now: NOW,
       dryRun: false,
     });
     expect(res.welcome).toBe(0);
-    expect(res.failures[0]).toContain("Brevo 401");
+    expect(res.failures[0]).toContain("unauthorized");
     expect(updates.at(-1)?.app_metadata).toMatchObject({ onboarding_emails: {} });
   });
 

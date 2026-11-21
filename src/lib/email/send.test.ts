@@ -1,40 +1,44 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { brevoSender } from "./send";
+import { emailSender } from "./send";
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("brevoSender", () => {
-  it("is not configured without BREVO_API_KEY", () => {
-    vi.stubEnv("BREVO_API_KEY", "");
-    expect(brevoSender()).toBeNull();
+function configure() {
+  vi.stubEnv("GMAIL_SCRIPT_URL", "https://script.google.com/macros/s/abc/exec");
+  vi.stubEnv("GMAIL_SCRIPT_SECRET", "shh");
+}
+
+describe("emailSender (Gmail Apps Script)", () => {
+  it("is not configured without both variables", () => {
+    vi.stubEnv("GMAIL_SCRIPT_URL", "https://script.google.com/macros/s/abc/exec");
+    vi.stubEnv("GMAIL_SCRIPT_SECRET", "");
+    expect(emailSender()).toBeNull();
   });
 
-  it("posts the email to Brevo from the support address", async () => {
-    vi.stubEnv("BREVO_API_KEY", "key-123");
-    vi.stubEnv("EMAIL_FROM", "");
-    const fetchMock = vi.fn(async () => new Response("{}", { status: 201 }));
-    const send = brevoSender(fetchMock as unknown as typeof fetch)!;
-    await send({ to: "a@b.com", subject: "Hi", text: "Body", headers: { "List-Unsubscribe": "<x>" } });
-
+  it("posts the email and the shared secret to the script", async () => {
+    configure();
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }));
+    await emailSender(fetchMock as unknown as typeof fetch)!({ to: "a@b.com", subject: "Hi", text: "Body" });
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
-    expect((init.headers as Record<string, string>)["api-key"]).toBe("key-123");
-    expect(JSON.parse(init.body as string)).toEqual({
-      sender: { name: "Trading Lenz", email: "tradinglenz@gmail.com" },
-      replyTo: { email: "tradinglenz@gmail.com", name: "Trading Lenz" },
-      to: [{ email: "a@b.com" }],
-      subject: "Hi",
-      textContent: "Body",
-      headers: { "List-Unsubscribe": "<x>" },
-    });
+    expect(url).toBe("https://script.google.com/macros/s/abc/exec");
+    expect(JSON.parse(init.body as string)).toEqual({ secret: "shh", to: "a@b.com", subject: "Hi", text: "Body" });
   });
 
-  it("throws on a refused send, so the run undoes its record", async () => {
-    vi.stubEnv("BREVO_API_KEY", "key-123");
-    const fetchMock = vi.fn(async () => new Response('{"code":"unauthorized"}', { status: 401 }));
-    const send = brevoSender(fetchMock as unknown as typeof fetch)!;
-    await expect(send({ to: "a@b.com", subject: "Hi", text: "Body" })).rejects.toThrow("Brevo 401");
+  it("throws when the script refuses, so the run undoes its record", async () => {
+    configure();
+    const refused = vi.fn(async () => new Response('{"ok":false,"error":"unauthorized"}', { status: 200 }));
+    await expect(
+      emailSender(refused as unknown as typeof fetch)!({ to: "a@b.com", subject: "Hi", text: "Body" }),
+    ).rejects.toThrow("unauthorized");
+  });
+
+  it("throws on a Google sign-in page instead of JSON", async () => {
+    configure();
+    const html = vi.fn(async () => new Response("<html>Sign in</html>", { status: 200 }));
+    await expect(
+      emailSender(html as unknown as typeof fetch)!({ to: "a@b.com", subject: "Hi", text: "Body" }),
+    ).rejects.toThrow("Gmail script 200");
   });
 });

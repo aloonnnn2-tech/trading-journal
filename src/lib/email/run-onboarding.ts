@@ -12,8 +12,9 @@ import {
 } from "./onboarding";
 import { oneClickUnsubscribeUrl, unsubscribeUrl } from "./unsubscribe-token";
 
-/** Brevo free allows 300 a day; an hourly run never needs anywhere near this. */
-export const MAX_SENDS_PER_RUN = 40;
+/** Each send is a call to the Gmail script (a second or two), so a run stays
+ *  well inside the function time limit; Gmail allows 100 a day anyway. */
+export const MAX_SENDS_PER_RUN = 8;
 
 export interface OnboardingRunResult {
   dryRun: boolean;

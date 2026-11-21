@@ -1,54 +1,53 @@
 import { serverSecret } from "@/lib/server-env";
-import { HELP_EMAIL } from "@/lib/help/config";
 
 /**
- * Sends onboarding mail through Brevo's transactional email API
- * (https://developers.brevo.com/reference/sendtransacemail). Free plan:
- * 300 emails a day.
+ * Sends onboarding mail from the Trading Lenz Gmail account itself, through
+ * a Google Apps Script web app that account owns (scripts/gmail-sender.gs).
+ * The script calls GmailApp.sendEmail, so mail genuinely comes from
+ * tradinglenz@gmail.com: no app password (Google blocks those on this
+ * account), no third-party sender, no postal address on file anywhere.
+ * A personal account may send to 100 recipients a day.
  *
  * Netlify environment variables:
- *   BREVO_API_KEY  Brevo -> SMTP & API -> API keys (mark it secret)
- *   EMAIL_FROM     optional; the sender address, verified in Brevo under
- *                  Senders. Defaults to the support Gmail (HELP_EMAIL).
+ *   GMAIL_SCRIPT_URL     the web app's /exec URL (Deploy -> Manage deployments)
+ *   GMAIL_SCRIPT_SECRET  the same value as the script's SECRET property
  *
- * Replies go to the same address. Unset key means "not configured": the
- * caller runs as a dry run rather than failing.
+ * Unset means "not configured": the caller runs as a dry run.
  */
 export interface OutgoingMail {
   to: string;
   subject: string;
   text: string;
+  /** Not supported by GmailApp; kept for a future sender that can set them. */
   headers?: Record<string, string>;
 }
 
 export type SendMail = (mail: OutgoingMail) => Promise<void>;
 
-const BREVO_URL = "https://api.brevo.com/v3/smtp/email";
-
-export function brevoSender(fetchImpl: typeof fetch = fetch): SendMail | null {
-  const apiKey = serverSecret("BREVO_API_KEY");
-  if (!apiKey) return null;
-  const from = process.env.EMAIL_FROM || HELP_EMAIL;
+export function emailSender(fetchImpl: typeof fetch = fetch): SendMail | null {
+  const url = serverSecret("GMAIL_SCRIPT_URL");
+  const secret = serverSecret("GMAIL_SCRIPT_SECRET");
+  if (!url || !secret) return null;
 
   return async (mail) => {
-    const res = await fetchImpl(BREVO_URL, {
+    // Apps Script answers a POST with a redirect to the output; fetch follows it.
+    const res = await fetchImpl(url, {
       method: "POST",
-      headers: { "api-key": apiKey, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        sender: { name: "Trading Lenz", email: from },
-        replyTo: { email: from, name: "Trading Lenz" },
-        to: [{ email: mail.to }],
-        subject: mail.subject,
-        textContent: mail.text,
-        headers: mail.headers,
-      }),
-      signal: AbortSignal.timeout(15_000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret, to: mail.to, subject: mail.subject, text: mail.text }),
+      redirect: "follow",
+      signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) {
-      // Brevo's error body names the problem ("unauthorized", "sender not
-      // valid"); never includes the key.
-      const body = await res.text().catch(() => "");
-      throw new Error(`Brevo ${res.status}: ${body.slice(0, 200)}`);
+    const raw = await res.text().catch(() => "");
+    let parsed: { ok?: boolean; error?: string } = {};
+    try {
+      parsed = JSON.parse(raw) as { ok?: boolean; error?: string };
+    } catch {
+      // An HTML page instead of JSON: usually the deployment isn't shared
+      // with "Anyone", so Google shows a sign-in page.
+    }
+    if (!res.ok || parsed.ok !== true) {
+      throw new Error(`Gmail script ${res.status}: ${parsed.error ?? raw.slice(0, 120)}`);
     }
   };
 }
