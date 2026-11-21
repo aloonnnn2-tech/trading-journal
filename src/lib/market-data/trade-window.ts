@@ -60,14 +60,18 @@ const MAX_SPAN: Partial<Record<BarInterval, number>> = { "1m": 7 * DAY };
 const ROUTE_MAX_SPAN = 10 * 365 * DAY;
 
 /** How much context to fetch either side, so the chart can be scrolled out
- *  from the holding period without refetching. */
+ *  from the holding period without refetching. Daily and weekly bars run
+ *  right up to today (chooseBars caps the end at now) and two to three years
+ *  back, so an old trade can be seen in the context of what came after it
+ *  (Alon, 2026-11-21: a trade closed in May stopped at July). */
+const UP_TO_NOW = 10 * 365 * DAY;
 const CONTEXT: Record<BarInterval, { before: number; after: number }> = {
   "1m": { before: DAY, after: DAY },
   "5m": { before: 4 * DAY, after: 2 * DAY },
   "15m": { before: 10 * DAY, after: 5 * DAY },
   "60m": { before: 20 * DAY, after: 10 * DAY },
-  "1d": { before: 150 * DAY, after: 60 * DAY },
-  "1wk": { before: 2 * 365 * DAY, after: 365 * DAY },
+  "1d": { before: 2 * 365 * DAY, after: UP_TO_NOW },
+  "1wk": { before: 3 * 365 * DAY, after: UP_TO_NOW },
   "1mo": { before: 6 * 365 * DAY, after: 2 * 365 * DAY },
 };
 
