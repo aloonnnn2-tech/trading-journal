@@ -38,7 +38,7 @@ describe("chooseBars", () => {
     // The spec's example: TSLA, 2 Sep 2026, held 17 minutes.
     const req = chooseBars(at(2026, 9, 2, 13, 53), at(2026, 9, 2, 14, 10), NOW);
     expect(req.interval).toBe("1d");
-    expect(req.period1).toBe(at(2026, 9, 2, 13, 53) - 150 * DAY);
+    expect(req.period1).toBe(at(2026, 9, 2, 13, 53) - 2 * 365 * DAY);
     expect(req.period2).toBe(NOW);
   });
 
@@ -48,7 +48,15 @@ describe("chooseBars", () => {
     expect(req.period1).toBe(at(2026, 8, 29, 13, 53));
     expect(req.period2).toBe(at(2026, 9, 4, 14, 10));
     expect(chooseBars(at(2026, 9, 1), at(2026, 9, 8), NOW, "60m").interval).toBe("60m");
-    expect(chooseBars(at(2026, 9, 1), at(2026, 9, 8), NOW, "1wk").period1).toBe(at(2026, 9, 1) - 2 * 365 * DAY);
+    expect(chooseBars(at(2026, 9, 1), at(2026, 9, 8), NOW, "1wk").period1).toBe(at(2026, 9, 1) - 3 * 365 * DAY);
+  });
+
+  it("shows an old closed trade with two years before it and everything up to today", () => {
+    const entry = NOW - 400 * DAY;
+    const daily = chooseBars(entry, entry + 30 * DAY, NOW, "1d");
+    expect(daily.period1).toBe(entry - 2 * 365 * DAY);
+    expect(daily.period2).toBe(NOW);
+    expect(chooseBars(entry, entry + 30 * DAY, NOW, "1wk").period2).toBe(NOW);
   });
 
   it("never asks for intraday bars older than Yahoo keeps", () => {
